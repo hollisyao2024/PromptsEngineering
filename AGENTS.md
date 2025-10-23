@@ -5,11 +5,9 @@ version: 1.0 (2025-10-12)
 ---
 
 # AGENTS.md — 轻量路由与最小上下文规范
-
 > 目的：用**一个**上下文文件在三款 CLI中协同 5 位专家，**分阶段按需激活**，避免一次性塞满上下文与 Token 浪费。
 
 ## 目录与产物约定
-
 - 角色文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
 - 文档输出：
   - PRD：`/docs/PRD.md`
@@ -18,19 +16,19 @@ version: 1.0 (2025-10-12)
   - QA: `/docs/QA.md`
   - 变更记录：`/CHANGELOG.md`
   - 架构决策：`/docs/adr/NNN-*.md`（ADR 模板）
+- 目录规范：详见 `/docs/CONVENTIONS.md`；若项目包含 `frontend/`、`backend/`、`shared/`、`tests/`、`scripts/` 等目录，请遵循该文档。
 - 运行状态：`/docs/AGENT_STATE.md`（仅勾选复选框，便于路由）
 - 你全程用中文回复和展示思考过程
 
 ## 路由总则（只读）
-
 - **单阶段激活**：任一时刻仅激活 1 位专家，其余专家**不加载**到上下文。
 - **就近读取**：激活时再读取对应 `AgentRoles/*.md`；未激活角色不得引用其全文。
 - **产物驱动**：每个阶段的输出文件是下阶段**唯一输入**（加上用户补充）。
 - **可中断恢复**：以 `/docs/AGENT_STATE.md` 的勾选为恢复锚点。
+- **点读手册**：激活阶段后，优先点读对应 `AgentRoles/Handbooks/*.playbook.md` 的相关章节获取详细模板与 checklist。
 
-## 状态机（四阶段）
-
-1. `PRD_CONFIRMED` → 2. `ARCHITECTURE_DEFINED` → 3. `TASK_PLANNED` → 4. `TDD_DONE`
+## 状态机（五阶段）
+1. `PRD_CONFIRMED` → 2. `ARCHITECTURE_DEFINED` → 3. `TASK_PLANNED` → 4. `TDD_DONE` → 5. `QA_VALIDATED`
 
 ### 状态文件（/docs/AGENT_STATE.md）示例
 ```markdown
@@ -39,6 +37,7 @@ version: 1.0 (2025-10-12)
 - [ ] 2. ARCHITECTURE_DEFINED
 - [ ] 3. TASK_PLANNED
 - [ ] 4. TDD_DONE (代码合并前)
+- [ ] 5. QA_VALIDATED (发布前)
 ```
 
 ## 激活触发语法（跨 CLI 通用约定）
@@ -47,18 +46,20 @@ version: 1.0 (2025-10-12)
 - `[[ACTIVATE: ARCH]]`
 - `[[ACTIVATE: TASK]]`
 - `[[ACTIVATE: TDD]]`
+- `[[ACTIVATE: QA]]`
 
 ### 软触发与别名（推荐，跨 CLI 自然语言友好）
 > 下列写法**同样有效**，用于在不同 CLI / 对话里更自然地切换角色；无需严格使用 `[[ACTIVATE: ...]]` 语法。
 
 **短命令**（最省字符）  
-- `/prd`、`/arch`、`/task`、`/tdd`
+- `/prd`、`/arch`、`/task`、`/tdd`、`/qa`
 
 **自然语言（中文）**  
 - “你是 **PRD 专家**，请…… / 进入 **PRD 阶段**” → 激活 PRD  
 - “作为 **架构专家**，请…… / 切到 **架构阶段**” → 激活 ARCH  
 - “开始 **任务规划** / 进入 **TASK 阶段**” → 激活 TASK  
-- “进入 **TDD** / 作为 **TDD 专家** 实现……” → 激活 TDD
+- “进入 **TDD** / 作为 **TDD 专家** 实现……” → 激活 TDD  
+- “作为 **QA 专家** 完成验证 / 进入 **QA 阶段**” → 激活 QA
 
 **停用/切换**  
 - “PRD 已确认 / 完成 PRD” → 仅勾选 `PRD_CONFIRMED`，**不自动切换**；建议随后显式发 `/arch` 或 “进入架构阶段”。  
@@ -74,7 +75,8 @@ version: 1.0 (2025-10-12)
 - `/prd` 生成或修订 `/docs/PRD.md` v0；  
 - “作为架构专家，请基于 /docs/PRD.md 输出 /docs/ARCHITECTURE.md”；  
 - `/task` 把 PRD+ARCH 分解为 `/docs/TASK.md`（含 WBS/依赖/里程碑/风险）；  
-- `/tdd` 按 `/docs/TASK.md` TDD 开发；提交前执行“文档回写 Gate”。
+- `/tdd` 按 `/docs/TASK.md` TDD 开发；提交前执行“文档回写 Gate”；  
+- `/qa` 基于 `/docs/QA.md` 验证回归并给出发布建议。
 
 ---
 
@@ -112,8 +114,7 @@ version: 1.0 (2025-10-12)
 
 **移交给 TASK**：激活 `[[ACTIVATE: TASK]]`。
 
-**快捷命令**：
-- `/arch data-view` — 刷新“数据视图”（`/docs/ARCHITECTURE.md` §数据视图、`/docs/data/ERD.mmd`、`/docs/data/dictionary.md`），列出必要 ADR 草案。
+**快捷命令**：`/arch data-view`（刷新数据视图，更多操作见角色卡片）。
 
 ---
 
@@ -132,8 +133,7 @@ version: 1.0 (2025-10-12)
 
 **移交给 TDD**：激活 `[[ACTIVATE: TDD]]`。
 
-**快捷命令**：
-- `/task plan` — 生成/刷新 WBS（依赖/关键路径/里程碑/风险），填充“DB 任务段”，勾选 `TASK_PLANNED`。
+**快捷命令**：`/task plan`（刷新 WBS/依赖，更多操作见角色卡片）。
 
 ---
 
@@ -165,47 +165,30 @@ version: 1.0 (2025-10-12)
 
 **完成勾选**：合并前勾选 `TDD_DONE`；如被退回，取消勾选并返回对应阶段。
 
-**快捷命令**：
-- `/tdd diagnose` — 复现+定位并生成失败用例与修复方案；
-- `/tdd fix` — 最小修复并通过测试后自动 `/tdd sync`。
-- `/tdd sync` 触发“文档回写 Gate”（小修自动回写；若超出阈值将提示切换 `/prd`、`/arch` 或 `/task`）。
-- `/ci run`
-  - 作用：触发或重跑当前分支的 CI（lint/typecheck/test/build）。
-  - 触发方式：
-    - 自动：push / PR 即触发；
-    - 手动：若 `ci.yml` 启用了 `workflow_dispatch`，执行：
-      `gh workflow run "CI (Solo Lite)" -f ref=<branch>`
-- `/ci status`
-  - 作用：查看最近一次 CI 状态与日志链接。
-  - 示例：`gh run list -L 1`，`gh run watch`。
-- `/ship staging [--skip-ci]`
-  - 作用：在本地直接部署到 staging（调用 `scripts/deploy.sh staging`，默认先跑 `scripts/ci.sh`）。
-  - 触发方式：
-    - Shell 执行：`scripts/deploy.sh staging`（可追加 `--skip-ci`）。
-    - 若需分步验证，可先执行 `scripts/ci.sh` 再单独运行 `scripts/deploy.sh staging --skip-ci`。
-  - 口令变体：`本地部署到 staging`、`ship staging`。
-- `/ship prod [--skip-ci]`
-  - 作用：在本地直接部署到 production（调用 `scripts/deploy.sh production`）。
-  - 用法与 staging 相同，注意发布前完成人工回归与审批。
-  - 口令变体：`本地部署到 production`、`ship prod`。
-- `/cd staging`
-  - 作用：通过 GitHub Actions 触发远程部署到 staging。
-  - 触发方式：
-    - 手动：`scripts/cd.sh staging` 或者 `gh workflow run Deploy -f environment=staging -f ref=main`
-    - GitHub UI：Actions → Deploy → Run workflow。
-  - 口令变体：`触发远程 staging 部署`、`cd staging`。
-- `/cd prod [vX.Y.Z]`
-  - 作用：通过 GitHub Actions 触发远程部署到 production（推荐使用 SemVer tag）。
-  - 触发方式：
-    - GitHub UI 或 `scripts/cd.sh production` 或者 `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z`
-    - 标签触发（若未来开启）：`git tag -a vX.Y.Z ... && git push origin vX.Y.Z`
-  - 说明：需遵守 GitHub Environment 的保护规则（Required reviewers / Wait timer）。
-  - 口令变体：`触发远程 production 部署`、`cd prod`。
+**移交给 QA**：激活 `[[ACTIVATE: QA]]`。
 
----
+**快捷命令**：`/tdd diagnose` · `/tdd fix` · `/tdd sync`（CI/CD 命令详见角色卡片或 Handbook）。
+
+
+## Phase 5 — QA 专家（验收与发布建议）
+**何时激活**：`TDD_DONE` 勾选后，准备发布前需要独立验证或回归测试时。
+
+**读取**：仅在激活后加载：`/AgentRoles/QA-TESTING-EXPERT.md`
+
+**输入**：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md`（历史记录）、最新 CI 结果与提交说明（含 `CHANGELOG.md`）。
+
+**输出**：
+- 更新 `/docs/QA.md`（测试策略/执行记录/缺陷清单/验收结论），必要时附上复现路径。
+- 对关键缺陷或范围偏差提出回流建议（例如退回 `TDD` 或重新激活 `PRD/ARCH/TASK`）。
+
+**完成勾选**：所有阻塞缺陷关闭后勾选 `QA_VALIDATED`；若发现阻塞问题，取消 `TDD_DONE` 并通知相关阶段处理。
+
+**发布准备**：汇总 QA 结论，确认 `CHANGELOG.md` 与产物一致，可触发 `/ship` 或 `/cd` 流程。
+
+**快捷命令**：`/qa verify`（快速聚焦验收项，更多操作见角色卡片）。
 
 ## Token 预算与最小上下文策略
-- **永不内联**四位专家的全文内容到对话；只在激活后按需读取对应 `AgentRoles/*.md`。
+- **永不内联**五位专家的全文内容到对话；只在激活后按需读取对应 `AgentRoles/*.md`。
 - 回复尽量以**产物差异**（PRD/ARCH/TASK 更新点）为核心，避免冗余复述。
 - 大段图表/清单使用“链接到文件”的方式输出（例如在 `/docs` 下维护）。
 
@@ -223,6 +206,6 @@ version: 1.0 (2025-10-12)
 - 如需读取 `.env` 或 `secret/` 仅用于本地验证；
 - 禁止在未激活阶段主动加载其他角色文件内容。
 
-**快捷命令速查**：`/prd confirm` · `/arch data-view` · `/task plan` · `/tdd diagnose` · `/tdd fix` · `/tdd sync` · `/ci run` · `/ci status` · `/ship staging` · `/ship prod` · `/cd staging` · `/cd prod`
+**快捷命令速查**：`/prd confirm` · `/arch data-view` · `/task plan` · `/tdd diagnose` · `/tdd fix` · `/tdd sync` · `/qa verify` · `/ci run` · `/ci status` · `/ship staging` · `/ship prod` · `/cd staging` · `/cd prod`
 
 > 本文件为路由规范；角色细节、模板与长篇说明均在各自 `AgentRoles/*.md` 中维护。

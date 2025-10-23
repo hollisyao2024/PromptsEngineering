@@ -3,3 +3,4 @@
 - [ ] 2. ARCHITECTURE_DEFINED
 - [ ] 3. TASK_PLANNED
 - [ ] 4. TDD_DONE (代码合并前)
+- [ ] 5. QA_VALIDATED (发布前)

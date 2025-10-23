@@ -4,6 +4,7 @@
 - 此文档禁止大模型修改，只能人工调整
 - 本文档用于指导 AI 编码代理（Agent）在本 monorepo 项目中执行各项编码工作。  
 - 目标是让 Agent 能够高效、统一地生成、修改和维护代码，同时保持团队工程规范与安全边界。
+- 目录与命名遵循 `/docs/CONVENTIONS.md`，所有新增或调整文件需符合该规范。
 
 ---
 
@@ -138,6 +139,11 @@ black backend/
 - scripts/deploy.sh staging|production # 本地部署（口令：/ship staging|prod，默认会跑 scripts/ci.sh）
 - scripts/deploy-stage.sh / scripts/deploy-production.sh # 触发 GitHub Actions（口令：/cd staging|prod）
 ```
+
+### 文档回写与交接
+- 回写 `/docs/TASK.md`、`/docs/PRD.md`、`/docs/ARCHITECTURE.md` 时保持章节引用准确，必要时更新 `/docs/CONVENTIONS.md`
+- 同步新增/更新的 `/docs/adr/NNN-*.md`、`/docs/CHANGELOG.md`、`/db/migrations/`
+- 完成实现后在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE` 并将任务交接给 QA 阶段
 
 所有改动前必须通过 lint 与测试。
 

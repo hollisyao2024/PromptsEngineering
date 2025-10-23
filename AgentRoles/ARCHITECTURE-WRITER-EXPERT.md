@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`（既有版本）、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：拆任务/排期/编码。
 
 ## 输入
@@ -15,6 +15,8 @@
 - **`/docs/ARCHITECTURE.md`**（唯一权威版本）。
 - 关键设计取舍写 **ADR**：列出应新增的 **ADR** 草案标题，放入`/docs/adr/NNN-*.md`（如“数据库选型”“部署拓扑”“审计与加密策略”）。
 - **数据视图细化产物**：`/docs/data/ERD.mmd`、`/docs/data/dictionary.md`（数据字典）
+- 若产出影响已有内容，记得同步 `/docs/CHANGELOG.md` 记录及相应 ADR。
+- 涉及视图模板、技术选型矩阵等细节时，点读 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md` §核心工作流程与标准结构。
 
 ## 完成定义（DoD）
 - 明确以下视图（Mermaid 优先）：

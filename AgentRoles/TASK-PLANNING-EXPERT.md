@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：编写功能代码。
 
 ## 输入
@@ -13,6 +13,7 @@
 
 ## 输出（写入路径）
 - **`/docs/TASK.md`**：WBS、依赖矩阵、关键路径（CPM）、里程碑、资源与风险、**测试映射**。
+- 需要 WBS/依赖矩阵模板或风险登记范例时，点读 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md` §核心工作流程。
 
 ## 完成定义（DoD）
 - WBS 任务具备：描述、Owner、输入/输出、估时、依赖、风险、验收标准（对应 PRD 的 AC）。
