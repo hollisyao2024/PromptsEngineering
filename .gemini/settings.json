@@ -1,0 +1,6 @@
+{
+  // 重新定义 Gemini 的上下文文件名，不用默认的 GEMINI.md，可以支持多个 context 文件。
+  "context": {
+    "fileName": ["AGENTS.md"]
+  }
+}
