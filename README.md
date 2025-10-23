@@ -52,6 +52,7 @@
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
 - `docs/`（含 `PRD.md`、`ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
 - `db/`（含 `migrations/` 模板）
+- `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）
 - `CLAUDE.md`（若需要支持 Claude Code CLI）
 
 **通常不拷贝**
