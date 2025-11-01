@@ -51,12 +51,14 @@
 ## CD 任务（Solo Lite）
 - **策略**：默认**手动触发/环境审批**；或先对预发/灰度自动，生产人工确认。
 - **检查清单**：CI 全绿、必要审批、发布 **Runbook/回滚**、关键监控阈值在线；涉及结构性变更时同步 ADR 与迁移方案。
+- **部署触发**：TDD 专家负责 CI 验证；实际部署由 **QA 专家验证通过后**触发（见 `/qa` 快捷命令）。
 
 ## 完成定义（DoD）
 - 质量门禁通过；文档回写完成；需要的 ADR/变更记录齐全；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
 
 ## 交接
-- 交付可发布制品与文档；若被退回，按状态文件回退到对应阶段修正。
+- 交付可发布制品与文档；CI 全绿后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
+- 部署操作由 QA 专家在验证通过后执行。
 
 ## 快捷命令
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
@@ -68,32 +70,9 @@
     - 自动：push / PR 即触发；
     - 手动：若 `ci.yml` 启用了 `workflow_dispatch`，执行：
       `gh workflow run "CI (Solo Lite)" -f ref=<branch>`
-- `/ci status` 
+- `/ci status`
   - 作用：查看最近一次 CI 状态与日志链接。
   - 示例：`gh run list -L 1`，`gh run watch`。
-- `/ship staging [--skip-ci]` 
-  - 作用：在本地直接部署到 staging（调用 `scripts/deploy.sh staging`，默认先跑 `scripts/ci.sh`）。
-  - 触发方式：
-    - Shell 执行：`scripts/deploy.sh staging`（紧急场景可加 `--skip-ci`）。
-    - 若需分步验证，可先执行 `scripts/ci.sh` 再单独运行 `scripts/deploy.sh staging --skip-ci`。
-  - 口令变体：`本地部署到 staging`、`ship staging`。
-- `/ship prod [--skip-ci]` 
-  - 作用：在本地直接部署到 production（调用 `scripts/deploy.sh production`）。
-  - 用法与 staging 相同，注意发布前完成人工回归与审批。
-  - 口令变体：`本地部署到 production`、`ship prod`。
-- `/cd staging`
-  - 作用：通过 GitHub Actions 触发远程部署到 staging。
-  - 触发方式：
-    - 手动：`scripts/cd.sh staging` 或者 `gh workflow run Deploy -f environment=staging -f ref=main`
-    - GitHub UI：Actions → Deploy → Run workflow。
-  - 口令变体：`触发远程 staging 部署`、`cd staging`。
-- `/cd prod [vX.Y.Z]` 
-  - 作用：通过 GitHub Actions 触发远程部署到 production（推荐使用 SemVer tag）。
-  - 触发方式：
-    - GitHub UI 或 `scripts/cd.sh production` 或者 `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z`
-    - 标签触发（若未来开启）：`git tag -a vX.Y.Z ... && git push origin vX.Y.Z`
-  - 说明：需遵守 GitHub Environment 的保护规则（Required reviewers / Wait timer）。
-  - 口令变体：`触发远程 production 部署`、`cd prod`。
 
 ## TDD Pull Request 最小模板（片段）
 ```markdown

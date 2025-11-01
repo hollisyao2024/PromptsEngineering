@@ -1,7 +1,7 @@
 ---
 name: agents-router
 summary: 单文件、多模型（Codex CLI / Claude Code CLI / Gemini CLI）通用的轻量级 Agent 路由说明；按需加载角色，最小上下文占用。
-version: 1.0 (2025-10-12)
+version: 1.4 (2025-11-01)
 ---
 
 # AGENTS.md — 轻量路由与最小上下文规范
@@ -71,12 +71,25 @@ version: 1.0 (2025-10-12)
 3) 若只有模糊意图（如“看看架构”）且无明确触发，**保持当前阶段不变**；  
 4) 任意时刻都可用 `/prd|/arch|/task|/tdd|/qa` 明确覆盖。
 
-**示例（可直接粘贴）**  
-- `/prd` 生成或修订 `/docs/PRD.md` v0；  
-- “作为架构专家，请基于 /docs/PRD.md 输出 /docs/ARCHITECTURE.md”；  
-- `/task` 把 PRD+ARCH 分解为 `/docs/TASK.md`（含 WBS/依赖/里程碑/风险）；  
-- `/tdd` 按 `/docs/TASK.md` TDD 开发；提交前执行“文档回写 Gate”；  
+**示例（可直接粘贴）**
+- `/prd` 生成或修订 `/docs/PRD.md` v0；
+- "作为架构专家，请基于 /docs/PRD.md 输出 /docs/ARCHITECTURE.md"；
+- `/task` 把 PRD+ARCH 分解为 `/docs/TASK.md`（含 WBS/依赖/里程碑/风险）；
+- `/tdd` 按 `/docs/TASK.md` TDD 开发；提交前执行"文档回写 Gate"；
 - `/qa` 基于 `/docs/QA.md` 验证回归并给出发布建议。
+
+### 快捷命令与自动激活
+> **重要**：所有快捷命令（如 `/prd confirm`、`/arch data-view` 等）在执行时会**自动激活**对应的专家角色。
+
+- 当你输入 `/prd confirm` 时，系统会自动执行 `[[ACTIVATE: PRD]]` 并加载 `/AgentRoles/PRD-WRITER-EXPERT.md`
+- 当你输入 `/arch data-view` 时，系统会自动执行 `[[ACTIVATE: ARCH]]` 并加载对应角色
+- 其他快捷命令同理
+
+**执行流程**：
+1. 识别快捷命令（如 `/task plan`）
+2. 自动激活所属专家（TASK 专家）
+3. 读取专家角色文件（`/AgentRoles/TASK-PLANNING-EXPERT.md`）
+4. 执行快捷命令对应的操作
 
 ---
 
@@ -96,6 +109,7 @@ version: 1.0 (2025-10-12)
 **移交给 ARCH**：激活 `[[ACTIVATE: ARCH]]`。
 
 **快捷命令**：`/prd confirm` — 轻量收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`。
+  *（使用此命令会自动激活 PRD 专家并加载其角色文件）*
 
 ---
 
@@ -114,7 +128,8 @@ version: 1.0 (2025-10-12)
 
 **移交给 TASK**：激活 `[[ACTIVATE: TASK]]`。
 
-**快捷命令**：`/arch data-view`（刷新数据视图，更多操作见角色卡片）。
+**快捷命令**：`/arch data-view` — 刷新数据视图（更多操作见角色卡片）。
+  *（使用此命令会自动激活 ARCHITECTURE 专家并加载其角色文件）*
 
 ---
 
@@ -133,7 +148,8 @@ version: 1.0 (2025-10-12)
 
 **移交给 TDD**：激活 `[[ACTIVATE: TDD]]`。
 
-**快捷命令**：`/task plan`（刷新 WBS/依赖，更多操作见角色卡片）。
+**快捷命令**：`/task plan` — 刷新 WBS/依赖（更多操作见角色卡片）。
+  *（使用此命令会自动激活 TASK 专家并加载其角色文件）*
 
 ---
 
@@ -168,6 +184,7 @@ version: 1.0 (2025-10-12)
 **移交给 QA**：激活 `[[ACTIVATE: QA]]`。
 
 **快捷命令**：`/tdd diagnose` · `/tdd fix` · `/tdd sync`（CI/CD 命令详见角色卡片或 Handbook）。
+  *（使用这些命令会自动激活 TDD 专家并加载其角色文件）*
 
 
 ## Phase 5 — QA 专家（验收与发布建议）
@@ -185,7 +202,8 @@ version: 1.0 (2025-10-12)
 
 **发布准备**：汇总 QA 结论，确认 `CHANGELOG.md` 与产物一致，可触发 `/ship` 或 `/cd` 流程。
 
-**快捷命令**：`/qa verify`（快速聚焦验收项，更多操作见角色卡片）。
+**快捷命令**：`/qa verify` — 快速聚焦验收项（更多操作见角色卡片）。
+  *（使用此命令会自动激活 QA 专家并加载其角色文件）*
 
 ## Token 预算与最小上下文策略
 - **永不内联**五位专家的全文内容到对话；只在激活后按需读取对应 `AgentRoles/*.md`。
@@ -206,6 +224,34 @@ version: 1.0 (2025-10-12)
 - 如需读取 `.env` 或 `secret/` 仅用于本地验证；
 - 禁止在未激活阶段主动加载其他角色文件内容。
 
-**快捷命令速查**：`/prd confirm` · `/arch data-view` · `/task plan` · `/tdd diagnose` · `/tdd fix` · `/tdd sync` · `/qa verify` · `/ci run` · `/ci status` · `/ship staging` · `/ship prod` · `/cd staging` · `/cd prod`
+---
+
+## 快捷命令速查（按专家分组）
+> **执行规则**：使用任一快捷命令时，会**自动激活**对应专家并读取其角色文件。
+
+### PRD 专家
+- `/prd confirm` — 收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`
+
+### ARCHITECTURE 专家
+- `/arch data-view` — 刷新数据视图（更多操作见角色卡片）
+
+### TASK 专家
+- `/task plan` — 刷新 WBS/依赖（更多操作见角色卡片）
+
+### TDD 专家
+- `/tdd diagnose` — 诊断当前代码/测试问题
+- `/tdd fix` — 修复已识别问题
+- `/tdd sync` — 执行文档回写 Gate（同步 PRD/ARCH/TASK/CHANGELOG/ADR）
+- `/ci run` — 触发 CI 流水线
+- `/ci status` — 查看 CI 状态
+
+### QA 专家
+- `/qa verify` — 快速聚焦验收项（更多操作见角色卡片）
+- `/ship staging` — 部署到预发环境
+- `/ship prod` — 部署到生产环境
+- `/cd staging` — CD 流程（预发）
+- `/cd prod` — CD 流程（生产）
+
+---
 
 > 本文件为路由规范；角色细节、模板与长篇说明均在各自 `AgentRoles/*.md` 中维护。
