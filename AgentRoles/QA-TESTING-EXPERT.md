@@ -49,29 +49,40 @@
 - `/ship staging [--skip-ci]`
   - 作用：在本地直接部署到 staging（调用 `scripts/deploy.sh staging`，默认先跑 `scripts/ci.sh`）。
   - 前置条件：staging 环境验证通过，无阻塞缺陷。
-  - 触发方式：Shell 执行：`scripts/deploy.sh staging`（紧急场景可加 `--skip-ci`）。
+  - 触发方式（推荐优先级从高到低）：
+    1. `npm run ship:staging` （跨平台推荐，避免命令截断）
+    2. `npm run ship:staging:skip-ci` （跳过 CI 检查）
+    3. `scripts/deploy.sh staging` （直接调用脚本）
   - 口令变体：`本地部署到 staging`、`ship staging`。
 
 - `/ship prod [--skip-ci]`
   - 作用：在本地直接部署到 production（调用 `scripts/deploy.sh production`）。
   - 前置条件：生产环境验证通过，所有阻塞缺陷关闭，审批完成。
-  - 触发方式：与 staging 相同，注意发布前完成人工回归与审批。
+  - 触发方式（推荐优先级从高到低）：
+    1. `npm run ship:prod` （跨平台推荐，避免命令截断）
+    2. `npm run ship:prod:skip-ci` （跳过 CI 检查）
+    3. `scripts/deploy.sh production` （直接调用脚本）
   - 口令变体：`本地部署到 production`、`ship prod`。
 
 - `/cd staging`
   - 作用：通过 GitHub Actions 触发远程部署到 staging。
   - 前置条件：CI 全绿，staging 环境验证通过。
-  - 触发方式：
-    - 手动：`scripts/cd.sh staging` 或 `gh workflow run Deploy -f environment=staging -f ref=main`
-    - GitHub UI：Actions → Deploy → Run workflow。
+  - 触发方式（推荐优先级从高到低）：
+    1. `npm run cd:staging` （跨平台推荐，避免命令截断）
+    2. `scripts/cd.sh staging` （直接调用脚本）
+    3. `gh workflow run Deploy -f environment=staging -f ref=main` （GitHub CLI）
+    4. GitHub UI：Actions → Deploy → Run workflow
   - 口令变体：`触发远程 staging 部署`、`cd staging`。
 
 - `/cd prod [vX.Y.Z]`
   - 作用：通过 GitHub Actions 触发远程部署到 production（推荐使用 SemVer tag）。
   - 前置条件：生产验收通过，所有阻塞缺陷关闭，`QA_VALIDATED` 已勾选。
-  - 触发方式：
-    - GitHub UI 或 `scripts/cd.sh production` 或 `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z`
-    - 标签触发（若未来开启）：`git tag -a vX.Y.Z ... && git push origin vX.Y.Z`
+  - 触发方式（推荐优先级从高到低）：
+    1. `npm run cd:prod` （跨平台推荐，避免命令截断）
+    2. `scripts/cd.sh production` （直接调用脚本）
+    3. `scripts/cd.sh production --ref vX.Y.Z` （指定版本标签）
+    4. `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z` （GitHub CLI）
+    5. 标签触发（若未来开启）：`git tag -a vX.Y.Z ... && git push origin vX.Y.Z`
   - 说明：需遵守 GitHub Environment 的保护规则（Required reviewers / Wait timer）。
   - 口令变体：`触发远程 production 部署`、`cd prod`。
 
