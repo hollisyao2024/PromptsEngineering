@@ -1,7 +1,7 @@
 ---
 name: agents-router
 summary: 单文件、多模型（Codex CLI / Claude Code CLI / Gemini CLI）通用的轻量级 Agent 路由说明；按需加载角色，最小上下文占用。
-version: 1.4 (2025-11-01)
+version: 1.5 (2025-11-02)
 ---
 
 # AGENTS.md — 轻量路由与最小上下文规范
@@ -247,10 +247,10 @@ version: 1.4 (2025-11-01)
 
 ### QA 专家
 - `/qa verify` — 快速聚焦验收项（更多操作见角色卡片）
-- `/ship staging` — 部署到预发环境
-- `/ship prod` — 部署到生产环境
-- `/cd staging` — CD 流程（预发）
-- `/cd prod` — CD 流程（生产）
+- `/ship staging` — 在本地直接部署到预发环境
+- `/ship prod` — 在本地直接部署到生产环境
+- `/cd staging` — 通过 GitHub Actions 触发远程部署到预发环境
+- `/cd prod` — 通过 GitHub Actions 触发远程部署到生产环境
 
 ---
 
