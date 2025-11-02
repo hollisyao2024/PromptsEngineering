@@ -119,7 +119,7 @@
 
 ### 部署命令（QA 验证通过后触发）
 - `/ship staging [--skip-ci]`
-  - 作用：在本地直接部署到 staging（调用 `scripts/deploy.sh staging`，默认先跑 `scripts/ci.sh`）。
+  - 作用：在本地直接部署到 staging。
   - 前置条件：staging 环境验证通过，无阻塞缺陷。
   - 触发方式（推荐优先级从高到低）：
     1. `npm run ship:staging` （跨平台推荐，避免命令截断）
@@ -128,7 +128,7 @@
   - 口令变体：`本地部署到 staging`、`ship staging`。
 
 - `/ship prod [--skip-ci]`
-  - 作用：在本地直接部署到 production（调用 `scripts/deploy.sh production`）。
+  - 作用：在本地直接部署到 production。
   - 前置条件：生产环境验证通过，所有阻塞缺陷关闭，审批完成。
   - 触发方式（推荐优先级从高到低）：
     1. `npm run ship:prod` （跨平台推荐，避免命令截断）

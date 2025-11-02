@@ -73,8 +73,15 @@
 
 ## 5. 部署与发布流程
 
-### 5.1 部署前检查清单
-在触发部署前，QA 专家需确认以下条件：
+### 5.1 环境预检 (自动)
+**重要**: 首次执行部署命令 (`/ship` 或 `/cd`) 时，QA 专家会自动执行一次环境预检。
+- **检查目标**: 确保根目录 `package.json` 的 `scripts` 字段包含所有必需的部署命令。
+- **自动修复**: 若有缺失，会自动添加，并保留用户已有的其他脚本。
+- **提示**: 你会看到类似 `[QA] ✅ package.json scripts 配置完整...` 或 `[QA] ⚠️  检测到 ... 缺失的 scripts，正在自动添加...` 的提示。
+- **目的**: 确保部署流程的标准化和可靠性，此检查在单次会话中仅执行一次。
+
+### 5.2 部署前检查清单
+在触发任何部署前，QA 专家需确认以下条件：
 - [ ] 所有阻塞缺陷已关闭
 - [ ] `/docs/QA.md` 发布建议为"建议发布"或"有条件发布"（前置条件已满足）
 - [ ] CI 状态全绿（最新一次构建）
@@ -83,42 +90,40 @@
 - [ ] 回滚方案已准备并验证可行性
 - [ ] 必要的审批已完成（生产环境）
 
-### 5.2 部署命令使用
+### 5.3 快捷命令使用 (推荐)
+部署操作应优先使用以下快捷命令。它们封装了标准化的 `npm` 脚本，是跨平台、更可靠的推荐方式。
 
-#### 本地部署（适用于紧急修复或小规模环境）
-```bash
-# 部署到 staging（默认会先运行 CI 检查）
-scripts/deploy.sh staging
+#### `/ship <env> [--skip-ci]` — 本地直接部署
+在本地环境中执行部署脚本，适用于快速迭代或紧急修复。
 
-# 紧急场景跳过 CI（需谨慎使用）
-scripts/deploy.sh staging --skip-ci
+- **命令**: `/ship staging`
+  - **作用**: 在本地部署到 `staging` 环境。
+  - **执行逻辑**: `npm run ship:staging`
 
-# 部署到生产环境
-scripts/deploy.sh production
-```
+- **命令**: `/ship staging --skip-ci`
+  - **作用**: 在本地部署到 `staging` 环境，并跳过 CI 检查。**请谨慎使用**。
+  - **执行逻辑**: `npm run ship:staging:skip-ci`
 
-**快捷命令**：
-- `/ship staging` — 本地部署到 staging
-- `/ship prod` — 本地部署到 production
+- **命令**: `/ship prod`
+  - **作用**: 【极高危】在本地部署到 `production` 环境。
+  - **执行逻辑**: `npm run ship:prod`
 
-#### 远程部署（推荐方式，通过 GitHub Actions）
-```bash
-# 触发远程 staging 部署
-scripts/cd.sh staging
-# 或使用 gh CLI
-gh workflow run Deploy -f environment=staging -f ref=main
+> **实现细节**: 这些 `npm` 脚本通常会调用 `scripts/deploy.sh` 脚本来完成实际的部署工作。
 
-# 触发远程生产部署（使用版本标签）
-scripts/cd.sh production
-# 或使用 gh CLI
-gh workflow run Deploy -f environment=production -f ref=v1.2.3
-```
+#### `/cd <env> [ref]` — 远程触发部署
+通过 GitHub Actions 触发远程 CI/CD 流水线进行部署，是标准、可审计的推荐方式。
 
-**快捷命令**：
-- `/cd staging` — 远程部署到 staging
-- `/cd prod [vX.Y.Z]` — 远程部署到生产（推荐使用语义化版本标签）
+- **命令**: `/cd staging`
+  - **作用**: 触发 GitHub Actions 工作流，部署 `main` 分支到 `staging` 环境。
+  - **执行逻辑**: `npm run cd:staging`
 
-### 5.3 部署后验证
+- **命令**: `/cd prod [vX.Y.Z]`
+  - **作用**: 【极高危】触发 GitHub Actions 工作流，部署指定版本 (如 `v1.2.3`) 到 `production` 环境。
+  - **执行逻辑**: `npm run cd:prod` (可能需要配合版本参数)
+
+> **实现细节**: 这些 `npm` 脚本通常会调用 `scripts/cd.sh` 或直接使用 `gh workflow run` 命令来触发 GitHub Actions。
+
+### 5.4 部署后验证
 
 部署完成后立即执行：
 1. **基本冒烟测试**：
@@ -142,7 +147,7 @@ gh workflow run Deploy -f environment=production -f ref=v1.2.3
    - 通知干系人部署结果
    - 若发现问题，立即执行回滚并记录复现路径
 
-### 5.4 回滚流程
+### 5.5 回滚流程
 
 若部署后发现阻塞问题：
 ```bash
