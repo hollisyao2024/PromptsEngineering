@@ -30,6 +30,78 @@
   - `CHANGELOG.md` 与产物一致
   - 必要的审批与回滚方案就绪
 
+## 环境预检（首次激活时自动执行）
+
+### package.json scripts 完整性检查
+
+**检查时机**：
+- **仅在首次激活 QA 专家后，执行第一个部署命令前检查一次**
+- 触发命令：`/ship staging`、`/ship prod`、`/cd staging`、`/cd prod` 中的任意一个
+- 同一会话中后续部署命令不再重复检查
+
+**检查目标**：
+根目录 `/package.json` 的 `scripts` 字段必须包含以下 6 个部署命令：
+
+```json
+{
+  "scripts": {
+    "ship:staging": "./scripts/deploy.sh staging",
+    "ship:staging:skip-ci": "./scripts/deploy.sh staging --skip-ci",
+    "ship:prod": "./scripts/deploy.sh production",
+    "ship:prod:skip-ci": "./scripts/deploy.sh production --skip-ci",
+    "cd:staging": "./scripts/cd.sh staging",
+    "cd:prod": "./scripts/cd.sh production"
+  }
+}
+```
+
+**自动修复逻辑**：
+1. 使用 Read 工具读取根目录 `package.json`
+2. 检查 `scripts` 字段是否存在（若不存在，创建空对象 `"scripts": {}`）
+3. 对比上述 6 个必需条目，识别缺失项
+4. 若有缺失，使用 Edit 工具将缺失的条目添加到 `scripts` 对象中：
+   - 保留原有的所有 scripts（不删除、不覆盖）
+   - 仅添加缺失的条目
+   - 保持原文件的 JSON 格式（通常是 2 空格缩进）
+5. 输出提示信息（见下方示例）
+6. 设置内部会话标记 `_package_scripts_checked = true`（仅当前对话有效，无需持久化）
+
+**冲突处理**：
+- 若同名 script 存在但值不同（如 `"ship:staging": "custom-command"`），保留用户自定义值，输出警告：
+  ```
+  [QA] ⚠️  检测到自定义 script: ship:staging = "custom-command"（已保留，未覆盖）
+  ```
+- 若 6 个条目全部存在且值正确，跳过修改，仅输出：
+  ```
+  [QA] ✅ package.json scripts 配置完整，无需修改
+  ```
+
+**检查跳过条件**：
+- 内部标记 `_package_scripts_checked = true` 时，跳过检查，直接执行部署命令
+- 下次重新激活 QA 专家时（新会话），标记重置，重新检查
+
+**示例输出（首次激活）**：
+```
+[QA] 正在激活 QA 专家...
+[QA] 环境预检：检查 package.json 部署配置...
+[QA] ⚠️  检测到 3 个缺失的 scripts，正在自动添加...
+[QA] ✅ 已添加：ship:staging:skip-ci, ship:prod:skip-ci, cd:prod
+[QA] 准备执行部署命令...
+```
+
+**示例输出（配置完整）**：
+```
+[QA] 正在激活 QA 专家...
+[QA] 环境预检：检查 package.json 部署配置...
+[QA] ✅ package.json scripts 配置完整，无需修改
+[QA] 准备执行部署命令...
+```
+
+**示例输出（后续部署命令）**：
+```
+[QA] 执行部署命令（环境预检已完成，跳过检查）
+```
+
 ## 完成定义（DoD）
 - `/docs/QA.md` 更新覆盖策略、执行记录、缺陷状态与发布建议；
 - 阻塞缺陷已关闭或确认回流并退回对应阶段处理；
