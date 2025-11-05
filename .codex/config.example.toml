@@ -17,13 +17,14 @@
 # 控制何时需要用户批准命令执行
 #
 # 选项说明：
-# - "untrusted"（推荐，团队默认）：大多数命令需要批准，仅信任少数安全命令
-# - "on-failure"：命令失败时才提示
+# - "untrusted"：大多数命令需要批准，仅信任少数安全命令（最保守）
+# - "on-failure"（推荐，团队默认）：命令失败时才提示，成功时自动执行
 # - "on-request"：仅当 Codex 明确请求时才提示
 # - "never"：完全自动化，所有命令自动执行（危险）
 #
-# 团队默认设置为 "untrusted" 以保证安全
-approval_policy = "untrusted"
+# 团队默认设置为 "on-failure"，平衡安全性和便利性
+# 对齐 Claude Code 方案 C：允许常规操作自动执行，仅在异常时介入
+approval_policy = "on-failure"
 
 # --- 沙箱模式（文件系统访问控制）---
 # 控制 Codex 可以访问和修改的文件范围
@@ -35,6 +36,12 @@ approval_policy = "untrusted"
 #
 # 团队默认设置为 "workspace-write"，允许修改项目文件但保护系统文件
 sandbox_mode = "workspace-write"
+
+# --- 沙箱网络访问（workspace-write 模式下的网络配置）---
+# 当 sandbox_mode = "workspace-write" 时，需要显式启用网络访问
+# 对齐 Claude Code 方案 C：允许网络访问（Claude 需确认，Codex 为全局开关）
+[sandbox_workspace_write]
+network_access = true  # 启用网络访问，允许 WebFetch 等操作
 
 # --- MCP 服务器配置 ---
 # Model Context Protocol 服务器配置

@@ -95,15 +95,23 @@ echo $CODEX_HOME
 
 ```toml
 # 平衡策略：安全性和便利性的折中
-approval_policy = "untrusted"        # 大多数命令需要确认
+approval_policy = "on-failure"       # 失败时才提示，成功时自动执行
 sandbox_mode = "workspace-write"     # 仅允许修改项目文件
+
+[sandbox_workspace_write]
+network_access = true                # 启用网络访问
 ```
 
 **效果**：
-- ✅ Git 操作可能需要确认
-- ✅ 文档编辑可能需要确认
+- ✅ Git 操作自动执行（失败时才提示）
+- ✅ 文档编辑自动执行（失败时才提示）
 - ✅ 项目文件可以修改
+- ✅ 网络访问允许（WebFetch 等）
 - ❌ 系统文件禁止修改
+
+**对齐 Claude Code 方案 C**：
+- Claude: `permissions.allow = ["Bash(git add:*)", "Edit(docs/**)", ...]`
+- Codex: `approval_policy = "on-failure"` (更宽松，但接近效果)
 
 ### 个人配置（`config.toml`）
 
@@ -111,12 +119,20 @@ sandbox_mode = "workspace-write"     # 仅允许修改项目文件
 # 完全自动化：无打扰工作流
 approval_policy = "never"            # 所有命令自动执行
 sandbox_mode = "danger-full-access"  # 完全文件系统访问
+
+[sandbox_danger_full_access]
+network_access = true                # 明确启用网络访问
 ```
 
 **效果**：
 - ✅ 所有命令自动执行
-- ✅ 所有文件可以修改
-- ⚠️ 包括系统文件
+- ✅ 所有文件可以修改（包括系统文件）
+- ✅ 网络访问允许
+- ⚠️ 无任何安全限制
+
+**对齐 Claude Code 个人配置**：
+- Claude: `permissions.allow = ["Bash", "Edit", "Write", "WebFetch", ...]`
+- Codex: `approval_policy = "never"` + `sandbox_mode = "danger-full-access"`
 
 ## 🆚 与 Claude Code / Gemini CLI 的对比
 
@@ -133,34 +149,54 @@ sandbox_mode = "danger-full-access"  # 完全文件系统访问
 
 | 需求 | Claude Code | Gemini CLI | **Codex** |
 |------|-------------|-----------|-----------|
-| **完全自动化** | `permissions.allow: ["Bash", "Edit", "Write"]` | `bash.autoExecute: true` `file.confirm: false` | `approval_policy: "never"` `sandbox_mode: "danger-full-access"` |
+| **完全自动化** | `permissions.allow: ["Bash", "Edit", "Write", "WebFetch"]` | `bash.autoExecute: true` `file.confirm: false` `networking.autoPermit: true` | `approval_policy: "never"` `sandbox_mode: "danger-full-access"` `network_access: true` |
 | **保守安全** | 大量 deny 规则 | 所有开关设为 false | `approval_policy: "untrusted"` `sandbox_mode: "read-only"` |
-| **平衡策略** | 精心设计的 allow/deny | 部分开关为 true | `approval_policy: "on-failure"` `sandbox_mode: "workspace-write"` ✅ |
+| **平衡策略** | 精心设计的 allow/deny/ask | 部分开关为 true | `approval_policy: "on-failure"` `sandbox_mode: "workspace-write"` `network_access: true` ✅ |
+
+### 架构差异与限制
+
+| 特性 | Claude Code | Codex CLI | 说明 |
+|------|-------------|-----------|------|
+| **权限粒度** | 细粒度（可针对特定命令/路径） | 全局策略 | Codex 无法实现"允许 git add 但拒绝 git push --force" |
+| **Git 操作** | 可单独配置每个 git 命令 | 统一遵循 approval_policy | Codex 的 `on-failure` 作为近似替代 |
+| **文件编辑** | 可允许特定目录 `Edit(docs/**)` | 沙箱模式全局控制 | Codex 无法单独允许编辑 docs/ 而拒绝其他 |
+| **网络访问** | `ask: ["WebFetch(domain:*)"]` 可提示确认 | `network_access = true/false` 全局开关 | Codex 只能全开/全关，无法实现"需确认" |
+| **MCP 服务器** | `enableAllProjectMcpServers: true` 全局开关 | 需逐个定义 `[mcp_servers.*]` | Codex 无"自动启用所有"功能 |
+
+**结论**：Codex 采用**策略驱动**的权限模型，无法达到 Claude Code 的**细粒度控制**，但可通过 `approval_policy` 的不同模式实现接近的效果。
 
 ## 🛡️ 安全考虑
 
 ### 团队配置的平衡策略
 
 ```toml
-approval_policy = "untrusted"
+approval_policy = "on-failure"
 sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
 ```
 
-- ✅ 阻止大多数意外操作
+- ✅ 大多数操作自动执行，失败时才提示
 - ✅ 允许修改项目文件
+- ✅ 允许网络访问
 - ❌ 禁止修改系统文件
-- ⚠️ 关键操作需要确认
+- ⚠️ 异常情况需要确认
 
 ### 个人配置的风险
 
 ```toml
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
+
+[sandbox_danger_full_access]
+network_access = true
 ```
 
 - ⚠️ 所有命令自动执行
-- ⚠️ 可以修改任何文件
+- ⚠️ 可以修改任何文件（包括系统文件）
 - ⚠️ 可以执行危险操作
+- ⚠️ 允许任意网络访问
 - ⚠️ 无任何安全检查
 
 **建议**：
