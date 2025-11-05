@@ -75,11 +75,23 @@
   - 里程碑与跨模块依赖
   - 追溯矩阵引用
 
-- **子模块 PRD**（`/docs/prd-modules/{domain}.md`）：详细需求（按功能域拆分）
+- **子模块 PRD**（`/docs/prd-modules/{domain}/PRD.md`）：详细需求（按功能域拆分）
   - 模块概述、用户故事、验收标准（Given-When-Then）
   - 模块级 NFR、接口与依赖、数据模型、风险
 
 - **追溯矩阵**（`/docs/data/traceability-matrix.md`）：集中维护全局 Story→AC→TestID 映射
+
+### 模块内部结构（v1.8+）
+每个功能域模块在 `/docs/prd-modules/{domain}/` 目录下可包含以下文件：
+- `PRD.md` — 模块 PRD（必需）
+- `dependency-graph.mmd` — 模块内依赖图（推荐，模块内 Story > 10 个时）
+- `nfr-tracking.md` — 模块 NFR 追踪表（推荐，有关键 NFR 时）
+- `priority-matrix.md` — 模块优先级矩阵（可选，优先级决策复杂时）
+
+**与全局数据的关系**：
+- 模块依赖图：只包含模块内 Story 依赖（如 US-USER-001 → US-USER-003）
+- 全局依赖图（`/docs/data/global-dependency-graph.mmd`）：包含跨模块依赖（如 US-USER-003 → US-PAY-001）
+- 详细说明见 [STRUCTURE-GUIDE.md](prd-modules/STRUCTURE-GUIDE.md) 和 [data/README.md](data/README.md)
 
 ### ID 命名规范
 - **Story ID**：`US-{MODULE}-{序号}`（如 `US-USER-001`、`US-PAY-005`）

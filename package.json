@@ -1,0 +1,38 @@
+{
+  "name": "prompts-engineering-agents-router",
+  "version": "1.8.0",
+  "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
+  "scripts": {
+    "prd:lint": "node scripts/prd-tools/check-completeness.js",
+    "prd:check-dependency-cycles": "node scripts/prd-tools/check-dependency-cycles.js",
+    "prd:check-dependencies": "node scripts/prd-tools/check-external-dependencies.js",
+    "prd:check-compliance": "node scripts/prd-tools/check-compliance.js",
+    "prd:preflight-report": "node scripts/prd-tools/generate-preflight-report.js",
+    "prd:sync-matrix": "node scripts/prd-tools/sync-traceability-matrix.js",
+    "prd:generate-dependency-graph": "node scripts/prd-tools/generate-dependency-graph.js",
+    "nfr:check-compliance": "node scripts/prd-tools/check-nfr-compliance.js",
+    "priority:check-conflicts": "node scripts/prd-tools/check-priority-conflicts.js",
+    "priority:calc-dependency": "node scripts/prd-tools/calc-dependency-weight.js",
+    "priority:report": "node scripts/prd-tools/generate-priority-report.js",
+    "persona:coverage-report": "node scripts/prd-tools/generate-persona-coverage.js",
+    "persona:check-orphans": "node scripts/prd-tools/check-orphan-personas.js",
+    "persona:check-conflicts": "node scripts/prd-tools/check-permission-conflicts.js",
+    "goal:coverage-report": "node scripts/prd-tools/generate-goal-coverage.js",
+    "goal:check-orphans": "node scripts/prd-tools/check-orphan-stories.js",
+    "goal:roi-analysis": "node scripts/prd-tools/generate-roi-analysis.js",
+    "cr:new": "node scripts/prd-tools/create-change-request.js",
+    "cr:pending": "node scripts/prd-tools/list-pending-crs.js",
+    "cr:impact": "node scripts/prd-tools/analyze-cr-impact.js"
+  },
+  "keywords": [
+    "prd",
+    "requirements",
+    "agents",
+    "codex",
+    "claude-code",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}

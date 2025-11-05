@@ -118,6 +118,8 @@ version: 1.7 (2025-11-02)
 
 详细拆分指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7。
 
+**PRD 增强功能**（v1.8+）：关于企业级需求管理增强（CR 流程、依赖图、优先级矩阵、Shift-Left 检查等）的实施路线图，见 `/docs/PRD-ENHANCEMENT-ROADMAP.md`。
+
 **完成勾选**：在 `/docs/AGENT_STATE.md` 将 `PRD_CONFIRMED` 勾选为完成。
 
 **移交给 ARCH**：激活 `[[ACTIVATE: ARCH]]`。
