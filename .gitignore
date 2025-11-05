@@ -1,3 +1,15 @@
 /.DS_Store
 **/.DS_Store
 /.github
+
+# Claude Code 个人配置（不提交）
+.claude/settings.local.json
+
+# Gemini CLI 个人配置（不提交）
+.gemini/settings.local.json
+
+# Codex CLI 个人配置和运行时文件（不提交）
+.codex/config.toml
+.codex/auth.json
+.codex/history.jsonl
+.codex/sessions/

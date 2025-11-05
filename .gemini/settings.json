@@ -1,6 +1,47 @@
 {
-  // 重新定义 Gemini 的上下文文件名，不用默认的 GEMINI.md，可以支持多个 context 文件。
+  // ============================================================================
+  // Gemini CLI 团队共享配置（保守策略）
+  // 用途：为 AGENTS 路由系统优化，采用"默认拒绝"安全策略
+  // 提交状态：应提交到 Git 仓库，供团队成员共享
+  // 覆盖：个人可在 .gemini/settings.local.json 中覆盖此配置
+  // ============================================================================
+
+  // --- 上下文配置 ---
+  // 指定上下文文件为 AGENTS.md（AGENTS 路由系统的核心）
+  // 支持多个上下文文件，可添加更多文件到 fileName 数组
   "context": {
     "fileName": ["AGENTS.md"]
-  }
+  },
+
+  // --- 文件设置 ---
+  // 自动保存由工具发起的代码变更
+  // 建议开启：简化工作流，避免手动保存
+  "file.autoSave": true,
+
+  // 应用文件变更前需要用户确认（团队安全基准）
+  // 强烈建议关闭（设为 true）：防止意外修改重要文件
+  // 个人可在 settings.local.json 中覆盖此项以实现自动化
+  "file.confirm": true,
+
+  // --- 执行与网络 ---
+  // 执行 shell 命令前需要确认
+  // 强烈建议关闭（设为 false）：防止意外执行危险命令
+  "bash.autoExecute": false,
+
+  // 访问网络前需要确认
+  // 强烈建议关闭（设为 false）：保证安全，防止数据泄露
+  "networking.autoPermit": false,
+
+  // --- 工具特定设置 ---
+  // MCP 服务器自动连接
+  // 可选：如果 MCP 服务器是团队开发环境的标准部分，可设为 true
+  "mcp.autoConnect": true,
+
+  // 执行斜杠命令前需要确认
+  // 建议关闭（设为 false）：防止意外执行自定义命令
+  "slashCommand.autoExecute": false,
+
+  // 编辑 Jupyter Notebook 前需要确认
+  // 建议关闭（设为 false）：防止意外修改 notebook
+  "jupyter.autoEdit": false
 }

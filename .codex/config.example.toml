@@ -1,0 +1,126 @@
+# ==============================================================================
+# Codex CLI 团队共享配置模板（平衡策略）
+# 用途：为 AGENTS 路由系统优化，平衡安全性和便利性
+# 提交状态：应提交到 Git 仓库，供团队成员共享
+# 使用方法：复制此文件为 config.toml 并根据个人需求调整
+#   cp .codex/config.example.toml .codex/config.toml
+# 环境变量：CODEX_HOME=$PWD/.codex codex
+# ==============================================================================
+
+# --- 模型配置 ---
+# 指定使用的 AI 模型（可选）
+# 示例："gpt-5-codex", "o3", "claude-3-opus"
+# 默认：使用 Codex 默认模型
+# model = "gpt-5-codex"
+
+# --- 批准策略（重要安全设置）---
+# 控制何时需要用户批准命令执行
+#
+# 选项说明：
+# - "untrusted"（推荐，团队默认）：大多数命令需要批准，仅信任少数安全命令
+# - "on-failure"：命令失败时才提示
+# - "on-request"：仅当 Codex 明确请求时才提示
+# - "never"：完全自动化，所有命令自动执行（危险）
+#
+# 团队默认设置为 "untrusted" 以保证安全
+approval_policy = "untrusted"
+
+# --- 沙箱模式（文件系统访问控制）---
+# 控制 Codex 可以访问和修改的文件范围
+#
+# 选项说明：
+# - "read-only"（最安全）：只能读取文件，不能修改
+# - "workspace-write"（推荐，团队默认）：可以写入当前工作目录和 $TMPDIR
+# - "danger-full-access"（危险）：完全文件系统访问权限
+#
+# 团队默认设置为 "workspace-write"，允许修改项目文件但保护系统文件
+sandbox_mode = "workspace-write"
+
+# --- MCP 服务器配置 ---
+# Model Context Protocol 服务器配置
+# 格式：[mcp_servers.<服务器名称>]
+#
+# 示例：文件系统访问（仅供参考，根据项目需求启用）
+# [mcp_servers.filesystem]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
+#
+# 示例：GitHub 集成（需要 GITHUB_TOKEN 环境变量）
+# [mcp_servers.github]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-github"]
+# env = { "GITHUB_TOKEN" = "your-token-here" }
+#
+# 示例：Brave 搜索（需要 BRAVE_API_KEY）
+# [mcp_servers.brave_search]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-brave-search"]
+# env = { "BRAVE_API_KEY" = "your-api-key-here" }
+
+# --- 功能开关（实验性功能）---
+# 启用或禁用实验性功能
+[features]
+# 启用原生网络搜索工具（需要配置搜索 API）
+# web_search = false
+
+# 启用图片查看功能
+# image_viewing = false
+
+# 启用可流式传输的 shell
+# streamable_shell = false
+
+# --- 配置文件（Profiles）---
+# 仅对 Codex CLI 生效，IDE 扩展不支持
+# 可以定义多个配置文件，使用 codex --profile <名称> 切换
+#
+# 示例：保守模式（严格安全）
+# [profiles.conservative]
+# approval_policy = "untrusted"
+# sandbox_mode = "read-only"
+#
+# 示例：开发模式（便利优先）
+# [profiles.dev]
+# approval_policy = "on-failure"
+# sandbox_mode = "workspace-write"
+#
+# 示例：完全自动化模式（危险，仅在信任环境使用）
+# [profiles.auto]
+# approval_policy = "never"
+# sandbox_mode = "danger-full-access"
+
+# ==============================================================================
+# 个人配置建议
+# ==============================================================================
+#
+# 如果你想实现完全自动化，可以在 config.toml 中设置：
+#
+# approval_policy = "never"
+# sandbox_mode = "danger-full-access"
+#
+# ⚠️ 警告：这将禁用所有安全检查，仅在完全信任的环境中使用！
+#
+# 推荐的个人配置（平衡模式）：
+#
+# approval_policy = "on-failure"  # 失败时才提示
+# sandbox_mode = "workspace-write"  # 允许修改项目文件
+#
+# ==============================================================================
+
+# ==============================================================================
+# 与其他 AI 工具的对比
+# ==============================================================================
+#
+# Claude Code 配置对比：
+# - Claude: permissions.allow = ["Bash", "Edit", "Write"]
+# - Codex: approval_policy = "on-failure" + sandbox_mode = "workspace-write"
+#
+# Gemini CLI 配置对比：
+# - Gemini: bash.autoExecute = true, file.confirm = false
+# - Codex: approval_policy = "never" + sandbox_mode = "danger-full-access"
+#
+# Codex 的优势：
+# - 更细粒度的沙箱控制
+# - 基于命令可信度的动态批准
+# - 支持多个配置文件（CLI）
+#
+# ==============================================================================
