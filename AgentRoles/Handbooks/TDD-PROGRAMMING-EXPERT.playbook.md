@@ -36,6 +36,149 @@
 - `tests/`：集成与端到端测试；前端以 Vitest + Playwright，后端以 pytest/pytest-asyncio/httpx
 - `db/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.mmd`、`dictionary.md`
 
+### 2.1 迁移脚本的幂等性保障
+
+数据库迁移脚本**必须满足幂等性**：即使被执行多次，最终结果应保持一致，不产生重复的表、列、索引或数据。
+
+#### A. SQL 迁移的幂等性模式
+
+**EXPAND 阶段 - 条件判断**
+```sql
+-- ✅ 正确：使用条件判断（可重复执行）
+CREATE TABLE IF NOT EXISTS orders (
+    id SERIAL PRIMARY KEY,
+    order_number VARCHAR(255) UNIQUE NOT NULL
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- ❌ 错误：直接创建（重复执行会报错）
+CREATE TABLE orders (...);  -- ERROR: relation "orders" already exists
+ALTER TABLE users ADD COLUMN email VARCHAR(255);  -- ERROR: column "email" already exists
+```
+
+**MIGRATE/BACKFILL 阶段 - 幂等数据处理**
+```sql
+-- ✅ 正确：WHERE 条件确保只处理未迁移的数据
+UPDATE users
+SET new_field = old_field
+WHERE new_field IS NULL AND old_field IS NOT NULL
+LIMIT 1000;  -- 分批处理，避免锁表
+
+-- ❌ 错误：无条件更新（重复执行可能覆盖手动改动）
+UPDATE users SET new_field = old_field;
+```
+
+**CONTRACT 阶段 - 安全删除**
+```sql
+-- ✅ 正确：条件判断
+ALTER TABLE users DROP COLUMN IF EXISTS old_column;
+
+DROP INDEX IF EXISTS idx_users_old_field;
+
+-- ❌ 错误：直接删除
+ALTER TABLE users DROP COLUMN old_column;  -- ERROR: column "old_column" does not exist
+```
+
+#### B. Python 迁移的幂等性模式
+
+```python
+# /db/migrations/20250105_100000_add_email_column.py
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy import inspect
+
+def upgrade():
+    """EXPAND 阶段：添加新列（幂等）"""
+    # 检查列是否已存在
+    inspector = inspect(op.get_bind())
+    columns = [c['name'] for c in inspector.get_columns('users')]
+
+    if 'email' not in columns:
+        op.add_column('users', sa.Column('email', sa.String(255)))
+    else:
+        print("Column 'email' already exists, skipping...")
+
+def data_migrate():
+    """MIGRATE/BACKFILL 阶段：数据迁移（幂等）"""
+    from sqlalchemy.orm import Session
+    connection = op.get_bind()
+    session = Session(bind=connection)
+
+    # 批量处理，每批检查是否已处理
+    batch_size = 1000
+    while True:
+        # 只处理尚未迁移的数据
+        result = connection.execute("""
+            SELECT id, legacy_email
+            FROM users
+            WHERE email IS NULL AND legacy_email IS NOT NULL
+            LIMIT :batch_size
+        """, {"batch_size": batch_size})
+
+        rows = result.fetchall()
+        if not rows:
+            break  # 所有数据已迁移
+
+        for row in rows:
+            connection.execute("""
+                UPDATE users
+                SET email = :email
+                WHERE id = :id
+            """, {"email": row.legacy_email, "id": row.id})
+
+        session.commit()
+        print(f"Migrated {len(rows)} rows...")
+
+def downgrade():
+    """ROLLBACK 阶段：回滚（也应幂等）"""
+    inspector = inspect(op.get_bind())
+    columns = [c['name'] for c in inspector.get_columns('users')]
+
+    if 'email' in columns:
+        op.drop_column('users', 'email')
+    else:
+        print("Column 'email' does not exist, skipping rollback...")
+```
+
+#### C. 数据库系统差异
+
+| 数据库 | IF NOT EXISTS 支持 | 注意事项 |
+|--------|-------------------|---------|
+| **PostgreSQL** | ✅ 原生支持 | 推荐使用 `DO $$ ... END $$;` 处理复杂逻辑 |
+| **MySQL 8.0+** | ✅ 支持 | 早期版本需用存储过程或脚本检查 |
+| **SQLite** | ⚠️ 部分支持 | CREATE TABLE/INDEX 支持，ALTER TABLE 不支持 |
+
+#### D. 幂等性验证步骤（提交前必做）
+
+```bash
+# 1. 首次执行验证
+psql test_db -f db/migrations/20250105_100000_add_email.sql
+# 记录数据库状态（行数、索引、约束）
+
+# 2. 重复执行验证
+psql test_db -f db/migrations/20250105_100000_add_email.sql
+# 应该成功执行，无副作用（或报告"已存在，跳过"）
+
+# 3. 回滚与重新执行验证
+psql test_db -f db/migrations/20250105_100000_rollback.sql
+psql test_db -f db/migrations/20250105_100000_add_email.sql
+# 验证最终状态与第一次执行相同
+```
+
+#### E. 常见幂等性陷阱
+
+| 陷阱 | 风险 | 解决方案 |
+|------|------|---------|
+| 无条件的 CREATE/ALTER | 重复执行报错 | 使用 `IF NOT EXISTS` / `IF EXISTS` |
+| 数据迁移无过滤 | 覆盖已修改的数据 | 使用 `WHERE field IS NULL` 检查 |
+| 未考虑数据库差异 | 部署失败 | 针对目标数据库编写兼容脚本 |
+| 忘记写回滚脚本 | 无法恢复 | 每个 upgrade 必须有对应的 downgrade |
+| 未在本地验证 | 生产事故 | 提交前执行 3 次验证 |
+| 性能未评估 | 长时间锁表 | 使用 `LIMIT` 分批处理，评估执行时间 |
+
 ---
 
 ## 3. TDD 核心流程
@@ -112,6 +255,25 @@ scripts/ci.sh              # TDD 专家负责：CI 验证
 - [ ] `CHANGELOG.md` 写入本次语义化条目；新增依赖或关键决策补充 ADR
 - [ ] 如有脚本、配置或迁移文件，提供回滚/复现说明
 - [ ] `/docs/AGENT_STATE.md` 更新 `TDD_DONE` 勾选状态并准备移交给 QA
+
+### 数据库迁移额外检查清单（如有数据库变更）
+- [ ] 迁移脚本位置正确：`/db/migrations/YYYYMMDD_HHMMSS_*.sql|py`
+- [ ] 脚本遵循命名规范（描述清晰、易理解）
+- [ ] **EXPAND 阶段**：所有 DDL 使用条件判断（`IF NOT EXISTS` / `IF EXISTS`）
+- [ ] **BACKFILL 阶段**：数据迁移使用 WHERE 条件（`WHERE field IS NULL`），确保幂等
+- [ ] **CONTRACT 阶段**：删除操作使用条件判断，确保安全
+- [ ] **ROLLBACK 脚本**：回滚脚本存在且也满足幂等性
+- [ ] **幂等性验证**：本地测试 3 次执行
+  - [ ] 首次执行成功
+  - [ ] 重复执行成功（无报错或预期的"已执行"提示）
+  - [ ] 回滚+重新执行成功（结果一致）
+- [ ] **数据一致性**：迁移前后的行数、关键字段值已验证
+- [ ] **性能评估**：大表迁移已评估执行时间（使用 LIMIT 分批处理）
+- [ ] **文档同步**：
+  - [ ] `/docs/data/ERD.mmd` 已更新（反映新表/字段/关系）
+  - [ ] `/docs/data/dictionary.md` 已更新（新增字段说明）
+  - [ ] `/docs/ARCHITECTURE.md` 的数据视图已同步
+- [ ] **回滚方案**：文档中清晰说明回滚步骤与可能的数据风险
 
 ---
 
