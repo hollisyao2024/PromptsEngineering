@@ -10,7 +10,9 @@ version: 1.7 (2025-11-02)
 ## 目录与产物约定
 - 角色文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
 - 文档输出：
-  - PRD：`/docs/PRD.md`
+  - PRD：`/docs/PRD.md`（主 PRD，小项目单文件；大型项目作为总纲与索引）
+  - PRD 模块（大型项目）：`/docs/prd-modules/{domain}.md`（按功能域拆分的详细 PRD）
+  - 追溯矩阵：`/docs/data/traceability-matrix.md`（Story → AC → Test Case ID 映射）
   - Architecture：`/docs/ARCHITECTURE.md`
   - Task 计划：`/docs/TASK.md`
   - QA: `/docs/QA.md`
@@ -101,8 +103,20 @@ version: 1.7 (2025-11-02)
 **输入**：用户访谈/补充信息、历史 PRD（如有）。
 
 **输出**：
-- 产出/更新 `/docs/PRD.md`（含：目标、用户画像、用户故事、验收标准 Given-When-Then、非功能需求）。
+- **小型项目**：产出/更新 `/docs/PRD.md`（单文件，含：目标、用户画像、用户故事、验收标准 Given-When-Then、非功能需求）。
+- **大型项目**（满足拆分条件时）：
+  - 主 PRD（`/docs/PRD.md`）：总纲与索引（< 500 行），包含产品概述、全局范围、用户角色、功能域索引、里程碑与依赖。
+  - 子模块 PRD（`/docs/prd-modules/{domain}.md`）：按功能域拆分的详细需求。
+  - 追溯矩阵（`/docs/data/traceability-matrix.md`）：集中维护 Story → AC → Test Case ID 映射。
 - 若有关键取舍，新增 `/docs/adr/NNN-*.md`（简要 ADR）。
+
+**拆分条件**（满足任一即可）：
+- 单文件 > 1000 行
+- 用户故事 > 50 个
+- 业务域边界明确（3+ 子系统）
+- 多团队并行协作
+
+详细拆分指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7。
 
 **完成勾选**：在 `/docs/AGENT_STATE.md` 将 `PRD_CONFIRMED` 勾选为完成。
 
@@ -118,11 +132,25 @@ version: 1.7 (2025-11-02)
 
 **读取**：仅在激活后加载：`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`
 
-**输入**：`/docs/PRD.md`
+**输入**：
+- `/docs/PRD.md`（作为总纲）
+- 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}.md` 对应的模块 PRD
 
 **输出**：
-- 产出/更新 `/docs/ARCHITECTURE.md`（逻辑/物理/运行/开发视图、技术选型、数据与接口、安全、高可用）。
-- 必要时产出 ADR：`/docs/adr/NNN-*.md`
+- **小型项目**：产出/更新 `/docs/ARCHITECTURE.md`（单文件，含：逻辑/物理/运行/开发视图、技术选型、数据与接口、安全、高可用）。
+- **大型项目**（满足拆分条件时）：
+  - 主架构文档（`/docs/ARCHITECTURE.md`）：总纲与索引（< 500 行），包含系统概述、功能域架构索引、全局视图、全局技术选型与 ADR、跨模块依赖关系、全局风险。
+  - 子模块架构文档（`/docs/architecture-modules/{domain}.md`）：按功能域拆分的详细架构设计。
+- 必要时产出 ADR：`/docs/adr/NNN-{module}-*.md`（如 `001-user-auth-strategy.md`）
+
+**拆分条件**（满足任一即可）：
+- 主文档 > 1000 行
+- 子系统/服务 > 8 个
+- 业务域边界明确（3+ 独立领域模型）
+- 多团队并行开发
+- 数据模型复杂（30+ 实体表）
+
+详细拆分指南见 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md`。
 
 **完成勾选**：在状态文件勾选 `ARCHITECTURE_DEFINED`。
 
@@ -138,11 +166,26 @@ version: 1.7 (2025-11-02)
 
 **读取**：仅在激活后加载：`/AgentRoles/TASK-PLANNING-EXPERT.md`
 
-**输入**：`/docs/PRD.md`，`/docs/ARCHITECTURE.md`
+**输入**：
+- `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）
+- 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
+  - `/docs/prd-modules/{domain}.md`
+  - `/docs/architecture-modules/{domain}.md`
 
 **输出**：
-- 产出/更新 `/docs/TASK.md`（WBS、依赖矩阵、资源与时间线、里程碑、风险登记）。
+- **小型项目**：产出/更新 `/docs/TASK.md`（单文件，含：WBS、依赖矩阵、资源与时间线、里程碑、风险登记）。
+- **大型项目**（满足拆分条件时）：
+  - 主任务文档（`/docs/TASK.md`）：总纲与索引（< 500 行），包含项目概述、模块任务索引、全局里程碑、跨模块依赖关系、全局关键路径、全局风险与缓解。
+  - 子模块任务文档（`/docs/task-modules/{domain}.md`）：按功能域拆分的详细任务计划。
 
+**拆分条件**（满足任一即可）：
+- 主文档 > 1000 行
+- 工作包（WBS）> 50 个
+- 存在 3+ 并行开发流（多团队/多模块）
+- 项目周期 > 6 个月
+- 跨模块依赖复杂（10+ 个依赖关系）
+
+详细拆分指南见 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md`。
 
 **完成勾选**：在状态文件勾选 `TASK_PLANNED`。
 
@@ -192,11 +235,30 @@ version: 1.7 (2025-11-02)
 
 **读取**：仅在激活后加载：`/AgentRoles/QA-TESTING-EXPERT.md`
 
-**输入**：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md`（历史记录）、最新 CI 结果与提交说明（含 `CHANGELOG.md`）。
+**输入**：
+- `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md`（历史记录）、最新 CI 结果与提交说明（含 `CHANGELOG.md`）。
+- 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
+  - `/docs/prd-modules/{domain}.md`
+  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/task-modules/{domain}.md`
+- **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）
 
 **输出**：
-- 更新 `/docs/QA.md`（测试策略/执行记录/缺陷清单/验收结论），必要时附上复现路径。
+- **小型项目**：更新 `/docs/QA.md`（单文件，含：测试策略/执行记录/缺陷清单/验收结论），必要时附上复现路径。
+- **大型项目**（满足拆分条件时）：
+  - 主 QA 文档（`/docs/QA.md`）：总纲与索引（< 500 行），包含测试概述、模块测试索引、全局测试策略、全局质量指标、全局风险评估、发布建议。
+  - 子模块 QA 文档（`/docs/qa-modules/{domain}.md`）：按功能域拆分的详细测试计划与执行记录。
+- **追溯矩阵更新**：测试执行过程中，及时更新 `/docs/data/traceability-matrix.md` 的测试状态（Pass/Fail）与缺陷 ID。
 - 对关键缺陷或范围偏差提出回流建议（例如退回 `TDD` 或重新激活 `PRD/ARCH/TASK`）。
+
+**拆分条件**（满足任一即可）：
+- 主文档 > 1000 行
+- 测试用例 > 100 个
+- 存在多类型测试（功能、性能、安全、兼容性各 > 10 个用例）
+- 多模块并行测试（3+ 功能域）
+- 长周期项目（需分阶段回归测试）
+
+详细拆分指南见 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md`。
 
 **完成勾选**：所有阻塞缺陷关闭后勾选 `QA_VALIDATED`；若发现阻塞问题，取消 `TDD_DONE` 并通知相关阶段处理。
 

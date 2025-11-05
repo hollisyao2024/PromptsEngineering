@@ -1,10 +1,13 @@
-# Agents Router 模板（v1.4 · 2025-11-01）
+# Agents Router 模板（v1.8 · 2025-11-05）
 
 这是一套服务于 Codex CLI、Claude Code CLI、Gemini CLI 等多模型编码场景的提示词工程模板。核心目标是以极小的上下文体积，驱动多位领域专家按阶段协作，让大模型在明确的工序中持续交付一致、可追溯的结果。
+
+**v1.8 新增**：支持大型项目**全流程模块化**（PRD / ARCH / TASK / QA），按功能域拆分详细需求、架构、任务与测试计划，避免单文件过大撑爆上下文。
 
 ## 模板目标与价值
 - 统一语言：三款 CLI 共用一套上下文协议与激活语法，降低切换成本。
 - 最小上下文：只在激活阶段加载对应专家卡片，避免把 Handbooks 或全部角色一次性塞入对话。
+- **全流程模块化**（v1.8）：大型项目可按功能域拆分 PRD / ARCH / TASK / QA 文档，主文档 < 500 行，子模块按需加载，避免上下文撑爆。支持统一的功能域对齐与 ID 命名规范。
 - 产物驱动：PRD → 架构 → 任务 → TDD → QA 的串行交接，以 `/docs` 下的产物文件作为唯一真相来源。
 - 随取随用：激活专家后快速点读 `AgentRoles/Handbooks/*.playbook.md` 指定章节，获取模板、Checklist 与回写规范。
 
@@ -13,6 +16,11 @@
 - `AgentRoles/*.md`：五位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA）。
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
 - `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
+  - **`docs/prd-modules/`**（v1.8）：大型项目 PRD 模块化目录，按功能域拆分的详细 PRD，含 `README.md` 模块索引。
+  - **`docs/architecture-modules/`**（v1.8）：大型项目架构模块化目录，按功能域拆分的架构设计，含 `README.md` 模块索引。
+  - **`docs/task-modules/`**（v1.8）：大型项目任务模块化目录，按功能域拆分的任务计划，含 `README.md` 模块索引。
+  - **`docs/qa-modules/`**（v1.8）：大型项目 QA 模块化目录，按功能域拆分的测试计划，含 `README.md` 模块索引。
+  - **`docs/data/traceability-matrix.md`**（v1.8）：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
 - `docs/adr/`：架构决策记录（ADR）模板目录。
 - `db/migrations/`：数据库迁移骨架，默认附带 Python / SQL 双模板。
 - `.gemini/`：定义 Gemini CLI 的上下文配置，指向 `AGENTS.md` 而非默认 `GEMINI.md`。
@@ -27,10 +35,14 @@
 
 ## 阶段化工作流
 1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
-2. **架构专家**：输出逻辑/数据/运行视图与技术选型；同步 ADR。
-3. **任务规划专家**：拆解 WBS、依赖、里程碑与风险，沉淀到 `/docs/TASK.md`。
+   - **v1.8 增强**：自动评估是否需要拆分 PRD（> 1000 行 或 50+ 用户故事 或 3+ 业务域），采用主从结构（主 PRD + 模块 PRD + 追溯矩阵）。
+2. **架构专家**：输出 C4 架构视图（上下文/容器/组件）、数据/接口/运维/安全视图与技术选型；同步 ADR。
+   - **v1.8 增强**：自动评估是否需要拆分架构（> 1000 行 或 8+ 子系统 或 3+ 业务域），采用主从结构（主 ARCH + 模块 ARCH）。
+3. **任务规划专家**：拆解 WBS、依赖矩阵、关键路径（CPM）、里程碑与风险，沉淀到 `/docs/TASK.md`。
+   - **v1.8 增强**：自动评估是否需要拆分任务（> 1000 行 或 50+ 工作包 或 3+ 并行开发流），采用主从结构（主 TASK + 模块 TASK）。
 4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写、更新 `CHANGELOG.md` 并移交 QA。
-5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略、执行验证并输出发布建议。
+5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
+   - **v1.8 增强**：自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
 
 ## 上下文最小化策略
 - 任一时刻只激活 1 位专家；未激活角色的长卡片和 Handbooks 不进入上下文。
@@ -51,6 +63,7 @@
 - `AGENTS.md`
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
 - `docs/`（含 `PRD.md`、`ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
+  - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`architecture-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
 - `db/`（含 `migrations/` 模板）
 - `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）
 - `CLAUDE.md`（若需要支持 Claude Code CLI）

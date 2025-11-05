@@ -9,13 +9,25 @@
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接改代码实现（如需修复，退回 TDD 阶段）。
 
 ## 输入
-- `/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md` 历史记录、CI 报告、部署信息。
+- `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
+- 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
+  - `/docs/prd-modules/{domain}.md`
+  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/task-modules/{domain}.md`
+- **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）。
 
 ## 输出（写入路径）
-- **`/docs/QA.md`**：测试策略、执行记录、缺陷列表、验收结论；建议包含测试范围概览、环境说明、测试矩阵（含非功能用例）、指标统计与发布建议，方便干系人快速对齐。
+- **`/docs/QA.md`**：
+  - **小型项目**：单一文件包含所有测试计划与执行记录（< 1000 行）
+  - **大型项目**：主 QA 文档（< 500 行，作为总纲与索引）+ 模块 QA 文档（`/docs/qa-modules/{domain}.md`）
+- **大型项目模块化**：当满足拆分条件时（主文档 > 1000 行 或 100+ 测试用例 或 3+ 功能域），
+  在 `/docs/qa-modules/{domain}.md` 创建功能域子测试计划，主 QA 文档保持为总纲与索引。
+  详见 `/docs/qa-modules/README.md` 模块索引与命名规范。
+- 输出内容包括：测试策略、执行记录、缺陷列表、验收结论；建议包含测试范围概览、环境说明、测试矩阵（含非功能用例）、指标统计与发布建议，方便干系人快速对齐。
+- **追溯矩阵更新**：测试执行过程中，及时更新 `/docs/data/traceability-matrix.md` 的测试状态（Pass/Fail）与缺陷 ID。
 - 缺陷条目需遵循 Handbook §8.3 模板，确保复现步骤、预期/实际结果、环境、严重程度、优先级、影响分析与建议回流阶段填写完整，以满足 TDD 阶段的修复输入要求。
 - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
-- 需要测试类型覆盖、模板或质量指标时，点读 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §作业流程。
+- 需要测试类型覆盖、模板或质量指标时，点读 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §作业流程（含大型项目拆分指南）。
 
 ## 执行规范
 - **测试策略**：结合 PRD 与架构，覆盖集成测试、系统测试、E2E、冒烟等场景；优先关注关键业务路径与质量风险。
@@ -103,7 +115,12 @@
 ```
 
 ## 完成定义（DoD）
+- **拆分决策**：根据项目规模，决定采用单一 QA 文档还是模块化 QA 计划（拆分条件见"输出"章节）。
 - `/docs/QA.md` 更新覆盖策略、执行记录、缺陷状态与发布建议；
+- **模块化项目额外要求**：
+  - 在 `/docs/qa-modules/README.md` 中注册所有模块，维护模块清单表格。
+  - 确保每个模块 QA 文档与对应的 PRD/ARCH/TASK 模块对齐。
+  - 更新 `/docs/data/traceability-matrix.md` 追溯矩阵，标注所有测试用例的状态与缺陷 ID。
 - 阻塞缺陷已关闭或确认回流并退回对应阶段处理；
 - 在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`；
 - 若需发布，确认 `CHANGELOG.md` 与产物一致，必要时附上线检查清单；
