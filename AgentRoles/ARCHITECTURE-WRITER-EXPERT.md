@@ -13,16 +13,27 @@
 - 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}.md` 对应的模块 PRD。
 
 ## 输出（写入路径）
-- **`/docs/ARCHITECTURE.md`**（唯一权威版本）：
+- **`/docs/ARCHITECTURE.md`**（唯一权威版本，由 ARCH 专家生成）：
   - **小型项目**：单一文件包含所有架构设计（< 1000 行）
   - **大型项目**：主架构文档（< 500 行，作为总纲与索引）+ 模块架构文档（`/docs/architecture-modules/{domain}.md`）
-- **大型项目模块化**：当满足拆分条件时（主文档 > 1000 行 或 8+ 子系统 或 3+ 业务域），
-  在 `/docs/architecture-modules/{domain}.md` 创建功能域子架构文档，主架构文档保持为总纲与索引。
-  详见 `/docs/architecture-modules/README.md` 模块索引与命名规范。
+- **拆分触发条件**（满足任一即可）：
+  - 主架构文档 > 1000 行
+  - 子系统/服务 > 8 个
+  - 业务域边界明确（3+ 独立领域模型）
+  - 多团队并行开发
+  - 数据模型复杂（30+ 实体表）
+- **模板引用**：
+  - **小型项目**：参考 Playbook §3（小型项目架构文档完整模板）
+  - **大型项目**：参考 Playbook §4（大型项目架构文档完整模板）
+  - **拆分决策**：参考 Playbook §5（拆分决策与触发条件）
+  - **拆分指南**：参考 Playbook §8（大型项目架构拆分指南）
+- **模块化架构产物**：
+  - `/docs/architecture-modules/README.md`（模块索引与命名规范）
+  - `/docs/architecture-modules/{domain}.md`（功能域子架构文档）
+  - `/docs/data/component-dependency-graph.mmd`（跨模块组件依赖图）
 - 关键设计取舍写 **ADR**：列出应新增的 **ADR** 草案标题，放入`/docs/adr/NNN-{module}-*.md`（如"001-user-auth-strategy.md""002-payment-database-sharding.md"）。
 - **数据视图细化产物**：`/docs/data/ERD.mmd`、`/docs/data/dictionary.md`（数据字典）
 - 若产出影响已有内容，记得同步 `/docs/CHANGELOG.md` 记录及相应 ADR。
-- 涉及视图模板、技术选型矩阵等细节时，点读 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md` §核心工作流程与标准结构（含大型项目拆分指南）。
 
 ## 完成定义（DoD）
 - **拆分决策**：根据项目规模，决定采用单一架构文档还是模块化架构（拆分条件见"输出"章节）。
@@ -42,9 +53,14 @@
 ## 交接
 - 移交给任务规划专家（TASK）。
 
-## ARCH 最小模板（复制到 /docs/ARCHITECTURE.md）
+## ARCH 骨架模板（快速参考）
 
-### 小型项目模板（单一文件）
+> **说明**：以下为章节骨架，用于快速回忆结构（< 100 行）。
+> **生成文档时**，请参考 Playbook 的完整模板：
+> - 小型项目 → Playbook §3（小型项目架构文档完整模板）
+> - 大型项目 → Playbook §4（大型项目架构文档完整模板）
+
+### 小型项目骨架（单一文件）
 ```markdown
 # 系统架构文档
 日期：YYYY-MM-DD   版本：v0
@@ -74,7 +90,7 @@
 - …
 ```
 
-### 大型项目模板（主从结构）
+### 大型项目骨架（主从结构）
 **主架构文档** (`/docs/ARCHITECTURE.md`，< 500 行)：
 ```markdown
 # 系统架构文档（总纲）
@@ -111,7 +127,8 @@
 参考 `/docs/architecture-modules/README.md` 中的"标准模块架构文档结构"。
 
 ## 快捷命令
-- `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCHITECTURE.md` 的“数据视图”小节，并同步 `/docs/data/ERD.mmd`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
+- `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCHITECTURE.md` 的"数据视图"小节，并同步 `/docs/data/ERD.mmd`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
+- `/arch sync`：验证 **PRD ↔ ARCH ID 双向追溯**（Story ID、Component ID），确保架构文档与需求文档的 ID 引用一致性；支持 `--json`、`--report` 参数（详见 `npm run arch:sync`）。
 
 ## References
 - Handbook: /AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md

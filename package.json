@@ -1,6 +1,6 @@
 {
   "name": "prompts-engineering-agents-router",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
   "scripts": {
     "prd:lint": "node scripts/prd-tools/check-completeness.js",
@@ -10,6 +10,10 @@
     "prd:preflight-report": "node scripts/prd-tools/generate-preflight-report.js",
     "prd:sync-matrix": "node scripts/prd-tools/sync-traceability-matrix.js",
     "prd:generate-dependency-graph": "node scripts/prd-tools/generate-dependency-graph.js",
+    "arch:lint": "node scripts/arch-tools/arch-lint.js",
+    "arch:check-component-cycles": "node scripts/arch-tools/check-component-cycles.js",
+    "arch:check-api-contracts": "node scripts/arch-tools/check-api-contracts.js",
+    "arch:sync": "node scripts/arch-tools/sync-prd-arch-ids.js",
     "nfr:check-compliance": "node scripts/prd-tools/check-nfr-compliance.js",
     "priority:check-conflicts": "node scripts/prd-tools/check-priority-conflicts.js",
     "priority:calc-dependency": "node scripts/prd-tools/calc-dependency-weight.js",

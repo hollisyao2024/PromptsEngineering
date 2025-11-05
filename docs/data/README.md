@@ -20,6 +20,7 @@
   # 全局依赖与架构
   global-dependency-graph.mmd        # 跨模块依赖关系图（Mermaid 格式）
   dependency-graph-README.md         # 依赖图使用说明
+  component-dependency-graph.mmd     # 跨模块组件依赖图（架构层级，Component ID 追溯）
   ERD.mmd                            # 全局 ER 图（实体关系图）
   dictionary.md                      # 数据字典（全局实体与字段定义）
 
@@ -43,6 +44,7 @@
 |------|------|------|
 | `traceability-matrix.md` | **全局** | 所有模块的 Story → AC → Test Case ID 映射，QA 专家集中维护 |
 | `global-dependency-graph.mmd` | **跨模块** | 跨模块依赖关系（如 US-USER-003 → US-PAY-001），PRD 专家维护 |
+| `component-dependency-graph.mmd` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
 | `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系 |
 | `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵 |
 | `change-requests/` | **全局** | 影响多个模块的变更请求流程 |
@@ -82,7 +84,7 @@
 
 ---
 
-### 2. global-dependency-graph.mmd — 跨模块依赖图
+### 2. global-dependency-graph.mmd — 跨模块 Story 依赖图
 
 **作用**：可视化跨模块的 Story 依赖关系，识别关键路径与团队协作点
 
@@ -107,6 +109,45 @@ graph TB
 **与模块依赖图的区别**：
 - 本文件：只包含**跨模块**依赖（如 US-USER-003 → US-PAY-001）
 - 模块依赖图：只包含**模块内**依赖（如 US-USER-001 → US-USER-003）
+
+---
+
+### 2.1 component-dependency-graph.mmd — 跨模块组件依赖图
+
+**作用**：可视化跨模块的组件/服务依赖关系，用于架构层级的依赖追溯与影响分析
+
+**格式**：Mermaid 图表（使用 Component ID 命名）
+
+**示例**：
+```mermaid
+graph TB
+    subgraph USER["用户管理模块"]
+        USER_SVC_001["USER-SVC-001<br/>用户认证服务<br/>Node.js + Express"]
+        USER_DB_001["USER-DB-001<br/>用户数据库<br/>PostgreSQL"]
+    end
+
+    subgraph PAY["支付系统模块"]
+        PAY_SVC_001["PAY-SVC-001<br/>订单服务<br/>Node.js + Express"]
+        PAY_DB_001["PAY-DB-001<br/>订单数据库<br/>PostgreSQL"]
+    end
+
+    PAY_SVC_001 -->|同步调用<br/>GET /api/users/{id}| USER_SVC_001
+    USER_SVC_001 --> USER_DB_001
+    PAY_SVC_001 --> PAY_DB_001
+```
+
+**维护者**：ARCH 专家（架构设计阶段）
+
+**与 Story 依赖图的区别**：
+- **global-dependency-graph.mmd**（PRD 层级）：业务功能依赖（如 US-USER-003 → US-PAY-001）
+- **component-dependency-graph.mmd**（ARCH 层级）：组件/服务依赖（如 PAY-SVC-001 → USER-SVC-001）
+
+**Component ID 命名规范**：
+- 格式：`{MODULE}-{TYPE}-{序号}`
+- TYPE 类型：`SVC`（服务）、`DB`（数据库）、`CACHE`（缓存）、`MQ`（消息队列）、`API`（API 端点）、`JOB`（定时任务）
+- 示例：`USER-SVC-001`（用户管理服务）、`PAY-DB-001`（订单数据库）
+
+详见 [architecture-modules/README.md](../architecture-modules/README.md)
 
 ---
 

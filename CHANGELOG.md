@@ -44,6 +44,23 @@
   - 在"输出（写入路径）"章节增加大型项目模块化规则与拆分条件（> 1000 行 或 8+ 子系统 或 3+ 业务域）。
   - 在"完成定义（DoD）"章节增加模块化项目额外要求（注册模块清单、确保模块对齐）。
   - 更新"ARCH 最小模板"章节，提供小型项目（单一文件）和大型项目（主从结构）两种模板。
+- **ARCH 专家模板迁移至 Playbook**（职责分离优化）：
+  - 删除 `/docs/ARCHITECTURE.md` 模板文件（从 388 行减为 0，模板与产物分离）。
+  - 在 ARCHITECTURE-WRITER-EXPERT.playbook.md 中新增 §3/§4/§5 章节，迁移完整模板：
+    - §3. 小型项目架构文档完整模板（约 250 行，包含 6 大架构视图详细说明）
+    - §4. 大型项目架构文档完整模板（约 120 行，主从结构模板）
+    - §5. 拆分决策与触发条件（约 30 行，决策树与迁移步骤）
+    - 原 §7 重新编号为 §8（大型项目架构拆分指南）
+  - 更新 ARCHITECTURE-WRITER-EXPERT.md 角色卡片"输出"章节，明确引用 Playbook §3/§4/§5/§8。
+  - 创建 `/docs/architecture-modules/MODULE-TEMPLATE.md` 模块架构模板（约 350 行）。
+  - 创建 `/docs/architecture-modules/STRUCTURE-GUIDE.md` 模块结构指南（简化版，详细版在 Playbook §4）。
+  - 创建 `/docs/data/component-dependency-graph.mmd` 跨模块组件依赖图模板。
+  - **优势**：职责明确（模板在 Playbook，产物由专家生成），减少文档冗余，支持模板版本化管理。
+- 更新 `/docs/data/README.md`（反映架构模块化变化）：
+  - 目录结构新增 `component-dependency-graph.mmd`（跨模块组件依赖图）。
+  - 全局数据表格新增 `component-dependency-graph.mmd` 条目（ARCH 专家维护）。
+  - 新增 §2.1：跨模块组件依赖图详细说明（格式、示例、Component ID 命名规范、与 Story 依赖图的区别）。
+  - 明确 PRD 层级（Story 依赖）vs ARCH 层级（组件依赖）的职责分离。
 - 更新 TASK-PLANNING-EXPERT.md 角色卡片：
   - 在"输入"章节增加模块化 PRD/ARCH 读取说明（按需读取对应模块文档）。
   - 在"输出（写入路径）"章节增加大型项目模块化规则与拆分条件（> 1000 行 或 50+ 工作包 或 3+ 并行开发流）。

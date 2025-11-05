@@ -116,7 +116,7 @@ version: 1.7 (2025-11-02)
 - 业务域边界明确（3+ 子系统）
 - 多团队并行协作
 
-详细拆分指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7。
+详细拆分指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7（大型项目 PRD 拆分指南）。
 
 **PRD 增强功能**（v1.8+）：关于企业级需求管理增强（CR 流程、依赖图、优先级矩阵、Shift-Left 检查等）的实施路线图，见 `/docs/PRD-ENHANCEMENT-ROADMAP.md`。
 
@@ -124,8 +124,14 @@ version: 1.7 (2025-11-02)
 
 **移交给 ARCH**：激活 `[[ACTIVATE: ARCH]]`。
 
-**快捷命令**：`/prd confirm` — 轻量收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`。
+**快捷命令**：
+- `/prd confirm` — 轻量收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`
   *（使用此命令会自动激活 PRD 专家并加载其角色文件）*
+
+**工具增强**（v1.8+）：
+- 所有 prd:* 命令支持完整性检查与质量门禁（详见 PRD-ENHANCEMENT-ROADMAP.md）
+- 关键工具：`npm run prd:lint`、`npm run prd:check-dependency-cycles`、`npm run prd:preflight-report`
+- 更多工具请参考 package.json 中的 prd:* 命令
 
 ---
 
@@ -152,14 +158,20 @@ version: 1.7 (2025-11-02)
 - 多团队并行开发
 - 数据模型复杂（30+ 实体表）
 
-详细拆分指南见 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md`。
+详细拆分指南见 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md` §8（大型项目架构拆分指南）。
 
 **完成勾选**：在状态文件勾选 `ARCHITECTURE_DEFINED`。
 
 **移交给 TASK**：激活 `[[ACTIVATE: TASK]]`。
 
-**快捷命令**：`/arch data-view` — 刷新数据视图（更多操作见角色卡片）。
-  *（使用此命令会自动激活 ARCHITECTURE 专家并加载其角色文件）*
+**快捷命令**：
+- `/arch data-view` — 刷新数据视图（更多操作见角色卡片）
+- `/arch sync` — 验证 PRD ↔ ARCH ID 双向追溯（Story ID、Component ID）
+  *（使用快捷命令会自动激活 ARCHITECTURE 专家并加载其角色文件）*
+
+**工具增强**（v1.8+）：
+- 所有 arch:* 命令支持 `--json` 参数（用于 CI/CD 集成）
+- 示例：`npm run arch:lint -- --json`、`npm run arch:check-component-cycles -- --json`、`npm run arch:check-api-contracts -- --json`
 
 ---
 
@@ -298,6 +310,7 @@ version: 1.7 (2025-11-02)
 
 ### ARCHITECTURE 专家
 - `/arch data-view` — 刷新数据视图（更多操作见角色卡片）
+- `/arch sync` — 验证 PRD ↔ ARCH ID 双向追溯（Story ID、Component ID）
 
 ### TASK 专家
 - `/task plan` — 刷新 WBS/依赖（更多操作见角色卡片）
