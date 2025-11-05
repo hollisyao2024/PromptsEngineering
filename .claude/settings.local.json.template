@@ -8,10 +8,10 @@
   // ============================================================================
 
   // --- 沙箱配置 ---
-  // 启用沙箱并自动执行命令，在安全隔离环境中运行
+  // 禁用沙箱并自动执行命令，启用沙箱只能写入项目目录下的位置，很多命令可能会在这之外，导致报错。
   "sandbox": {
-    // 启用沙箱模式（macOS/Linux）
-    "enabled": true,
+    // 禁用沙箱模式（macOS/Linux）
+    "enabled": false,
 
     // 在沙箱中自动执行 bash 命令，无需确认
     "autoAllowBashIfSandboxed": true
@@ -62,7 +62,7 @@
 //
 // {
 //   "sandbox": {
-//     "enabled": true,
+//     "enabled": false,
 //     "autoAllowBashIfSandboxed": true
 //   },
 //   "enableAllProjectMcpServers": true,
