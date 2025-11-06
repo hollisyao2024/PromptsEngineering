@@ -34,7 +34,7 @@
     3. **原子操作**：使用事务确保每个步骤要么全部成功，要么完全回滚
   - **验证要求**：提交前必须在本地执行 3 次验证（首次执行、重复执行、回滚+重新执行），确保幂等性。
 - **数据库变更流程**：严格遵循 **Expand → Migrate/Backfill → Contract**；
-  - 迁移脚本位于 `/db/migrations/`，命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
+  - 迁移脚本位于 `/db/migrations/`（Supabase 项目使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
   - 为 Backfill 与双写/对账提供脚本或作业配置；
   - 为关键取舍新增/更新 ADR（如分片、索引策略变更）。
 - **仓库/技术栈约定**（示例，可按项目实际调整）：
@@ -49,7 +49,7 @@
   - 更新 `/docs/PRD.md`（范围/AC 变化）、`/docs/ARCHITECTURE.md`（数据视图/设计变化），如超出阈值将提示切换 `/prd` 或 `/arch`；
   - 必要时新增/更新 **ADR**（若有设计取舍变化），并在 ARCH 链接；
   - 追加 `/docs/CHANGELOG.md` 条目（遵循 Keep a Changelog 风格）。
-  - 检查 `/db/migrations/` 是否包含迁移与回滚脚本；
+  - 检查迁移目录（`/db/migrations/` 或 `/supabase/migrations/`）是否包含迁移与回滚脚本；
 
 ## CI 任务（Solo Lite）
 - **触发**：PR / push 到主干；GitHub Actions 开启 **concurrency** 组并 `cancel-in-progress: true`。

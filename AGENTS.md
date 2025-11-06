@@ -208,6 +208,13 @@ version: 1.7 (2025-11-02)
 **快捷命令**：`/task plan` — 刷新 WBS/依赖（更多操作见角色卡片）。
   *（使用此命令会自动激活 TASK 专家并加载其角色文件）*
 
+**工具增强**（v1.10+）：
+- 所有 task:* 命令支持完整性检查与质量门禁
+- 核心工具：`npm run task:lint`、`npm run task:check-cycles`、`npm run task:sync`
+- 可视化工具：`npm run task:generate-gantt`、`npm run task:check-critical-path`
+- 更多工具请参考 package.json 中的 task:* 命令
+- 工具文档：[scripts/task-tools/README.md](scripts/task-tools/README.md)
+
 ---
 
 ## Phase 4 — TDD 编程专家（实现与回写）

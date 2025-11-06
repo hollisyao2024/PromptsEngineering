@@ -1,6 +1,6 @@
 {
   "name": "prompts-engineering-agents-router",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
   "scripts": {
     "prd:lint": "node scripts/prd-tools/check-completeness.js",
@@ -26,7 +26,15 @@
     "goal:roi-analysis": "node scripts/prd-tools/generate-roi-analysis.js",
     "cr:new": "node scripts/prd-tools/create-change-request.js",
     "cr:pending": "node scripts/prd-tools/list-pending-crs.js",
-    "cr:impact": "node scripts/prd-tools/analyze-cr-impact.js"
+    "cr:impact": "node scripts/prd-tools/analyze-cr-impact.js",
+    "task:lint": "node scripts/task-tools/task-lint.js",
+    "task:check-cycles": "node scripts/task-tools/check-task-cycles.js",
+    "task:sync": "node scripts/task-tools/sync-prd-task-ids.js",
+    "task:generate-gantt": "node scripts/task-tools/generate-gantt.js",
+    "task:check-critical-path": "node scripts/task-tools/check-critical-path.js",
+    "task:validate-db-tasks": "node scripts/task-tools/validate-db-tasks.js",
+    "task:check-resource-conflicts": "node scripts/task-tools/check-resource-conflicts.js",
+    "task:generate-status-report": "node scripts/task-tools/generate-status-report.js"
   },
   "keywords": [
     "prd",
