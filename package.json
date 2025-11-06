@@ -1,6 +1,6 @@
 {
   "name": "prompts-engineering-agents-router",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
   "scripts": {
     "prd:lint": "node scripts/prd-tools/check-completeness.js",
@@ -34,7 +34,14 @@
     "task:check-critical-path": "node scripts/task-tools/check-critical-path.js",
     "task:validate-db-tasks": "node scripts/task-tools/validate-db-tasks.js",
     "task:check-resource-conflicts": "node scripts/task-tools/check-resource-conflicts.js",
-    "task:generate-status-report": "node scripts/task-tools/generate-status-report.js"
+    "task:generate-status-report": "node scripts/task-tools/generate-status-report.js",
+    "task:generate": "node scripts/task-tools/generate-task.js",
+    "qa:generate": "node scripts/qa-tools/generate-qa.js",
+    "qa:lint": "node scripts/qa-tools/qa-lint.js",
+    "qa:coverage-report": "node scripts/qa-tools/check-test-coverage.js",
+    "qa:sync-prd-qa-ids": "node scripts/qa-tools/sync-prd-qa-ids.js",
+    "qa:generate-test-report": "node scripts/qa-tools/generate-test-report.js",
+    "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js"
   },
   "keywords": [
     "prd",

@@ -187,17 +187,19 @@ version: 1.7 (2025-11-02)
   - `/docs/architecture-modules/{domain}.md`
 
 **输出**：
-- **小型项目**：产出/更新 `/docs/TASK.md`（单文件，含：WBS、依赖矩阵、资源与时间线、里程碑、风险登记）。
-- **大型项目**（满足拆分条件时）：
-  - 主任务文档（`/docs/TASK.md`）：总纲与索引（< 500 行），包含项目概述、模块任务索引、全局里程碑、跨模块依赖关系、全局关键路径、全局风险与缓解。
-  - 子模块任务文档（`/docs/task-modules/{domain}.md`）：按功能域拆分的详细任务计划。
-
-**拆分条件**（满足任一即可）：
-- 主文档 > 1000 行
-- 工作包（WBS）> 50 个
-- 存在 3+ 并行开发流（多团队/多模块）
-- 项目周期 > 6 个月
-- 跨模块依赖复杂（10+ 个依赖关系）
+- **自动生成流程**：TASK 专家激活后，通过快捷命令 `/task plan` 自动生成/刷新：
+  - 基于 PRD + ARCH 的 WBS、依赖矩阵、关键路径、里程碑、风险
+  - 包含"DB 任务段"（固定表头：Expand/Migrate/Contract、Backfill/双写观察/对账/回滚等）
+  - 生成逻辑详见 `/AgentRoles/TASK-PLANNING-EXPERT.md` 的"自动生成规范"章节
+- **输出位置**：
+  - **小型项目**：`/docs/TASK.md`（单一文件，< 1000 行）
+  - **大型项目**：主任务文档 `TASK.md`（< 500 行，总纲与索引）+ 模块任务文档 `/docs/task-modules/{domain}.md`
+- **拆分条件**（满足任一即可）：
+  - 主文档 > 1000 行
+  - 工作包（WBS）> 50 个
+  - 存在 3+ 并行开发流（多团队/多模块）
+  - 项目周期 > 6 个月
+  - 跨模块依赖复杂（10+ 个依赖关系）
 
 详细拆分指南见 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md`。
 
@@ -205,11 +207,13 @@ version: 1.7 (2025-11-02)
 
 **移交给 TDD**：激活 `[[ACTIVATE: TDD]]`。
 
-**快捷命令**：`/task plan` — 刷新 WBS/依赖（更多操作见角色卡片）。
-  *（使用此命令会自动激活 TASK 专家并加载其角色文件）*
+**快捷命令**：
+- `/task plan` — 基于 PRD+ARCH 自动生成/刷新 `/docs/TASK.md`，包含 WBS/依赖矩阵/关键路径/里程碑/风险。完成后勾选 `TASK_PLANNED`。
+  *（使用此命令会自动激活 TASK 专家，读取模板，生成产物）*
 
-**工具增强**（v1.10+）：
+**工具增强**（v1.11+）：
 - 所有 task:* 命令支持完整性检查与质量门禁
+- **生成工具（新增）**：`npm run task:generate` — 从零生成 TASK.md（或更新现有文件）
 - 核心工具：`npm run task:lint`、`npm run task:check-cycles`、`npm run task:sync`
 - 可视化工具：`npm run task:generate-gantt`、`npm run task:check-critical-path`
 - 更多工具请参考 package.json 中的 task:* 命令
@@ -265,10 +269,13 @@ version: 1.7 (2025-11-02)
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）
 
 **输出**：
-- **小型项目**：更新 `/docs/QA.md`（单文件，含：测试策略/执行记录/缺陷清单/验收结论），必要时附上复现路径。
-- **大型项目**（满足拆分条件时）：
-  - 主 QA 文档（`/docs/QA.md`）：总纲与索引（< 500 行），包含测试概述、模块测试索引、全局测试策略、全局质量指标、全局风险评估、发布建议。
-  - 子模块 QA 文档（`/docs/qa-modules/{domain}.md`）：按功能域拆分的详细测试计划与执行记录。
+- **自动生成流程**：QA 专家激活后，通过快捷命令 `/qa plan` 自动生成/刷新：
+  - 基于 PRD + ARCH + TASK 的测试策略、测试用例、测试矩阵
+  - 包含 9 类测试覆盖（功能/集成/E2E/回归/契约/降级/事件/性能/安全）
+  - 生成逻辑详见 `/AgentRoles/QA-TESTING-EXPERT.md` 的"自动生成规范"章节
+- **输出位置**：
+  - **小型项目**：`/docs/QA.md`（单文件，< 1000 行）
+  - **大型项目**：主 QA 文档 `QA.md`（< 500 行，总纲与索引）+ 模块 QA 文档 `/docs/qa-modules/{domain}.md`
 - **追溯矩阵更新**：测试执行过程中，及时更新 `/docs/data/traceability-matrix.md` 的测试状态（Pass/Fail）与缺陷 ID。
 - 对关键缺陷或范围偏差提出回流建议（例如退回 `TDD` 或重新激活 `PRD/ARCH/TASK`）。
 
@@ -279,7 +286,7 @@ version: 1.7 (2025-11-02)
 - 多模块并行测试（3+ 功能域）
 - 长周期项目（需分阶段回归测试）
 
-详细拆分指南见 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md`。
+详细拆分指南见 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §9（大型项目测试计划拆分指南）。
 
 **完成勾选**：所有阻塞缺陷关闭后勾选 `QA_VALIDATED`；若发现阻塞问题，取消 `TDD_DONE` 并通知相关阶段处理。
 
@@ -330,6 +337,7 @@ version: 1.7 (2025-11-02)
 - `/ci status` — 查看 CI 状态
 
 ### QA 专家
+- `/qa plan` — 基于 PRD+ARCH+TASK 自动生成/刷新 QA.md，包含测试策略、测试用例、测试矩阵
 - `/qa verify` — 快速聚焦验收项（更多操作见角色卡片）
 - `/ship staging` — 在本地直接部署到预发环境
 - `/ship prod` — 在本地直接部署到生产环境
