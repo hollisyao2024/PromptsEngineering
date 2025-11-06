@@ -58,9 +58,10 @@ function checkFileExists(filePath, description) {
     // 特殊处理：主 TASK 不存在时给出友好提示
     if (description === '主 TASK') {
       log(`ℹ️  主 TASK 尚未创建`, 'cyan');
-      log(`   提示：TASK.md 为模板文件，请使用 TASK 专家按需生成`, 'cyan');
-      log(`   参考：AgentRoles/TASK-PLANNING-EXPERT.md §TASK 模板`, 'cyan');
-      return false;
+      log(`   提示：TASK.md 为自动生成产物，请使用 TASK 专家执行 \`/task plan\` 生成`, 'cyan');
+      log(`   或手动运行：npm run task:generate`, 'cyan');
+      log(`   参考：AgentRoles/TASK-PLANNING-EXPERT.md §自动生成规范`, 'cyan');
+      return false;  // 不作为错误，仅返回 false
     }
     log(`❌ ${description} 不存在: ${filePath}`, 'red');
     return false;

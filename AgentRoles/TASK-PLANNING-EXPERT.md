@@ -14,29 +14,121 @@
   - `/docs/prd-modules/{domain}.md`
   - `/docs/architecture-modules/{domain}.md`
 
-## 输出（写入路径）
+## 输出（由自动生成与人工调整）
 - **`/docs/TASK.md`**：
+  - **自动生成方式**：通过 `/task plan` 命令，基于 PRD + ARCH 自动分解 WBS、计算依赖、生成关键路径
   - **小型项目**：单一文件包含所有任务计划（< 1000 行）
   - **大型项目**：主任务文档（< 500 行，作为总纲与索引）+ 模块任务文档（`/docs/task-modules/{domain}.md`）
 - **大型项目模块化**：当满足拆分条件时（主文档 > 1000 行 或 50+ 工作包 或 3+ 并行开发流），
   在 `/docs/task-modules/{domain}.md` 创建功能域子任务计划，主任务文档保持为总纲与索引。
   详见 `/docs/task-modules/README.md` 模块索引与命名规范。
-- 输出内容包括：WBS、依赖矩阵、关键路径（CPM）、里程碑、资源与风险、**测试映射**。
-- 需要 WBS/依赖矩阵模板或风险登记范例时，点读 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md` §核心工作流程（含大型项目拆分指南）。
+- 输出内容包括：WBS、依赖矩阵、关键路径（CPM）、里程碑、资源与风险、**测试映射**、DB 任务固定表头。
+- 自动生成详细流程见下方"自动生成规范"章节；需要模板范例时，点读 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md` §核心工作流程（含大型项目拆分指南）。
 
 ## 完成定义（DoD）
-- **拆分决策**：根据项目规模，决定采用单一任务文档还是模块化任务计划（拆分条件见"输出"章节）。
-- WBS 任务具备：描述、Owner、输入/输出、估时、依赖、风险、验收标准（对应 PRD 的 AC）。
-- **依赖矩阵**与**关键路径**标注清晰；
-- 定义里程碑（含通过条件）；
+- **自动生成完成**：
+  - 执行 `/task plan` 后，`/docs/TASK.md` 已自动生成或刷新
+  - WBS 包含所有 Story 对应的 Task（可视化追溯）
+  - 依赖矩阵与关键路径已计算并可视化
+  - DB 任务表头已填充完整（Expand/Migrate/Contract、Backfill/对账/回滚）
+- **拆分决策**：根据项目规模，决定采用单一任务文档还是模块化任务计划（拆分条件见"自动生成规范"章节）
+- WBS 任务具备：描述、Owner、输入/输出、估时、依赖、风险、验收标准（对应 PRD 的 AC）
+- **依赖矩阵**与**关键路径**标注清晰
+- 定义里程碑（含通过条件）
 - **模块化项目额外要求**：
-  - 在 `/docs/task-modules/README.md` 中注册所有模块，维护模块清单表格。
-  - 确保每个模块任务文档与对应的 PRD/ARCH 模块对齐。
-  - 明确标注跨模块依赖关系（外部依赖表格）。
-- 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
+  - 在 `/docs/task-modules/README.md` 中注册所有模块，维护模块清单表格
+  - 确保每个模块任务文档与对应的 PRD/ARCH 模块对齐
+  - 明确标注跨模块依赖关系（外部依赖表格）
+- 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`
 
 ## 交接
 - 移交给 TDD 编程专家（TDD）。
+
+## 自动生成规范（`/task plan` 流程）
+
+### 生成触发条件
+- **首次激活**：当 `/docs/TASK.md` 不存在，或用户显式调用 `/task plan --init` 时
+- **更新已有**：当 `/docs/TASK.md` 存在，`/task plan` 刷新时
+- **增量编辑**：TASK 专家可在生成产物基础上进行人工调整（如修改工期、调整优先级）
+
+### 生成输入源
+- **主输入**：`/docs/PRD.md`（故事、AC、优先级、用户角色）
+- **架构输入**：`/docs/ARCHITECTURE.md`（组件、依赖、技术选型）
+- **模块支持**：若 PRD/ARCH 已拆分，对应读取 `/docs/prd-modules/{domain}.md` 与 `/docs/architecture-modules/{domain}.md`
+- **历史数据**（如存在）：已有的 `/docs/TASK.md` 的人工标注（优先级变更、Owner 指定、风险备注）
+
+### 生成逻辑（TASK 专家执行步骤）
+
+#### 第一步：检测项目规模
+遍历 PRD 的所有 Story（计数）、遍历 ARCH 的所有 Component（计数），估算项目规模。若 TASK.md 已存在，读取现有拆分标记（是否已采用模块化）。
+
+#### 第二步：WBS 分解（基于 Story → Task 映射）
+- FOR EACH Story in PRD：
+  1. 创建 Epic 层级任务（对应 Story）
+  2. 分析 Story 的实现需求（UI/API/DB等）
+  3. 拆解为 Feature 任务（粒度：前端、后端、DB）
+  4. 进一步拆解为 Task（粒度：1-3 天工作量）
+  5. 标记 Sub-task（如有复杂实现细节）
+- FOR EACH Component in ARCH：
+  1. 创建基础设施/工具类任务（不对应 Story 但必需）
+  2. 如：部署配置、监控设置、安全加固等
+- 生成 Task ID：`TASK-{MODULE}-{NNN}`
+  - MODULE 来自 ARCH 的组件名缩写（如 USER、PAY、NOTIF）
+  - NNN：模块内递增编号
+
+#### 第三步：依赖关系矩阵
+- FOR EACH Task：
+  1. 查找 PRD 中的显式依赖（"依赖…"、"需要先…"）
+  2. 查找 ARCH 中的组件依赖（Component A → B）
+  3. 推导隐式依赖（后端 API 完成 → 前端可联调、DB 迁移完成 → 数据层可用、基础设施就绪 → 业务功能可部署）
+  4. 标记依赖类型：FS / SS / FF / SF
+  5. 计算浮动时间（CPM 算法）
+
+#### 第四步：里程碑与时间线
+根据 PRD 的明确里程碑（Release Date、beta 日期等）：
+  1. 映射到 Task 的完成节点
+  2. 按关键路径倒推任务启动日期
+  3. 估算总项目周期
+  4. 识别 3-5 个关键里程碑
+  5. 为每个里程碑定义验收标准（对应 AC）
+  6. 生成甘特图（文字 + Mermaid 图）
+
+#### 第五步：资源分配与风险
+根据 ARCHITECTURE.md 的团队分工：
+  1. 为每个 Task 指定 Owner（如缺失，标记为 TBD）
+  2. 估算工作量（简单功能：1-2d、中等功能：3-5d、复杂功能：5-7d、包含 DB 迁移的功能 +50%）
+  3. 识别风险（外部依赖风险、技术难点风险、团队风险、进度风险）
+
+#### 第六步：DB 任务特殊处理
+扫描 ARCHITECTURE.md 的数据视图，识别 DB 变更：
+- FOR EACH 数据模型变更：
+  1. 创建 TASK-DB-NNN 任务组
+  2. 遵循 Expand → Migrate/Backfill → Contract 流程
+  3. 填充表头（类别、Backfill 方案、双写观察指标 & 对账规则、回滚方案、估时）
+  4. 链接到 `/db/migrations/` 脚本（如已存在）
+
+#### 第七步：拆分决策（大型项目）
+若项目规模满足拆分条件：
+  1. 在 `/docs/task-modules/README.md` 注册模块索引
+  2. 为每个功能域创建模块任务文档：`/docs/task-modules/{domain}.md`
+  3. 修改主 `/docs/TASK.md` 为总纲与索引（< 500 行）
+  4. 在各模块 Task 文档中标记跨模块外部依赖
+否则：保持 TASK.md 为单一文件（全量 WBS 在同一文件）
+
+#### 第八步：Story → Task 追溯映射
+生成或更新 `/docs/data/story-task-mapping.md`：
+- FOR EACH Story in PRD：列出关联的 Task ID 集合、对应 AC 与 Task 的验收标准，便于 QA 阶段的追溯验证
+
+### 模板选择流程
+检测项目规模：
+- 若项目规模 = "小" OR "中型"：使用小型项目模板
+- 若项目规模 = "大型"：使用大型项目模板，并创建 `/docs/task-modules/{domain}.md` 副本
+
+### 更新现有 TASK.md 的保留策略
+当 `/task plan` 刷新已有的 TASK.md 时：
+- **保留项**：任务的人工标注（Owner、优先级变更、完成状态）、用户添加的风险备注与缓解方案、已完成任务的完成日期与产出链接
+- **刷新项**：WBS 结构（若 PRD 或 ARCH 有新增/删除 Story/Component）、依赖关系矩阵（重新计算）、关键路径（CPM 重算）、时间线与里程碑（若日期变化）
+- **冲突处理**：若生成的 Task ID 与现有冲突，保持原 ID（无 ID 变更）；若发现删除的 Story 对应的 Task，标记为"已取消"或"已移除"，而非直接删除
 
 ## TASK 最小模板（复制到 /docs/TASK.md）
 

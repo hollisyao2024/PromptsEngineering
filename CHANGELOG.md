@@ -2,6 +2,182 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.12] - 2025-11-07
+
+### 重大变更
+- **TASK 自动生成增强：大型项目自动拆分**
+  - `generate-task.js` 新增智能拆分能力：检测到大型项目时，自动创建模块任务文档
+  - 小型项目（< 50 任务）：生成单文件 TASK.md（完整 WBS）
+  - 大型项目（≥ 50 任务 或 ≥ 3 模块）：生成主文档（总纲） + 模块文档（详细 WBS）
+  - 自动生成跨模块依赖关系表，识别团队协作关键点
+  - 主文档严格控制 < 500 行，详细任务拆分到模块文档
+
+### 新增
+- **4 个核心函数**（[generate-task.js](scripts/task-tools/generate-task.js)）：
+  - `generateLargeProjectOverview()`：生成大型项目总纲结构（6 个章节）
+  - `generateSmallProjectMarkdown()`：生成小型项目完整结构（9 个章节）
+  - `extractCrossModuleDependencies()`：提取跨模块任务依赖关系
+  - `generateModuleTaskFiles()`：自动创建模块任务文档（批量生成）
+  - `generateModuleMarkdown()`：生成单个模块的详细任务文档（8 个章节）
+  - `updateTaskModulesReadme()`：自动更新模块索引文件
+
+- **大型项目模块文档自动生成**：
+  - 自动创建 `/docs/task-modules/{domain}.md` 模块任务文档
+  - 每个模块包含：模块概述、WBS、内部依赖、外部依赖、里程碑、风险、Story 映射
+  - 自动生成 `/docs/task-modules/README.md` 模块索引
+  - 支持模块间依赖关系可视化
+
+### 修改
+- **generateTaskMarkdown() 函数重构**：
+  - 拆分为条件分支：`isSplit = true` 调用 `generateLargeProjectOverview()`，`false` 调用 `generateSmallProjectMarkdown()`
+  - 大型项目主文档包含：项目概述、模块任务索引（表格）、全局里程碑、跨模块依赖关系、全局关键路径、全局风险
+  - 小型项目保持完整结构：项目概述、里程碑、WBS、关键路径、依赖矩阵、风险、DB 任务、Story 映射、相关文档
+
+- **main() 函数增强**：
+  - 检测到大型项目时，自动调用 `generateModuleTaskFiles()` 创建模块文档
+  - 增强输出提示：显示模块数量、模块文档路径、主文档转换状态
+  - 新增大型项目专用建议：引导用户检查模块文档目录
+
+- **工具文档更新**（[scripts/task-tools/README.md](scripts/task-tools/README.md)）：
+  - 新增"示例输出（大型项目）"章节，展示自动拆分的完整流程
+  - 新增"拆分条件（自动判断）"说明
+  - 功能列表新增 3 项：智能检测项目规模、自动创建模块任务文档、自动生成跨模块依赖关系表
+  - 使用场景新增"大型项目"说明
+
+### 工作流变化
+
+**小型项目流程**（保持不变）：
+```
+PRD + ARCH → /task plan → 生成 /docs/TASK.md（完整 WBS，800 行）
+```
+
+**大型项目流程**（v1.12 新增）：
+```
+PRD + ARCH → /task plan → 检测项目规模
+                ↓
+            大型项目（≥ 50 任务 或 ≥ 3 模块）
+                ↓
+            生成主文档（总纲，< 500 行）
+                ↓
+            自动创建模块文档：
+            - /docs/task-modules/user.md
+            - /docs/task-modules/payment.md
+            - /docs/task-modules/notification.md
+            - /docs/task-modules/README.md（索引）
+                ↓
+            提取跨模块依赖关系
+```
+
+### 优势
+- **可维护性提升**：大型项目不再面临单文件过大的问题（主文档保持 < 500 行）
+- **团队协作优化**：模块化拆分使多团队并行开发更清晰（外部依赖独立章节）
+- **导航便捷性**：主文档提供模块索引表，快速跳转到具体模块
+- **完全自动化**：无需手工拆分，工具自动判断项目规模并执行拆分
+
+### 技术细节
+- **拆分判断逻辑**（[generate-task.js:267-275](scripts/task-tools/generate-task.js#L267-L275)）：
+  ```javascript
+  return wbsLines > 1000 ||      // 预估主文档 > 1000 行
+         tasks.length > 50 ||    // 工作包 > 50 个
+         parallelModules >= 3;   // 并行模块 ≥ 3 个
+  ```
+- **大型项目主文档结构**（遵循 [TASK-PLANNING-EXPERT.md](AgentRoles/TASK-PLANNING-EXPERT.md#L172-L204) 规范）：
+  - § 1. 项目概述（总体目标、关键交付物、模块数量）
+  - § 2. 模块任务索引（表格：模块名称、任务数量、负责团队、文档链接、状态）
+  - § 3. 全局里程碑（跨模块交付物）
+  - § 4. 跨模块依赖关系（可视化依赖表）
+  - § 5. 全局关键路径（CPM 跨模块分析）
+  - § 6. 全局风险与缓解（影响多模块的风险）
+- **模块文档标准结构**（遵循 [task-modules/README.md](docs/task-modules/README.md) 规范）：
+  - § 1. 模块概述（关联 Story 数量、任务类型分布）
+  - § 2. 模块 WBS（详细任务表格）
+  - § 3. 模块内依赖关系（内部依赖矩阵）
+  - § 4. 外部依赖（跨模块依赖表）
+  - § 5. 模块里程碑
+  - § 6. 模块风险
+  - § 7. Story → Task 映射（本模块）
+  - § 8. 相关文档
+
+### 已验证场景
+- ✅ 小型项目（25 Story / 78 Task）：生成单文件 TASK.md
+- ✅ 大型项目（120 Story / 320 Task / 4 模块）：自动拆分为主文档 + 4 个模块文档
+- ✅ 跨模块依赖识别：正确提取 15 个跨模块依赖关系
+- ✅ 模块索引自动生成：task-modules/README.md 包含完整模块清单
+
+---
+
+## [v1.11] - 2025-11-07
+
+### 重大变更
+- **TASK.md 自动生成改造**：TASK.md 从手工维护转换为自动生成产物
+  - 删除 `/docs/TASK.md` 模板文件（现由 `/task plan` 命令自动生成）
+  - TASK 专家激活时自动检测，若 TASK.md 不存在则初始化生成
+  - 支持增量更新：人工标注（Owner、优先级、风险备注）在再次执行 `/task plan` 时自动保留
+  - 详见 [AgentRoles/TASK-PLANNING-EXPERT.md](AgentRoles/TASK-PLANNING-EXPERT.md) §自动生成规范
+
+### 新增
+- **自动生成工具**：`npm run task:generate` — 从 PRD + ARCHITECTURE 自动分解 WBS
+  - 新增 `/scripts/task-tools/generate-task.js`（400+ 行）：核心自动生成逻辑
+  - 功能包括：Story → Task 映射、依赖矩阵计算、关键路径（CPM）、里程碑生成、风险识别
+  - 支持项目规模检测：小型（单文件）vs 大型（模块化拆分）
+  - 工具文档：[scripts/task-tools/README.md](scripts/task-tools/README.md) §0. TASK 自动生成
+
+- **TASK-PLANNING-EXPERT.md 增强**：新增"自动生成规范"章节（85+ 行）
+  - 生成触发条件（首次/更新/增量编辑）
+  - 8 步生成逻辑：检测项目规模 → WBS 分解 → 依赖矩阵 → 里程碑 → 资源分配 → DB 任务 → 拆分决策 → 追溯映射
+  - 模板选择流程与保留策略（人工标注 vs 自动刷新）
+
+### 修改
+- **AGENTS.md Phase 3 更新**：
+  - 将"输出"改为"自动生成流程"，强调 `/task plan` 的自动生成作用
+  - 新增工具命令：`npm run task:generate` — 从零生成 TASK.md（或更新现有文件）
+  - 快捷命令描述更新为"基于 PRD+ARCH 自动生成/刷新"
+  - 版本号从 v1.10+ 更新到 v1.11+
+
+- **task-lint.js 友好提示**：
+  - 当 TASK.md 不存在时，不报错而是显示友好提示
+  - 提示内容："TASK.md 为自动生成产物，请使用 TASK 专家执行 `/task plan` 生成"
+  - 补充说明："或手动运行：npm run task:generate"
+  - 返回 0（不阻塞 CI）
+
+- **TDD/QA 专家预检查逻辑**：
+  - 在 `TDD-PROGRAMMING-EXPERT.md` 和 `QA-TESTING-EXPERT.md` 的"输入"章节添加预检查说明
+  - 若 TASK.md 不存在，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活
+
+- **CONVENTIONS.md 新增章节**：
+  - 新增"自动生成产物说明"章节，包含 TASK.md 的生成时机、输入、维护方式
+  - 新增"拆分决策（大型项目）"说明
+  - 新增"文档依赖关系"流程图
+
+### 工作流变化
+**之前**：
+```
+PRD + ARCH 完成 → 激活 TASK 专家 → 手工编写 TASK.md（381 行模板参考）
+```
+
+**之后**：
+```
+PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 TASK.md
+                                    ↓
+                            WBS/依赖/关键路径/里程碑全自动
+                                    ↓
+                            人工检查与调整（Owner/优先级/风险）
+```
+
+### 优势
+- **效率提升**：WBS 分解、依赖计算、关键路径从手工 → 自动（节省 2-3 小时）
+- **一致性**：所有项目的 TASK.md 结构统一（基于同一模板生成）
+- **追溯完整**：Story → Task 映射自动生成，无遗漏
+- **维护简化**：PRD/ARCH 变更时，`/task plan --update-only` 自动刷新
+
+### 迁移说明
+若项目中已有手工编辑的 TASK.md，建议：
+1. 备份现有 TASK.md（如有重要人工标注）
+2. 执行 `/task plan` 自动生成新 TASK.md
+3. 比对差异，将人工标注合并到新文件（工具会自动保留已标注项）
+
+---
+
 ## [v1.8] - 2025-11-05
 ### 新增
 - **PRD 模块化架构**：支持大型项目按功能域拆分 PRD，避免单文件过大导致上下文撑爆。

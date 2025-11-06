@@ -37,6 +37,36 @@
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
 - 若在 `AGENTS.md` 或角色卡片中引用新目录，需同步更新此文档。
 
+## 自动生成产物说明
+
+### TASK.md 的生成与维护
+- **自动生成时机**：激活 TASK 专家后，通过 `/task plan` 快捷命令自动生成或刷新
+- **生成输入**：`/docs/PRD.md` + `/docs/ARCHITECTURE.md`
+- **生成工具**：`npm run task:generate`（由 `/task plan` 内部调用）
+- **首次生成**：TASK.md 不存在时，工具从零生成；若已存在，工具执行增量更新
+- **人工调整**：生成后可手工修改 Owner、优先级、风险备注等
+- **再次刷新**：下次执行 `/task plan --update-only` 时，工具保留人工标注，仅刷新 WBS/依赖/关键路径
+
+### 拆分决策（大型项目）
+- 若满足拆分条件（主文档 > 1000 行 或 50+ 工作包 或 3+ 并行开发流），TASK 专家会：
+  1. 在 `/docs/task-modules/README.md` 注册模块索引
+  2. 创建 `/docs/task-modules/{domain}.md` 模块任务文档
+  3. 修改主 `/docs/TASK.md` 为总纲与索引（< 500 行）
+- 详见 `/AgentRoles/TASK-PLANNING-EXPERT.md` 的"自动生成规范"章节
+
+### 文档依赖关系
+```
+PRD.md + ARCHITECTURE.md
+         ↓
+    /task plan (TASK 专家激活)
+         ↓
+    task:generate 工具
+         ↓
+    /docs/TASK.md （自动生成产物）
+         ↓
+    TDD/QA 专家读取
+```
+
 ## Scripts 约定
 - 脚本按用途分类，如 `scripts/ci.sh`、`scripts/deploy.sh`、`scripts/analyze_logs.py`。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。

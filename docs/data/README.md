@@ -1,8 +1,8 @@
 # 全局数据目录说明（/docs/data/）
 
-> **用途**：存放跨模块、全局级别的需求管理数据与追溯文档
-> **更新日期**：2025-11-05
-> **版本**：v1.8+
+> **用途**：存放跨模块、全局级别的需求管理数据、测试策略与追溯文档
+> **更新日期**：2025-11-06
+> **版本**：v1.9+（新增 QA 全局测试数据）
 
 ---
 
@@ -24,6 +24,11 @@
   ERD.mmd                            # 全局 ER 图（实体关系图）
   dictionary.md                      # 数据字典（全局实体与字段定义）
 
+  # 全局测试策略与规划（QA 专家维护）
+  test-strategy-matrix.md            # 测试策略矩阵（Story → 测试类型覆盖）
+  test-priority-matrix.md            # 测试优先级矩阵（测试用例优先级量化评分）
+  test-risk-matrix.md                # 测试风险识别与缓解矩阵
+
   # 变更管理
   change-requests/                   # 变更请求流程
     README.md                        # CR 流程说明
@@ -32,6 +37,7 @@
 
   # 其他
   scrs/                              # 软件变更请求（SCR）
+  qa-reports/                        # QA 测试报告汇总（由工具生成）
 ```
 
 ---
@@ -47,6 +53,9 @@
 | `component-dependency-graph.mmd` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
 | `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系 |
 | `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵 |
+| `test-strategy-matrix.md` | **全局** | 所有模块的 Story → 测试类型覆盖矩阵，QA 专家维护 |
+| `test-priority-matrix.md` | **全局** | 跨模块测试用例优先级量化评分，指导测试执行顺序，QA 专家维护 |
+| `test-risk-matrix.md` | **全局** | 全局测试风险识别、评估与缓解措施，QA 专家维护 |
 | `change-requests/` | **全局** | 影响多个模块的变更请求流程 |
 | `ERD.mmd` | **全局** | 跨模块的实体关系图（数据库设计） |
 | `dictionary.md` | **全局** | 共享数据实体与字段定义 |
@@ -81,6 +90,104 @@
 ```
 
 **维护者**：QA 专家（测试执行过程中更新状态）
+
+---
+
+### 1.1 test-strategy-matrix.md — 测试策略矩阵
+
+**作用**：定义全局测试策略，映射 Story → 测试类型覆盖，识别测试覆盖缺口
+
+**内容**：
+- 9 类测试类型定义（单元、集成、E2E、回归、契约、降级、事件驱动、性能、安全）
+- Story → 测试类型覆盖矩阵（✅ 已覆盖 / ❌ 未覆盖）
+- 全局覆盖率统计（按模块、按测试类型、按优先级）
+- 测试策略自动分配规则（基于 Story 优先级、功能特性、架构模式）
+- 与追溯矩阵、优先级矩阵的集成
+
+**格式**：
+```markdown
+| Story ID | Story 标题 | 优先级 | 单元 | 集成 | E2E | 回归 | 契约 | 降级 | 事件 | 性能 | 安全 | 覆盖完整性 |
+|---------|-----------|-------|------|------|-----|------|------|------|------|------|------|-----------|
+| US-USER-001 | 用户注册 | P0 | ✅ | ✅ | ✅ | ✅ | - | ✅ | ✅ | ✅ | ✅ | 100% (8/9) |
+```
+
+**维护者**：QA 专家（测试计划阶段）
+
+**自动化工具**：
+```bash
+npm run qa:check-test-strategy-coverage  # 检查覆盖率
+npm run qa:suggest-test-strategy         # 自动推荐测试类型
+```
+
+---
+
+### 1.2 test-priority-matrix.md — 测试优先级矩阵
+
+**作用**：量化评估测试用例优先级，指导资源受限时的测试执行顺序
+
+**评分公式**：
+```
+综合得分 = 关联 Story 优先级 × 2 + 覆盖范围 × 1.5 + (6 - 执行难度) × 1 + 历史缺陷率 × 0.5
+```
+
+**内容**：
+- 测试用例优先级评分矩阵（TP0-TP3）
+- 全局优先级排序（跨模块 Top 20 测试用例）
+- 按测试优先级、模块、测试类型分布统计
+- 动态调整机制（资源受限、时间压力、紧急修复场景）
+- 快速冒烟测试策略（30 分钟覆盖 80%）
+
+**格式**：
+```markdown
+| 测试用例 ID | 关联 Story | 测试类型 | Story 优先级 | 覆盖范围 | 执行难度 | 历史缺陷率 | 综合得分 | 测试优先级 | 状态 |
+|-----------|----------|---------|------------|---------|---------|----------|---------|----------|------|
+| TC-USER-001 | US-USER-001 | E2E | 5 | 5 | 2 | 5 | 24.5 | TP0 | ✅ 通过 |
+```
+
+**维护者**：QA 专家（测试计划阶段，每周更新缺陷率）
+
+**自动化工具**：
+```bash
+npm run qa:calc-test-priority            # 计算测试优先级
+npm run qa:generate-test-plan            # 生成测试执行计划
+npm run qa:optimize-test-suite           # 资源受限下的最优测试集
+```
+
+---
+
+### 1.3 test-risk-matrix.md — 测试风险识别与缓解矩阵
+
+**作用**：主动识别测试活动中的潜在风险，量化评估风险等级，制定缓解措施与应急预案
+
+**风险评估公式**：
+```
+风险等级 = 风险概率 × 影响程度
+```
+
+**内容**：
+- 6 类测试风险清单（环境、数据、时间、资源、技术、需求风险）
+- 风险热力图（概率 × 影响程度分布）
+- 高风险缓解计划（R2 级别详细措施）
+- 风险监控触发器（自动检测升级条件）
+- 应急预案（环境不可用、时间不足、自动化失败场景）
+- 风险回顾与持续改进机制
+
+**格式**：
+```markdown
+| 风险 ID | 风险描述 | 影响模块 | 概率 | 影响 | 风险等级 | 缓解措施 | 应急预案 | 负责人 | 状态 |
+|---------|---------|---------|------|------|---------|---------|---------|--------|------|
+| TR-ENV-001 | 测试环境不稳定 | 全局 | 4 | 4 | R2 (16) 🟠 | 容器化 + 监控 + 备用环境 | 切换备用环境 | @qa-lead | 🔄 进行中 |
+```
+
+**维护者**：QA 专家（每 2 周风险回顾会议更新）
+
+**自动化工具**：
+```bash
+npm run qa:calc-risk-score               # 风险评分自动计算
+npm run qa:risk-trend                    # 风险趋势分析
+npm run qa:check-risk-triggers           # 风险触发器检查
+npm run qa:generate-risk-report          # 生成风险报告
+```
 
 ---
 
@@ -248,23 +355,43 @@ graph TB
 
 项目已提供以下脚本扫描全局数据：
 
-### 1. PRD 完整性检查
+### 1. PRD 工具
 ```bash
-npm run prd:lint
+npm run prd:lint                          # PRD 完整性检查
+npm run prd:check-dependency-cycles       # 依赖循环检查
+npm run prd:sync-prd-qa-ids               # PRD ↔ QA ID 同步验证
 ```
-**检查**：追溯矩阵、全局依赖图是否存在
 
-### 2. 依赖循环检查
+### 2. QA 工具
 ```bash
-npm run prd:check-dependency-cycles
-```
-**检查**：全局依赖图中的循环依赖
+# 文档检查
+npm run qa:lint                           # QA 文档完整性检查
 
-### 3. NFR 达标检查
-```bash
-npm run nfr:check-compliance
+# 测试策略
+npm run qa:check-test-strategy-coverage   # 检查测试策略覆盖率
+npm run qa:suggest-test-strategy          # 自动推荐测试类型
+
+# 测试优先级
+npm run qa:calc-test-priority             # 计算测试优先级
+npm run qa:generate-test-plan             # 生成测试执行计划
+npm run qa:optimize-test-suite            # 资源受限下的最优测试集
+
+# 测试风险
+npm run qa:calc-risk-score                # 风险评分自动计算
+npm run qa:risk-trend                     # 风险趋势分析
+npm run qa:check-risk-triggers            # 风险触发器检查
+npm run qa:generate-risk-report           # 生成风险报告
+
+# 测试报告
+npm run qa:generate-test-report           # 测试报告生成
+npm run qa:coverage-report                # 测试覆盖率分析
+npm run qa:check-defect-blockers          # 缺陷阻塞检查与发布门禁
 ```
-**检查**：所有模块的 NFR 追踪表达标率
+
+### 3. 其他工具
+```bash
+npm run nfr:check-compliance              # NFR 达标检查
+```
 
 ---
 
