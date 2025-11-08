@@ -29,7 +29,7 @@
 - 更新 `/docs/ARCHITECTURE.md`（唯一权威版本）
 - 在 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 保持数据视图一致
 - 新增或更新 `/docs/adr/NNN-*.md` 记录关键决策，并在文档中引用
-- 若产生影响，补充 `/docs/CHANGELOG.md` 与 `/docs/AGENT_STATE.md` 的 `ARCHITECTURE_DEFINED`
+- 若产生影响，补充 `/CHANGELOG.md` 与 `/docs/AGENT_STATE.md` 的 `ARCHITECTURE_DEFINED`
 
 ## 核心工作流程
 

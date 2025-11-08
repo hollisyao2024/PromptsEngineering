@@ -11,7 +11,7 @@
 ## 输出与回写
 - 在 `/docs/TASK.md` 填写 WBS、依赖矩阵、里程碑、风险与测试映射
 - 将数据库相关任务补充到固定表头，并关联到 `/db/` 迁移脚本
-- 完成后更新 `/docs/AGENT_STATE.md` 的 `TASK_PLANNED` 勾选，并视需要补充 `/docs/CHANGELOG.md`
+- 完成后更新 `/docs/AGENT_STATE.md` 的 `TASK_PLANNED` 勾选，并视需要补充 `/CHANGELOG.md`
 - 与后续 TDD 阶段同步任务顺序、验收标准和风险关注项
 
 ## 核心工作流程
