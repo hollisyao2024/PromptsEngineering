@@ -11,6 +11,7 @@
 - `shared/`：多端共享的库或工具，例如 API 契约、通用组件。
 - `scripts/`：自动化脚本（CI/CD、部署、诊断、数据工具），要求使用可执行命名并提供 Usage 注释。
 - `tests/`：端到端或跨模块测试套件；若各子项目自带测试目录，可在此放置集成级别脚本。
+- `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
 - 其他目录：若新增（如 `infra/`、`ops/`、`notebooks/`），请在本文件补充说明。
 
 ## `docs/` 子结构
@@ -23,7 +24,8 @@
 - `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
 - `docs/qa-modules/`：**大型项目 QA 模块化目录**（按功能域拆分的详细测试计划），包含 `README.md` 模块索引。
 - `docs/AGENT_STATE.md`：阶段状态勾选清单。
-- `docs/CHANGELOG.md`：版本级变更记录（亦可放仓库根 `CHANGELOG.md`，需在此注明）。
+- `CHANGELOG.md`（项目根）：主变更记录，仅保存最近 1~2 个主版本条目。
+- `docs/changelogs/`：历史分卷目录，存放归档的旧 CHANGELOG 文件，并包含 `README.md` 记录分卷规则与索引。
 - `docs/adr/`：架构决策记录（`NNN-{module}-title.md` 命名）。
 - `docs/data/`：数据相关内容（ERD、字典、样本数据、指标定义、**追溯矩阵**）。
   - `docs/data/traceability-matrix.md`：**需求追溯矩阵**（Story → AC → Test Case ID 映射）。
@@ -31,6 +33,16 @@
 - 可选扩展：
   - `docs/security/`：威胁建模、安全评估。
   - `docs/operations/`：运维手册、SLO、值班指南。
+
+### CHANGELOG 拆分规范
+- **触发阈值**：当根 `CHANGELOG.md` 超过 ~500 行、覆盖 3 个及以上季度/迭代，或需要归档上一季度（默认拆分单位）时，即执行拆分。
+- **拆分步骤**：
+  1. 将需要归档的条目从根 `CHANGELOG.md` 剪切至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md` 或 `CHANGELOG-iter-{iteration}.md`（默认优先季度或迭代命名，若需其他策略，需在目录下 `README.md` 说明）。
+  2. 在 `docs/changelogs/README.md` 中登记新分卷（文件名、时间/版本范围、维护者）。
+  3. 在根 `CHANGELOG.md` 顶部的“历史记录索引”段落更新链接，指向对应分卷。
+- **主文件约束**：根 `CHANGELOG.md` 仅保留最近 1~2 个主版本条目，所有 `npm run changelog:*` 脚本或自动化工具只对该文件执行写操作；历史分卷视为只读。
+- **引用规范**：PRD/ARCH/TASK/QA 文档或 ADR 若需引用历史变更，必须链接到具体的 `docs/changelogs/CHANGELOG-*.md`，避免模糊引用。
+- **目录维护**：若拆分策略调整（例如从季度切换到模块或年份分卷），需同步更新本节与 `docs/changelogs/README.md`，确保团队统一遵循。
 
 ## 命名与引用规则
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。

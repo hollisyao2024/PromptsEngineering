@@ -2,6 +2,16 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.14] - 2025-11-08
+
+### 新增
+- **CHANGELOG 分卷目录**：新增 `docs/changelogs/` 与配套 `README.md`，集中记录季度/迭代分卷的命名规则、维护步骤与索引表，方便快速定位历史条目。
+
+### 修改
+- **目录规范更新**（[docs/CONVENTIONS.md](docs/CONVENTIONS.md#changelog-拆分规范)）：明确根 `CHANGELOG.md` 必须位于项目根目录，仅保留最近 1~2 个主版本，历史记录按季度或迭代优先拆分至 `docs/changelogs/CHANGELOG-*.md`，并规范触发阈值、引用方式与自动化约束。
+
+---
+
 ## [v1.13] - 2025-11-08
 
 ### 重大变更
