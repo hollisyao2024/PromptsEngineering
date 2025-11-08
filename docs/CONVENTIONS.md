@@ -185,13 +185,17 @@ PRD.md + ARCHITECTURE.md
 
 #### 1. 使用项目脚本（最推荐）✅
 ```bash
-./scripts/tdd-tools/create-migration.sh add_user_roles
+# 通用数据库（PostgreSQL / MySQL / Oracle / SQLite 等）
+./scripts/tdd-tools/create-migration.sh add_user_roles --dir db/migrations --dialect postgres
+
+# Supabase 专用（输出到 supabase/migrations/）
+./scripts/tdd-tools/create-migration-supabase.sh add_user_roles
 ```
 - 自动生成正确的时间戳
-- 包含标准化的文件模板
-- 确保格式一致性
+- 包含标准化的文件模板及幂等性提示
+- 支持自定义目录 / 方言标签（通用脚本）
 
-#### 2. 使用 Supabase CLI（推荐）✅
+#### 2. 使用 Supabase CLI（Supabase 数据库推荐）✅
 ```bash
 supabase migration new add_user_roles
 ```
@@ -201,7 +205,7 @@ supabase migration new add_user_roles
 #### 3. 手动创建（不推荐）⚠️
 ```bash
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
-touch "supabase/migrations/${TIMESTAMP}_add_feature_name.sql"
+touch "db/migrations/${TIMESTAMP}_add_feature_name.sql"
 ```
 - 需要手动编写模板
 - 容易遗漏必要注释
@@ -209,7 +213,7 @@ touch "supabase/migrations/${TIMESTAMP}_add_feature_name.sql"
 #### 4. 手动输入日期（严禁）❌
 ```bash
 # ❌ 错误示例 - 日期不准确！
-touch "supabase/migrations/20251104093000_add_feature.sql"
+touch "db/migrations/20251104093000_add_feature.sql"
 ```
 
 ### 为什么必须使用实际时间戳？
@@ -244,25 +248,48 @@ touch "supabase/migrations/20251104093000_add_feature.sql"
 
 ### 文件内容模板
 
-使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板：
+使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板（Supabase 版本同理，但输出目录不同）：
 
 ```sql
 -- ============================================================
 -- description_here
 -- 日期: YYYY-MM-DD
+-- 数据库方言: postgres|mysql|oracle|sqlite|generic
 -- 目标: [请描述此迁移的目的]
+-- 幂等性提示:
+--   1) 使用 IF EXISTS / IF NOT EXISTS / CREATE OR REPLACE 等条件语句
+--   2) 数据变更前执行状态检查，避免重复写入
+--   3) 始终遵循 Expand → Migrate/Backfill → Contract 流程
 -- ============================================================
 
 BEGIN;
 
 -- ============================================================
--- 在此处添加 SQL 语句
+-- 在此处添加 SQL 语句（可保留/删除方言示例）
 -- ============================================================
+
+-- PostgreSQL 示例:
+-- DO $$ BEGIN
+--   IF NOT EXISTS (...) THEN
+--     CREATE TABLE ...
+--   END IF;
+-- END $$;
+
+-- MySQL 示例:
+-- CREATE TABLE IF NOT EXISTS ...;
+
+-- Oracle 示例:
+-- BEGIN
+--   EXECUTE IMMEDIATE 'CREATE TABLE ...';
+-- EXCEPTION
+--   WHEN OTHERS THEN
+--     IF SQLCODE != -955 THEN RAISE; END IF;
+-- END;
 
 COMMIT;
 
 -- ============================================================
--- 回滚提示
+-- 回滚提示（Contract 阶段）
 -- ============================================================
 -- 如需回滚此迁移，请执行以下操作:
 -- [描述如何安全回滚此迁移]

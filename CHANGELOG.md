@@ -2,6 +2,18 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.15] - 2025-11-08
+
+### 新增
+- **通用迁移脚本**：在 `scripts/tdd-tools/create-migration.sh` 新增数据库无关版本，支持自定义输出目录与 `postgres/mysql/oracle/sqlite/generic` 方言标签，并在模板内内置 Expand→Migrate→Contract 与幂等性提示。
+- **Supabase 独立脚本**：原有脚本更名为 `create-migration-supabase.sh`，沿用 Supabase 目录结构与交互提示，方便在多数据库项目中并行使用。
+
+### 修改
+- **TDD 规范同步**：`AgentRoles/TDD-PROGRAMMING-EXPERT.md` 与对应 Handbook 更新输入/回写流程，要求在阅读/回写时覆盖 PRD/ARCH/TASK/QA 的模块化文档，并在变更后记录受影响文档。
+- **目录约定**（[docs/CONVENTIONS.md](docs/CONVENTIONS.md#数据库迁移文件规范-强制要求)）：脚本示例同时涵盖通用与 Supabase 两种命令，模板展示方言字段与幂等性提醒，手动示例路径统一为 `db/migrations/`。
+
+---
+
 ## [v1.14] - 2025-11-08
 
 ### 新增

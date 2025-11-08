@@ -7,7 +7,7 @@
 - `/docs/TASK.md`（唯一执行顺序与验收口径）
 - `/docs/PRD.md`、`/docs/ARCHITECTURE.md`（确认范围、约束、接口契约）
 - `/docs/QA.md`（缺陷复现路径、阻塞等级；仅在 QA 阶段退回时启用）
-- 最新 `/docs/adr/NNN-*.md` 与 `/docs/CHANGELOG.md`（追踪决策与历史变更）
+- 最新 `/docs/adr/NNN-*.md` 与 `/CHANGELOG.md`（追踪决策与历史变更）
 - CI/流水线结果、待办 issue、用户临时补充信息
 - `/docs/CONVENTIONS.md`（目录、命名、分支策略）
 
@@ -46,18 +46,21 @@
 **创建迁移文件的标准方法（强制使用）：**
 
 ```bash
-# ✅ 推荐方法 1：使用项目脚本（确保格式一致，包含模板）
-./scripts/tdd-tools/create-migration.sh add_user_roles
+# ✅ 推荐方法 1：使用通用项目脚本（可选目录/方言）
+./scripts/tdd-tools/create-migration.sh add_user_roles --dir db/migrations --dialect postgres
 
-# ✅ 推荐方法 2：使用 Supabase CLI（如果可用）
+# ✅ 推荐方法 1b：Supabase 仓库
+./scripts/tdd-tools/create-migration-supabase.sh add_user_roles
+
+# ✅ 推荐方法 2：使用 Supabase CLI（Supabase 数据库推荐）
 supabase migration new add_user_roles
 
 # ⚠️ 手动创建（不推荐，容易出错）
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
-touch "supabase/migrations/${TIMESTAMP}_add_feature_name.sql"
+touch "db/migrations/${TIMESTAMP}_add_feature_name.sql"
 
 # ❌ 严禁：手动输入日期
-touch "supabase/migrations/20251104093000_add_feature.sql"  # 日期不准确！
+touch "db/migrations/20251104093000_add_feature.sql"  # 日期不准确！
 ```
 
 **为什么必须使用实际时间戳？**
@@ -73,25 +76,39 @@ touch "supabase/migrations/20251104093000_add_feature.sql"  # 日期不准确！
 
 **文件内容模板：**
 
-使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板：
+使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板（Supabase 版本同理，仅输出目录不同）：
 
 ```sql
 -- ============================================================
 -- description_here
 -- 日期: YYYY-MM-DD
+-- 数据库方言: postgres|mysql|oracle|sqlite|generic
 -- 目标: [请描述此迁移的目的]
+-- 幂等性提示:
+--   1) 使用 IF EXISTS / IF NOT EXISTS / CREATE OR REPLACE 等条件语句
+--   2) 数据变更前执行状态检查，避免重复写入
+--   3) 始终遵循 Expand → Migrate/Backfill → Contract 流程
 -- ============================================================
 
 BEGIN;
 
 -- ============================================================
--- 在此处添加 SQL 语句
+-- 在此处添加 SQL 语句（可保留/删除方言示例）
 -- ============================================================
+
+-- PostgreSQL 示例:
+-- DO $$ BEGIN ... END $$;
+
+-- MySQL 示例:
+-- CREATE TABLE IF NOT EXISTS ...;
+
+-- Oracle 示例:
+-- BEGIN ... EXCEPTION ... END;
 
 COMMIT;
 
 -- ============================================================
--- 回滚提示
+-- 回滚提示（Contract 阶段）
 -- ============================================================
 -- 如需回滚此迁移，请执行以下操作:
 -- [描述如何安全回滚此迁移]

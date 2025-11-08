@@ -10,10 +10,16 @@
 
 ## 输入
 - `/docs/TASK.md`（作为实现顺序与验收口径）、代码基线、工具链配置；若 QA 阶段退回，追加 `/docs/QA.md` 的复现记录与结论。
+- **模块化读取**：若 PRD/ARCH/TASK/QA 已拆分，按需读取：
+  - `/docs/task-modules/{domain}.md`
+  - `/docs/prd-modules/{domain}.md`
+  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/qa-modules/{domain}.md`（当 QA 回流提供模块级复现记录时）
 - **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
 
 ## 输出
 - 本次修改的文件与段落清单。
+- 涉及文档的更新记录：包括主 `/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md` 以及各自的模块文档（`docs/{prd|architecture|task|qa}-modules/{domain}.md`）和 `docs/changelogs/` 索引。
 - CI/CD、提交规范与文档回写细节可参阅 `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` §开发命令与自动化流程。
 
 ## 执行规范
@@ -35,7 +41,7 @@
     3. **原子操作**：使用事务确保每个步骤要么全部成功，要么完全回滚
   - **验证要求**：提交前必须在本地执行 3 次验证（首次执行、重复执行、回滚+重新执行），确保幂等性。
 - **数据库变更流程**：严格遵循 **Expand → Migrate/Backfill → Contract**；
-  - 迁移脚本位于 `/db/migrations/`（Supabase 项目使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
+  - 迁移脚本位于 `/db/migrations/`（Supabase 数据库使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
   - 为 Backfill 与双写/对账提供脚本或作业配置；
   - 为关键取舍新增/更新 ADR（如分片、索引策略变更）。
 - **仓库/技术栈约定**（示例，可按项目实际调整）：
@@ -46,10 +52,11 @@
 
 ## 文档回写 Gate（提交前必做）
 - 若实现导致需求/设计/计划变化：
-  - 更新 `/docs/TASK.md` 的完成勾选与依赖；
-  - 更新 `/docs/PRD.md`（范围/AC 变化）、`/docs/ARCHITECTURE.md`（数据视图/设计变化），如超出阈值将提示切换 `/prd` 或 `/arch`；
-  - 必要时新增/更新 **ADR**（若有设计取舍变化），并在 ARCH 链接；
-  - 追加 `/docs/CHANGELOG.md` 条目（遵循 Keep a Changelog 风格）。
+  - 更新 `/docs/TASK.md` 的完成勾选与依赖；若项目已拆分，同步对应 `/docs/task-modules/{domain}.md` 与 `task-modules/README.md`。
+  - 更新 `/docs/PRD.md`（范围/AC 变化）、`/docs/ARCHITECTURE.md`（数据视图/设计变化）；若存在模块文档，按需求/架构所属功能域同步更新 `/docs/prd-modules/{domain}.md`、`/docs/architecture-modules/{domain}.md`。
+  - 若 QA 已拆分，依据缺陷影响范围同步 `/docs/qa-modules/{domain}.md` 的测试记录，并在主 `/docs/QA.md` 补充结论。
+  - 必要时新增/更新 **ADR**（若有设计取舍变化），并在 ARCH 文档中链接。
+  - 追加根目录 `CHANGELOG.md` 条目（遵循 Keep a Changelog 风格）；若需归档历史条目或引用旧分卷，参照 `docs/changelogs/README.md` 更新对应分卷及索引。
   - 检查迁移目录（`/db/migrations/` 或 `/supabase/migrations/`）是否包含迁移与回滚脚本；
 
 ## CI 任务（Solo Lite）
