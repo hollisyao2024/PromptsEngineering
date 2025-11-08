@@ -27,7 +27,7 @@
 
 ## 输出与回写
 - 更新 `/docs/ARCHITECTURE.md`（唯一权威版本）
-- 在 `/docs/data/ERD.mmd`、`/docs/data/dictionary.md` 保持数据视图一致
+- 在 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 保持数据视图一致
 - 新增或更新 `/docs/adr/NNN-*.md` 记录关键决策，并在文档中引用
 - 若产生影响，补充 `/docs/CHANGELOG.md` 与 `/docs/AGENT_STATE.md` 的 `ARCHITECTURE_DEFINED`
 
@@ -249,7 +249,7 @@ sequenceDiagram
 #### 2.3 数据视图
 
 **实体关系图（ERD）**：
-参考 `/docs/data/ERD.mmd`
+参考 `/docs/data/ERD.md`
 
 **核心数据表**：
 | 表名 | 用途 | 主键 | 重要字段 | 索引策略 |
@@ -414,7 +414,7 @@ graph TB
 - **测试计划**：[QA.md](QA.md)
 - **ADR 目录**：[adr/](adr/)
 - **数据字典**：[data/dictionary.md](data/dictionary.md)
-- **ERD 图**：[data/ERD.mmd](data/ERD.mmd)
+- **ERD 图**：[data/ERD.md](data/ERD.md)
 - **目录规范**：[CONVENTIONS.md](CONVENTIONS.md)
 
 ---
@@ -589,7 +589,7 @@ graph LR
 **步骤 2**：创建目录结构
 - 创建 `/docs/architecture-modules/` 目录
 - 创建 `/docs/architecture-modules/README.md` 模块索引
-- 创建 `/docs/data/ERD.mmd`（全局数据视图）
+- 创建 `/docs/data/ERD.md`（全局数据视图）
 
 **步骤 3**：迁移内容
 - 将现有架构文档的详细设计按功能域拆分到各模块文件
@@ -811,7 +811,7 @@ graph LR
 
 #### TDD 专家
 - **输入**：模块 ARCH（作为实现依据）
-- **输出**：代码实现遵循模块架构设计，更新数据视图（ERD.mmd）
+- **输出**：代码实现遵循模块架构设计，更新数据视图（ERD.md）
 
 #### QA 专家
 - **输入**：主 ARCH + 模块 ARCH（验证架构合规性）
@@ -843,7 +843,7 @@ graph LR
 #### Q5: 数据视图（ERD）如何拆分？
 **A**:
 1. 每个模块维护独立的 ERD（在模块架构文档的"数据视图"章节）
-2. 全局 ERD（`/docs/data/ERD.mmd`）仅包含跨模块实体关系
+2. 全局 ERD（`/docs/data/ERD.md`）仅包含跨模块实体关系
 3. 使用外键约束或逻辑外键标注跨模块数据关联
 
 ---
@@ -858,7 +858,7 @@ graph LR
 #### 步骤 2：创建目录结构
 - 创建 `/docs/architecture-modules/` 目录
 - 创建 `/docs/architecture-modules/README.md` 模块索引
-- 创建 `/docs/data/ERD.mmd`（全局数据视图）
+- 创建 `/docs/data/ERD.md`（全局数据视图）
 
 #### 步骤 3：迁移内容
 - 将现有架构文档的详细设计按功能域拆分到各模块文件

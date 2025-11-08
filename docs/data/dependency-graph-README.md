@@ -2,7 +2,7 @@
 
 ## 概述
 
-`dependency-graph.mmd` 使用 Mermaid 语法描述用户故事之间的依赖关系，支持：
+`dependency-graph.md` 使用 Mermaid 语法描述用户故事之间的依赖关系，支持：
 - 可视化需求依赖网络
 - 识别关键路径（Critical Path）
 - 追踪模块间依赖
@@ -14,15 +14,15 @@
 
 ### 在线渲染
 1. 访问 [Mermaid Live Editor](https://mermaid.live/)
-2. 将 `dependency-graph.mmd` 内容复制粘贴到编辑器
+2. 将 `dependency-graph.md` 内容复制粘贴到编辑器
 3. 实时查看依赖关系图
 
 ### 在 GitHub/GitLab 中查看
-- GitHub：直接在仓库中预览 `.mmd` 文件
+- GitHub：直接在仓库中预览 `.md` 文件（支持 mermaid 代码块）
 - GitLab：在 Markdown 文档中引用：
   ```markdown
   ```mermaid
-  // 将 dependency-graph.mmd 内容粘贴到此处
+  // 将 dependency-graph.md 内容粘贴到此处
   ```
   ```
 
@@ -153,8 +153,8 @@ prdModules.forEach(module => {
   });
 });
 
-fs.writeFileSync('./docs/data/dependency-graph-auto.mmd', mermaidCode);
-console.log('✅ 依赖关系图已自动生成：dependency-graph-auto.mmd');
+fs.writeFileSync('./docs/data/dependency-graph-auto.md', mermaidCode);
+console.log('✅ 依赖关系图已自动生成：dependency-graph-auto.md');
 ```
 
 运行：
@@ -190,7 +190,7 @@ node scripts/generate-dependency-graph.js
 ## 与其他文档的关系
 
 ```
-依赖关系图（dependency-graph.mmd）
+依赖关系图（dependency-graph.md）
   ├─ 数据来源 → PRD 模块（/docs/prd-modules/*.md）的"依赖"字段
   ├─ 影响 → 任务规划（/docs/TASK.md）的 WBS 排序
   ├─ 影响 → Sprint 规划（选择无依赖冲突的 Story）
@@ -211,4 +211,4 @@ node scripts/generate-dependency-graph.js
 
 ---
 
-> 本文件说明 `dependency-graph.mmd` 的使用方法，由 PRD 专家和 TASK 专家协同维护。
+> 本文件说明 `dependency-graph.md` 的使用方法，由 PRD 专家和 TASK 专家协同维护。

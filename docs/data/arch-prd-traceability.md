@@ -27,9 +27,9 @@
 
 | Component ID | 引用文件 | 行号 |
 |--------------|---------|------|
-| USER-SVC-001 | component-dependency-graph.mmd | 14 |
-| PAY-SVC-001 | component-dependency-graph.mmd | 18 |
-| NOTIF-SVC-001 | component-dependency-graph.mmd | 22 |
+| USER-SVC-001 | component-dependency-graph.md | 14 |
+| PAY-SVC-001 | component-dependency-graph.md | 18 |
+| NOTIF-SVC-001 | component-dependency-graph.md | 22 |
 
 ---
 

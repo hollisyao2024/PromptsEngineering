@@ -349,7 +349,7 @@ PRD 是否需要拆分？
 
 #### ARCHITECTURE 专家
 - **输入**：主 PRD + 各模块 PRD（按需加载）
-- **输出**：ARCHITECTURE.md 引用相关模块 PRD，数据视图在 `/docs/data/ERD.mmd` 维护
+- **输出**：ARCHITECTURE.md 引用相关模块 PRD，数据视图在 `/docs/data/ERD.md` 维护
 
 #### TASK 专家
 - **输入**：主 PRD（全局视图）+ 模块 PRD（详细需求）
@@ -535,8 +535,8 @@ PRD 是否需要拆分？
   - 是否有备用方案？
 
 **处理方式**：
-- 模块内依赖：在 `/docs/prd-modules/{domain}/dependency-graph.mmd` 可视化
-- 跨模块依赖：在 `/docs/data/global-dependency-graph.mmd` 可视化
+- 模块内依赖：在 `/docs/prd-modules/{domain}/dependency-graph.md` 可视化
+- 跨模块依赖：在 `/docs/data/global-dependency-graph.md` 可视化
 - 高风险依赖标记为"阻塞风险"，需提前协调
 
 ---
@@ -602,8 +602,8 @@ PRD 是否需要拆分？
 - [ ] **主 PRD 包含所有必需章节**（目标、范围、角色、Story、NFR、依赖、风险）
 - [ ] **模块 PRD 遵循标准结构**（概述、Story、NFR、接口、数据、风险）
 - [ ] **追溯矩阵已创建**（`/docs/data/traceability-matrix.md`）
-- [ ] **全局依赖图已创建**（`/docs/data/global-dependency-graph.mmd`）
-- [ ] **模块依赖图已创建**（`/docs/prd-modules/{domain}/dependency-graph.mmd`，如需）
+- [ ] **全局依赖图已创建**（`/docs/data/global-dependency-graph.md`）
+- [ ] **模块依赖图已创建**（`/docs/prd-modules/{domain}/dependency-graph.md`，如需）
 - [ ] **模块 NFR 追踪表已创建**（`/docs/prd-modules/{domain}/nfr-tracking.md`，如需）
 - [ ] **模块优先级矩阵已更新**（`/docs/prd-modules/{domain}/priority-matrix.md`，如需）
 

@@ -4,7 +4,7 @@
  * check-component-cycles.js - 组件循环依赖检查工具
  *
  * 功能：
- * - 解析 component-dependency-graph.mmd
+ * - 解析 component-dependency-graph.md
  * - 提取组件依赖关系
  * - 使用 DFS 算法检测循环依赖
  * - 报告循环路径
@@ -15,7 +15,7 @@ const path = require('path');
 
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
-const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.mmd');
+const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 
 // 命令行参数
 const args = process.argv.slice(2);

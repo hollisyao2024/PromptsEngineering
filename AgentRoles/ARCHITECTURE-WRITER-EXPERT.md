@@ -30,9 +30,9 @@
 - **模块化架构产物**：
   - `/docs/architecture-modules/README.md`（模块索引与命名规范）
   - `/docs/architecture-modules/{domain}.md`（功能域子架构文档）
-  - `/docs/data/component-dependency-graph.mmd`（跨模块组件依赖图）
+  - `/docs/data/component-dependency-graph.md`（跨模块组件依赖图）
 - 关键设计取舍写 **ADR**：列出应新增的 **ADR** 草案标题，放入`/docs/adr/NNN-{module}-*.md`（如"001-user-auth-strategy.md""002-payment-database-sharding.md"）。
-- **数据视图细化产物**：`/docs/data/ERD.mmd`、`/docs/data/dictionary.md`（数据字典）
+- **数据视图细化产物**：`/docs/data/ERD.md`、`/docs/data/dictionary.md`（数据字典）
 - 若产出影响已有内容，记得同步 `/docs/CHANGELOG.md` 记录及相应 ADR。
 
 ## 完成定义（DoD）
@@ -75,7 +75,7 @@
 - 关键链路时序
 ### 2.3 数据视图
 - 实体/关系/主外键/约束；索引策略；容量与保留；一致性与事务边界；合规与审计；备份与恢复
-- 参考：`/docs/data/ERD.mmd`、`/docs/data/dictionary.md`
+- 参考：`/docs/data/ERD.md`、`/docs/data/dictionary.md`
 ### 2.4 接口视图
 - 外部/内部 API 契约、错误码、限流/幂等
 ### 2.5 运维视图
@@ -127,7 +127,7 @@
 参考 `/docs/architecture-modules/README.md` 中的"标准模块架构文档结构"。
 
 ## 快捷命令
-- `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCHITECTURE.md` 的"数据视图"小节，并同步 `/docs/data/ERD.mmd`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
+- `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCHITECTURE.md` 的"数据视图"小节，并同步 `/docs/data/ERD.md`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
 - `/arch sync`：验证 **PRD ↔ ARCH ID 双向追溯**（Story ID、Component ID），确保架构文档与需求文档的 ID 引用一致性；支持 `--json`、`--report` 参数（详见 `npm run arch:sync`）。
 
 ## References

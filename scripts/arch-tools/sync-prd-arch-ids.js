@@ -7,7 +7,7 @@
  * - 提取 ARCH 中引用的 Story ID
  * - 提取 PRD 中定义的 Story ID
  * - 双向验证一致性
- * - Component ID 追溯（component-dependency-graph.mmd ↔ architecture-modules/）
+ * - Component ID 追溯（component-dependency-graph.md ↔ architecture-modules/）
  * - 支持 JSON 输出与追溯报告生成
  */
 
@@ -20,7 +20,7 @@ const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
 const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/architecture-modules');
 const PRD_FILE = path.join(PROJECT_ROOT, 'docs/PRD.md');
 const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
-const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.mmd');
+const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 const REPORT_FILE = path.join(PROJECT_ROOT, 'docs/data/arch-prd-traceability.md');
 
 // 存储
@@ -156,7 +156,7 @@ function scanPRDForStoryIDs() {
 }
 
 /**
- * 扫描 component-dependency-graph.mmd 中的 Component ID
+ * 扫描 component-dependency-graph.md 中的 Component ID
  */
 function scanComponentGraph() {
   if (!fs.existsSync(COMPONENT_GRAPH_FILE)) {
@@ -165,7 +165,7 @@ function scanComponentGraph() {
   }
 
   const content = fs.readFileSync(COMPONENT_GRAPH_FILE, 'utf8');
-  const results = extractComponentIDs(content, 'data/component-dependency-graph.mmd');
+  const results = extractComponentIDs(content, 'data/component-dependency-graph.md');
 
   results.forEach(({ componentID, file, line }) => {
     if (!componentIDsInGraph.has(componentID)) {
@@ -245,7 +245,7 @@ function validateComponentIDTraceability() {
     if (!componentIDsInModules.has(componentID)) {
       graphReferencesNotInModules.push({
         componentID,
-        referencedIn: 'component-dependency-graph.mmd',
+        referencedIn: 'component-dependency-graph.md',
         line
       });
     }

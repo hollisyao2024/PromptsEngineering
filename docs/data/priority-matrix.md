@@ -188,7 +188,7 @@ US-ANALYTICS-001: 用户行为埋点
 ```
 优先级矩阵（priority-matrix.md）
   ├─ 数据来源 → PRD 模块（/docs/prd-modules/*.md）
-  ├─ 数据来源 → 依赖关系图（dependency-graph.mmd）
+  ├─ 数据来源 → 依赖关系图（dependency-graph.md）
   ├─ 影响 → 任务规划（/docs/TASK.md）的 WBS 排序
   ├─ 影响 → Sprint Backlog 排序
   └─ 影响 → 资源分配决策

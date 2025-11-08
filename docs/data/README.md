@@ -18,10 +18,10 @@
   persona-story-matrix.md            # 全局角色覆盖矩阵（用户角色 × Story）
 
   # 全局依赖与架构
-  global-dependency-graph.mmd        # 跨模块依赖关系图（Mermaid 格式）
+  global-dependency-graph.md        # 跨模块依赖关系图（Mermaid 格式）
   dependency-graph-README.md         # 依赖图使用说明
-  component-dependency-graph.mmd     # 跨模块组件依赖图（架构层级，Component ID 追溯）
-  ERD.mmd                            # 全局 ER 图（实体关系图）
+  component-dependency-graph.md     # 跨模块组件依赖图（架构层级，Component ID 追溯）
+  ERD.md                            # 全局 ER 图（实体关系图）
   dictionary.md                      # 数据字典（全局实体与字段定义）
 
   # 全局测试策略与规划（QA 专家维护）
@@ -49,27 +49,27 @@
 | 文件 | 范围 | 说明 |
 |------|------|------|
 | `traceability-matrix.md` | **全局** | 所有模块的 Story → AC → Test Case ID 映射，QA 专家集中维护 |
-| `global-dependency-graph.mmd` | **跨模块** | 跨模块依赖关系（如 US-USER-003 → US-PAY-001），PRD 专家维护 |
-| `component-dependency-graph.mmd` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
+| `global-dependency-graph.md` | **跨模块** | 跨模块依赖关系（如 US-USER-003 → US-PAY-001），PRD 专家维护 |
+| `component-dependency-graph.md` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
 | `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系 |
 | `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵 |
 | `test-strategy-matrix.md` | **全局** | 所有模块的 Story → 测试类型覆盖矩阵，QA 专家维护 |
 | `test-priority-matrix.md` | **全局** | 跨模块测试用例优先级量化评分，指导测试执行顺序，QA 专家维护 |
 | `test-risk-matrix.md` | **全局** | 全局测试风险识别、评估与缓解措施，QA 专家维护 |
 | `change-requests/` | **全局** | 影响多个模块的变更请求流程 |
-| `ERD.mmd` | **全局** | 跨模块的实体关系图（数据库设计） |
+| `ERD.md` | **全局** | 跨模块的实体关系图（数据库设计） |
 | `dictionary.md` | **全局** | 共享数据实体与字段定义 |
 
 ### 模块内部数据存放在 prd-modules/{domain}/：
 
 | 文件 | 范围 | 说明 |
 |------|------|------|
-| `dependency-graph.mmd` | **模块内** | 模块内 Story 的依赖关系（如 US-USER-001 → US-USER-003） |
+| `dependency-graph.md` | **模块内** | 模块内 Story 的依赖关系（如 US-USER-001 → US-USER-003） |
 | `nfr-tracking.md` | **模块级** | 模块的 NFR 追踪表（性能、安全、可用性等指标） |
 | `priority-matrix.md` | **模块级** | 模块内 Story 的优先级评分矩阵 |
 
 **❌ 不应在此目录存放的内容**：
-- 模块内部的依赖图 → 放入 `prd-modules/{domain}/dependency-graph.mmd`
+- 模块内部的依赖图 → 放入 `prd-modules/{domain}/dependency-graph.md`
 - 模块级的 NFR 追踪 → 放入 `prd-modules/{domain}/nfr-tracking.md`
 - 模块级的优先级矩阵 → 放入 `prd-modules/{domain}/priority-matrix.md`
 
@@ -191,7 +191,7 @@ npm run qa:generate-risk-report          # 生成风险报告
 
 ---
 
-### 2. global-dependency-graph.mmd — 跨模块 Story 依赖图
+### 2. global-dependency-graph.md — 跨模块 Story 依赖图
 
 **作用**：可视化跨模块的 Story 依赖关系，识别关键路径与团队协作点
 
@@ -219,7 +219,7 @@ graph TB
 
 ---
 
-### 2.1 component-dependency-graph.mmd — 跨模块组件依赖图
+### 2.1 component-dependency-graph.md — 跨模块组件依赖图
 
 **作用**：可视化跨模块的组件/服务依赖关系，用于架构层级的依赖追溯与影响分析
 
@@ -246,8 +246,8 @@ graph TB
 **维护者**：ARCH 专家（架构设计阶段）
 
 **与 Story 依赖图的区别**：
-- **global-dependency-graph.mmd**（PRD 层级）：业务功能依赖（如 US-USER-003 → US-PAY-001）
-- **component-dependency-graph.mmd**（ARCH 层级）：组件/服务依赖（如 PAY-SVC-001 → USER-SVC-001）
+- **global-dependency-graph.md**（PRD 层级）：业务功能依赖（如 US-USER-003 → US-PAY-001）
+- **component-dependency-graph.md**（ARCH 层级）：组件/服务依赖（如 PAY-SVC-001 → USER-SVC-001）
 
 **Component ID 命名规范**：
 - 格式：`{MODULE}-{TYPE}-{序号}`
@@ -310,7 +310,7 @@ graph TB
 
 ---
 
-### 6. ERD.mmd — 全局 ER 图
+### 6. ERD.md — 全局 ER 图
 
 **作用**：定义跨模块的实体关系模型（数据库设计）
 
@@ -342,8 +342,8 @@ graph TB
 ### 工作流示例：新增一个 Story
 
 1. **PRD 专家**在模块 PRD（`prd-modules/{domain}/PRD.md`）中定义 Story 和 AC
-2. **PRD 专家**在模块依赖图（`prd-modules/{domain}/dependency-graph.mmd`）中添加模块内依赖
-3. **PRD 专家**在 `data/global-dependency-graph.mmd` 中添加跨模块依赖（如有）
+2. **PRD 专家**在模块依赖图（`prd-modules/{domain}/dependency-graph.md`）中添加模块内依赖
+3. **PRD 专家**在 `data/global-dependency-graph.md` 中添加跨模块依赖（如有）
 4. **PRD 专家**在 `data/goal-story-mapping.md` 中关联业务目标
 5. **PRD 专家**在 `data/persona-story-matrix.md` 中标记角色权限
 6. **TDD 专家**实现 Story 后，在 `data/traceability-matrix.md` 中添加 Test Case ID

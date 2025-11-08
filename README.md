@@ -73,7 +73,7 @@ npm run cr:pending
 ---
 
 #### 2. 依赖关系图可视化 🔗
-**位置**：`/docs/data/dependency-graph.mmd`
+**位置**：`/docs/data/dependency-graph.md`
 
 使用 Mermaid 可视化需求依赖网络，支持：
 - **关键路径识别**：自动计算最长依赖链
@@ -86,7 +86,7 @@ npm run cr:pending
 npm run prd:check-dependency-cycles
 
 # 在线预览依赖图
-# 访问 https://mermaid.live/ 粘贴 dependency-graph.mmd 内容
+# 访问 https://mermaid.live/ 粘贴 dependency-graph.md 内容
 ```
 
 ---

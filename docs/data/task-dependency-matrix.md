@@ -47,4 +47,4 @@ graph TB
 
 ---
 
-> 此文件维护所有跨模块依赖关系。模块内依赖见各模块的 `dependency-graph.mmd`。
+> 此文件维护所有跨模块依赖关系。模块内依赖见各模块的 `dependency-graph.md`。

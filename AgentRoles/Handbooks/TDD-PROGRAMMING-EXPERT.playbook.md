@@ -34,7 +34,7 @@
 - `backend/`：Python + FastAPI；使用 Black/PEP8；执行 `pytest`（必要时限定路径）验证
 - `shared/`：前后端共享类型与工具；变动需确保双向兼容
 - `tests/`：集成与端到端测试；前端以 Vitest + Playwright，后端以 pytest/pytest-asyncio/httpx
-- `db/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.mmd`、`dictionary.md`
+- `db/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.md`、`dictionary.md`
 
 ### 2.0 数据库迁移文件命名规范 ⚠️ 强制要求
 
@@ -339,7 +339,7 @@ scripts/ci.sh              # TDD 专家负责：CI 验证
 - [ ] **数据一致性**：迁移前后的行数、关键字段值已验证
 - [ ] **性能评估**：大表迁移已评估执行时间（使用 LIMIT 分批处理）
 - [ ] **文档同步**：
-  - [ ] `/docs/data/ERD.mmd` 已更新（反映新表/字段/关系）
+  - [ ] `/docs/data/ERD.md` 已更新（反映新表/字段/关系）
   - [ ] `/docs/data/dictionary.md` 已更新（新增字段说明）
   - [ ] `/docs/ARCHITECTURE.md` 的数据视图已同步
 - [ ] **回滚方案**：文档中清晰说明回滚步骤与可能的数据风险

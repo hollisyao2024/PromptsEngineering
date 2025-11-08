@@ -172,7 +172,7 @@ DROP TABLE IF EXISTS orders;
 -- ============================================================
 -- 提交本迁移脚本时，请同步更新以下文档：
 --
--- [ ] /docs/data/ERD.mmd                - 更新实体关系图
+-- [ ] /docs/data/ERD.md                 - 更新实体关系图
 -- [ ] /docs/data/dictionary.md          - 更新数据字典
 -- [ ] /docs/ARCHITECTURE.md             - 更新数据视图（如有设计变更）
 -- [ ] /CHANGELOG.md                     - 添加迁移条目

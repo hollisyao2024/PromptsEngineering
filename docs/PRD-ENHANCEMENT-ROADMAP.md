@@ -36,8 +36,8 @@ graph LR
 
 **目标**：识别关键路径与循环依赖，优化排期
 **关键工具**：
-- 模块内依赖：`/docs/prd-modules/{domain}/dependency-graph.mmd`
-- 跨模块依赖：`/docs/data/global-dependency-graph.mmd`
+- 模块内依赖：`/docs/prd-modules/{domain}/dependency-graph.md`
+- 跨模块依赖：`/docs/data/global-dependency-graph.md`
 - 在线预览：[Mermaid Live Editor](https://mermaid.live/)
 
 **预期成果**：

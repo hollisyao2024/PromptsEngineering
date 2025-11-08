@@ -13,7 +13,7 @@
 prd-modules/
   {domain}/                      # 功能域目录（如 user-management, payment-system）
     PRD.md                       # 模块 PRD（必需）
-    dependency-graph.mmd         # 模块依赖图（推荐）
+    dependency-graph.md         # 模块依赖图（推荐）
     nfr-tracking.md              # 模块 NFR 追踪表（推荐）
     priority-matrix.md           # 模块优先级矩阵（可选）
 ```
@@ -76,7 +76,7 @@ prd-modules/
 
 ---
 
-### 2. dependency-graph.mmd — 模块依赖图（推荐）
+### 2. dependency-graph.md — 模块依赖图（推荐）
 
 **用途**：可视化该模块内的 Story 依赖关系
 
@@ -102,7 +102,7 @@ graph TB
 
 **与全局依赖图的关系**：
 - 本文件：只包含**模块内** Story 的依赖（如 US-USER-001 → US-USER-003）
-- `/docs/data/global-dependency-graph.mmd`：包含**跨模块**依赖（如 US-USER-003 → US-PAY-001）
+- `/docs/data/global-dependency-graph.md`：包含**跨模块**依赖（如 US-USER-003 → US-PAY-001）
 
 ---
 
@@ -185,7 +185,7 @@ graph TB
 | 文件 | 范围 | 包含内容 |
 |------|------|---------|
 | `traceability-matrix.md` | 全局 | 所有模块的 Story → AC → Test ID 映射 |
-| `global-dependency-graph.mmd` | 跨模块 | 跨模块的依赖关系（如 US-USER-003 → US-PAY-001） |
+| `global-dependency-graph.md` | 跨模块 | 跨模块的依赖关系（如 US-USER-003 → US-PAY-001） |
 | `goal-story-mapping.md` | 全局 | Story 与 OKR 的映射（所有模块） |
 | `persona-story-matrix.md` | 全局 | 用户角色覆盖矩阵（所有模块） |
 | `change-requests/` | 全局 | 变更请求流程（影响所有模块） |
@@ -198,8 +198,8 @@ graph TB
    - QA 专家更新测试状态时，直接修改全局追溯矩阵
 
 2. **依赖关系**：
-   - 模块内依赖：在模块的 `dependency-graph.mmd` 维护
-   - 跨模块依赖：在 `/docs/data/global-dependency-graph.mmd` 维护
+   - 模块内依赖：在模块的 `dependency-graph.md` 维护
+   - 跨模块依赖：在 `/docs/data/global-dependency-graph.md` 维护
    - PRD 专家在主 PRD 的"里程碑与依赖"章节说明全局依赖视图
 
 3. **NFR 追踪**：
@@ -215,7 +215,7 @@ graph TB
 - ✅ **必创建**：在 `prd-modules/README.md` 添加模块索引条目
 
 ### 需求澄清阶段
-- ⚠️ **推荐创建**：`{domain}/dependency-graph.mmd`（如 Story > 10 个）
+- ⚠️ **推荐创建**：`{domain}/dependency-graph.md`（如 Story > 10 个）
 - ⚠️ **推荐创建**：`{domain}/nfr-tracking.md`（如有关键 NFR）
 - 📝 **可选创建**：`{domain}/priority-matrix.md`（如优先级决策复杂）
 
@@ -265,7 +265,7 @@ npm run nfr:check-compliance
 
 ### Q1: 小型模块（< 10 Story）需要创建所有文件吗？
 **A**: 不需要。仅创建 `PRD.md`，其他文件按需创建：
-- 依赖关系简单 → 不创建 `dependency-graph.mmd`
+- 依赖关系简单 → 不创建 `dependency-graph.md`
 - 无关键 NFR → 不创建 `nfr-tracking.md`
 - 优先级明确 → 不创建 `priority-matrix.md`
 
@@ -280,8 +280,8 @@ npm run nfr:check-compliance
 
 ### Q4: 全局依赖图和模块依赖图有什么区别？
 **A**:
-- **模块依赖图**（`{domain}/dependency-graph.mmd`）：只显示模块内 Story 的依赖，如 US-USER-001 → US-USER-003
-- **全局依赖图**（`/docs/data/global-dependency-graph.mmd`）：显示跨模块依赖，如 US-USER-003 → US-PAY-001（用户登录 → 创建订单）
+- **模块依赖图**（`{domain}/dependency-graph.md`）：只显示模块内 Story 的依赖，如 US-USER-001 → US-USER-003
+- **全局依赖图**（`/docs/data/global-dependency-graph.md`）：显示跨模块依赖，如 US-USER-003 → US-PAY-001（用户登录 → 创建订单）
 - **作用**：模块图用于团队内部任务规划，全局图用于跨团队协调
 
 ---

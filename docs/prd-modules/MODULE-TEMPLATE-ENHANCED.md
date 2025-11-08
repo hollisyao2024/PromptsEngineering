@@ -423,7 +423,7 @@ erDiagram
 
 - **主 PRD**：[PRD.md](../PRD.md)
 - **追溯矩阵**：[traceability-matrix.md](../data/traceability-matrix.md)
-- **依赖关系图**：[dependency-graph.mmd](../data/dependency-graph.mmd)
+- **依赖关系图**：[dependency-graph.md](../data/dependency-graph.md)
 - **优先级矩阵**：[priority-matrix.md](../data/priority-matrix.md)
 - **架构文档**：[ARCHITECTURE.md](../ARCHITECTURE.md)
 - **API 规范**：[api/user-management-api.yaml](../../api/user-management-api.yaml)（OpenAPI 3.0 格式）

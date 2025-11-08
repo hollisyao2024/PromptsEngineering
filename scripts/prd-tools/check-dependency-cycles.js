@@ -79,14 +79,14 @@ function collectAllDependencies() {
 
     entries.forEach(entry => {
       if (entry.isDirectory()) {
-        // 扫描模块子目录下的 PRD.md 和 dependency-graph.mmd
+        // 扫描模块子目录下的 PRD.md 和 dependency-graph.md
         const modulePrdPath = path.join(CONFIG.prdModulesDir, entry.name, 'PRD.md');
         if (fs.existsSync(modulePrdPath)) {
           const deps = parseDependencies(modulePrdPath);
           deps.forEach((value, key) => allDeps.set(key, value));
         }
 
-        // 注意：dependency-graph.mmd 也可能包含依赖信息，但格式不同，这里暂不解析
+        // 注意：dependency-graph.md 也可能包含依赖信息，但格式不同，这里暂不解析
       } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') {
         // 兼容旧格式：直接在 prd-modules/ 下的 .md 文件
         const filePath = path.join(CONFIG.prdModulesDir, entry.name);
@@ -220,7 +220,7 @@ function main() {
     log('\n建议：', 'yellow');
     log('1. 重新设计循环依赖的 Story，消除循环', 'yellow');
     log('2. 删除或修正无效的依赖引用', 'yellow');
-    log('3. 更新 /docs/data/dependency-graph.mmd', 'yellow');
+    log('3. 更新 /docs/data/global-dependency-graph.md', 'yellow');
     process.exit(1);
   }
 }

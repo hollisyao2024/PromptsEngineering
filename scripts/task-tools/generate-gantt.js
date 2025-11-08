@@ -17,7 +17,7 @@ const path = require('path');
 const CONFIG = {
   taskPath: path.join(__dirname, '../../docs/TASK.md'),
   taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
-  outputPath: path.join(__dirname, '../../docs/data/milestone-gantt.mmd'),
+  outputPath: path.join(__dirname, '../../docs/data/milestone-gantt.md'),
 };
 
 // 颜色输出

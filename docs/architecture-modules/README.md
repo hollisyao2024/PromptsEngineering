@@ -129,9 +129,9 @@
 - **Story → Component 映射**：PRD 中的用户故事应能追溯到 ARCH 中的组件
 
 ### 与全局数据的协作
-- **全局 ER 图**（`/docs/data/ERD.mmd`）：仅包含跨模块实体关系
+- **全局 ER 图**（`/docs/data/ERD.md`）：仅包含跨模块实体关系
 - **模块 ER 图**（本模块第 4 章）：仅包含模块内实体关系
-- **全局组件依赖图**（`/docs/data/component-dependency-graph.mmd`）：跨模块组件依赖关系
+- **全局组件依赖图**（`/docs/data/component-dependency-graph.md`）：跨模块组件依赖关系
 
 ---
 
@@ -150,7 +150,7 @@
 
 ### 3. TDD 专家实现模块功能
 1. 读取模块 PRD、ARCH、TASK
-2. 实现功能，更新数据视图（ERD.mmd）
+2. 实现功能，更新数据视图（ERD.md）
 3. 提交前执行文档回写 Gate
 
 ### 4. QA 专家验证模块质量

@@ -287,7 +287,7 @@ npm run task:generate-gantt
 ✅ 计算完成
 
 📝 生成甘特图...
-✅ 甘特图已保存到: /docs/data/milestone-gantt.mmd
+✅ 甘特图已保存到: /docs/data/milestone-gantt.md
 
 🔗 在 Markdown 中引用:
 ```mermaid

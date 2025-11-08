@@ -28,7 +28,7 @@ task-modules/
   {domain}/
     TASK.md                       # 模块任务计划（必需）
     wbs-breakdown.md              # WBS 详细分解（推荐，WBS > 15 个时）
-    dependency-graph.mmd          # 模块内依赖图（推荐，Mermaid 格式）
+    dependency-graph.md          # 模块内依赖图（推荐，Mermaid 格式）
     resource-plan.md              # 资源分配计划（可选，资源复杂时）
     risk-register.md              # 模块风险登记（推荐，有关键风险时）
 ```
@@ -39,7 +39,7 @@ task-modules/
 |------|---------|--------|
 | `TASK.md` | 模块创建时 | ✅ 必需 |
 | `wbs-breakdown.md` | WBS > 15 个 | ⚠️ 推荐 |
-| `dependency-graph.mmd` | 依赖复杂（> 10 个） | ⚠️ 推荐 |
+| `dependency-graph.md` | 依赖复杂（> 10 个） | ⚠️ 推荐 |
 | `resource-plan.md` | 3+ 团队并行 | 📝 可选 |
 | `risk-register.md` | 有关键风险 | ⚠️ 推荐 |
 
@@ -55,14 +55,14 @@ docs/
     task-dependency-matrix.md     # 跨模块依赖矩阵
     critical-path.md              # 全局关键路径分析
     story-task-mapping.md         # Story → Task 映射表
-    milestone-gantt.mmd           # 里程碑甘特图
+    milestone-gantt.md           # 里程碑甘特图
 ```
 
 ### 2.2 数据分层原则
 
 | 数据类型 | 存放位置 | 维护者 | 引用方式 |
 |---------|---------|--------|---------|
-| **模块内依赖** | `{domain}/dependency-graph.mmd` | 模块负责人 | 模块 TASK 引用 |
+| **模块内依赖** | `{domain}/dependency-graph.md` | 模块负责人 | 模块 TASK 引用 |
 | **跨模块依赖** | `/data/task-dependency-matrix.md` | TASK 专家 | 主 TASK 引用 |
 | **模块风险** | `{domain}/risk-register.md` | 模块负责人 | 模块 TASK 引用 |
 | **全局风险** | 主 TASK 第 7 章 | TASK 专家 | - |
@@ -147,7 +147,7 @@ task-modules/{domain}/
 
 ### Q2: 模块内依赖 vs 跨模块依赖？
 **A**:
-- **模块内**：同一模块的任务依赖 → 维护在 `{domain}/dependency-graph.mmd`
+- **模块内**：同一模块的任务依赖 → 维护在 `{domain}/dependency-graph.md`
 - **跨模块**：不同模块的任务依赖 → 维护在 `/data/task-dependency-matrix.md`
 
 ### Q3: 何时拆分模块？

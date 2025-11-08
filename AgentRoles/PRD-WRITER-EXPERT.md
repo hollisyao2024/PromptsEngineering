@@ -22,12 +22,12 @@
 
 #### 全局数据（存放在 `/docs/data/`）
 - **变更请求（CR）**：在 `/docs/data/change-requests/` 创建结构化变更记录，支持影响范围分析与多专家审批。
-- **跨模块依赖图**：在 `/docs/data/global-dependency-graph.mmd` 维护跨模块的 Story 依赖关系，识别团队协作点与关键路径。
+- **跨模块依赖图**：在 `/docs/data/global-dependency-graph.md` 维护跨模块的 Story 依赖关系，识别团队协作点与关键路径。
 - **业务目标追溯**：在 `/docs/data/goal-story-mapping.md` 维护 Story 与 OKR 的映射关系，确保需求覆盖业务目标。
 - **角色-故事矩阵**：在 `/docs/data/persona-story-matrix.md` 验证每个用户角色的功能覆盖完整性，避免"孤儿角色"。
 
 #### 模块级数据（存放在 `/docs/prd-modules/{domain}/`）
-- **模块依赖图**：在 `/docs/prd-modules/{domain}/dependency-graph.mmd` 维护模块内 Story 的依赖关系，支持模块内关键路径识别。
+- **模块依赖图**：在 `/docs/prd-modules/{domain}/dependency-graph.md` 维护模块内 Story 的依赖关系，支持模块内关键路径识别。
 - **模块 NFR 追踪表**：在 `/docs/prd-modules/{domain}/nfr-tracking.md` 量化模块的非功能需求（性能、安全、可扩展性等），关联验证方式与达标状态。
 - **模块优先级矩阵**：在 `/docs/prd-modules/{domain}/priority-matrix.md` 使用量化评分模型动态调整模块内需求优先级（业务价值、用户影响面、技术风险、依赖权重）。
 - **模块 PRD 增强模板**：参考 `/docs/prd-modules/MODULE-TEMPLATE-ENHANCED.md` 与 `/docs/prd-modules/STRUCTURE-GUIDE.md`，在模块 PRD 中定义详细的接口契约（API 规范、事件 Schema、依赖接口）。

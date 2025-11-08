@@ -2,6 +2,58 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.13] - 2025-11-08
+
+### 重大变更
+- **Mermaid 文件格式标准化：统一为 .md 格式**
+  - 废弃 `.mmd` 格式，所有 mermaid 图形文件统一使用 `.md` 格式
+  - 理由：支持添加说明文字、表格、更新日志等上下文信息，便于团队协作
+  - 影响范围：36+ 个文件（文档、脚本、模板、专家角色文件）
+
+### 新增
+- **3 个增强版 mermaid 图形文件**：
+  - [ERD.md](docs/data/ERD.md)：实体关系图（添加实体说明表、关系说明表、维护指南）
+  - [global-dependency-graph.md](docs/data/global-dependency-graph.md)：全局依赖图（添加模块概览表、关键路径分析、依赖说明）
+  - [component-dependency-graph.md](docs/data/component-dependency-graph.md)：组件依赖图（从 .mmd 迁移）
+
+- **Mermaid 文件格式规范章节**（[CONVENTIONS.md](docs/CONVENTIONS.md#mermaid-图形文件规范)）：
+  - 文件格式规范（统一使用 `.md`，禁止 `.mmd`）
+  - 文件结构模板（包含说明区块：用途、维护者、更新时间、补充说明）
+  - 文件位置约定表格（6 类文件的存放位置与维护者）
+  - 更新时机指南（PRD/ARCH/TASK/数据库迁移时）
+  - 验证清单（5 项检查）
+  - 参考示例链接
+
+### 修改
+- **批量更新所有 .mmd 引用**（36+ 个文件）：
+  - 专家角色文件（2 个）：PRD-WRITER-EXPERT.md、ARCHITECTURE-WRITER-EXPERT.md
+  - 文档文件（15+ 个）：CONVENTIONS.md、data/README.md、architecture-modules/README.md、prd-modules/STRUCTURE-GUIDE.md、task-modules/STRUCTURE-GUIDE.md、README.md 等
+  - 脚本文件（6 个）：prd-tools/*.js、arch-tools/*.js、task-tools/*.js
+  - 数据库模板（2 个）：TEMPLATE.sql、TEMPLATE.py
+  - Handbook 文件（3 个）：PRD/ARCH/TDD 专家 Playbook
+
+- **引用路径更新**：
+  - `ERD.mmd` → `ERD.md`
+  - `global-dependency-graph.mmd` → `global-dependency-graph.md`
+  - `component-dependency-graph.mmd` → `component-dependency-graph.md`
+  - `dependency-graph.mmd` → `dependency-graph.md`（模块内）
+  - `milestone-gantt.mmd` → `milestone-gantt.md`（将来生成）
+
+### 删除
+- **3 个旧 .mmd 文件**：
+  - `docs/data/ERD.mmd`
+  - `docs/data/global-dependency-graph.mmd`
+  - `docs/data/component-dependency-graph.mmd`
+
+### 收益
+- ✅ **格式统一**：消除文件格式混乱，所有 mermaid 图形文件统一为 `.md` 格式
+- ✅ **文档增强**：所有图形文件都包含完整的说明区块（用途、维护者、更新时间、补充说明）
+- ✅ **易于维护**：团队成员可以在 `.md` 文件中添加表格、说明、图例等上下文信息
+- ✅ **工具兼容**：GitHub/GitLab/VSCode 都支持 `.md` 文件中的 mermaid 预览（与 `.mmd` 效果相同）
+- ✅ **规范明确**：在 CONVENTIONS.md 中明确了 Mermaid 文件的规范与最佳实践
+
+---
+
 ## [v1.12] - 2025-11-07
 
 ### 重大变更
@@ -230,11 +282,11 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 更新 ARCHITECTURE-WRITER-EXPERT.md 角色卡片"输出"章节，明确引用 Playbook §3/§4/§5/§8。
   - 创建 `/docs/architecture-modules/MODULE-TEMPLATE.md` 模块架构模板（约 350 行）。
   - 创建 `/docs/architecture-modules/STRUCTURE-GUIDE.md` 模块结构指南（简化版，详细版在 Playbook §4）。
-  - 创建 `/docs/data/component-dependency-graph.mmd` 跨模块组件依赖图模板。
+  - 创建 `/docs/data/component-dependency-graph.md` 跨模块组件依赖图模板。
   - **优势**：职责明确（模板在 Playbook，产物由专家生成），减少文档冗余，支持模板版本化管理。
 - 更新 `/docs/data/README.md`（反映架构模块化变化）：
-  - 目录结构新增 `component-dependency-graph.mmd`（跨模块组件依赖图）。
-  - 全局数据表格新增 `component-dependency-graph.mmd` 条目（ARCH 专家维护）。
+  - 目录结构新增 `component-dependency-graph.md`（跨模块组件依赖图）。
+  - 全局数据表格新增 `component-dependency-graph.md` 条目（ARCH 专家维护）。
   - 新增 §2.1：跨模块组件依赖图详细说明（格式、示例、Component ID 命名规范、与 Story 依赖图的区别）。
   - 明确 PRD 层级（Story 依赖）vs ARCH 层级（组件依赖）的职责分离。
 - 更新 TASK-PLANNING-EXPERT.md 角色卡片：

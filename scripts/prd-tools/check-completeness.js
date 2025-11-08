@@ -19,7 +19,7 @@ const CONFIG = {
   mainPrdPath: path.join(__dirname, '../../docs/PRD.md'),
   prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
   traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
-  globalDependencyGraphPath: path.join(__dirname, '../../docs/data/global-dependency-graph.mmd'),
+  globalDependencyGraphPath: path.join(__dirname, '../../docs/data/global-dependency-graph.md'),
 };
 
 // 主 PRD 必需章节

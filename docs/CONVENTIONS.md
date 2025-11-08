@@ -37,6 +37,84 @@
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
 - 若在 `AGENTS.md` 或角色卡片中引用新目录，需同步更新此文档。
 
+## Mermaid 图形文件规范
+
+### 文件格式
+- **统一使用 `.md` 格式**存储所有 mermaid 图形文件
+- **禁止使用 `.mmd` 格式**（已于 2025-11-08 废弃）
+
+### 使用理由
+- GitHub/GitLab/VSCode 都支持 `.md` 文件中的 mermaid 代码块预览（与 `.mmd` 效果相同）
+- `.md` 格式允许添加说明文字、表格、更新日志等上下文信息，便于团队协作
+- 避免文件格式与后缀不匹配的混乱情况
+- 便于 CI 工具按统一的 markdown 格式解析
+
+### 文件结构模板
+
+所有 mermaid 图形文件应遵循以下结构：
+
+\`\`\`markdown
+# {图形名称}
+
+> **用途**：{用途说明}
+> **维护者**：{专家角色（PRD/ARCH/TASK/QA）}
+> **最后更新**：{YYYY-MM-DD}
+
+---
+
+## {图形标题}
+
+\`\`\`mermaid
+{mermaid 代码}
+\`\`\`
+
+---
+
+## 说明
+
+{补充说明、表格、图例、维护指南等}
+
+---
+
+## 参考
+
+- [关联文档链接]
+\`\`\`
+
+### 文件位置约定
+
+| 文件类型 | 存放位置 | 维护者 | 示例 |
+|---------|---------|--------|------|
+| **全局依赖图** | `/docs/data/global-dependency-graph.md` | PRD 专家 | 跨模块 Story 依赖关系 |
+| **组件依赖图** | `/docs/data/component-dependency-graph.md` | ARCH 专家 | 跨模块组件依赖关系 |
+| **实体关系图** | `/docs/data/ERD.md` | ARCH 专家 | 全局数据模型 |
+| **模块依赖图** | `/docs/prd-modules/{domain}/dependency-graph.md` | PRD 专家 | 模块内 Story 依赖关系 |
+| **任务依赖矩阵** | `/docs/data/task-dependency-matrix.md` | TASK 专家 | 跨模块任务依赖关系 |
+| **里程碑甘特图** | `/docs/data/milestone-gantt.md` | TASK 专家 | 项目时间线与里程碑 |
+
+### 更新时机
+
+- **PRD 阶段**：创建/更新 `global-dependency-graph.md`、`{domain}/dependency-graph.md`
+- **ARCH 阶段**：创建/更新 `ERD.md`、`component-dependency-graph.md`
+- **TASK 阶段**：创建/更新 `task-dependency-matrix.md`、`milestone-gantt.md`
+- **数据库迁移时**：同步更新 `ERD.md`
+- **架构变更时**：同步更新 `component-dependency-graph.md`
+
+### 验证清单
+
+在提交 mermaid 图形文件前，请确认：
+- [ ] 文件后缀为 `.md`（非 `.mmd`）
+- [ ] 包含完整的说明区块（用途、维护者、更新时间）
+- [ ] Mermaid 代码被包裹在代码块中（\`\`\`mermaid ... \`\`\`）
+- [ ] 在 VSCode/GitHub 中预览正常显示
+- [ ] 相关文档中的引用链接已更新
+
+### 参考示例
+
+- [ERD.md](data/ERD.md) — 实体关系图示例
+- [global-dependency-graph.md](data/global-dependency-graph.md) — 全局依赖图示例
+- [component-dependency-graph.md](data/component-dependency-graph.md) — 组件依赖图示例
+
 ## 自动生成产物说明
 
 ### TASK.md 的生成与维护
@@ -190,7 +268,7 @@ COMMIT;
 ### 数据字典同步
 
 - 任何表结构变化必须同步更新：
-  - `docs/data/ERD.mmd`：实体关系图
+  - `docs/data/ERD.md`：实体关系图
   - `docs/data/dictionary.md`：数据字典
 
 ## Frontend / Backend / Shared
@@ -230,13 +308,13 @@ COMMIT;
 ### 模块内部结构（v1.8+）
 每个功能域模块在 `/docs/prd-modules/{domain}/` 目录下可包含以下文件：
 - `PRD.md` — 模块 PRD（必需）
-- `dependency-graph.mmd` — 模块内依赖图（推荐，模块内 Story > 10 个时）
+- `dependency-graph.md` — 模块内依赖图（推荐，模块内 Story > 10 个时）
 - `nfr-tracking.md` — 模块 NFR 追踪表（推荐，有关键 NFR 时）
 - `priority-matrix.md` — 模块优先级矩阵（可选，优先级决策复杂时）
 
 **与全局数据的关系**：
 - 模块依赖图：只包含模块内 Story 依赖（如 US-USER-001 → US-USER-003）
-- 全局依赖图（`/docs/data/global-dependency-graph.mmd`）：包含跨模块依赖（如 US-USER-003 → US-PAY-001）
+- 全局依赖图（`/docs/data/global-dependency-graph.md`）：包含跨模块依赖（如 US-USER-003 → US-PAY-001）
 - 详细说明见 [STRUCTURE-GUIDE.md](prd-modules/STRUCTURE-GUIDE.md) 和 [data/README.md](data/README.md)
 
 ### ID 命名规范
