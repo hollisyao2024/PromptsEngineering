@@ -1,10 +1,21 @@
+## traceability-matrix.md 模板说明
+
+本文件即 `/docs/data/traceability-matrix.md` 的完整模板：PRD 专家在 Story/AC 确认后应该**完整复制本文件**到 `/docs/data/traceability-matrix.md`，以本说明、表格、命名规范与状态定义作为初版内容。  
+1. 在“追溯矩阵”表格内记录 Story ID、Story Title 与 AC ID，状态可以先置为 `📝 Draft`；  
+2. TDD 阶段在同一文件补入 Test Case ID 并注明相关实现细节，QA 阶段再更新状态、负责人与缺陷链接；  
+3. 后续任何更新必须保持与模板一致（尤其保留开头的“目的/维护职责”段），方便跨阶段的追溯与审计。  
+
+> ⚠️ 请务必复制整个模板内容，而不是只复制表格或某一段落；模板也可以用于审计和版本对比，确保 `/docs/data/traceability-matrix.md` 始终和本文件保持同步。
+
+---
+
 # 需求追溯矩阵
 
 > **目的**：维护全局的 User Story → Acceptance Criteria → Test Case ID 映射，确保需求、验收标准与测试用例之间的完整追溯性。
 >
 > **维护职责**：
 > - **PRD 专家**：初始化 Story ID 和 AC ID
-> - **TASK 专家**：在任务规划阶段补充关联信息
+> - **TASK 专家**：在任务规划阶段记录 Story 对应的工作包与依赖（见 `/docs/TASK.md` / 模块任务文档），并在追溯矩阵的“备注”或链接中注明关联任务，方便 TDD/QA 对齐
 > - **TDD 专家**：在实现阶段关联测试用例
 > - **QA 专家**：在验证阶段更新测试状态与缺陷链接
 
@@ -18,6 +29,24 @@
 | （示例）US-USER-001 | 用户注册 | AC-USER-001-02 | TC-REG-002 | 🔄 Pending | @tester-a | 等待环境配置 |
 | （示例）US-PAY-005 | 支付确认 | AC-PAY-005-01 | TC-PAY-012 | ❌ Fail | @tester-b | [BUG-123](#) |
 | （待填充） | - | - | - | - | - | - |
+
+---
+
+## 覆盖率统计（自动或手动维护）
+
+| 指标 | 数值 | 目标 |
+|------|------|------|
+| 总 Story 数 | 0 | - |
+| 已关联测试用例的 Story 数 | 0 | 100% |
+| 总 AC 数 | 0 | - |
+| 已关联测试用例的 AC 数 | 0 | 100% |
+| 测试通过的 AC 数 | 0 | 100% |
+| 测试失败的 AC 数 | 0 | 0 |
+| **需求覆盖率** | 0% | ≥ 95% |
+| **测试通过率** | 0% | ≥ 98% |
+
+
+> 该统计表应被复制到 `/docs/data/traceability-matrix.md` 并随着 QA 测试进度实时更新，作为发布门禁的量化依据。
 
 ---
 
@@ -57,6 +86,13 @@
 | ⏭️ **Skipped** | 跳过测试（如非当前版本范围） |
 
 ---
+
+## 状态落地指南
+
+- PRD 阶段把每行状态设为 `📝 Draft`，备注记录依赖/待确认项，方便 QA 后续追踪再验证；
+- TDD 实现阶段在表格内补入 Test Case ID，验证通过即设置 `✅ Pass`，验证失败则记录 `❌ Fail` 并在备注附上 BUG ID（如 `[BUG-123](link)`）；
+- QA 验证紧密跟踪 `🔄 Pending`/`⏸️ Blocked` 的行，完成后统一切换状态并把负责人、环境、缺陷信息写入备注；
+- 每次状态更新可在备注中加上“更新人 + 日期”，便于追溯谁在什么时候改变了状态。
 
 ## 使用指南
 
@@ -111,27 +147,13 @@ describe('User Registration (US-USER-001)', () => {
 
 ---
 
-## 覆盖率统计（自动或手动维护）
-
-| 指标 | 数值 | 目标 |
-|------|------|------|
-| 总 Story 数 | 0 | - |
-| 已关联测试用例的 Story 数 | 0 | 100% |
-| 总 AC 数 | 0 | - |
-| 已关联测试用例的 AC 数 | 0 | 100% |
-| 测试通过的 AC 数 | 0 | 100% |
-| 测试失败的 AC 数 | 0 | 0 |
-| **需求覆盖率** | 0% | ≥ 95% |
-| **测试通过率** | 0% | ≥ 98% |
-
----
-
 ## 与其他文档的关系
 
 ```
 /docs/PRD.md（主 PRD）
-  └─ 功能域索引 → /docs/prd-modules/{domain}.md（模块 PRD）
-       └─ 用户故事 & 验收标准 → traceability-matrix.md（本文档）
+  └─ 功能域索引 → /docs/prd-modules/{domain}/PRD.md（子 PRD）
+       └─ 需求追溯矩阵模板 → /docs/data/TRACEABILITY-MATRIX-TMPLATE.md
+       └─ 实际需求追溯矩阵文件 → /docs/data/traceability-matrix.md
             └─ Test Case ID → 测试代码（如 tests/**/*.test.ts）
                  └─ 测试执行结果 → /docs/QA.md（测试报告）
 ```
@@ -159,4 +181,4 @@ describe('User Registration (US-USER-001)', () => {
 
 ---
 
-> 本文档由 PRD 专家初始化，TDD 和 QA 专家在各自阶段更新。任何修改需确保与 `/docs/PRD.md` 及模块 PRD 保持一致。
+> 本文档模板的唯一真相由 PRD 专家复制到 `/docs/data/traceability-matrix.md` 并初始化 Story/AC，TASK/TDD/QA 专家在各自阶段继续补充 Test Case ID、状态与缺陷链接；任何修改都必须与 `/docs/PRD.md` 及各子 PRD 保持同步，以保障追溯链路完整。

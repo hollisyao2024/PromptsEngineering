@@ -21,7 +21,7 @@ const CONFIG = {
     qa: 'docs/QA.md',
     traceabilityMatrix: 'docs/data/traceability-matrix.md',
     prdModulesDir: 'docs/prd-modules',
-    archModulesDir: 'docs/architecture-modules',
+    archModulesDir: 'docs/arch-modules',
     taskModulesDir: 'docs/task-modules',
     qaModulesDir: 'docs/qa-modules',
   },
@@ -485,7 +485,7 @@ function generateModuleQA(domain, domainStories) {
 
 **关联文档**：
 - **模块 PRD**: [prd-modules/${domain.toLowerCase()}.md](../prd-modules/${domain.toLowerCase()}.md)
-- **模块 ARCH**: [architecture-modules/${domain.toLowerCase()}.md](../architecture-modules/${domain.toLowerCase()}.md)
+- **模块 ARCH**: [arch-modules/${domain.toLowerCase()}.md](../arch-modules/${domain.toLowerCase()}.md)
 - **模块 TASK**: [task-modules/${domain.toLowerCase()}.md](../task-modules/${domain.toLowerCase()}.md)
 
 ---

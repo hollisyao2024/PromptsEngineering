@@ -867,7 +867,7 @@ scripts/deploy.sh staging --rollback
 
 ## 9. 参考文档
 - **模块 PRD**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **模块 ARCH**: [architecture-modules/{domain}.md](../architecture-modules/{domain}.md)
+- **模块 ARCH**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
 - **模块 TASK**: [task-modules/{domain}.md](../task-modules/{domain}.md)
 - **追溯矩阵**: [traceability-matrix.md](../data/traceability-matrix.md)
 ```

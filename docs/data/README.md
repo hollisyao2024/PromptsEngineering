@@ -21,6 +21,7 @@
   global-dependency-graph.md        # 跨模块依赖关系图（Mermaid 格式）
   dependency-graph-README.md         # 依赖图使用说明
   component-dependency-graph.md     # 跨模块组件依赖图（架构层级，Component ID 追溯）
+  arch-prd-traceability.md         # 全局 PRD↔ARCH 追溯报告（Story/Component ID 对齐）
   ERD.md                            # 全局 ER 图（实体关系图）
   dictionary.md                      # 数据字典（全局实体与字段定义）
 
@@ -51,6 +52,7 @@
 | `traceability-matrix.md` | **全局** | 所有模块的 Story → AC → Test Case ID 映射，QA 专家集中维护 |
 | `global-dependency-graph.md` | **跨模块** | 跨模块依赖关系（如 US-USER-003 → US-PAY-001），PRD 专家维护 |
 | `component-dependency-graph.md` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
+| `arch-prd-traceability.md` | **全局** | PRD 与 ARCH 间 Story ID 与 Component ID 的一致性/缺失状况，自动生成 |
 | `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系 |
 | `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵 |
 | `test-strategy-matrix.md` | **全局** | 所有模块的 Story → 测试类型覆盖矩阵，QA 专家维护 |
@@ -88,7 +90,6 @@
 | US-USER-001 | 用户注册 | AC-USER-001-01 | TC-REG-001 | ✅ Pass | @tester-a | - |
 | US-PAY-005 | 支付确认 | AC-PAY-005-01 | TC-PAY-012 | ❌ Fail | @tester-b | [BUG-123](#) |
 ```
-
 **维护者**：QA 专家（测试执行过程中更新状态）
 
 ---
@@ -254,7 +255,7 @@ graph TB
 - TYPE 类型：`SVC`（服务）、`DB`（数据库）、`CACHE`（缓存）、`MQ`（消息队列）、`API`（API 端点）、`JOB`（定时任务）
 - 示例：`USER-SVC-001`（用户管理服务）、`PAY-DB-001`（订单数据库）
 
-详见 [architecture-modules/README.md](../architecture-modules/README.md)
+详见 [arch-modules/README.md](../arch-modules/README.md)
 
 ---
 
@@ -337,6 +338,19 @@ graph TB
 
 ---
 
+### 8. arch-prd-traceability.md — 全局 PRD ↔ ARCH 追溯报告
+
+**作用**：集中呈现 Story ID 与 Component ID 在 PRD 与 ARCH 之间的一致性以及缺失状况，便于持续验证需求与架构的双向追溯。
+
+**内容**：
+- Story ID 对齐统计（ARCH 引用 vs PRD 定义，识别未引用或多余项）
+- Component ID 统计与缺失依赖（依赖图中出现但无对应模块文档的组件）
+- 自动列出依赖图与文档之间的“缺口”，引导补齐架构说明或调整依赖关系
+
+**生成方式**：`npm run arch:sync -- --report` 自动对比 PRD/ARCH 数据并刷新该报告。
+
+**维护者**：ARCH 专家（作为架构与需求一致性的每日核对产物）
+
 ## 🔗 与模块数据的协作关系
 
 ### 工作流示例：新增一个 Story
@@ -397,9 +411,8 @@ npm run nfr:check-compliance              # NFR 达标检查
 
 ## 📚 相关资源
 
-- [STRUCTURE-GUIDE.md](../prd-modules/STRUCTURE-GUIDE.md) — 模块内部结构指南
+- [MODULE-TEMPLATE.md](../prd-modules/MODULE-TEMPLATE.md) — 模块内部结构与模板指南
 - [CONVENTIONS.md](../CONVENTIONS.md) — 项目目录规范
-- [PRD-ENHANCEMENT-ROADMAP.md](../PRD-ENHANCEMENT-ROADMAP.md) — 增强功能实施路线图
 
 ---
 

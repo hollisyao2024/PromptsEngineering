@@ -15,10 +15,10 @@
 - 其他目录：若新增（如 `infra/`、`ops/`、`notebooks/`），请在本文件补充说明。
 
 ## `docs/` 子结构
-- `docs/PRD.md`：产品需求文档（主 PRD，作为总纲与索引）。
-- `docs/prd-modules/`：**大型项目 PRD 模块化目录**（按功能域拆分的详细 PRD），包含 `README.md` 模块索引。
+- `docs/PRD.md`：产品需求文档（小项目时是单一 PRD.md，大项目时是主 PRD，作为总纲与索引）。
+- `docs/prd-modules/`：**大型项目 PRD 模块化目录**（按功能域拆分的详细 PRD），实际的模块清单、模块 PRD 由 PRD 专家根据 `docs/prd-modules/MODULE-INVENTORY.md`动态生成。
 - `docs/ARCHITECTURE.md`：架构文档（主架构文档，作为总纲与索引）。
-- `docs/architecture-modules/`：**大型项目架构模块化目录**（按功能域拆分的详细架构），包含 `README.md` 模块索引。
+- `docs/arch-modules/`：**大型项目架构模块化目录**（按功能域拆分的详细架构），包含 `README.md` 模块索引。
 - `docs/TASK.md`：任务计划（主任务文档，作为总纲与索引，含 WBS/依赖/里程碑/风险）。
 - `docs/task-modules/`：**大型项目任务模块化目录**（按功能域拆分的详细任务计划），包含 `README.md` 模块索引。
 - `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
@@ -33,16 +33,6 @@
 - 可选扩展：
   - `docs/security/`：威胁建模、安全评估。
   - `docs/operations/`：运维手册、SLO、值班指南。
-
-### CHANGELOG 拆分规范
-- **触发阈值**：当根 `CHANGELOG.md` 超过 ~500 行、覆盖 3 个及以上季度/迭代，或需要归档上一季度（默认拆分单位）时，即执行拆分。
-- **拆分步骤**：
-  1. 将需要归档的条目从根 `CHANGELOG.md` 剪切至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md` 或 `CHANGELOG-iter-{iteration}.md`（默认优先季度或迭代命名，若需其他策略，需在目录下 `README.md` 说明）。
-  2. 在 `docs/changelogs/README.md` 中登记新分卷（文件名、时间/版本范围、维护者）。
-  3. 在根 `CHANGELOG.md` 顶部的“历史记录索引”段落更新链接，指向对应分卷。
-- **主文件约束**：根 `CHANGELOG.md` 仅保留最近 1~2 个主版本条目，所有 `npm run changelog:*` 脚本或自动化工具只对该文件执行写操作；历史分卷视为只读。
-- **引用规范**：PRD/ARCH/TASK/QA 文档或 ADR 若需引用历史变更，必须链接到具体的 `docs/changelogs/CHANGELOG-*.md`，避免模糊引用。
-- **目录维护**：若拆分策略调整（例如从季度切换到模块或年份分卷），需同步更新本节与 `docs/changelogs/README.md`，确保团队统一遵循。
 
 ## 命名与引用规则
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
@@ -136,6 +126,12 @@
 - **首次生成**：TASK.md 不存在时，工具从零生成；若已存在，工具执行增量更新
 - **人工调整**：生成后可手工修改 Owner、优先级、风险备注等
 - **再次刷新**：下次执行 `/task plan --update-only` 时，工具保留人工标注，仅刷新 WBS/依赖/关键路径
+
+### TASK 复选框与分支命名约定
+- **复选框格式**：任务条目必须写成 `- [ ] [TASK-<DOMAIN>-<序号>] 任务标题 ...`，完成后改为 `- [x] ...`。主文档与模块文档保持一致，方便自动脚本定位。
+- **自动勾选脚本**：TDD 专家运行 `npm run tdd:tick`（由 `/tdd sync` 触发）即可依据当前分支名自动在 `/docs/TASK.md` 与 `/docs/task-modules/*.md` 勾选匹配任务。
+- **分支命名要求**：功能分支需包含至少一个 TASK ID，推荐格式 `feature/TASK-ACC-001-short-desc`；若一次提交覆盖多任务，使用 `+` 连接，例如 `feature/TASK-ACC-001+TASK-RISK-003`。
+- **异常处理**：若分支名缺少 TASK ID 或任务条目未采用标准复选框格式，`npm run tdd:tick` 会失败并阻断 `/tdd sync`，需先修复命名或格式。
 
 ### 拆分决策（大型项目）
 - 若满足拆分条件（主文档 > 1000 行 或 50+ 工作包 或 3+ 并行开发流），TASK 专家会：
@@ -319,182 +315,9 @@ COMMIT;
 - 配置文件（如 `.env.development`、`.env.production`、`.github/`、`Dockerfile`）应按技术栈默认放置；若自定义位置，在此说明理由。
 - 机密文件保持 `.gitignore` 遮盖；若需本地存放，创建 `secret/README.md` 引导操作。
 
-## PRD 模块化规范
-
-### 何时拆分 PRD？
-当项目满足以下**任一条件**时，建议采用模块化 PRD：
-1. 单文件 PRD 超过 **1000 行**
-2. 用户故事数量超过 **50 个**
-3. 存在明确的**业务域边界**（3+ 个独立子系统）
-4. **多团队并行协作**，需要独立编辑不同功能域
-
-对于小型项目（< 20 用户故事），维护单一 `/docs/PRD.md` 即可。
-
-### 主从结构
-- **主 PRD**（`/docs/PRD.md`）：总纲与索引（< 500 行）
-  - 产品概述、全局范围、用户角色、核心场景
-  - 全局 NFR（性能/安全/合规）
-  - 功能域索引（表格，链接到各模块 PRD）
-  - 里程碑与跨模块依赖
-  - 追溯矩阵引用
-
-- **子模块 PRD**（`/docs/prd-modules/{domain}/PRD.md`）：详细需求（按功能域拆分）
-  - 模块概述、用户故事、验收标准（Given-When-Then）
-  - 模块级 NFR、接口与依赖、数据模型、风险
-
-- **追溯矩阵**（`/docs/data/traceability-matrix.md`）：集中维护全局 Story→AC→TestID 映射
-
-### 模块内部结构（v1.8+）
-每个功能域模块在 `/docs/prd-modules/{domain}/` 目录下可包含以下文件：
-- `PRD.md` — 模块 PRD（必需）
-- `dependency-graph.md` — 模块内依赖图（推荐，模块内 Story > 10 个时）
-- `nfr-tracking.md` — 模块 NFR 追踪表（推荐，有关键 NFR 时）
-- `priority-matrix.md` — 模块优先级矩阵（可选，优先级决策复杂时）
-
-**与全局数据的关系**：
-- 模块依赖图：只包含模块内 Story 依赖（如 US-USER-001 → US-USER-003）
-- 全局依赖图（`/docs/data/global-dependency-graph.md`）：包含跨模块依赖（如 US-USER-003 → US-PAY-001）
-- 详细说明见 [STRUCTURE-GUIDE.md](prd-modules/STRUCTURE-GUIDE.md) 和 [data/README.md](data/README.md)
-
-### ID 命名规范
-- **Story ID**：`US-{MODULE}-{序号}`（如 `US-USER-001`、`US-PAY-005`）
-- **AC ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（如 `AC-USER-001-01`）
-- **Test Case ID**：`TC-{MODULE}-{序号}`（如 `TC-REG-001`）
-
-### 模块文件命名
-- 使用 kebab-case，如 `user-management.md`、`payment-system.md`
-- 在 `/docs/prd-modules/README.md` 中维护模块索引表
-
-### 模块化工作流
-1. **PRD 专家**：评估是否需要拆分，创建主 PRD 与模块 PRD
-2. **ARCHITECTURE 专家**：基于主 PRD + 相关模块 PRD（按需加载）输出架构文档
-3. **TASK 专家**：基于模块 PRD 拆解任务，可按模块维护独立 WBS 章节
-4. **TDD 专家**：基于模块 PRD 实现，测试用例关联到追溯矩阵
-5. **QA 专家**：基于追溯矩阵验证覆盖率，引用模块 PRD 执行测试
-
-详细指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7。
-
-## ARCHITECTURE 模块化规范
-
-### 何时拆分架构文档？
-当项目满足以下**任一条件**时，建议采用模块化架构文档：
-1. 主架构文档超过 **1000 行**
-2. 子系统/服务数量超过 **8 个**
-3. 存在明确的**业务域边界**（3+ 个独立领域模型）
-4. **多团队并行开发**，需要独立维护不同领域的架构设计
-5. **数据模型复杂**（30+ 实体表，跨域数据流）
-
-对于小型项目（< 5 个服务，单一数据库），维护单一 `/docs/ARCHITECTURE.md` 即可。
-
-### 主从结构
-- **主架构文档**（`/docs/ARCHITECTURE.md`）：总纲与索引（< 500 行）
-  - 系统概述、功能域架构索引
-  - 全局视图（系统全景、全局数据流、横切关注点）
-  - 全局技术选型与 ADR、跨模块依赖关系、全局风险
-
-- **子模块架构文档**（`/docs/architecture-modules/{domain}.md`）：详细架构设计（按功能域拆分）
-  - 模块概述、逻辑视图（领域模型、服务/组件划分）
-  - 数据视图（ER 图、数据模型、数据流）
-  - 运行视图（部署架构、关键流程序列图）
-  - 接口与依赖、模块级 NFR、风险与限制、ADR 引用
-
-- **ADR 命名规范**：`NNN-{module}-{title}.md`（如 `001-user-auth-strategy.md`）
-
-### ID 命名规范
-- **组件/服务 ID**：`{MODULE}-{类型}-{序号}`（如 `USER-SVC-001`、`PAY-DB-001`）
-- **类型标识**：SVC（服务）、DB（数据库）、API（API 端点）、JOB（后台任务）
-
-### 模块文件命名
-- 使用 kebab-case，如 `user-management.md`、`payment-system.md`
-- 在 `/docs/architecture-modules/README.md` 中维护模块索引表
-
-### 模块化工作流
-1. **ARCHITECTURE 专家**：评估是否需要拆分，创建主架构文档与模块架构文档
-2. **TASK 专家**：基于主架构文档 + 相关模块架构文档（按需加载）拆解任务
-3. **TDD 专家**：基于模块架构文档实现，遵循接口契约
-4. **QA 专家**：基于模块架构文档验证接口与 NFR
-
-详细指南见 `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md`。
-
-## TASK 模块化规范
-
-### 何时拆分任务文档？
-当项目满足以下**任一条件**时，建议采用模块化任务文档：
-1. 主任务文档超过 **1000 行**
-2. 工作包（WBS）数量超过 **50 个**
-3. 存在 **3+ 个并行开发流**（多团队/多模块）
-4. **项目周期超过 6 个月**，需要分阶段规划
-5. **跨模块依赖复杂**（10+ 个依赖关系）
-
-对于小型项目（< 20 个任务，单一团队），维护单一 `/docs/TASK.md` 即可。
-
-### 主从结构
-- **主任务文档**（`/docs/TASK.md`）：总纲与索引（< 500 行）
-  - 项目概述、模块任务索引
-  - 全局里程碑（跨模块）、跨模块依赖关系
-  - 全局关键路径（CPM）、全局风险与缓解
-
-- **子模块任务文档**（`/docs/task-modules/{domain}.md`）：详细任务计划（按功能域拆分）
-  - 模块概述、WBS 任务列表（任务详细说明）
-  - 依赖关系矩阵（内部依赖 + 外部依赖）
-  - 资源与时间线、模块级里程碑、模块级风险登记、沟通与协作
-
-### ID 命名规范
-- **任务 ID**：`TASK-{MODULE}-{序号}`（如 `TASK-USER-001`、`TASK-PAY-005`）
-- **里程碑 ID**：`M{序号}-{简短描述}`（如 `M1-MVP`、`M2-Beta`）
-
-### 模块文件命名
-- 使用 kebab-case，如 `user-management.md`、`payment-system.md`
-- 在 `/docs/task-modules/README.md` 中维护模块索引表
-
-### 模块化工作流
-1. **TASK 专家**：评估是否需要拆分，创建主任务文档与模块任务文档
-2. **TDD 专家**：按任务列表顺序实现，完成后更新任务状态
-3. **QA 专家**：基于任务列表制定测试用例，验证任务完成度
-
-详细指南见 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md`。
-
 ## QA 模块化规范
 
-### 何时拆分 QA 文档？
-当项目满足以下**任一条件**时，建议采用模块化 QA 文档：
-1. 主 QA 文档超过 **1000 行**
-2. 测试用例数量超过 **100 个**
-3. 存在多类型测试（功能、性能、安全、兼容性各 > 10 个用例）
-4. **多模块并行测试**（3+ 个功能域独立测试）
-5. **长周期项目**（需要分阶段回归测试）
-
-对于小型项目（< 30 个测试用例，单一测试类型），维护单一 `/docs/QA.md` 即可。
-
-### 主从结构
-- **主 QA 文档**（`/docs/QA.md`）：总纲与索引（< 500 行）
-  - 测试概述、模块测试索引
-  - 全局测试策略、全局质量指标
-  - 全局风险评估、发布建议
-
-- **子模块 QA 文档**（`/docs/qa-modules/{domain}.md`）：详细测试计划（按功能域拆分）
-  - 测试概述、测试策略（测试类型与覆盖率目标、测试数据准备、通过/失败标准）
-  - 测试用例（功能测试、集成测试、性能测试、安全测试）
-  - 缺陷清单、测试总结与建议
-
-- **追溯矩阵更新**：测试执行过程中，及时更新 `/docs/data/traceability-matrix.md` 的测试状态（Pass/Fail）与缺陷 ID
-
-### ID 命名规范
-- **测试用例 ID**：`TC-{MODULE}-{序号}`（如 `TC-REG-001`、`TC-PAY-012`）
-- **缺陷 ID**：`BUG-{MODULE}-{序号}`（如 `BUG-USER-001`）或对接外部缺陷管理系统（如 `JIRA-PROJ-1234`）
-
-### 模块文件命名
-- 使用 kebab-case，如 `user-management.md`、`payment-system.md`
-- 跨模块测试使用 `performance-testing.md`、`security-testing.md` 等命名
-- 在 `/docs/qa-modules/README.md` 中维护模块索引表
-
-### 模块化工作流
-1. **QA 专家**：评估是否需要拆分，创建主 QA 文档与模块 QA 文档
-2. **执行测试**：按模块逐步执行测试，实时更新测试结果与缺陷清单
-3. **更新追溯矩阵**：标注所有测试用例的状态与缺陷 ID
-4. **汇总发布建议**：基于所有模块测试结果，给出全局发布建议
-
-详细指南见 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md`。
+详细的 QA 模块拆分决策、结构与工作流已移至 `/AgentRoles/QA-TESTING-EXPERT.md`（结合 Playbook §9）；本节仅保留目录/命名级约定，需拆分时请点读该角色卡，以保持 Conventions 侧重于通用目录规则。
 
 ---
 

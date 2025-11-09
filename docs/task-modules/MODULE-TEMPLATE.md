@@ -13,7 +13,7 @@
 - **功能域**: {功能域名称}
 - **业务目标**: {业务目标描述}
 - **关联 PRD 模块**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **关联 ARCH 模块**: [architecture-modules/{domain}.md](../architecture-modules/{domain}.md)
+- **关联 ARCH 模块**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
 
 ### 1.2 本模块范围
 - 核心功能 1
@@ -151,6 +151,6 @@
 
 - [主 TASK 文档](../TASK.md)
 - [PRD 模块：{domain}](../prd-modules/{domain}.md)
-- [ARCH 模块：{domain}](../architecture-modules/{domain}.md)
+- [ARCH 模块：{domain}](../arch-modules/{domain}.md)
 - [Story → Task 映射表](../data/story-task-mapping.md)
 - [任务依赖矩阵](../data/task-dependency-matrix.md)

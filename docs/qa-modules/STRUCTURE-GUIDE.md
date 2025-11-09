@@ -45,7 +45,7 @@ qa-modules/
 
 > 所属主 QA: [QA.md](../QA.md)
 > 关联 PRD 模块: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-> 关联 ARCH 模块: [architecture-modules/{domain}.md](../architecture-modules/{domain}.md)
+> 关联 ARCH 模块: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
 > 负责团队: @qa-team-name
 > 最后更新: YYYY-MM-DD
 

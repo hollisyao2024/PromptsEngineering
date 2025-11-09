@@ -27,7 +27,7 @@
 
 **关联文档**：
 - **模块 PRD**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **模块 ARCH**: [architecture-modules/{domain}.md](../architecture-modules/{domain}.md)
+- **模块 ARCH**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
 - **模块 TASK**: [task-modules/{domain}.md](../task-modules/{domain}.md)
 
 ---
@@ -633,7 +633,7 @@ Error: [错误信息]
 
 ### 9.1 关联文档
 - **模块 PRD**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **模块 ARCH**: [architecture-modules/{domain}.md](../architecture-modules/{domain}.md)
+- **模块 ARCH**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
 - **模块 TASK**: [task-modules/{domain}.md](../task-modules/{domain}.md)
 - **主 QA 文档**: [QA.md](../QA.md)
 - **追溯矩阵**: [traceability-matrix.md](../data/traceability-matrix.md)

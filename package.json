@@ -41,7 +41,10 @@
     "qa:coverage-report": "node scripts/qa-tools/check-test-coverage.js",
     "qa:sync-prd-qa-ids": "node scripts/qa-tools/sync-prd-qa-ids.js",
     "qa:generate-test-report": "node scripts/qa-tools/generate-test-report.js",
-    "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js"
+    "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js",
+    "tdd:tick": "node scripts/tdd-tools/tdd-tick.js",
+    "tdd:sync": "npm run tdd:tick",
+    "tdd:push": "node scripts/tdd-tools/tdd-push.js"
   },
   "keywords": [
     "prd",

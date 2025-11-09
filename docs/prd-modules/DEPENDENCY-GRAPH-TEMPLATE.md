@@ -128,38 +128,45 @@ class US_PAY_003 blocked
 编写脚本解析所有模块 PRD 的"依赖"字段，自动生成 Mermaid 语法：
 
 ```javascript
-// scripts/generate-dependency-graph.js
+// scripts/prd-tools/generate-dependency-graph.js
 const fs = require('fs');
 const path = require('path');
 
-// 扫描 /docs/prd-modules/*.md
-const prdModules = fs.readdirSync('./docs/prd-modules')
-  .filter(file => file.endsWith('.md') && file !== 'README.md');
+const prdModulesRoot = path.join(__dirname, '../../docs/prd-modules');
+const mermaidCode = ['graph TB'];
 
-let mermaidCode = 'graph TB\n';
+fs.readdirSync(prdModulesRoot, { withFileTypes: true })
+  .filter(entry => entry.isDirectory())
+  .forEach(dir => {
+    const modulePrdPath = path.join(prdModulesRoot, dir.name, 'PRD.md');
+    if (!fs.existsSync(modulePrdPath)) return;
 
-prdModules.forEach(module => {
-  const content = fs.readFileSync(`./docs/prd-modules/${module}`, 'utf-8');
+    const content = fs.readFileSync(modulePrdPath, 'utf-8');
+    const storyTitleRegex = /###?\s+(US-[A-Z0-9-]+):?/g;
+    const dependencyRegex = /\*\*依赖[：:]\*\*\s*([^\n]+)/g;
 
-  // 正则匹配：**依赖：** US-XXX-YYY
-  const dependencyRegex = /\*\*依赖[：:]\*\*\s*(US-[\w-]+(?:,\s*US-[\w-]+)*)/g;
-  const matches = [...content.matchAll(dependencyRegex)];
-
-  matches.forEach(match => {
-    const dependencies = match[1].split(',').map(d => d.trim());
-    dependencies.forEach(dep => {
-      mermaidCode += `  ${dep} --> ${match.input.storyId}\n`;
-    });
+    let storyMatch;
+    while ((storyMatch = storyTitleRegex.exec(content)) !== null) {
+      const storyId = storyMatch[1];
+      const depMatch = dependencyRegex.exec(content.slice(storyMatch.index));
+      dependencyRegex.lastIndex = storyMatch.index + storyMatch[0].length;
+      if (depMatch) {
+        depMatch[1].split(',').map(dep => dep.trim()).forEach(depId => {
+          if (depId && depId !== storyId) {
+            mermaidCode.push(`  ${depId} --> ${storyId}`);
+          }
+        });
+      }
+    }
   });
-});
 
-fs.writeFileSync('./docs/data/dependency-graph-auto.md', mermaidCode);
+fs.writeFileSync('./docs/data/dependency-graph-auto.md', mermaidCode.join('\n'));
 console.log('✅ 依赖关系图已自动生成：dependency-graph-auto.md');
 ```
 
 运行：
 ```bash
-node scripts/generate-dependency-graph.js
+node scripts/prd-tools/generate-dependency-graph.js
 ```
 
 ### 与 CI 集成
@@ -191,7 +198,7 @@ node scripts/generate-dependency-graph.js
 
 ```
 依赖关系图（dependency-graph.md）
-  ├─ 数据来源 → PRD 模块（/docs/prd-modules/*.md）的"依赖"字段
+  ├─ 数据来源 → PRD 模块（/docs/prd-modules/{domain}/PRD.md）的"依赖"字段
   ├─ 影响 → 任务规划（/docs/TASK.md）的 WBS 排序
   ├─ 影响 → Sprint 规划（选择无依赖冲突的 Story）
   └─ 影响 → 变更请求（/docs/data/change-requests/*.md）的影响范围分析

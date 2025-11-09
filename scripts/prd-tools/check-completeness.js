@@ -20,18 +20,31 @@ const CONFIG = {
   prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
   traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
   globalDependencyGraphPath: path.join(__dirname, '../../docs/data/global-dependency-graph.md'),
+  moduleTemplatePath: path.join(__dirname, '../../docs/prd-modules/MODULE-TEMPLATE.md'),
 };
 
-// 主 PRD 必需章节
+// 主 PRD 必需章节（与 AgentRoles/PRD-WRITER-EXPERT.md §PRD 模板保持一致）
 const REQUIRED_SECTIONS = [
-  '## 1. 产品概述',
-  '## 2. 全局范围与边界',
-  '## 3. 用户角色与核心场景',
-  '## 4. 用户故事与验收标准',
-  '## 5. 非功能需求（NFR）',
-  '## 6. 里程碑与依赖',
-  '## 7. 风险与开放问题',
-  '## 8. 追溯矩阵',
+  '## 1. 背景与目标',
+  '## 2. 范围',
+  '## 3. 用户与场景',
+  '## 4. 用户故事',
+  '## 5. 非功能需求',
+  '## 6. 依赖与风险',
+  '## 7. 里程碑',
+  '## 8. 追溯关系',
+  '## 9. 开放问题',
+];
+
+// 模块 PRD 必需章节（来自 docs/prd-modules/MODULE-TEMPLATE.md §4）
+const MODULE_REQUIRED_SECTIONS = [
+  '## 4.1 模块概述',
+  '## 4.2 用户故事与验收标准',
+  '## 4.3 模块级非功能需求',
+  '## 4.4 接口与依赖',
+  '## 4.5 数据模型',
+  '## 4.6 风险与约束',
+  '## 4.7 版本与变更',
 ];
 
 // Story ID 格式正则
@@ -93,6 +106,62 @@ function checkMainPrdSections() {
     });
     return false;
   }
+}
+
+function checkModuleTemplateReference() {
+  return checkFileExists(CONFIG.moduleTemplatePath, '模块 PRD 模板');
+}
+
+function checkSingleModuleStructure(moduleName, modulePrdPath) {
+  const content = fs.readFileSync(modulePrdPath, 'utf-8');
+  const missing = MODULE_REQUIRED_SECTIONS.filter(section => !content.includes(section));
+
+  if (missing.length === 0) {
+    log(`✅ ${moduleName} 模块 PRD 含有全部标准章节`, 'green');
+    return true;
+  }
+
+  log(`⚠️  ${moduleName} 模块 PRD 缺少章节:`, 'yellow');
+  missing.forEach(section => log(`   - ${section}`, 'yellow'));
+  log(`   参考：${CONFIG.moduleTemplatePath}`, 'cyan');
+  return false;
+}
+
+function checkModuleStructures() {
+  log('\n🏗️  检查模块 PRD 结构（参照 MODULE-TEMPLATE）...', 'cyan');
+
+  if (!fs.existsSync(CONFIG.prdModulesDir)) {
+    log('ℹ️  未找到 docs/prd-modules 目录，说明当前为单一 PRD 项目。', 'cyan');
+    return true;
+  }
+
+  const entries = fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true });
+  const moduleDirs = entries.filter(entry => entry.isDirectory());
+
+  if (moduleDirs.length === 0) {
+    log('ℹ️  当前未拆分模块，若先前拆分请参考 MODULE-TEMPLATE.md 创建目录。', 'cyan');
+    return true;
+  }
+
+  let allPassing = true;
+
+  moduleDirs.forEach(dir => {
+    const moduleName = dir.name;
+    const modulePrdPath = path.join(CONFIG.prdModulesDir, moduleName, 'PRD.md');
+
+    if (!fs.existsSync(modulePrdPath)) {
+      log(`⚠️  ${moduleName} 缺少 PRD.md，无法校验章节，建议创建 ${modulePrdPath}`, 'yellow');
+      allPassing = false;
+      return;
+    }
+
+    const passed = checkSingleModuleStructure(moduleName, modulePrdPath);
+    if (!passed) {
+      allPassing = false;
+    }
+  });
+
+  return allPassing;
 }
 
 // 检查 Story ID 格式
@@ -166,13 +235,17 @@ function main() {
   log('PRD 完整性检查工具 v1.0', 'cyan');
   log('='.repeat(60), 'cyan');
 
+  const moduleTemplateExists = checkModuleTemplateReference();
+
   const results = {
     mainPrdExists: checkFileExists(CONFIG.mainPrdPath, '主 PRD'),
     traceabilityMatrixExists: checkFileExists(CONFIG.traceabilityMatrixPath, '追溯矩阵'),
     globalDependencyGraphExists: checkFileExists(CONFIG.globalDependencyGraphPath, '全局依赖关系图'),
+    moduleTemplateExists,
     sectionsComplete: false,
     storyIdValid: false,
     gwtValid: false,
+    moduleStructureComplete: false,
   };
 
   if (results.mainPrdExists) {
@@ -180,6 +253,8 @@ function main() {
     results.storyIdValid = checkStoryIdFormat();
     results.gwtValid = checkGivenWhenThen();
   }
+
+  results.moduleStructureComplete = checkModuleStructures();
 
   // 汇总结果
   log('\n' + '='.repeat(60), 'cyan');

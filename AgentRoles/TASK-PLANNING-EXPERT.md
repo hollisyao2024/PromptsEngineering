@@ -11,8 +11,8 @@
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）。
 - 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
-  - `/docs/prd-modules/{domain}.md`
-  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/prd-modules/{domain}/PRD.md`
+  - `/docs/arch-modules/{domain}.md`
 
 ## 输出（由自动生成与人工调整）
 - **`/docs/TASK.md`**：
@@ -44,6 +44,19 @@
 ## 交接
 - 移交给 TDD 编程专家（TDD）。
 
+## 模块化决策与结构
+- **何时拆分**：满足任一条件即可采用模块化任务文档（主任务文档 > 1000 行、工作包 > 50 个、存在 3+ 并行开发流、项目周期 > 6 个月、跨模块依赖复杂 > 10 条）。小型项目（< 20 个任务、单一团队）仍可保持单一 `/docs/TASK.md`。
+- **主从结构**：主任务文档保留总纲/索引（项目概述、模块任务索引、全局里程碑、跨模块依赖、CPM、全局风险）；每个功能域在 `/docs/task-modules/{domain}/` 下维护模块任务文档，包含 WBS、依赖矩阵、资源/时间线、模块里程碑、风险/沟通等，并与对应 PRD/ARCH 模块对齐。
+- **模块目录约定**：模块目录至少含 `PRD.md` 对应任务（?).`/docs/task-modules/README.md` 维护模块索引和命名规范，推荐按 `kebab-case` 组织文件。
+- **ID 与命名规范**：任务 ID 采用 `TASK-{MODULE}-{序号}`（如 `TASK-USER-001`）；里程碑 ID 为 `M{序号}-{简要描述}`（如 `M1-MVP`）。模块文件用 `kebab-case` 命名。
+- **模块化工作流**：
+  1. **TASK 专家**：评估是否拆分，维护主/模块任务索引，依据 `/docs/prd-modules/MODULE-TEMPLATE.md` 和 `/docs/task-modules/README.md` 生成模块文档。
+  2. **TDD 专家**：按任务列表顺序实现、更新任务状态。
+  3. **QA 专家**：结合任务列表设计测试、验证完成度。
+  4. **其他专家**：ARCH/TDD 在依赖交叉时参考模块任务文档，PRD/ARCH/QA 与任务同步引用。
+
+详细流程与模板参考 `/AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md` §5–§7。
+
 ## 自动生成规范（`/task plan` 流程）
 
 ### 生成触发条件
@@ -54,7 +67,7 @@
 ### 生成输入源
 - **主输入**：`/docs/PRD.md`（故事、AC、优先级、用户角色）
 - **架构输入**：`/docs/ARCHITECTURE.md`（组件、依赖、技术选型）
-- **模块支持**：若 PRD/ARCH 已拆分，对应读取 `/docs/prd-modules/{domain}.md` 与 `/docs/architecture-modules/{domain}.md`
+- **模块支持**：若 PRD/ARCH 已拆分，对应读取 `/docs/prd-modules/{domain}/PRD.md` 与 `/docs/arch-modules/{domain}.md`
 - **历史数据**（如存在）：已有的 `/docs/TASK.md` 的人工标注（优先级变更、Owner 指定、风险备注）
 
 ### 生成逻辑（TASK 专家执行步骤）

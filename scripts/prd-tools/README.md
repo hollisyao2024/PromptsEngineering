@@ -28,7 +28,8 @@ npm run prd:lint
 ```
 
 **检查项**：
-- ✅ 主 PRD 必需章节完整性
+- ✅ 主 PRD 必需章节完整性（参考 `AgentRoles/PRD-WRITER-EXPERT.md` 的 PRD 模板 / docs/PRD.md 的 1-9 节）
+- ✅ 拆分模块 PRD 符合 `docs/prd-modules/MODULE-TEMPLATE.md` 中的结构（如 4.1-4.7 章节）
 - ✅ 追溯矩阵是否存在
 - ✅ 依赖关系图是否存在
 - ✅ Story ID 格式规范（US-MODULE-NNN）
@@ -60,6 +61,8 @@ PRD 完整性检查工具 v1.0
 ============================================================
 ❌ 部分检查未通过，请根据上述提示修正。
 ```
+
+> ℹ️ 本工具也会依次扫描 `docs/prd-modules/*/PRD.md`，确保每个模块包含 `docs/prd-modules/MODULE-TEMPLATE.md` §4.1~4.7 中定义的章节，如缺失会在输出中提示并建议参照模板补齐。
 
 ---
 
@@ -353,7 +356,6 @@ chmod +x scripts/prd-tools/*.js
 
 ## 📚 参考资料
 
-- [PRD 增强功能实施路线图](../../docs/PRD-ENHANCEMENT-ROADMAP.md)
 - [PRD-WRITER-EXPERT Playbook](../../AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md)
 - [AGENTS.md](../../AGENTS.md)
 

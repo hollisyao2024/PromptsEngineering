@@ -10,8 +10,8 @@ version: 1.7 (2025-11-02)
 ## 目录与产物约定
 - 角色文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
 - 文档输出：
-  - PRD：`/docs/PRD.md`（主 PRD，小项目单文件；大型项目作为总纲与索引）
-  - PRD 模块（大型项目）：`/docs/prd-modules/{domain}.md`（按功能域拆分的详细 PRD）
+  - 主 PRD：`/docs/PRD.md`（主 PRD，小项目时是单文件；大型项目时作为总纲与索引）
+  - PRD 模块（大型项目）：`/docs/prd-modules/{domain}/PRD.md`（按功能域拆分的详细 PRD）
   - 追溯矩阵：`/docs/data/traceability-matrix.md`（Story → AC → Test Case ID 映射）
   - Architecture：`/docs/ARCHITECTURE.md`
   - Task 计划：`/docs/TASK.md`
@@ -106,7 +106,7 @@ version: 1.7 (2025-11-02)
 - **小型项目**：产出/更新 `/docs/PRD.md`（单文件，含：目标、用户画像、用户故事、验收标准 Given-When-Then、非功能需求）。
 - **大型项目**（满足拆分条件时）：
   - 主 PRD（`/docs/PRD.md`）：总纲与索引（< 500 行），包含产品概述、全局范围、用户角色、功能域索引、里程碑与依赖。
-  - 子模块 PRD（`/docs/prd-modules/{domain}.md`）：按功能域拆分的详细需求。
+  - 子模块 PRD（`/docs/prd-modules/{domain}/PRD.md`）：按功能域拆分的详细需求。
   - 追溯矩阵（`/docs/data/traceability-matrix.md`）：集中维护 Story → AC → Test Case ID 映射。
 - 若有关键取舍，新增 `/docs/adr/NNN-*.md`（简要 ADR）。
 
@@ -116,9 +116,9 @@ version: 1.7 (2025-11-02)
 - 业务域边界明确（3+ 子系统）
 - 多团队并行协作
 
-详细拆分指南见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7（大型项目 PRD 拆分指南）。
+详细拆分指南与模块模板见 `/docs/prd-modules/MODULE-TEMPLATE.md`。
 
-**PRD 增强功能**（v1.8+）：关于企业级需求管理增强（CR 流程、依赖图、优先级矩阵、Shift-Left 检查等）的实施路线图，见 `/docs/PRD-ENHANCEMENT-ROADMAP.md`。
+**PRD 增强功能**（v1.8+）：关于企业级需求管理增强（CR 流程、依赖图、优先级矩阵、Shift-Left 检查等）的实施路线图与门禁要求，详见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7。
 
 **完成勾选**：在 `/docs/AGENT_STATE.md` 将 `PRD_CONFIRMED` 勾选为完成。
 
@@ -129,7 +129,7 @@ version: 1.7 (2025-11-02)
   *（使用此命令会自动激活 PRD 专家并加载其角色文件）*
 
 **工具增强**（v1.8+）：
-- 所有 prd:* 命令支持完整性检查与质量门禁（详见 PRD-ENHANCEMENT-ROADMAP.md）
+- 所有 prd:* 命令支持完整性检查与质量门禁（详见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7）
 - 关键工具：`npm run prd:lint`、`npm run prd:check-dependency-cycles`、`npm run prd:preflight-report`
 - 更多工具请参考 package.json 中的 prd:* 命令
 
@@ -142,13 +142,13 @@ version: 1.7 (2025-11-02)
 
 **输入**：
 - `/docs/PRD.md`（作为总纲）
-- 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}.md` 对应的模块 PRD
+- 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md` 对应的模块 PRD
 
 **输出**：
 - **小型项目**：产出/更新 `/docs/ARCHITECTURE.md`（单文件，含：逻辑/物理/运行/开发视图、技术选型、数据与接口、安全、高可用）。
 - **大型项目**（满足拆分条件时）：
   - 主架构文档（`/docs/ARCHITECTURE.md`）：总纲与索引（< 500 行），包含系统概述、功能域架构索引、全局视图、全局技术选型与 ADR、跨模块依赖关系、全局风险。
-  - 子模块架构文档（`/docs/architecture-modules/{domain}.md`）：按功能域拆分的详细架构设计。
+  - 子模块架构文档（`/docs/arch-modules/{domain}.md`）：按功能域拆分的详细架构设计。
 - 必要时产出 ADR：`/docs/adr/NNN-{module}-*.md`（如 `001-user-auth-strategy.md`）
 
 **拆分条件**（满足任一即可）：
@@ -183,8 +183,8 @@ version: 1.7 (2025-11-02)
 **输入**：
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）
 - 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
-  - `/docs/prd-modules/{domain}.md`
-  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/prd-modules/{domain}/PRD.md`
+  - `/docs/arch-modules/{domain}.md`
 
 **输出**：
 - **自动生成流程**：TASK 专家激活后，通过快捷命令 `/task plan` 自动生成/刷新：
@@ -263,8 +263,8 @@ version: 1.7 (2025-11-02)
 **输入**：
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md`（历史记录）、最新 CI 结果与提交说明（含 `CHANGELOG.md`）。
 - 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
-  - `/docs/prd-modules/{domain}.md`
-  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/prd-modules/{domain}/PRD.md`
+  - `/docs/arch-modules/{domain}.md`
   - `/docs/task-modules/{domain}.md`
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）
 

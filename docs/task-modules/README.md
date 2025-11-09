@@ -55,8 +55,8 @@
 
 | 模块名称 | 文件路径 | 负责团队 | 对应 PRD 模块 | 对应 ARCH 模块 | 状态 | 最后更新 |
 |---------|---------|---------|--------------|---------------|------|---------|
-| （示例）用户管理 | [user-management.md](user-management.md) | @team-backend | [prd-modules/user-management.md](../prd-modules/user-management.md) | [architecture-modules/user-management.md](../architecture-modules/user-management.md) | ✅ 已确认 | 2025-11-05 |
-| （示例）支付系统 | [payment-system.md](payment-system.md) | @team-payment | [prd-modules/payment-system.md](../prd-modules/payment-system.md) | [architecture-modules/payment-system.md](../architecture-modules/payment-system.md) | 🔄 进行中 | 2025-11-05 |
+| （示例）用户管理 | [user-management.md](user-management.md) | @team-backend | [prd-modules/user-management.md](../prd-modules/user-management.md) | [arch-modules/user-management.md](../arch-modules/user-management.md) | ✅ 已确认 | 2025-11-05 |
+| （示例）支付系统 | [payment-system.md](payment-system.md) | @team-payment | [prd-modules/payment-system.md](../prd-modules/payment-system.md) | [arch-modules/payment-system.md](../arch-modules/payment-system.md) | 🔄 进行中 | 2025-11-05 |
 | （待补充） | - | - | - | - | - | - |
 
 **状态标识说明**：
@@ -207,12 +207,12 @@ Week 3  | TASK-004                      ████████
 ## 跨模块协作规范
 
 ### 与 PRD 专家协作
-- **输入**：读取 `/docs/prd-modules/{domain}.md` 对应的 PRD 模块
+- **输入**：读取 `/docs/prd-modules/{domain}/PRD.md` 对应的 PRD 模块
 - **对齐**：确保任务拆解覆盖所有用户故事（US）
 - **追溯**：任务 ID 与 Story ID 建立映射关系（在追溯矩阵中维护）
 
 ### 与 ARCHITECTURE 专家协作
-- **输入**：读取 `/docs/architecture-modules/{domain}.md` 对应的架构模块
+- **输入**：读取 `/docs/arch-modules/{domain}.md` 对应的架构模块
 - **技术约束**：遵循架构设计的技术选型与接口契约
 - **任务粒度**：根据架构分层（前端/后端/数据库）拆解任务
 
@@ -274,8 +274,8 @@ Week 3  | TASK-004                      ████████
 ## 相关文档
 
 - **主任务文档**：[/docs/TASK.md](../TASK.md)
-- **PRD 模块索引**：[/docs/prd-modules/README.md](../prd-modules/README.md)
-- **ARCH 模块索引**：[/docs/architecture-modules/README.md](../architecture-modules/README.md)
+- **PRD 模块索引与模板**：[/docs/prd-modules/MODULE-TEMPLATE.md](../prd-modules/MODULE-TEMPLATE.md)
+- **ARCH 模块索引**：[/docs/arch-modules/README.md](../arch-modules/README.md)
 - **QA 模块索引**：[/docs/qa-modules/README.md](../qa-modules/README.md)
 - **追溯矩阵**：[/docs/data/traceability-matrix.md](../data/traceability-matrix.md)
 - **目录规范**：[/docs/CONVENTIONS.md](../CONVENTIONS.md)

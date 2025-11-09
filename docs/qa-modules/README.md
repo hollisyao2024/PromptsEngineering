@@ -98,12 +98,12 @@
 ## 跨模块协作规范
 
 ### 与 PRD 专家协作
-- **输入**：读取 `/docs/prd-modules/{domain}.md` 对应的 PRD 模块
+- **输入**：读取 `/docs/prd-modules/{domain}/PRD.md` 对应的 PRD 模块
 - **追溯**：基于追溯矩阵（`/docs/data/traceability-matrix.md`），确保所有 Story/AC 都有对应测试用例
 - **验收标准**：严格按照 PRD 中的 Given-When-Then 验收标准执行测试
 
 ### 与 ARCHITECTURE 专家协作
-- **输入**：读取 `/docs/architecture-modules/{domain}.md` 对应的架构模块
+- **输入**：读取 `/docs/arch-modules/{domain}.md` 对应的架构模块
 - **接口测试**：基于架构文档的接口定义，编写契约测试
 - **非功能需求**：基于架构文档的 NFR（性能/安全/可用性）制定测试策略
 
@@ -217,8 +217,8 @@ npm run qa:check-defect-blockers
 - **追溯矩阵**：[/docs/data/traceability-matrix.md](../data/traceability-matrix.md)
 
 ### 跨专家协作
-- **PRD 模块索引**：[/docs/prd-modules/README.md](../prd-modules/README.md)
-- **ARCH 模块索引**：[/docs/architecture-modules/README.md](../architecture-modules/README.md)
+- **PRD 模块索引与模板**：[/docs/prd-modules/MODULE-TEMPLATE.md](../prd-modules/MODULE-TEMPLATE.md)
+- **ARCH 模块索引**：[/docs/arch-modules/README.md](../arch-modules/README.md)
 - **TASK 模块索引**：[/docs/task-modules/README.md](../task-modules/README.md)
 
 ### 工具与规范

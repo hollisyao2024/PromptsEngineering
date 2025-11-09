@@ -17,7 +17,7 @@
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
 - `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
   - **`docs/prd-modules/`**（v1.8）：大型项目 PRD 模块化目录，按功能域拆分的详细 PRD，含 `README.md` 模块索引。
-  - **`docs/architecture-modules/`**（v1.8）：大型项目架构模块化目录，按功能域拆分的架构设计，含 `README.md` 模块索引。
+  - **`docs/arch-modules/`**（v1.8）：大型项目架构模块化目录，按功能域拆分的架构设计，含 `README.md` 模块索引。
   - **`docs/task-modules/`**（v1.8）：大型项目任务模块化目录，按功能域拆分的任务计划，含 `README.md` 模块索引。
   - **`docs/qa-modules/`**（v1.8）：大型项目 QA 模块化目录，按功能域拆分的测试计划，含 `README.md` 模块索引。
   - **`docs/data/traceability-matrix.md`**（v1.8）：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
@@ -165,7 +165,7 @@ npm run nfr:check-compliance
 ---
 
 #### 7. Shift-Left 需求验证 ✅
-**位置**：`/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §8
+**位置**：`/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7
 
 在 PRD 阶段前置验证，支持：
 - **技术可行性**：新技术栈 PoC、数据量级评估、第三方依赖稳定性
@@ -201,7 +201,7 @@ npm run prd:lint
 2. **CI/CD 集成** — 发布 Gate 自动化（1 周）
 3. **工具集成** — Jira / Notion / Confluence（按需）
 
-**详细指南**：[PRD 增强功能实施路线图](docs/PRD-ENHANCEMENT-ROADMAP.md)
+**详细指南**：参见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7（Shift-Left 检查与质量门禁）。
 
 ---
 
@@ -276,7 +276,7 @@ npm run cr:pending                        # 查看待审批 CR
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
 - `docs/`（含 `ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
   - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板已内置于 `AgentRoles/PRD-WRITER-EXPERT.md` §PRD 模板）
-  - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`architecture-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
+  - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
 - `db/`（含 `migrations/` 模板）
 - `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）
 - `CLAUDE.md`（若需要支持 Claude Code CLI）

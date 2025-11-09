@@ -49,7 +49,7 @@
 ### 修改
 - **批量更新所有 .mmd 引用**（36+ 个文件）：
   - 专家角色文件（2 个）：PRD-WRITER-EXPERT.md、ARCHITECTURE-WRITER-EXPERT.md
-  - 文档文件（15+ 个）：CONVENTIONS.md、data/README.md、architecture-modules/README.md、prd-modules/STRUCTURE-GUIDE.md、task-modules/STRUCTURE-GUIDE.md、README.md 等
+  - 文档文件（15+ 个）：CONVENTIONS.md、data/README.md、arch-modules/README.md、prd-modules/MODULE-TEMPLATE.md、task-modules/STRUCTURE-GUIDE.md、README.md 等
   - 脚本文件（6 个）：prd-tools/*.js、arch-tools/*.js、task-tools/*.js
   - 数据库模板（2 个）：TEMPLATE.sql、TEMPLATE.py
   - Handbook 文件（3 个）：PRD/ARCH/TDD 专家 Playbook
@@ -256,11 +256,11 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
 ### 新增
 - **PRD 模块化架构**：支持大型项目按功能域拆分 PRD，避免单文件过大导致上下文撑爆。
   - 新增 `/docs/prd-modules/` 目录，用于存放按功能域拆分的子模块 PRD。
-  - 新增 `/docs/prd-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块 PRD 结构。
+  - 新增 `/docs/prd-modules/MODULE-TEMPLATE.md` 模块模板，将拆分判断、命名规范、模块清单、标准模块 PRD 结构、协作规范和示例全部整合；原 `README.md`/`STRUCTURE-GUIDE.md`/`MODULE-TEMPLATE-ENHANCED.md` 迁移为备份供复盘。
   - 新增 `/docs/data/traceability-matrix.md` 追溯矩阵模板，集中维护 Story → AC → Test Case ID 映射。
 - **ARCHITECTURE 模块化架构**：支持大型项目按功能域拆分架构文档，避免单文件过大导致维护困难。
-  - 新增 `/docs/architecture-modules/` 目录，用于存放按功能域拆分的子模块架构文档。
-  - 新增 `/docs/architecture-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块架构文档结构（195 行）。
+  - 新增 `/docs/arch-modules/` 目录，用于存放按功能域拆分的子模块架构文档。
+  - 新增 `/docs/arch-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块架构文档结构（195 行）。
   - 支持跨模块依赖管理与组件 ID 命名规范（`{MODULE}-{TYPE}-{序号}`，如 `USER-SVC-001`、`PAY-DB-001`）。
 - **TASK 模块化架构**：支持大型项目按功能域拆分任务计划，避免 WBS 过大导致依赖关系混乱。
   - 新增 `/docs/task-modules/` 目录，用于存放按功能域拆分的子模块任务计划。
@@ -290,7 +290,7 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 在"完成定义（DoD）"章节增加拆分决策要求。
   - 重构"PRD 模板"章节，区分小型项目（单一 PRD）和大型项目（主从结构）。
 - 更新 ARCHITECTURE-WRITER-EXPERT.md 角色卡片：
-  - 在"输入"章节增加模块化 PRD 读取说明（按需读取 `/docs/prd-modules/{domain}.md`）。
+  - 在"输入"章节增加模块化 PRD 读取说明（按需读取 `/docs/prd-modules/{domain}/PRD.md`）。
   - 在"输出（写入路径）"章节增加大型项目模块化规则与拆分条件（> 1000 行 或 8+ 子系统 或 3+ 业务域）。
   - 在"完成定义（DoD）"章节增加模块化项目额外要求（注册模块清单、确保模块对齐）。
   - 更新"ARCH 最小模板"章节，提供小型项目（单一文件）和大型项目（主从结构）两种模板。
@@ -302,8 +302,8 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
     - §5. 拆分决策与触发条件（约 30 行，决策树与迁移步骤）
     - 原 §7 重新编号为 §8（大型项目架构拆分指南）
   - 更新 ARCHITECTURE-WRITER-EXPERT.md 角色卡片"输出"章节，明确引用 Playbook §3/§4/§5/§8。
-  - 创建 `/docs/architecture-modules/MODULE-TEMPLATE.md` 模块架构模板（约 350 行）。
-  - 创建 `/docs/architecture-modules/STRUCTURE-GUIDE.md` 模块结构指南（简化版，详细版在 Playbook §4）。
+  - 创建 `/docs/arch-modules/MODULE-TEMPLATE.md` 模块架构模板（约 350 行）。
+  - 创建 `/docs/arch-modules/STRUCTURE-GUIDE.md` 模块结构指南（简化版，详细版在 Playbook §4）。
   - 创建 `/docs/data/component-dependency-graph.md` 跨模块组件依赖图模板。
   - **优势**：职责明确（模板在 Playbook，产物由专家生成），减少文档冗余，支持模板版本化管理。
 - 更新 `/docs/data/README.md`（反映架构模块化变化）：
@@ -329,7 +329,7 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 在"Phase 3 — TASK 规划专家"章节增加模块化输入源与双输出策略，强调跨模块依赖管理。
   - 在"Phase 5 — QA 专家"章节增加模块化输入源与双输出策略，强调追溯矩阵集中管理。
 - 更新 `/docs/CONVENTIONS.md` 目录规范（v1.3）：
-  - 在"`docs/` 子结构"章节增加 `prd-modules/`、`architecture-modules/`、`task-modules/`、`qa-modules/` 和 `data/traceability-matrix.md` 说明。
+  - 在"`docs/` 子结构"章节增加 `prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/` 和 `data/traceability-matrix.md` 说明。
   - 新增"PRD 模块化规范"章节，包含拆分条件、主从结构、ID 命名规范、模块文件命名、模块化工作流。
   - 新增"ARCHITECTURE 模块化规范"章节，包含拆分条件、组件 ID 命名（`{MODULE}-{TYPE}-{序号}`）、ADR 命名规范、跨模块协作指南。
   - 新增"TASK 模块化规范"章节，包含拆分条件、任务 ID 命名（`TASK-{MODULE}-{序号}`）、依赖矩阵分离（内部/外部依赖）、DB 迁移任务规范（Expand→Migrate→Contract）。

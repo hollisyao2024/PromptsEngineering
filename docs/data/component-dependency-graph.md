@@ -68,7 +68,7 @@ graph TB
 ## 相关资源
 
 - [主架构文档](../ARCHITECTURE.md)
-- [模块索引](../architecture-modules/README.md)
+- [模块索引](../arch-modules/README.md)
 - [全局数据目录](README.md)
 
 ---

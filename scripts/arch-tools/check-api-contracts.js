@@ -16,7 +16,7 @@ const path = require('path');
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
-const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/architecture-modules');
+const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 
 // 命令行参数
 const args = process.argv.slice(2);
@@ -181,7 +181,7 @@ function validateAPIContracts() {
       console.log(`✅ Verified ${foundAPIs.length} API contract(s):\n`);
       foundAPIs.forEach(api => {
         console.log(`   - ${api.method} ${api.endpoint}`);
-        console.log(`     Defined in: architecture-modules/${api.definedIn}.md`);
+        console.log(`     Defined in: arch-modules/${api.definedIn}.md`);
         console.log(`     Referenced in: ${api.source}\n`);
       });
     }

@@ -17,7 +17,7 @@ const path = require('path');
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
-const ARCH_MODULES_README = path.join(PROJECT_ROOT, 'docs/architecture-modules/README.md');
+const ARCH_MODULES_README = path.join(PROJECT_ROOT, 'docs/arch-modules/README.md');
 
 // 必需章节列表
 const REQUIRED_SECTIONS = [
@@ -173,7 +173,7 @@ function checkLinks(content) {
 // 5. 模块化项目检查
 function checkModularArchitecture(content) {
   // 检测是否为模块化架构（查找功能域索引关键字）
-  const isModular = /功能域.*架构.*索引|architecture-modules/i.test(content);
+  const isModular = /功能域.*架构.*索引|arch-modules/i.test(content);
 
   if (!isModular) {
     printResult('PASS', 'Single-file architecture (no modularization needed)', 'modular_architecture');

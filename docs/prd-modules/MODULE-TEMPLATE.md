@@ -1,4 +1,151 @@
-# {功能域名称} - PRD 模块（增强版）
+# 模块 PRD 模板
+
+> 本文档整合了模块拆分决策、目录约定、模板结构、协作规范与自动化脚本等要素，是模块化需求治理的唯一权威参考。
+>
+> **提醒**：PRD 专家在评估拆分前，请先回顾本文件的第 1、2、3 章完成决策再展开模块产出，生成的模块 PRD 仍以 `{domain}/PRD.md` 为主体，从本模板获取章节/支撑产物的定义。
+
+## 1. 何时拆分 PRD
+
+当项目满足以下任一条件时，应切换为模块化 PRD：
+
+- 主 PRD 单文件长度超过 **1000 行**
+- 用户故事数量超过 **50 个**
+- 业务域边界清晰（至少 **3 个独立子系统**）
+- 多团队并行协作，需要独立编辑不同功能域
+
+小型项目（< 20 条用户故事）可继续维护单一 `/docs/PRD.md`，无需分裂。
+
+## 2. 目录与命名规范
+
+### 2.1 模块目录结构
+
+```
+/Users/ymh/Documents/Development/PromptsEngineering/docs/
+└── prd-modules/
+    ├── MODULE-TEMPLATE.md # 本模板（权威）
+    ├── module-list.md # 模板清单（由 PRD 专家根据本文件 §3 模块清单模板 生成）
+    └── {domain}/
+        ├── PRD.md
+        ├── dependency-graph.md
+        ├── nfr-tracking.md
+        └── priority-matrix.md
+```
+
+### 2.2 命名与 ID
+
+- **模块目录**：使用 kebab-case 域名（如 `user-management`、`payment-system`），保持与主 PRD 功能域索引中的 ID 一致，便于追溯与自动化脚本查找。
+- **模块文件**：`{domain}/PRD.md`（目录固定，文件名统一为 `PRD.md`），与主 PRD 的结构保持同步，方便引用与导航。
+- **Story ID**：`US-{MODULE}-{序号}`（例如 `US-USER-001`、`US-PAY-005`）
+- **验收标准 ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（例如 `AC-USER-001-01`）
+- **测试用例 ID**：`TC-{MODULE}-{序号}`（例如 `TC-REG-001`）
+
+## 3. 模块清单模板
+
+| 模块名称 | 优先级 | 负责团队 | 文件链接 | 状态 |
+|---------|--------|---------|----------|------|
+| （待添加） | - | - | - | - |
+
+**状态说明**：
+- ✅ 已确认（PRD 完成）
+- 🔄 进行中（编写/修订中）
+- 📝 待启动（计划中）
+- ❌ 已废弃（不再计划）
+
+该表格仅作为模板，实际模块清单信息由 PRD 专家根据以上表格生成到`module-list.md`，每次PRD 模块变化都更新`module-list.md`。
+
+## 4. 标准模块 PRD 结构
+
+`{domain}/PRD.md` 根据模板创建，模板见本文件 § Appendix A: PRD 模块模板。
+- 每次更新需记录 `最后更新` 时间戳
+- 重大变更需在主 PRD 的“变更记录”章节同步，并补齐必要 ADR
+
+## 5. 支撑产物说明
+
+### dependency-graph.md
+- 模块依赖图，可视化模块内 Story 依赖（Mermaid 图），支持模块内关键路径识别。
+- 适用于 Story > 10 或依赖复杂的模块
+- 初始版本应根据 `/docs/prd-modules/DEPENDENCY-GRAPH-TEMPLATE.md` 生成（可手动复制或运行示例脚本），确保包含目的、节点/线型说明与 Mermaid 表达。
+- 与 `/docs/data/global-dependency-graph.md` 区分：前者模块内、后者跨模块
+>- 维护模式：PRD 专家在 Story/依赖确定后更新图节点，TASK 专家则补充任务依赖、关键路径与冲突备注，二者协同保持图的可执行性。
+
+### nfr-tracking.md
+- 模块 NFR 追踪表，量化模块的非功能需求（性能、安全、可扩展性等）。
+- 记录 NFR ID、关联 Story、目标/当前值、验证方式、状态、负责人
+- 状态示例：✅ 达标、❌ 未达标、🔄 优化中、⚠️ 接近阈值、📝 待验证
+- QA 专家在执行测试后更新该文件
+- 初始版本参考 `/docs/prd-modules/NFR-TRACKING-TEMPLATE.md` 生成，PRD 专家补充需求描述与目标值、TASK/TDD 评估实现影响，QA 维护状态并记录验证结果，形成“需求→验证”闭环。
+
+### priority-matrix.md（可选）
+- 模块优先级矩阵，使用量化评分模型动态调整模块内需求优先级（业务价值、用户影响面、技术风险、依赖权重）。
+- 评分公式：业务价值 × 2 + 用户影响面 × 1.5 + (6 - 技术风险) + 依赖权重 × 0.5
+- 输出综合得分与建议优先级（P0/P1/P2）
+- 适用于优先级冲突或资源紧张的模块
+- 可参照 `/docs/prd-modules/PRIORITY-MATRIX-TEMPLATE.md` 的示例模板生成初始表格，PRD+TASK 共同评估指标值，QA/ARCH 提供依赖与风险输入，定期刷新优先级排序并同步到 `TASK.md`。
+
+## 6. 模块协作规范
+
+- **依赖管理**：主 PRD 的“里程碑与依赖”章节维护跨模块全局视图，各模块在“接口与依赖”章节细化
+- **数据共享**：共享实体在 `/docs/data/dictionary.md` 定义，模块直接引用，避免重复建模
+- **追溯矩阵**：`/docs/data/traceability-matrix.md` 记录 Story → AC → Test Case ID，便于 QA 全局验证
+- **跨团队对齐**：PRD 专家在模块规划完成后，通知 ARCH/TASK/QA 依次消费主/模块文档并更新 `AGENT_STATE`
+
+## 7. 维护与文件时机
+
+### 7.1 PRD 专家职责
+1. 拆分决策：评估是否需要模块化，将风险/理由记录在主 PRD
+2. 模块规划：定义功能域、更新模块索引表
+3. 内容编写：按本模板创建/更新模块 PRD
+4. 一致性检查：核对主 PRD、模块 PRD 与追溯矩阵，必要时补 ADR
+
+### 7.2 与其他专家协作
+- ARCH：基于主/模块 PRD 产出架构视图，保持 Story 与组件的追溯
+- TASK：依据模块 PRD 拆解 WBS，并同步关键依赖和里程碑
+- QA：覆盖追溯矩阵中的 Story/AC/Test Case，及时更新机密与阻塞状态
+
+### 7.3 版本管理
+- 模块文档每次更新需记录“最后更新”并标注负责人
+- 重大变动涉架构取舍需推送 `docs/adr/NNN-*.md`
+
+### 7.4 文件创建时机
+- PRD 拆分初期：必建 `{domain}/PRD.md` 与 `prd-modules/` 的索引条目
+- 需求澄清阶段：Story > 10 时建 `dependency-graph.md`；关键 NFR 时建 `nfr-tracking.md`，优先级复杂时加 `priority-matrix.md`
+- 持续维护：模块 PRD 实时更新、依赖图/优先级/追溯按 Sprint 维度更新
+
+## 8. 自动化脚本
+
+| 命令 | 功能 |
+|------|------|
+| `npm run prd:lint` | 校验主/模块 PRD 结构、Story/AC 格式、Given-When-Then 规范 |
+| `npm run prd:check-dependency-cycles` | 检测模块与全局依赖循环、无效引用 |
+| `npm run nfr:check-compliance` | 汇总模块 `nfr-tracking.md`，生成发布 Gate 报告（阻塞/警告/待验证） |
+
+## 9. 常见问题
+
+### Q1: 小型模块 (< 10 Story) 需要全部文件吗？
+A：不需要。只要 `PRD.md`，其他产物按需创建：依赖简单可省 `dependency-graph.md`，无关键 NFR 可跳过 `nfr-tracking.md`，优先级清晰可不建 `priority-matrix.md`。
+
+### Q2: 模块间有共享逻辑怎么办？
+A：主 PRD 在“全局范围”章节定义共享能力与平台服务，模块 PRD 引用即可，无需额外拆分。
+
+### Q3: 如何避免模块 PRD 与主 PRD 不一致？
+A：主 PRD 只保留索引与全局信息，模块 PRD 用 Story ID 唯一标识；每次模块更新后同步检查主 PRD 的功能域索引。
+
+### Q4: 全局依赖图和模块依赖图区别？
+A：模块依赖图展示该功能域内部 Story 依赖（如 US-USER-001 → US-USER-003），全局依赖图展示跨模块链路（如 US-USER-003 → US-PAY-001），支持跨团队协调。
+
+## 10. 相关资源
+
+- `/AGENTS.md` — 角色路由规范与状态机
+- `/docs/CONVENTIONS.md` — 目录与产物规范
+- `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` — 角色手册（包含核心流程与 Shift-Left 检查）
+- `/docs/data/traceability-matrix.md` — 全局 Story → AC → Test Case 映射
+
+---
+
+## Appendix A: PRD 模块模板
+> 以下内容不允许 PRD 专家自动修改，只能由人工修改。
+
+# {功能域名称} - PRD 模块
 
 > **所属主 PRD**: [PRD.md](../PRD.md)
 > **负责团队**: @team-name
@@ -30,7 +177,7 @@
 ---
 
 ## 2. 用户故事与验收标准
-
+```markdown
 ### US-{MODULE}-001: {故事标题}
 **作为** [用户角色]
 **我希望** [功能描述]
@@ -44,6 +191,8 @@
 **优先级**：P0 / P1 / P2（综合得分：X.X，详见 [priority-matrix.md](../data/priority-matrix.md)）
 **依赖**：US-{OTHER}-XXX（如有跨模块依赖，引用 Story ID）
 **预估工时**：X 人天
+```
+每个 Story 至少包含一个量化的 AC，覆盖正常与异常流，同时在 `traceability-matrix.md` 中映射 Story/AC/Test Case ID。
 
 ---
 

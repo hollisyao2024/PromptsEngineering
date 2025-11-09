@@ -7,7 +7,7 @@
  * - 提取 ARCH 中引用的 Story ID
  * - 提取 PRD 中定义的 Story ID
  * - 双向验证一致性
- * - Component ID 追溯（component-dependency-graph.md ↔ architecture-modules/）
+ * - Component ID 追溯（component-dependency-graph.md ↔ arch-modules/）
  * - 支持 JSON 输出与追溯报告生成
  */
 
@@ -17,7 +17,7 @@ const path = require('path');
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
-const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/architecture-modules');
+const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 const PRD_FILE = path.join(PROJECT_ROOT, 'docs/PRD.md');
 const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
 const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
@@ -101,7 +101,7 @@ function scanArchForStoryIDs() {
     for (const file of moduleFiles) {
       const modulePath = path.join(ARCH_MODULES_DIR, file);
       const content = fs.readFileSync(modulePath, 'utf8');
-      const results = extractStoryIDs(content, `architecture-modules/${file}`);
+      const results = extractStoryIDs(content, `arch-modules/${file}`);
 
       results.forEach(({ storyID, file, line }) => {
         if (!storyIDsInArch.has(storyID)) {
@@ -190,7 +190,7 @@ function scanModulesForComponentIDs() {
   for (const file of moduleFiles) {
     const modulePath = path.join(ARCH_MODULES_DIR, file);
     const content = fs.readFileSync(modulePath, 'utf8');
-    const results = extractComponentIDs(content, `architecture-modules/${file}`);
+    const results = extractComponentIDs(content, `arch-modules/${file}`);
 
     results.forEach(({ componentID, file, line }) => {
       if (!componentIDsInModules.has(componentID)) {

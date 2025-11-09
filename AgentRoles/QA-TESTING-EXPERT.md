@@ -12,8 +12,8 @@
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
 - **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，无法进行验收验证，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
 - 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
-  - `/docs/prd-modules/{domain}.md`
-  - `/docs/architecture-modules/{domain}.md`
+  - `/docs/prd-modules/{domain}/PRD.md`
+  - `/docs/arch-modules/{domain}.md`
   - `/docs/task-modules/{domain}.md`
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）。
 - **全局测试数据**（QA 专家维护，按需引用）：
@@ -35,6 +35,22 @@
 - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
 - 自动生成详细流程见下方"自动生成规范"章节；需要测试类型覆盖、模板或质量指标时，点读 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §作业流程（含大型项目拆分指南）。
 
+## 模块化决策与结构
+- **何时拆分**：满足任一条件即建议模块化 QA 文档（主 QA 文档 > 1000 行、测试用例 > 100 条、功能域 ≥ 3 个、跨模块并行测试、长周期项目需分阶段回归）；小型项目（< 30 个测试用例，单一测试类型）仍可保持单一 `/docs/QA.md`。
+- **主从架构**：主 QA 文档仅保留总纲与索引（测试概述、模块索引、全局策略、质量指标、发布建议），每个功能域在 `/docs/qa-modules/{domain}/` 拥有模块测试计划，并列出测试策略、测试用例、验证标准、缺陷与执行记录。
+- **模块目录**：每个模块目录建议包含 `QA.md`（模块测试计划）、`priority-matrix.md`（测试优先级评分）、`nfr-tracking.md`（NFR 验证状态）、`defect-log.md`（跨阶段阻塞记录）等。
+- **命名与 ID 规范**：
+  - 测试用例 ID：`TC-{MODULE}-{序号}`（如 `TC-REG-001`）。
+  - 缺陷 ID：`BUG-{MODULE}-{序号}` 或对接外部系统（如 `JIRA-PRJ-1234`）。
+  - 模块文件名：使用 kebab-case，例如 `user-management.md`、`payment-system.md`。
+- **模块化工作流**：
+  1. **QA 专家**：评估是否拆分，维护模块索引，依据 `/docs/prd-modules/MODULE-TEMPLATE.md` 中 Story/AC/NFR 结构创建模块 QA 计划。
+  2. **TDD 专家**：按任务列表顺序实现，修复缺陷并更新测试状态。
+  3. **PRD/ARCH 专家**：确认 QA 反馈与已发布文档一致，如有变更补充 ADR/CHANGES。
+  4. **QA 团队**：通过 `/qa plan` 生成测试矩阵，持续更新追溯矩阵与缺陷记录，直至可勾选 `QA_VALIDATED`。
+
+详细流程与拆分模板请参考 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §9。
+
 ## 自动生成规范（`/qa plan` 流程）
 
 ### 生成触发条件
@@ -47,7 +63,7 @@
 - **架构输入**：`/docs/ARCHITECTURE.md`（组件、技术选型、NFR）
 - **任务输入**：`/docs/TASK.md`（WBS、里程碑、Owner、任务状态）
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（Story → AC → Test Case 映射）
-- **模块支持**：若 PRD/ARCH/TASK 已拆分，对应读取 `/docs/prd-modules/{domain}.md`、`/docs/architecture-modules/{domain}.md`、`/docs/task-modules/{domain}.md`
+- **模块支持**：若 PRD/ARCH/TASK 已拆分，对应读取 `/docs/prd-modules/{domain}/PRD.md`、`/docs/arch-modules/{domain}.md`、`/docs/task-modules/{domain}.md`
 - **历史数据**（如存在）：已有的 `/docs/QA.md` 的人工标注（测试执行结果、缺陷状态）
 
 ### 生成逻辑（QA 专家执行步骤）

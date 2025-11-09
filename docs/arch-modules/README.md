@@ -125,7 +125,7 @@
   - 模块特定的技术决策
 
 ### 与 PRD 模块的对齐
-- **功能域边界一致**：`architecture-modules/user-management.md` ↔ `prd-modules/user-management/PRD.md`
+- **功能域边界一致**：`arch-modules/user-management.md` ↔ `prd-modules/user-management/PRD.md`
 - **Story → Component 映射**：PRD 中的用户故事应能追溯到 ARCH 中的组件
 
 ### 与全局数据的协作
@@ -139,7 +139,7 @@
 
 ### 1. ARCH 专家创建模块架构
 1. 读取对应模块 PRD（`/docs/prd-modules/{domain}/PRD.md`）
-2. 生成模块架构文档（`/docs/architecture-modules/{domain}.md`）
+2. 生成模块架构文档（`/docs/arch-modules/{domain}.md`）
 3. 更新本文件（README.md）的模块清单表格
 4. 在主架构文档（`/docs/ARCHITECTURE.md`）的功能域架构索引中链接
 

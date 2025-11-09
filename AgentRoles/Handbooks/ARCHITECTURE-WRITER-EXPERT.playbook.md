@@ -447,12 +447,12 @@ graph TB
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
 |--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [user-management.md](architecture-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
-| 支付系统 | @team-payment | [payment-system.md](architecture-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
-| 通知服务 | @team-notification | [notification-service.md](architecture-modules/notification-service.md) | 📝 待启动 | - |
+| 用户管理 | @team-backend | [user-management.md](arch-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
+| 支付系统 | @team-payment | [payment-system.md](arch-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
+| 通知服务 | @team-notification | [notification-service.md](arch-modules/notification-service.md) | 📝 待启动 | - |
 | （补充其他模块）| - | - | - | - |
 
-详见 [architecture-modules/README.md](architecture-modules/README.md)
+详见 [arch-modules/README.md](arch-modules/README.md)
 
 ---
 
@@ -525,16 +525,16 @@ graph LR
 - **PRD 文档**：[PRD.md](PRD.md)
 - **任务计划**：[TASK.md](TASK.md)
 - **测试计划**：[QA.md](QA.md)
-- **架构模块索引**：[architecture-modules/README.md](architecture-modules/README.md)
+- **架构模块索引**：[arch-modules/README.md](arch-modules/README.md)
 - **ADR 目录**：[adr/](adr/)
 - **目录规范**：[CONVENTIONS.md](CONVENTIONS.md)
 ```
 
 ---
 
-### 模块架构文档模板（`/docs/architecture-modules/{domain}.md`）
+### 模块架构文档模板（`/docs/arch-modules/{domain}.md`）
 
-参考 `/docs/architecture-modules/MODULE-TEMPLATE.md` 获取完整模板。
+参考 `/docs/arch-modules/MODULE-TEMPLATE.md` 获取完整模板。
 
 **标准章节**：
 1. 模块概述（功能范围、负责团队、依赖的模块）
@@ -573,7 +573,7 @@ graph LR
   ├─ 是 → 保持单一架构文档（使用 §3 小型项目模板）
   └─ 否 → 采用模块化架构（使用 §4 大型项目模板）
         ├─ 创建主架构文档（< 500 行，总纲与索引）
-        ├─ 按功能域创建模块架构文档（`/docs/architecture-modules/{domain}.md`）
+        ├─ 按功能域创建模块架构文档（`/docs/arch-modules/{domain}.md`）
         └─ 在主架构文档的"功能域架构索引"中链接各模块
 ```
 
@@ -587,8 +587,8 @@ graph LR
 - 在主架构文档中创建功能域索引表
 
 **步骤 2**：创建目录结构
-- 创建 `/docs/architecture-modules/` 目录
-- 创建 `/docs/architecture-modules/README.md` 模块索引
+- 创建 `/docs/arch-modules/` 目录
+- 创建 `/docs/arch-modules/README.md` 模块索引
 - 创建 `/docs/data/ERD.md`（全局数据视图）
 
 **步骤 3**：迁移内容
@@ -630,7 +630,7 @@ graph LR
   ├─ 是 → 保持单一架构文档（小型项目）
   └─ 否 → 采用模块化架构（大型项目）
         ├─ 创建主架构文档（< 500 行，总纲与索引）
-        ├─ 按功能域创建模块架构文档（`/docs/architecture-modules/{domain}.md`）
+        ├─ 按功能域创建模块架构文档（`/docs/arch-modules/{domain}.md`）
         └─ 在主架构文档的"功能域架构索引"中链接各模块
 ```
 
@@ -659,14 +659,14 @@ graph LR
 
 ---
 
-#### 模块架构文档（`/docs/architecture-modules/{domain}.md`）
+#### 模块架构文档（`/docs/arch-modules/{domain}.md`）
 
 **作用**：
 - 详细描述单个功能域的架构设计
 - 包含模块内组件、数据、接口、部署等详细视图
 - 独立维护，避免主架构文档膨胀
 
-**标准章节**（参考 `/docs/architecture-modules/README.md`）：
+**标准章节**（参考 `/docs/arch-modules/README.md`）：
 1. 模块概述（功能范围、负责团队、依赖的模块）
 2. C4 架构视图（Container、Component 层级）
 3. 运行时视图（模块内关键流程时序图）
@@ -769,7 +769,7 @@ graph LR
 
 #### 5. 模块文件命名
 
-**格式**：`/docs/architecture-modules/{domain}.md`
+**格式**：`/docs/arch-modules/{domain}.md`
 
 **命名规范**：
 - 使用小写字母 + 连字符（kebab-case）
@@ -856,8 +856,8 @@ graph LR
 - 在主架构文档中创建功能域索引表
 
 #### 步骤 2：创建目录结构
-- 创建 `/docs/architecture-modules/` 目录
-- 创建 `/docs/architecture-modules/README.md` 模块索引
+- 创建 `/docs/arch-modules/` 目录
+- 创建 `/docs/arch-modules/README.md` 模块索引
 - 创建 `/docs/data/ERD.md`（全局数据视图）
 
 #### 步骤 3：迁移内容
@@ -898,8 +898,8 @@ graph LR
 ## 2. 功能域架构索引
 | 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
 |--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [user-management.md](architecture-modules/user-management.md) | ✅ 已确认 | 2025-11-05 |
-| 支付系统 | @team-payment | [payment-system.md](architecture-modules/payment-system.md) | ✅ 已确认 | 2025-11-05 |
+| 用户管理 | @team-backend | [user-management.md](arch-modules/user-management.md) | ✅ 已确认 | 2025-11-05 |
+| 支付系统 | @team-payment | [payment-system.md](arch-modules/payment-system.md) | ✅ 已确认 | 2025-11-05 |
 
 ## 3. 全局视图
 ### 3.1 系统全景（C4 Context）

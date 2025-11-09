@@ -226,7 +226,7 @@ jobs:
 
 ```
 NFR 追踪表（nfr-tracking.md）
-  ├─ 数据来源 → PRD 模块（/docs/prd-modules/*.md）的"模块级非功能需求"
+  ├─ 数据来源 → PRD 模块（/docs/prd-modules/{domain}/PRD.md）的"模块级非功能需求"
   ├─ 数据来源 → 主 PRD（/docs/PRD.md）的"非功能需求"
   ├─ 影响 → 架构设计（/docs/ARCHITECTURE.md）
   ├─ 影响 → 测试计划（/docs/QA.md）

@@ -10,12 +10,12 @@
 
 ## 输入
 - 已确认的 `/docs/PRD.md`（作为总纲）。
-- 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}.md` 对应的模块 PRD。
+- 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md` 对应的模块 PRD。
 
 ## 输出（写入路径）
 - **`/docs/ARCHITECTURE.md`**（唯一权威版本，由 ARCH 专家生成）：
   - **小型项目**：单一文件包含所有架构设计（< 1000 行）
-  - **大型项目**：主架构文档（< 500 行，作为总纲与索引）+ 模块架构文档（`/docs/architecture-modules/{domain}.md`）
+  - **大型项目**：主架构文档（< 500 行，作为总纲与索引）+ 模块架构文档（`/docs/arch-modules/{domain}.md`）
 - **拆分触发条件**（满足任一即可）：
   - 主架构文档 > 1000 行
   - 子系统/服务 > 8 个
@@ -28,8 +28,8 @@
   - **拆分决策**：参考 Playbook §5（拆分决策与触发条件）
   - **拆分指南**：参考 Playbook §8（大型项目架构拆分指南）
 - **模块化架构产物**：
-  - `/docs/architecture-modules/README.md`（模块索引与命名规范）
-  - `/docs/architecture-modules/{domain}.md`（功能域子架构文档）
+  - `/docs/arch-modules/README.md`（模块索引与命名规范）
+  - `/docs/arch-modules/{domain}.md`（功能域子架构文档）
   - `/docs/data/component-dependency-graph.md`（跨模块组件依赖图）
 - 关键设计取舍写 **ADR**：列出应新增的 **ADR** 草案标题，放入`/docs/adr/NNN-{module}-*.md`（如"001-user-auth-strategy.md""002-payment-database-sharding.md"）。
 - **数据视图细化产物**：`/docs/data/ERD.md`、`/docs/data/dictionary.md`（数据字典）
@@ -46,7 +46,7 @@
   - **安全与合规**（认证授权、审计、脱敏、合规清单）。
 - **技术选型表**（方案对比→决策→影响→ADR 链接）。
 - **模块化项目额外要求**：
-  - 在 `/docs/architecture-modules/README.md` 中注册所有模块，维护模块清单表格。
+  - 在 `/docs/arch-modules/README.md` 中注册所有模块，维护模块清单表格。
   - 确保每个模块架构文档与对应的 PRD 模块对齐。
 - 在 `/docs/AGENT_STATE.md` 勾选 `ARCHITECTURE_DEFINED`。
 
@@ -102,11 +102,11 @@
 ## 2. 功能域架构索引
 | 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
 |--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [user-management.md](architecture-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
-| 支付系统 | @team-payment | [payment-system.md](architecture-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
+| 用户管理 | @team-backend | [user-management.md](arch-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
+| 支付系统 | @team-payment | [payment-system.md](arch-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
 | （补充其他模块）| - | - | - | - |
 
-详见 [architecture-modules/README.md](architecture-modules/README.md)
+详见 [arch-modules/README.md](arch-modules/README.md)
 
 ## 3. 全局视图（跨模块）
 ### 3.1 系统全景（C4 Context）
@@ -123,8 +123,8 @@
 - …
 ```
 
-**模块架构文档** (`/docs/architecture-modules/{domain}.md`)：
-参考 `/docs/architecture-modules/README.md` 中的"标准模块架构文档结构"。
+**模块架构文档** (`/docs/arch-modules/{domain}.md`)：
+参考 `/docs/arch-modules/README.md` 中的"标准模块架构文档结构"。
 
 ## 快捷命令
 - `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCHITECTURE.md` 的"数据视图"小节，并同步 `/docs/data/ERD.md`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
