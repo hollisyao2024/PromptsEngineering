@@ -2,6 +2,14 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.16.0] - 2025-11-11
+
+### 更新
+- 同步 `AGENT` 路由文档、`docs` 模块与 `scripts/arch-tools` 的最新改动，确保 PRD/ARCH/QA/Task 的上下文一致。
+- 将包版本提升到 `v1.16.0`，作为当前代码状态的正式里程碑。
+
+---
+
 ## [v1.15] - 2025-11-08
 
 ### 新增
@@ -49,7 +57,7 @@
 ### 修改
 - **批量更新所有 .mmd 引用**（36+ 个文件）：
   - 专家角色文件（2 个）：PRD-WRITER-EXPERT.md、ARCHITECTURE-WRITER-EXPERT.md
-  - 文档文件（15+ 个）：CONVENTIONS.md、data/README.md、arch-modules/README.md、prd-modules/MODULE-TEMPLATE.md、task-modules/STRUCTURE-GUIDE.md、README.md 等
+  - 文档文件（15+ 个）：CONVENTIONS.md、data/README.md、arch-modules/module-list.md、prd-modules/MODULE-TEMPLATE.md、task-modules/STRUCTURE-GUIDE.md、README.md 等
   - 脚本文件（6 个）：prd-tools/*.js、arch-tools/*.js、task-tools/*.js
   - 数据库模板（2 个）：TEMPLATE.sql、TEMPLATE.py
   - Handbook 文件（3 个）：PRD/ARCH/TDD 专家 Playbook
@@ -260,7 +268,7 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 新增 `/docs/data/traceability-matrix.md` 追溯矩阵模板，集中维护 Story → AC → Test Case ID 映射。
 - **ARCHITECTURE 模块化架构**：支持大型项目按功能域拆分架构文档，避免单文件过大导致维护困难。
   - 新增 `/docs/arch-modules/` 目录，用于存放按功能域拆分的子模块架构文档。
-  - 新增 `/docs/arch-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块架构文档结构（195 行）。
+  - 新增 `/docs/arch-modules/module-list.md` 模块索引文件，包含命名规范、模块清单、标准模块架构文档结构（195 行）。
   - 支持跨模块依赖管理与组件 ID 命名规范（`{MODULE}-{TYPE}-{序号}`，如 `USER-SVC-001`、`PAY-DB-001`）。
 - **TASK 模块化架构**：支持大型项目按功能域拆分任务计划，避免 WBS 过大导致依赖关系混乱。
   - 新增 `/docs/task-modules/` 目录，用于存放按功能域拆分的子模块任务计划。

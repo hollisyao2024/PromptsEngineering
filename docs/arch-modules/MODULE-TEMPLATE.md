@@ -44,8 +44,8 @@
 
 | 模块名称 | 文档路径 | 负责团队 | 核心服务 | 状态 | 最后更新 |
 |---------|---------|---------|---------|------|---------|
-| （示例）用户管理 | [user-management.md](user-management.md) | @team-auth | USER-SVC-001 | 📝 待启动 | - |
-| （示例）支付系统 | [payment-system.md](payment-system.md) | @team-payment | PAY-SVC-001 | 📝 待启动 | - |
+| （示例）用户管理 | [ARCH.md](user-management/ARCH.md) | @team-auth | USER-SVC-001 | 📝 待启动 | - |
+| （示例）支付系统 | [ARCH.md](payment-system/ARCH.md) | @team-payment | PAY-SVC-001 | 📝 待启动 | - |
 
 **状态说明**：
 - 📝 待启动
@@ -447,7 +447,7 @@ graph TB
 ## 11. 相关文档
 
 - [主架构文档](../ARCHITECTURE.md)
-- [模块索引](README.md)
+- [模块索引](module-list.md)
 - [全局数据目录](../data/README.md)
 - [ADR 目录](../adr/)
 

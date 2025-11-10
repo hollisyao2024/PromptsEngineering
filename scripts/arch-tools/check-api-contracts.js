@@ -97,7 +97,7 @@ function extractAPIDefinitions() {
     return;
   }
 
-  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'README.md');
+  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
 
   for (const file of moduleFiles) {
     const modulePath = path.join(ARCH_MODULES_DIR, file);

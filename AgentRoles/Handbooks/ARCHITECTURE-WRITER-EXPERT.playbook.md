@@ -204,12 +204,12 @@
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
 |--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [user-management.md](arch-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
-| 支付系统 | @team-payment | [payment-system.md](arch-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
-| 通知服务 | @team-notification | [notification-service.md](arch-modules/notification-service.md) | 📝 待启动 | - |
+| 用户管理 | @team-backend | [ARCH.md](arch-modules/user-management/ARCH.md) | ✅ 已确认 | YYYY-MM-DD |
+| 支付系统 | @team-payment | [ARCH.md](arch-modules/payment-system/ARCH.md) | 🔄 进行中 | YYYY-MM-DD |
+| 通知服务 | @team-notification | [ARCH.md](arch-modules/notification-service/ARCH.md) | 📝 待启动 | - |
 | （补充其他模块）| - | - | - | - |
 
-详见 [arch-modules/README.md](arch-modules/README.md)
+详见 [arch-modules/module-list.md](arch-modules/module-list.md)
 
 ---
 
@@ -282,7 +282,7 @@ graph LR
 - **PRD 文档**：[PRD.md](PRD.md)
 - **任务计划**：[TASK.md](TASK.md)
 - **测试计划**：[QA.md](QA.md)
-- **架构模块索引**：[arch-modules/README.md](arch-modules/README.md)
+- **架构模块索引**：[arch-modules/module-list.md](arch-modules/module-list.md)
 - **ADR 目录**：[adr/](adr/)
 - **目录规范**：[CONVENTIONS.md](CONVENTIONS.md)
 ```

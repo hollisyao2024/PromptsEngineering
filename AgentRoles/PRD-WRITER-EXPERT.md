@@ -27,10 +27,10 @@
   - 多团队并行开发
 
 ### 全局数据（存放在 `/docs/data/`）
-- **变更请求（CR）**：在 `/docs/data/change-requests/` 创建结构化变更记录，支持影响范围分析与多专家审批（详见 `docs/data/README.md` §5 与 `docs/data/change-requests/README.md` 的变更流程）。
-- **跨模块依赖图**：在 `/docs/data/global-dependency-graph.md` 维护跨模块的 Story 依赖关系，识别团队协作点与关键路径（参照 `docs/data/README.md` §2 的 Mermaid 示例与跨模块依赖规范，并可直接借助 `docs/data/templates/GLOBAL-DEPENDENCY-GRAPH-TEMPLATE.md` 提供的样例结构）。
-- **业务目标追溯**：在 `/docs/data/goal-story-mapping.md` 维护 Story 与 OKR 的映射关系，确保需求覆盖业务目标（遵循 `docs/data/README.md` §3 及 `docs/data/templates/GOAL-STORY-MAPPING-TEMPLATE.md`/模板中的目标追溯流程）。
-- **角色-故事矩阵**：在 `/docs/data/persona-story-matrix.md` 验证每个用户角色的功能覆盖完整性，避免"孤儿角色"（参照 `docs/data/README.md` §4 与 `docs/data/templates/PERSONA-STORY-MATRIX-TEMPLATE.md` 中的角色覆盖与检查流程）。
+- **变更请求（CR）**：在 `/docs/data/change-requests/` 创建结构化变更记录，支持影响范围分析与多专家审批（详见 `docs/data/change-requests/README.md` 的变更流程）。
+- **跨模块依赖图**：在 `/docs/data/global-dependency-graph.md` 维护跨模块的 Story 依赖关系，识别团队协作点与关键路径（参照 `docs/data/templates/GLOBAL-DEPENDENCY-GRAPH-TEMPLATE.md` 提供的样例结构）。
+- **业务目标追溯**：在 `/docs/data/goal-story-mapping.md` 维护 Story 与 OKR 的映射关系，确保需求覆盖业务目标（遵循 `docs/data/templates/GOAL-STORY-MAPPING-TEMPLATE.md`/模板中的目标追溯流程）。
+- **角色-故事矩阵**：在 `/docs/data/persona-story-matrix.md` 验证每个用户角色的功能覆盖完整性，避免"孤儿角色"（参照 `docs/data/templates/PERSONA-STORY-MATRIX-TEMPLATE.md` 中的角色覆盖与检查流程）。
 
 ### 需求验证前置（Shift-Left）
 - 在 PRD 交付前，执行 Playbook §7 "需求验证前置检查清单"，涵盖技术可行性、数据合规性、依赖风险、验收标准完备性、业务目标对齐、角色覆盖、NFR 明确、文档完整性。

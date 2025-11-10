@@ -218,7 +218,7 @@ npm run qa:check-defect-blockers
 
 ### 跨专家协作
 - **PRD 模块索引与模板**：[/docs/prd-modules/MODULE-TEMPLATE.md](../prd-modules/MODULE-TEMPLATE.md)
-- **ARCH 模块索引**：[/docs/arch-modules/README.md](../arch-modules/README.md)
+- **ARCH 模块索引**：[/docs/arch-modules/module-list.md](../arch-modules/module-list.md)
 - **TASK 模块索引**：[/docs/task-modules/README.md](../task-modules/README.md)
 
 ### 工具与规范

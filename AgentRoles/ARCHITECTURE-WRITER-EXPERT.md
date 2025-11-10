@@ -31,7 +31,7 @@
 ### 全局数据（存放在 `/docs/data/`）
 - **全局 ARCH 数据表格**：在主 `/docs/ARCH.md`（或模块 `ARCH.md`）中以结构化表格维护组件/服务清单、接口契约矩阵、数据模型汇总、部署与运维规范、第三方依赖与成本估算，供 TASK/QA 直接引用与验证；同时将这些数据驱动 `/docs/data/global-dependency-graph.md`、`/docs/data/traceability-matrix.md`、`/docs/data/arch-prd-traceability.md` 等全局追溯文档，以维持与 PRD 的一致性和可追溯性。
 - **追溯产物**：参考 PRD 级别的追溯产物（如 `/docs/data/global-dependency-graph.md`、`/docs/data/traceability-matrix.md`、`/docs/data/arch-prd-traceability.md`），同步记录跨模块依赖、容量/性能指标、可用性目标、安全审查要点等“全局数据”字段，并确保这三份 `/docs/data/` 报告随架构更新一并刷新，以维持与 PRD 的一致性。
-- **跨模块组件依赖图**：模块化项目时，在 `/docs/arch-modules/README.md` 维护模块索引表（含团队、状态、文档链接），并同步 `/docs/data/component-dependency-graph.md`，保持组件 ↔ Story 的追溯与依赖一致性。
+- **跨模块组件依赖图**：模块化项目时，在 `/docs/arch-modules/module-list.md` 维护模块索引表（含团队、状态、文档链接），并同步 `/docs/data/component-dependency-graph.md`，保持组件 ↔ Story 的追溯与依赖一致性。
 - **PRD ↔ ARCH 追溯报告**：`/docs/data/arch-prd-traceability.md` 自动比对 Story ID 与 Component ID 在 PRD 与 ARCH 中的引用一致性，识别缺失项并标记需补充的故事/组件；通过 `npm run arch:sync -- --report` 或 `/arch sync` 生成，作为 ARCH 专家每日核查的“对齐仪表盘”。
 
 ### 数据视图
@@ -118,9 +118,9 @@
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
 |--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [user-management.md](arch-modules/user-management.md) | ✅ 已确认 | YYYY-MM-DD |
-| 支付系统 | @team-payment | [payment-system.md](arch-modules/payment-system.md) | 🔄 进行中 | YYYY-MM-DD |
-| 通知服务 | @team-notification | [notification-service.md](arch-modules/notification-service.md) | 📝 待启动 | - |
+| 用户管理 | @team-backend | [ARCH.md](arch-modules/user-management/ARCH.md) | ✅ 已确认 | YYYY-MM-DD |
+| 支付系统 | @team-payment | [ARCH.md](arch-modules/payment-system/ARCH.md) | 🔄 进行中 | YYYY-MM-DD |
+| 通知服务 | @team-notification | [ARCH.md](arch-modules/notification-service/ARCH.md) | 📝 待启动 | - |
 | （补充其他模块）| - | - | - | - |
 
 ## 3. 全局视图（跨模块）

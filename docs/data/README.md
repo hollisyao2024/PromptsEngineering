@@ -260,7 +260,7 @@ graph TB
 - TYPE 类型：`SVC`（服务）、`DB`（数据库）、`CACHE`（缓存）、`MQ`（消息队列）、`API`（API 端点）、`JOB`（定时任务）
 - 示例：`USER-SVC-001`（用户管理服务）、`PAY-DB-001`（订单数据库）
 
-详见 [arch-modules/README.md](../arch-modules/README.md)
+详见 [arch-modules/module-list.md](../arch-modules/module-list.md)
 
 ---
 

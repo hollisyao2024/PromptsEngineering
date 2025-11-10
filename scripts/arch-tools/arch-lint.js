@@ -17,7 +17,7 @@ const path = require('path');
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
-const ARCH_MODULES_README = path.join(PROJECT_ROOT, 'docs/arch-modules/README.md');
+const ARCH_MODULES_LIST = path.join(PROJECT_ROOT, 'docs/arch-modules/module-list.md');
 
 // 必需章节列表
 const REQUIRED_SECTIONS = [
@@ -180,18 +180,18 @@ function checkModularArchitecture(content) {
     return;
   }
 
-  // 模块化项目：检查 README.md
-  if (!fs.existsSync(ARCH_MODULES_README)) {
-    printResult('FAIL', 'Modular architecture detected but README.md not found: ' + ARCH_MODULES_README, 'modular_architecture');
+  // 模块化项目：检查 module-list.md
+  if (!fs.existsSync(ARCH_MODULES_LIST)) {
+    printResult('FAIL', 'Modular architecture detected but module-list.md not found: ' + ARCH_MODULES_LIST, 'modular_architecture');
     return;
   }
 
-  const readmeContent = fs.readFileSync(ARCH_MODULES_README, 'utf8');
+  const readmeContent = fs.readFileSync(ARCH_MODULES_LIST, 'utf8');
 
   // 检查模块清单表格
   const moduleTableRegex = /\|\s*功能域\s*\|.*\|[\s\S]*?\|\s*[-:]+\s*\|/;
   if (!moduleTableRegex.test(readmeContent)) {
-    printResult('FAIL', 'Module inventory table not found in README.md', 'modular_architecture');
+    printResult('FAIL', 'Module inventory table not found in module-list.md', 'modular_architecture');
     return;
   }
 

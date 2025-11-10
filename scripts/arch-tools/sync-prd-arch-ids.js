@@ -96,7 +96,7 @@ function scanArchForStoryIDs() {
 
   // 扫描模块 ARCH 文档
   if (fs.existsSync(ARCH_MODULES_DIR)) {
-    const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'README.md');
+    const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
 
     for (const file of moduleFiles) {
       const modulePath = path.join(ARCH_MODULES_DIR, file);
@@ -185,7 +185,7 @@ function scanModulesForComponentIDs() {
     return;
   }
 
-  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'README.md');
+  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
 
   for (const file of moduleFiles) {
     const modulePath = path.join(ARCH_MODULES_DIR, file);

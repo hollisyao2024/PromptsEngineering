@@ -275,7 +275,7 @@ Week 3  | TASK-004                      ████████
 
 - **主任务文档**：[/docs/TASK.md](../TASK.md)
 - **PRD 模块索引与模板**：[/docs/prd-modules/MODULE-TEMPLATE.md](../prd-modules/MODULE-TEMPLATE.md)
-- **ARCH 模块索引**：[/docs/arch-modules/README.md](../arch-modules/README.md)
+- **ARCH 模块索引**：[/docs/arch-modules/module-list.md](../arch-modules/module-list.md)
 - **QA 模块索引**：[/docs/qa-modules/README.md](../qa-modules/README.md)
 - **追溯矩阵**：[/docs/data/traceability-matrix.md](../data/traceability-matrix.md)
 - **目录规范**：[/docs/CONVENTIONS.md](../CONVENTIONS.md)
