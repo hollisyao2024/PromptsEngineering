@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/TASK.md`（主）、必要时查阅 `/docs/PRD.md` 与 `/docs/ARCHITECTURE.md` 的相关片段，以及目录规范 `/docs/CONVENTIONS.md`。
+- 允许读取：`/docs/TASK.md`（主）、必要时查阅 `/docs/PRD.md` 与 `/docs/ARCH.md` 的相关片段，以及目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：跳过测试直接实现；越权修改 PRD/ARCH/TASK 的**目标与范围**（如需变更，走 ADR/变更流程）。
 
 ## 输入
@@ -19,7 +19,7 @@
 
 ## 输出
 - 本次修改的文件与段落清单。
-- 涉及文档的更新记录：包括主 `/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md` 及其模块文档（`docs/{prd|architecture|task|qa}-modules/{domain}.md`）、`/docs/task-modules/README.md`（特别是 `## 模块清单` 维护的模块进展表格）、`docs/changelogs/` 索引。
+- 涉及文档的更新记录：包括主 `/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md` 及其模块文档（`docs/{prd|architecture|task|qa}-modules/{domain}.md`）、`/docs/task-modules/README.md`（特别是 `## 模块清单` 维护的模块进展表格）、`docs/changelogs/` 索引。
 - CI/CD、提交规范与文档回写细节可参阅 `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` §开发命令与自动化流程。
 
 ## 执行规范
@@ -53,9 +53,9 @@
 ## 文档回写 Gate（提交前必做）
 - 执行顺序（漏任一步即判定 Gate 失败，`/tdd sync` 会比对触及的任务 ID 与 `/docs/TASK.md` 未完成项并立即阻断）：
  1. **同步 TASK**：运行 `npm run tdd:tick`（依据当前分支名中的 `TASK-*` ID 自动将 `/docs/TASK.md` 及 `/docs/task-modules/*.md` 中匹配条目由 `- [ ]` 勾为 `- [x]`；分支命名需包含 `TASK-<DOMAIN>-<序号>`，多任务以 `+` 连接，例如 `feature/TASK-ACC-001+TASK-RISK-003`）。脚本报错或未执行即视为 Gate 失败；自动勾选后至少复核依赖/Owner 等字段，并在 PR “文档回写”段落粘贴 Task ID / 截图。除复选框之外，还要同步更新 WBS 表格“状态”列，手写 `✅ 已完成 (<YYYY-MM-DD>)`（示例：`✅ 已完成 (2025-11-09)`）记录交付日期，保持任务列表直观可追溯；同时复查 `/docs/task-modules/README.md` 的 `## 模块清单` 表格，对应模块的“状态”“最后更新”列同步反映任务进度，必要时补写最新日期和说明。
-  2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCHITECTURE.md` 及其模块文件。
+  2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCH.md` 及其模块文件。
   3. **同步 QA 记录**：若 QA 已拆分，依据缺陷影响范围更新 `/docs/qa-modules/{domain}.md` 并在主 `/docs/QA.md` 补充结论。
-  4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCHITECTURE.md` 链接。
+  4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接。
   5. **Changelog**：追加根目录 `CHANGELOG.md` 条目；若需归档，参照 `docs/changelogs/README.md`。
  6. **迁移目录核查**：确认 `/db/migrations/` 或 `/supabase/migrations/` 含迁移与回滚脚本。
 

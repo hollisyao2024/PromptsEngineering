@@ -211,7 +211,7 @@
 |------|---------|------|
 | `/docs/PRD.md` | Story ID 列表、优先级 | 确定测试范围 |
 | `/docs/prd-modules/{domain}/PRD.md` | 模块 Story 详情 | 分模块制定测试策略 |
-| `/docs/ARCHITECTURE.md` | 架构模式（微服务/单体/事件驱动） | 决定是否需要契约/事件驱动测试 |
+| `/docs/ARCH.md` | 架构模式（微服务/单体/事件驱动） | 决定是否需要契约/事件驱动测试 |
 | `/docs/data/priority-matrix.md` | Story 优先级评分 | 影响测试类型分配 |
 | `/docs/data/nfr-tracking.md` | 非功能需求 | 确定性能/安全测试范围 |
 

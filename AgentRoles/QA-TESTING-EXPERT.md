@@ -5,11 +5,11 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/CHANGELOG.md`）与 CI 结果。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/CHANGELOG.md`）与 CI 结果。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接改代码实现（如需修复，退回 TDD 阶段）。
 
 ## 输入
-- `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
+- `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
 - **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，无法进行验收验证，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
 - 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
@@ -60,7 +60,7 @@
 
 ### 生成输入源
 - **主输入**：`/docs/PRD.md`（Story、AC、验收标准、优先级）
-- **架构输入**：`/docs/ARCHITECTURE.md`（组件、技术选型、NFR）
+- **架构输入**：`/docs/ARCH.md`（组件、技术选型、NFR）
 - **任务输入**：`/docs/TASK.md`（WBS、里程碑、Owner、任务状态）
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（Story → AC → Test Case 映射）
 - **模块支持**：若 PRD/ARCH/TASK 已拆分，对应读取 `/docs/prd-modules/{domain}/PRD.md`、`/docs/arch-modules/{domain}.md`、`/docs/task-modules/{domain}.md`

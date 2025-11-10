@@ -174,8 +174,8 @@ DROP TABLE IF EXISTS orders;
 --
 -- [ ] /docs/data/ERD.md                 - 更新实体关系图
 -- [ ] /docs/data/dictionary.md          - 更新数据字典
--- [ ] /docs/ARCHITECTURE.md             - 更新数据视图（如有设计变更）
+-- [ ] /docs/ARCH.md             - 更新数据视图（如有设计变更）
 -- [ ] /CHANGELOG.md                     - 添加迁移条目
--- [ ] /docs/adr/NNN-*.md                - 补充架构决策（如有）
+-- [ ] /docs/adr/NNN-prd-{module}-{decision}.md 或 /docs/adr/NNN-arch-{module}-{decision}.md                - 补充架构决策（如有）
 --
 -- 详见：/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md §6

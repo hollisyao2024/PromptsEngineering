@@ -19,7 +19,7 @@ const path = require('path');
 // 配置
 const CONFIG = {
   prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  archPath: path.join(__dirname, '../../docs/ARCHITECTURE.md'),
+  archPath: path.join(__dirname, '../../docs/ARCH.md'),
   taskPath: path.join(__dirname, '../../docs/TASK.md'),
   taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
   stateFile: path.join(__dirname, '../../docs/AGENT_STATE.md'),
@@ -443,7 +443,7 @@ function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks
   md += `## 8. 相关文档\n\n`;
   md += `- **主任务文档**：[../TASK.md](../TASK.md)\n`;
   md += `- **PRD 文档**：[../PRD.md](../PRD.md)\n`;
-  md += `- **架构文档**：[../ARCHITECTURE.md](../ARCHITECTURE.md)\n\n`;
+  md += `- **架构文档**：[../ARCH.md](../ARCH.md)\n\n`;
 
   md += `---\n\n`;
   md += `> **维护说明**：本文档由 TASK 专家自动生成。人工调整后，工具会尝试保留你的手工标注。\n`;
@@ -590,7 +590,7 @@ function generateSmallProjectMarkdown(tasks, stories, components, totalEffort, c
   // 相关文档
   md += `## 9. 相关文档\n\n`;
   md += `- **PRD 文档**：[PRD.md](PRD.md)\n`;
-  md += `- **架构文档**：[ARCHITECTURE.md](ARCHITECTURE.md)\n`;
+  md += `- **架构文档**：[ARCH.md](ARCH.md)\n`;
   md += `- **测试计划**：[QA.md](QA.md)\n`;
   md += `- **追溯矩阵**：[data/traceability-matrix.md](data/traceability-matrix.md)\n`;
 
@@ -685,7 +685,7 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   // 相关文档
   md += `## 7. 相关文档\n\n`;
   md += `- **PRD 文档**：[PRD.md](PRD.md)\n`;
-  md += `- **架构文档**：[ARCHITECTURE.md](ARCHITECTURE.md)\n`;
+  md += `- **架构文档**：[ARCH.md](ARCH.md)\n`;
   md += `- **模块任务索引**：[task-modules/README.md](task-modules/README.md)\n`;
   md += `- **测试计划**：[QA.md](QA.md)\n`;
   md += `- **追溯矩阵**：[data/traceability-matrix.md](data/traceability-matrix.md)\n`;

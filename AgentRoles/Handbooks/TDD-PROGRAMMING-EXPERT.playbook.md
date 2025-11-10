@@ -5,16 +5,16 @@
 
 ## 输入与参考
 - `/docs/TASK.md`（唯一执行顺序与验收口径）
-- `/docs/PRD.md`、`/docs/ARCHITECTURE.md`（确认范围、约束、接口契约）
+- `/docs/PRD.md`、`/docs/ARCH.md`（确认范围、约束、接口契约）
 - `/docs/QA.md`（缺陷复现路径、阻塞等级；仅在 QA 阶段退回时启用）
-- 最新 `/docs/adr/NNN-*.md` 与 `/CHANGELOG.md`（追踪决策与历史变更）
+- 最新 `/docs/adr/NNN-prd-{module}-{decision}.md`、`/docs/adr/NNN-arch-{module}-{decision}.md` 与 `/CHANGELOG.md`（追踪决策与历史变更）
 - CI/流水线结果、待办 issue、用户临时补充信息
 - `/docs/CONVENTIONS.md`（目录、命名、分支策略）
 
 ## 输出与回写
 - 以 TDD 循环交付增量代码与测试，确保目标功能可验证、可回滚
-- 更新 `/docs/TASK.md` 的任务状态与依赖调整；若实现触及范围，补写 `/docs/PRD.md`、`/docs/ARCHITECTURE.md`
-- 必要时新增或修订 `/docs/adr/NNN-*.md`，并在 `CHANGELOG.md` 写入语义化条目
+- 更新 `/docs/TASK.md` 的任务状态与依赖调整；若实现触及范围，补写 `/docs/PRD.md`、`/docs/ARCH.md`
+- 必要时新增或修订 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `/docs/adr/NNN-arch-{module}-{decision}.md`，并在 `CHANGELOG.md` 写入语义化条目
 - 在 `/docs/AGENT_STATE.md` 勾选或撤销 `TDD_DONE`，为 QA 阶段提供最新上下文
 
 ---
@@ -337,7 +337,7 @@ scripts/ci.sh              # TDD 专家负责：CI 验证
 ## 6. 文档回写与交付清单（Doc Sync Gate）
 - [ ] `git status` 干净，仅保留预期变更
 - [ ] 所有 lint、typecheck、单测/集测命令无报错（附执行输出摘要）
-- [ ] `/docs/TASK.md` 更新进度、依赖或风险；若范围变更同步 `/docs/PRD.md`、`/docs/ARCHITECTURE.md`
+- [ ] `/docs/TASK.md` 更新进度、依赖或风险；若范围变更同步 `/docs/PRD.md`、`/docs/ARCH.md`
 - [ ] `CHANGELOG.md` 写入本次语义化条目；新增依赖或关键决策补充 ADR
 - [ ] 如有脚本、配置或迁移文件，提供回滚/复现说明
 - [ ] `/docs/AGENT_STATE.md` 更新 `TDD_DONE` 勾选状态并准备移交给 QA
@@ -358,7 +358,7 @@ scripts/ci.sh              # TDD 专家负责：CI 验证
 - [ ] **文档同步**：
   - [ ] `/docs/data/ERD.md` 已更新（反映新表/字段/关系）
   - [ ] `/docs/data/dictionary.md` 已更新（新增字段说明）
-  - [ ] `/docs/ARCHITECTURE.md` 的数据视图已同步
+  - [ ] `/docs/ARCH.md` 的数据视图已同步
 - [ ] **回滚方案**：文档中清晰说明回滚步骤与可能的数据风险
 
 ---

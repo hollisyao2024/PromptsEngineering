@@ -15,7 +15,7 @@ const path = require('path');
 
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
-const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
+const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 
 // 命令行参数
@@ -46,7 +46,7 @@ function extractAPIReferences() {
 
   if (!sectionMatch) {
     if (!isJsonMode) {
-      console.log('⚠️  No "跨模块依赖关系" section found in ARCHITECTURE.md');
+      console.log('⚠️  No "跨模块依赖关系" section found in ARCH.md');
       console.log('   Skipping API contract check\n');
     }
     process.exit(0);
@@ -74,7 +74,7 @@ function extractAPIReferences() {
         module,
         method,
         endpoint,
-        source: `ARCHITECTURE.md (跨模块依赖关系, line ~${index + 1})`
+        source: `ARCH.md (跨模块依赖关系, line ~${index + 1})`
       });
     }
   });

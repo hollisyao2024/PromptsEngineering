@@ -6,11 +6,11 @@
 ## 输入与参考
 - `/docs/PRD.md`（历史版本）与用户补充的访谈资料
 - `/docs/CONVENTIONS.md`（目录与命名规范，确保输出位置与格式一致）
-- 相关架构或任务产物（如已有 `ARCHITECTURE.md`、`TASK.md`）仅用于追溯
+- 相关架构或任务产物（如已有 `ARCH.md`、`TASK.md`）仅用于追溯
 
 ## 输出与回写
 - 将最新版 PRD 写入 `/docs/PRD.md`（唯一权威版本）
-- 关键取舍新增或更新 `/docs/adr/NNN-*.md`，并在 PRD 中引用
+- 关键取舍新增或更新 `/docs/adr/NNN-prd-{module}-{decision}.md`，并在 PRD 中引用
 - 在 `/docs/AGENT_STATE.md` 勾选或更新 `PRD_CONFIRMED`
 - 若调整影响后续阶段范围，补充 `CHANGELOG.md` 记录
 - 与架构阶段对接：明确关键场景、约束与非功能需求入口

@@ -16,7 +16,7 @@ const path = require('path');
 
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
-const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
+const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 const PRD_FILE = path.join(PROJECT_ROOT, 'docs/PRD.md');
 const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
@@ -83,7 +83,7 @@ function scanArchForStoryIDs() {
   // 扫描主 ARCH 文档
   if (fs.existsSync(ARCH_FILE)) {
     const content = fs.readFileSync(ARCH_FILE, 'utf8');
-    const results = extractStoryIDs(content, 'ARCHITECTURE.md');
+    const results = extractStoryIDs(content, 'ARCH.md');
 
     results.forEach(({ storyID, file, line }) => {
       if (!storyIDsInArch.has(storyID)) {

@@ -5,11 +5,11 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、目录规范 `/docs/CONVENTIONS.md`。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：编写功能代码。
 
 ## 输入
-- `/docs/PRD.md`（作为总纲）、`/docs/ARCHITECTURE.md`（作为总纲）。
+- `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）。
 - 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}.md`
@@ -66,7 +66,7 @@
 
 ### 生成输入源
 - **主输入**：`/docs/PRD.md`（故事、AC、优先级、用户角色）
-- **架构输入**：`/docs/ARCHITECTURE.md`（组件、依赖、技术选型）
+- **架构输入**：`/docs/ARCH.md`（组件、依赖、技术选型）
 - **模块支持**：若 PRD/ARCH 已拆分，对应读取 `/docs/prd-modules/{domain}/PRD.md` 与 `/docs/arch-modules/{domain}.md`
 - **历史数据**（如存在）：已有的 `/docs/TASK.md` 的人工标注（优先级变更、Owner 指定、风险备注）
 
@@ -107,13 +107,13 @@
   6. 生成甘特图（文字 + Mermaid 图）
 
 #### 第五步：资源分配与风险
-根据 ARCHITECTURE.md 的团队分工：
+根据 ARCH.md 的团队分工：
   1. 为每个 Task 指定 Owner（如缺失，标记为 TBD）
   2. 估算工作量（简单功能：1-2d、中等功能：3-5d、复杂功能：5-7d、包含 DB 迁移的功能 +50%）
   3. 识别风险（外部依赖风险、技术难点风险、团队风险、进度风险）
 
 #### 第六步：DB 任务特殊处理
-扫描 ARCHITECTURE.md 的数据视图，识别 DB 变更：
+扫描 ARCH.md 的数据视图，识别 DB 变更：
 - FOR EACH 数据模型变更：
   1. 创建 TASK-DB-NNN 任务组
   2. 遵循 Expand → Migrate/Backfill → Contract 流程

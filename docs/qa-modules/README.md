@@ -102,7 +102,7 @@
 - **追溯**：基于追溯矩阵（`/docs/data/traceability-matrix.md`），确保所有 Story/AC 都有对应测试用例
 - **验收标准**：严格按照 PRD 中的 Given-When-Then 验收标准执行测试
 
-### 与 ARCHITECTURE 专家协作
+### 与 ARCH 专家协作
 - **输入**：读取 `/docs/arch-modules/{domain}.md` 对应的架构模块
 - **接口测试**：基于架构文档的接口定义，编写契约测试
 - **非功能需求**：基于架构文档的 NFR（性能/安全/可用性）制定测试策略

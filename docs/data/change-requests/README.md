@@ -130,7 +130,7 @@ graph LR
 变更请求（CR）
   ├─ 触发 → PRD 更新（/docs/PRD.md 或 prd-modules/*.md）
   ├─ 触发 → 追溯矩阵更新（/docs/data/traceability-matrix.md）
-  ├─ 可能触发 → 架构调整（/docs/ARCHITECTURE.md + ADR）
+  ├─ 可能触发 → 架构调整（/docs/ARCH.md + ADR）
   ├─ 可能触发 → 任务调整（/docs/TASK.md）
   └─ 关联 → 测试用例更新（tests/**/*.test.ts）
 ```

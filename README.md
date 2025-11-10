@@ -15,7 +15,7 @@
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
 - `AgentRoles/*.md`：五位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA）。
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
-- `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
+- `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
   - **`docs/prd-modules/`**（v1.8）：大型项目 PRD 模块化目录，按功能域拆分的详细 PRD，含 `README.md` 模块索引。
   - **`docs/arch-modules/`**（v1.8）：大型项目架构模块化目录，按功能域拆分的架构设计，含 `README.md` 模块索引。
   - **`docs/task-modules/`**（v1.8）：大型项目任务模块化目录，按功能域拆分的任务计划，含 `README.md` 模块索引。
@@ -274,7 +274,7 @@ npm run cr:pending                        # 查看待审批 CR
 **建议拷贝**
 - `AGENTS.md`
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
-- `docs/`（含 `ARCHITECTURE.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
+- `docs/`（含 `ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
   - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板已内置于 `AgentRoles/PRD-WRITER-EXPERT.md` §PRD 模板）
   - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
 - `db/`（含 `migrations/` 模板）

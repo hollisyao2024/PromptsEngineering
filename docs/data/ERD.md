@@ -1,7 +1,7 @@
 # 实体关系图（ERD）
 
 > **用途**：全局数据模型可视化，展示核心实体及其关系
-> **维护者**：ARCHITECTURE 专家
+> **维护者**：ARCH 专家
 > **最后更新**：2025-11-08
 > **适用阶段**：ARCHITECTURE_DEFINED 后
 
@@ -62,4 +62,4 @@ erDiagram
 ## 参考
 
 - [Mermaid ERD 语法文档](https://mermaid.js.org/syntax/entityRelationshipDiagram.html)
-- 关联文档：[/docs/ARCHITECTURE.md](../ARCHITECTURE.md) § 数据视图
+- 关联文档：[/docs/ARCH.md](../ARCH.md) § 数据视图

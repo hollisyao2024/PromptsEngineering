@@ -18,7 +18,7 @@
   - 部署后执行基本冒烟测试并监控关键指标
 
 ## 2. 输入与参考
-- `/docs/TASK.md`、`/docs/PRD.md`、`/docs/ARCHITECTURE.md`、历史 `/docs/QA.md`
+- `/docs/TASK.md`、`/docs/PRD.md`、`/docs/ARCH.md`、历史 `/docs/QA.md`
 - `/docs/CONVENTIONS.md`（了解脚本、测试目录与命名规则）
 - 最新 CI/部署结果、`/CHANGELOG.md`、现有 ADR
 - **全局测试数据**（`/docs/data/`，QA 专家维护，按需引用）：

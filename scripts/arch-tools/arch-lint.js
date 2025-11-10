@@ -4,7 +4,7 @@
  * arch-lint.js - 架构文档完整性检查工具
  *
  * 功能：
- * - 检查 ARCHITECTURE.md 是否存在
+ * - 检查 ARCH.md 是否存在
  * - 验证必需章节（总览、6大视图、技术选型、风险）
  * - 检查 Mermaid 代码块语法
  * - 验证链接有效性（ADR、数据字典、ERD）
@@ -16,7 +16,7 @@ const path = require('path');
 
 // 配置
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
-const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCHITECTURE.md');
+const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_README = path.join(PROJECT_ROOT, 'docs/arch-modules/README.md');
 
 // 必需章节列表

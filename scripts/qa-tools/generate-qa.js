@@ -16,7 +16,7 @@ const path = require('path');
 const CONFIG = {
   paths: {
     prd: 'docs/PRD.md',
-    arch: 'docs/ARCHITECTURE.md',
+    arch: 'docs/ARCH.md',
     task: 'docs/TASK.md',
     qa: 'docs/QA.md',
     traceabilityMatrix: 'docs/data/traceability-matrix.md',
@@ -345,7 +345,7 @@ ${archData.components.length > 0
 
 ## 8. 附录
 - **PRD 文档**：[PRD.md](PRD.md)
-- **ARCHITECTURE 文档**：[ARCHITECTURE.md](ARCHITECTURE.md)
+- **ARCHITECTURE 文档**：[ARCH.md](ARCH.md)
 - **TASK 文档**：[TASK.md](TASK.md)
 - **追溯矩阵**：[traceability-matrix.md](data/traceability-matrix.md)
 - **测试工具脚本**：[scripts/qa-tools/](../../scripts/qa-tools/)
