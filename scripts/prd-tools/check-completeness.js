@@ -24,28 +24,30 @@ const CONFIG = {
 };
 
 // 主 PRD 必需章节（与 AgentRoles/PRD-WRITER-EXPERT.md §PRD 模板保持一致）
-const REQUIRED_SECTIONS = [
-  '## 1. 背景与目标',
-  '## 2. 范围',
-  '## 3. 用户与场景',
-  '## 4. 用户故事',
-  '## 5. 非功能需求',
-  '## 6. 依赖与风险',
-  '## 7. 里程碑',
-  '## 8. 追溯关系',
-  '## 9. 开放问题',
+const MAIN_SECTION_PATTERNS = [
+  { label: '## 1.', pattern: /^##\s*1\./m },
+  { label: '## 2.', pattern: /^##\s*2\./m },
+  { label: '## 3.', pattern: /^##\s*3\./m },
+  { label: '## 4.', pattern: /^##\s*4\./m },
+  { label: '## 5.', pattern: /^##\s*5\./m },
+  { label: '## 6.', pattern: /^##\s*6\./m },
+  { label: '## 7.', pattern: /^##\s*7\./m },
+  { label: '## 8.', pattern: /^##\s*8\./m },
+  { label: '## 9.', pattern: /^##\s*9\./m },
 ];
 
-// 模块 PRD 必需章节（来自 docs/prd-modules/MODULE-TEMPLATE.md §4）
-const MODULE_REQUIRED_SECTIONS = [
-  '## 4.1 模块概述',
-  '## 4.2 用户故事与验收标准',
-  '## 4.3 模块级非功能需求',
-  '## 4.4 接口与依赖',
-  '## 4.5 数据模型',
-  '## 4.6 风险与约束',
-  '## 4.7 版本与变更',
+const MODULE_SECTION_PATTERNS = [
+  { label: '## 1. 模块概述', pattern: /^##\s*1\.\s*模块概述/m },
+  { label: '## 2. 用户故事与验收标准', pattern: /^##\s*2\.\s*用户故事/m },
+  { label: '## 3. 模块级非功能需求', pattern: /^##\s*3\.\s*模块级非功能需求/m },
+  { label: '## 4. 接口与依赖', pattern: /^##\s*4\.\s*(接口与依赖|依赖与接口)/m },
+  { label: '## 5. 数据模型', pattern: /^##\s*5\.\s*数据模型/m },
+  { label: '## 6. 风险与约束', pattern: /^##\s*6\.\s*风险与约束/m },
+  { label: '## 7. 模块版本与变更记录', pattern: /^##\s*7\.\s*(模块版本与变更记录|附录)/m },
+  { label: '## 8. 相关文档', pattern: /^##\s*8\.\s*相关文档/m },
 ];
+
+const MASTER_INDICATORS = ['主 PRD', '总纲', '文档导航'];
 
 // Story ID 格式正则
 const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/;
@@ -83,29 +85,46 @@ function checkFileExists(filePath, description) {
   return true;
 }
 
+function detectMainPrdMode(content) {
+  if (MASTER_INDICATORS.some(indicator => content.includes(indicator))) {
+    return 'master';
+  }
+  return 'single';
+}
+
 // 检查主 PRD 章节完整性
 function checkMainPrdSections() {
   log('\n📋 检查主 PRD 章节完整性...', 'cyan');
 
   const prdContent = fs.readFileSync(CONFIG.mainPrdPath, 'utf-8');
   const missingSections = [];
+  const mode = detectMainPrdMode(prdContent);
+  log(`ℹ️  检测到主 PRD 类型：${mode === 'master' ? '主从总纲模式' : '单文件模式'}`, 'cyan');
 
-  REQUIRED_SECTIONS.forEach(section => {
-    if (!prdContent.includes(section)) {
-      missingSections.push(section);
+  const requiredPatterns = [...MAIN_SECTION_PATTERNS];
+  if (mode === 'master') {
+    requiredPatterns.push({
+      label: '## 文档导航',
+      pattern: /^##\s*文档导航/m,
+    });
+  }
+
+  requiredPatterns.forEach(entry => {
+    if (!entry.pattern.test(prdContent)) {
+      missingSections.push(entry.label);
     }
   });
 
   if (missingSections.length === 0) {
     log('✅ 主 PRD 包含所有必需章节', 'green');
     return true;
-  } else {
-    log(`❌ 主 PRD 缺少以下章节:`, 'red');
-    missingSections.forEach(section => {
-      log(`   - ${section}`, 'yellow');
-    });
-    return false;
   }
+
+  log(`❌ 主 PRD 缺少以下章节:`, 'red');
+  missingSections.forEach(section => {
+    log(`   - ${section}`, 'yellow');
+  });
+  return false;
 }
 
 function checkModuleTemplateReference() {
@@ -114,7 +133,7 @@ function checkModuleTemplateReference() {
 
 function checkSingleModuleStructure(moduleName, modulePrdPath) {
   const content = fs.readFileSync(modulePrdPath, 'utf-8');
-  const missing = MODULE_REQUIRED_SECTIONS.filter(section => !content.includes(section));
+  const missing = MODULE_SECTION_PATTERNS.filter(entry => !entry.pattern.test(content));
 
   if (missing.length === 0) {
     log(`✅ ${moduleName} 模块 PRD 含有全部标准章节`, 'green');
@@ -122,7 +141,7 @@ function checkSingleModuleStructure(moduleName, modulePrdPath) {
   }
 
   log(`⚠️  ${moduleName} 模块 PRD 缺少章节:`, 'yellow');
-  missing.forEach(section => log(`   - ${section}`, 'yellow'));
+  missing.forEach(entry => log(`   - ${entry.label}`, 'yellow'));
   log(`   参考：${CONFIG.moduleTemplatePath}`, 'cyan');
   return false;
 }

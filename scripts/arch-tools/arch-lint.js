@@ -18,6 +18,7 @@ const path = require('path');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_LIST = path.join(PROJECT_ROOT, 'docs/arch-modules/module-list.md');
+const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 
 // 必需章节列表
 const REQUIRED_SECTIONS = [
@@ -204,6 +205,98 @@ function checkModularArchitecture(content) {
   }
 }
 
+const MODULE_ARTIFACT_CHECKS = [
+  {
+    key: 'component_service_list',
+    description: '组件/服务清单',
+    detector: content => /组件[\/\s]?服务.*清单|组件\s*清单|Component[\s\/]?Service\s*List/i.test(content)
+  },
+  {
+    key: 'interface_exports',
+    description: '接口视图：提供的接口',
+    detector: content => /###.*提供.*接口/i.test(content)
+  },
+  {
+    key: 'interface_imports',
+    description: '接口视图：依赖的接口',
+    detector: content => /###.*依赖.*接口/i.test(content)
+  },
+  {
+    key: 'data_asset_table',
+    description: '数据资产表',
+    detector: content => /\|\s*表名\s*\|/i.test(content)
+  },
+  {
+    key: 'risk_validation_table',
+    description: '风险与验证表',
+    detector: content => /(风险(?:与验证)?表|风险类型|Risk\s*Validation)/i.test(content)
+  },
+  {
+    key: 'traceability_table',
+    description: 'Story/Component 追溯表或 arch-prd-traceability 引用',
+    detector: content => /Story[\s\/\-]*Component.*追溯|追溯表|arch-prd-traceability/i.test(content)
+  }
+];
+
+function collectModuleDescriptors() {
+  if (!fs.existsSync(ARCH_MODULES_DIR)) {
+    return [];
+  }
+
+  const descriptors = fs.readdirSync(ARCH_MODULES_DIR, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory())
+    .map(dirent => {
+      const archPath = path.join(ARCH_MODULES_DIR, dirent.name, 'ARCH.md');
+      return { name: dirent.name, archPath, exists: fs.existsSync(archPath) };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return descriptors;
+}
+
+function checkModuleArtifacts() {
+  const moduleDescriptors = collectModuleDescriptors();
+
+  if (moduleDescriptors.length === 0) {
+    printResult('PASS', '未检测到模块化 ARCH 目录，无需额外校验', 'module_artifacts');
+    return;
+  }
+
+  const missingDocs = moduleDescriptors.filter(desc => !desc.exists);
+  if (missingDocs.length > 0) {
+    const missingPaths = missingDocs.map(desc => `docs/arch-modules/${desc.name}`);
+    printResult('WARN', `以下模块缺少 ARCH.md：${missingPaths.join(', ')}`, 'module_artifacts_presence');
+  }
+
+  const validModules = moduleDescriptors.filter(desc => desc.exists);
+  if (validModules.length === 0) {
+    printResult('FAIL', '未找到任何模块 ARCH.md 文件', 'module_artifacts_presence');
+    return;
+  }
+
+  const missingByCheck = new Map();
+  MODULE_ARTIFACT_CHECKS.forEach(check => missingByCheck.set(check.key, []));
+
+  validModules.forEach(({ name, archPath }) => {
+    const content = fs.readFileSync(archPath, 'utf8');
+    MODULE_ARTIFACT_CHECKS.forEach(check => {
+      if (!check.detector(content)) {
+        missingByCheck.get(check.key).push(name);
+      }
+    });
+  });
+
+  MODULE_ARTIFACT_CHECKS.forEach(check => {
+    const missingModules = missingByCheck.get(check.key);
+    if (missingModules.length === 0) {
+      printResult('PASS', `${check.description} 在全部模块文档中可见（${validModules.length} 个模块）`, `module_${check.key}`);
+    } else {
+      const missingPaths = missingModules.map(name => `docs/arch-modules/${name}/ARCH.md`);
+      printResult('WARN', `${check.description} 缺失：${missingPaths.join(', ')}`, `module_${check.key}`);
+    }
+  });
+}
+
 // 主函数
 function main() {
   if (!isJsonMode) {
@@ -239,6 +332,7 @@ function main() {
 
   // 5. 模块化检查
   checkModularArchitecture(content);
+  checkModuleArtifacts();
 
   // 输出结果
   if (isJsonMode) {
