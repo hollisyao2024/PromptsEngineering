@@ -31,11 +31,20 @@ function parseDependencyGraph() {
   if (!fs.existsSync(COMPONENT_GRAPH_FILE)) {
     console.log('⚠️  Component dependency graph not found:');
     console.log('   ' + COMPONENT_GRAPH_FILE);
-    console.log('\n✅ No circular dependencies (file not found)\n');
-    process.exit(0);
+    console.log('\n❌ Please generate docs/data/component-dependency-graph.md (e.g. copy /docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md and fill real component IDs/edges) before running this check.\n');
+    process.exit(1);
   }
 
   const content = fs.readFileSync(COMPONENT_GRAPH_FILE, 'utf8');
+
+  const templatePath = path.join(path.dirname(COMPONENT_GRAPH_FILE), 'templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md');
+  if (fs.existsSync(templatePath)) {
+    const templateContent = fs.readFileSync(templatePath, 'utf8');
+    if (content.trim() === templateContent.trim()) {
+      console.log('\n⚠️  Component dependency graph still matches the template skeleton. Please populate actual Component IDs/edges before running the check.\n');
+      process.exit(1);
+    }
+  }
 
   // 匹配 Mermaid 依赖关系：A --> B 或 A -->|label| B
   // 支持多种箭头格式：-->, --->, -->>, etc.

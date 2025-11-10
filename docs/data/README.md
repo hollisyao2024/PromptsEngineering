@@ -8,37 +8,39 @@
 
 ## 📂 目录结构
 
-```
-/docs/data/
-  README.md                          # 本文件：目录说明
+  ```
+  /docs/data/
+    README.md                          # 本文件：目录说明
 
-  # 全局追溯与管理
-  traceability-matrix.md             # 全局追溯矩阵（Story → AC → Test ID）
-  goal-story-mapping.md              # 全局业务目标映射（Story → OKR）
-  persona-story-matrix.md            # 全局角色覆盖矩阵（用户角色 × Story）
+    # 全局追溯与管理（PRD 维护）
+    traceability-matrix.md             # 全局追溯矩阵（Story → AC → Test ID），PRD 专家初始化，QA 专家维护
+    goal-story-mapping.md              # 全局业务目标映射（Story → OKR）
+    persona-story-matrix.md            # 全局角色覆盖矩阵（用户角色 × Story）
+    global-dependency-graph.md        # 跨模块依赖关系图（Mermaid 格式）
 
-  # 全局依赖与架构
-  global-dependency-graph.md        # 跨模块依赖关系图（Mermaid 格式）
-  dependency-graph-README.md         # 依赖图使用说明
-  component-dependency-graph.md     # 跨模块组件依赖图（架构层级，Component ID 追溯）
-  arch-prd-traceability.md         # 全局 PRD↔ARCH 追溯报告（Story/Component ID 对齐）
-  ERD.md                            # 全局 ER 图（实体关系图）
-  dictionary.md                      # 数据字典（全局实体与字段定义）
+    # 任务全局追溯（TASK 维护）
+    story-task-mapping.md               # Story → Task 映射表
 
-  # 全局测试策略与规划（QA 专家维护）
-  test-strategy-matrix.md            # 测试策略矩阵（Story → 测试类型覆盖）
-  test-priority-matrix.md            # 测试优先级矩阵（测试用例优先级量化评分）
-  test-risk-matrix.md                # 测试风险识别与缓解矩阵
+    # 全局依赖与架构（ARCH 维护）
+    component-dependency-graph.md     # 跨模块组件依赖图（架构层级，Component ID 追溯）
+    arch-prd-traceability.md         # 全局 PRD↔ARCH 追溯报告（Story/Component ID 对齐）
+    ERD.md                            # 全局 ER 图（实体关系图）
+    dictionary.md                      # 数据字典（全局实体与字段定义）
 
-  # 变更管理
-  change-requests/                   # 变更请求流程
-    README.md                        # CR 流程说明
-    CR-TEMPLATE.md                   # CR 模板
-    CR-YYYYMMDD-NNN.md               # 具体 CR 记录
+    # 全局测试策略与规划（QA 维护）
+    test-strategy-matrix.md            # 测试策略矩阵（Story → 测试类型覆盖）
+    test-priority-matrix.md            # 测试优先级矩阵（测试用例优先级量化评分）
+    test-risk-matrix.md                # 测试风险识别与缓解矩阵
 
-  # 其他
-  scrs/                              # 软件变更请求（SCR）
-  qa-reports/                        # QA 测试报告汇总（由工具生成）
+    # 变更管理（PRD 维护）
+    change-requests/                   # 变更请求流程
+        README.md                        # CR 流程说明
+        CR-TEMPLATE.md                   # CR 模板
+        CR-YYYYMMDD-NNN.md               # 具体 CR 记录
+
+    # 其他
+    scrs/                              # 软件变更请求（SCR）
+    qa-reports/                        # QA 测试报告汇总（由工具生成）
 ```
 
 ---
@@ -49,18 +51,19 @@
 
 | 文件 | 范围 | 说明 |
 |------|------|------|
-| `traceability-matrix.md` | **全局** | 所有模块的 Story → AC → Test Case ID 映射，QA 专家集中维护 |
+| `traceability-matrix.md` | **全局** | 所有模块的 Story → AC → Test Case ID 映射，由 PRD 专家初始化，QA 专家集中维护 |
 | `global-dependency-graph.md` | **跨模块** | 跨模块依赖关系（如 US-USER-003 → US-PAY-001），PRD 专家维护 |
 | `component-dependency-graph.md` | **跨模块** | 跨模块组件依赖关系（如 PAY-SVC-001 → USER-SVC-001），ARCH 专家维护 |
-| `arch-prd-traceability.md` | **全局** | PRD 与 ARCH 间 Story ID 与 Component ID 的一致性/缺失状况，自动生成 |
-| `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系 |
-| `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵 |
+| `arch-prd-traceability.md` | **全局** | PRD 与 ARCH 间 Story ID 与 Component ID 的一致性/缺失状况，自动生成， ARCH 专家维护 |
+| `goal-story-mapping.md` | **全局** | 所有模块 Story 与业务目标（OKR）的映射关系，PRD 专家维护 |
+| `persona-story-matrix.md` | **全局** | 所有用户角色 × 所有 Story 的覆盖矩阵，PRD 专家维护 |
+| `story-task-mapping.md` | **全局** | Story → Task 映射表，TASK 专家维护，跨阶段共享，TASK 专家维护 |
 | `test-strategy-matrix.md` | **全局** | 所有模块的 Story → 测试类型覆盖矩阵，QA 专家维护 |
 | `test-priority-matrix.md` | **全局** | 跨模块测试用例优先级量化评分，指导测试执行顺序，QA 专家维护 |
 | `test-risk-matrix.md` | **全局** | 全局测试风险识别、评估与缓解措施，QA 专家维护 |
-| `change-requests/` | **全局** | 影响多个模块的变更请求流程 |
-| `ERD.md` | **全局** | 跨模块的实体关系图（数据库设计） |
-| `dictionary.md` | **全局** | 共享数据实体与字段定义 |
+| `change-requests/` | **全局** | 影响多个模块的变更请求流程，PRD 专家维护 |
+| `ERD.md` | **全局** | 跨模块的实体关系图（数据库设计），ARCH 专家维护 |
+| `dictionary.md` | **全局** | 共享数据实体与字段定义，ARCH 专家维护 |
 
 ### 模块内部数据存放在 prd-modules/{domain}/：
 
@@ -226,6 +229,8 @@ graph TB
 
 **格式**：Mermaid 图表（使用 Component ID 命名）
 
+**模板**：可参考 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 复制骨架（包含头部说明、Mermaid 图占位、依赖说明表与维护指南）并替换具体 Component/依赖信息，ARCH 专家在架构设计阶段或跨模块依赖变更时生成/刷新 `/docs/data/component-dependency-graph.md`。
+
 **示例**：
 ```mermaid
 graph TB
@@ -298,6 +303,36 @@ graph TB
 
 ---
 
+### 5. story-task-mapping.md — Story → Task 映射表
+
+**作用**：将每个 Story 与其实现的 Task（TASK-ID）关联，方便跨阶段协作、进度跟踪与依赖分析。
+
+**格式**：
+```markdown
+| Story ID | Task ID | Task Title | 模块 | 优先级 | 状态 |
+|----------|---------|------------|------|--------|------|
+| US-USER-003 | TASK-USER-005 | 用户登录验收 | User Management | P0 | 开发中 |
+```
+
+**维护者**：TASK 专家（TASK_PLANNED 阶段），与 `/docs/task-modules/STRUCTURE-GUIDE.md` §2.1、§3.2 的工作流保持同步。
+
+**更新时机**：
+1. 新增或变更 Story：在 `story-task-mapping.md` 中添加/更新对应 Task 关系。
+2. TASK 模块更新：确保 `/docs/task-modules/{domain}/TASK.md` 中的 Task ID 已在本表中登记。
+3. 任务依赖调整：同步更新 Task 状态与优先级列，确保 STORY → TASK → 里程碑的追溯链条畅通。
+
+**自动化支持**：
+```bash
+npm run task:sync   # 验证 Story ↔ Task 映射的一致性
+```
+
+**与其他产物的关系**：
+- 导入 PRD 中的 Story ID（需求阶段）。
+- 为 Task 计划、里程碑甘特图、Task 依赖矩阵提供输入。
+- 与 `/docs/data/task-dependency-matrix.md`、`/docs/data/critical-path.md` 一起构成 TASK 全局视图。
+
+---
+
 ### 5. change-requests/ — 变更请求流程
 
 **作用**：结构化管理需求变更，追踪影响范围与多专家审批
@@ -317,7 +352,7 @@ graph TB
 
 **格式**：Mermaid ER 图
 
-**维护者**：ARCHITECTURE 专家
+**维护者**：ARCH 专家
 
 ---
 
@@ -334,7 +369,7 @@ graph TB
 | email | String | 是 | 用户邮箱 |
 ```
 
-**维护者**：ARCHITECTURE 专家
+**维护者**：ARCH 专家
 
 ---
 

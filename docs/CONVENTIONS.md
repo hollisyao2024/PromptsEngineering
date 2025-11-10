@@ -17,18 +17,18 @@
 ## `docs/` 子结构
 - `docs/PRD.md`：产品需求文档（小项目时是单一 PRD.md，大项目时是主 PRD，作为总纲与索引）。
 - `docs/prd-modules/`：**大型项目 PRD 模块化目录**（按功能域拆分的详细 PRD），实际的模块清单、模块 PRD 由 PRD 专家根据 `docs/prd-modules/MODULE-INVENTORY.md`动态生成。
-- `docs/ARCHITECTURE.md`：架构文档（主架构文档，作为总纲与索引）。
-- `docs/arch-modules/`：**大型项目架构模块化目录**（按功能域拆分的详细架构），包含 `README.md` 模块索引。
+- `docs/ARCH.md`：架构文档（主架构文档，作为总纲与索引）。
+- `docs/arch-modules/`：**大型项目架构模块化目录**（按功能域拆分的详细架构），实际的设计清单、模块 ARCH 由 ARCH 专家根据 `docs/arch-modules/MODULE-INVENTORY.md`动态生成。
 - `docs/TASK.md`：任务计划（主任务文档，作为总纲与索引，含 WBS/依赖/里程碑/风险）。
-- `docs/task-modules/`：**大型项目任务模块化目录**（按功能域拆分的详细任务计划），包含 `README.md` 模块索引。
+- `docs/task-modules/`：**大型项目任务模块化目录**（按功能域拆分的详细任务计划），实际的任务清单、任务 TASK 由 TASK 专家根据 `docs/task-modules/MODULE-INVENTORY.md`动态生成。
 - `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
-- `docs/qa-modules/`：**大型项目 QA 模块化目录**（按功能域拆分的详细测试计划），包含 `README.md` 模块索引。
+- `docs/qa-modules/`：**大型项目 QA 模块化目录**（按功能域拆分的详细测试计划），实际的QA清单、测试 QA 由 QA 专家根据 `docs/qa-modules/MODULE-INVENTORY.md`动态生成。
 - `docs/AGENT_STATE.md`：阶段状态勾选清单。
 - `CHANGELOG.md`（项目根）：主变更记录，仅保存最近 1~2 个主版本条目。
 - `docs/changelogs/`：历史分卷目录，存放归档的旧 CHANGELOG 文件，并包含 `README.md` 记录分卷规则与索引。
-- `docs/adr/`：架构决策记录（`NNN-{module}-title.md` 命名）。
+- `docs/adr/`：架构决策记录，命名格式为 `NNN-{stage}-{module}-{title}.md`，其中 `{stage}` 取值 `prd` 表示 PRD 阶段的决策、`arch` 表示 ARCH 阶段的技术/架构决策；若为全局级别可将 `{module}` 替换为 `global`（例如 `NNN-prd-global-product-scope.md`、`NNN-arch-global-api-gateway.md`）。
 - `docs/data/`：数据相关内容（ERD、字典、样本数据、指标定义、**追溯矩阵**）。
-  - `docs/data/traceability-matrix.md`：**需求追溯矩阵**（Story → AC → Test Case ID 映射）。
+- `docs/data/traceability-matrix.md`：**需求追溯矩阵**（Story → AC → Test Case ID 映射）。
 - `docs/CONVENTIONS.md`：本文档，描述目录与约定。
 - 可选扩展：
   - `docs/security/`：威胁建模、安全评估。
@@ -97,7 +97,7 @@
 ### 更新时机
 
 - **PRD 阶段**：创建/更新 `global-dependency-graph.md`、`{domain}/dependency-graph.md`
-- **ARCH 阶段**：创建/更新 `ERD.md`、`component-dependency-graph.md`
+- **ARCH 阶段**：创建/更新 `ERD.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
 - **TASK 阶段**：创建/更新 `task-dependency-matrix.md`、`milestone-gantt.md`
 - **数据库迁移时**：同步更新 `ERD.md`
 - **架构变更时**：同步更新 `component-dependency-graph.md`
@@ -121,7 +121,7 @@
 
 ### TASK.md 的生成与维护
 - **自动生成时机**：激活 TASK 专家后，通过 `/task plan` 快捷命令自动生成或刷新
-- **生成输入**：`/docs/PRD.md` + `/docs/ARCHITECTURE.md`
+- **生成输入**：`/docs/PRD.md` + `/docs/ARCH.md`
 - **生成工具**：`npm run task:generate`（由 `/task plan` 内部调用）
 - **首次生成**：TASK.md 不存在时，工具从零生成；若已存在，工具执行增量更新
 - **人工调整**：生成后可手工修改 Owner、优先级、风险备注等
@@ -142,7 +142,7 @@
 
 ### 文档依赖关系
 ```
-PRD.md + ARCHITECTURE.md
+PRD.md + ARCH.md
          ↓
     /task plan (TASK 专家激活)
          ↓
