@@ -11,7 +11,7 @@
 ## 输入
 - 用户访谈与补充信息、竞品/数据、历史需求、合规约束。
 
-## 输出（写入路径）
+## 输出
 
 ### 核心产物
 - **`/docs/PRD.md`**：主 PRD 文档，唯一权威版本，模板参考本文件 § PRD 模板。小项目时是唯一 PRD 文档，大项目时是主 PRD 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
@@ -54,7 +54,7 @@
 
 ## PRD 模板
 
-> 此模板落地了《Playbook》“标准PRD文档结构”中的各项板块，使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（例如 NFR、技术方案、实施计划、Shift-Left 清单等）。
+> 此模板落地了《Playbook》“标准 PRD 文档结构”中的各项板块，使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（例如 NFR、技术方案、实施计划、Shift-Left 清单等）。
 
 ### 小型项目（单一 PRD 模板）
 **主 PRD模板** 复制到 `/docs/PRD.md`并补充内容。
@@ -65,6 +65,7 @@
 
 ## 1. 背景与目标
 - 业务目标 / KPI / 约束
+- 文档状态：草案 / 评审中 / 已确认；验收人：PO/TDD/QA（用于 Doc Sync Gate）
 
 ## 2. 范围
 - In-Scope：
@@ -77,6 +78,7 @@
 ## 4. 用户故事（示例）
 - 作为<角色>，我想要<目标>，以便<收益>
   - 验收标准（GWT）：Given … When … Then …
+  - 关键依赖/前置故事：关联 TASK/TDD 关键路径或外部数据准备
 
 ## 5. 非功能需求（NFR）
 - 性能 / 安全 / 合规 / 可用性 / 可维护性 / **数据保留与隐私**
@@ -87,16 +89,18 @@
 
 ## 7. 里程碑
 - M1 … / M2 …
+- 里程碑同步：每次里程碑状态更新都需同步 `/docs/AGENT_STATE.md`（如推进到 `ARCHITECTURE_DEFINED`），并记录 release checklist/PR 列表中的里程碑状态，以便 QA/TDD 确认 DoD。
 
 ## 8. 追溯关系
 - Story → AC → Test Case ID
+- 若 `/docs/data/traceability-matrix.md` 尚不存在，请复制模板并立即填入当前 Story/AC，供 QA 后续补充 Test Case 与状态，避免遗漏追溯。
 
 ## 9. 开放问题
 - Q1 …
 ```
 
 ### 大型项目（主从 PRD 结构）
-**主 PRD模板** 复制到`/docs/PRD.md`并补充内容，保持**总纲与索引**，< 500 行，避免详细需求。
+**主 PRD模板** 复制到`/docs/PRD.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细需求。
 
 ```markdown
 # 产品需求文档（PRD）
@@ -112,12 +116,15 @@
 - 核心功能域列表（链接到子模块）
 - 非范围（Out of Scope）
 - 关键假设与约束
+- **模块状态/追溯**：每个功能域备注是否与 Traceability Matrix、ARCH、TASK 同步（如 `Traceability ✅` / `接口待补`），方便追踪差异
 
 ## 3. 用户角色与核心场景
 - 角色定义（Admin/User/Guest）
 - 核心用户旅程（高层级）
+- **关键依赖/前置故事**：列出跨模块、外部系统或数据准备的依赖，尽量关联已有 Story/Task ID 以便 TASK/TDD 把握关键路径
 
 ## 4. 非功能需求（NFR）
+- 说明所需监控/SLO/测试维度，并注记哪些项需填入 `/docs/data/traceability-matrix.md` 或 `QA.md` 中进行验证，确保 NFR 有验证闭环
 - 性能要求（全局）
 - 安全要求（全局）
 - 兼容性与合规要求
@@ -138,22 +145,16 @@
 - 全局风险（技术、业务、合规）
 - 待澄清问题列表
 
-## 8. 追溯矩阵
-详见 [traceability-matrix.md](data/traceability-matrix.md)
+## 8. 追溯矩阵与发布 Gate
+- 详见 [traceability-matrix.md](data/traceability-matrix.md)
+- 记录 Story → AC → Test Case 的同步状态，并在 `PRD_CONFIRMED` 阶段确认 QA/QA/Traceability 更新完毕，作为进入 `ARCHITECTURE_DEFINED` 的 Gate 条件。
 ```
 
-**子模块 PRD 模板**（`/docs/prd-modules/{domain}/PRD.md`）：详细需求
+**子模块 PRD 模板**（`/docs/prd-modules/{domain}/PRD.md`）：聚焦子模块详细需求
 - 模块概述、用户故事、验收标准（Given-When-Then）
 - 模块级 NFR、接口与依赖、数据模型、风险
 
-详细子模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，PRD 专家只需在主 PRD 维护总纲/索引并调用该模板产出模块文档。
-
-### 模块化工作流
-1. **PRD 专家**：评估是否拆分，定位功能域，在主 PRD 维护模块索引，并根据 `/docs/prd-modules/MODULE-TEMPLATE.md` 创建子模块 PRD。
-2. **ARCH 专家**：加载主 PRD 与相关模块 PRD 输出架构视图，保持架构模块与需求模块的追溯（参照 `/docs/data/global-dependency-graph.md`）。
-3. **TASK 专家**：基于各模块 PRD 细化 WBS，可按模块记录依赖、关键路径与里程碑。
-4. **TDD 专家**：依赖模块 PRD 实现、测试，确保 Story/AC 映射到追溯矩阵，并执行 Doc Sync Gate 。
-5. **QA 专家**：基于追溯矩阵与模块 PRD 验证覆盖率，更新 `/docs/data/traceability-matrix.md` 和模块 `nfr-tracking.md` 状态。
+详细子模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，PRD 专家只需在主 PRD 维护总纲/索引并调用该模板产出子模块文档。
 
 ## ADR 触发规则（PRD 阶段）
 - 出现重要取舍（例如：收费模型、关键数据采集/留存策略）→ 新增 ADR；状态 `Proposed/Accepted`。
