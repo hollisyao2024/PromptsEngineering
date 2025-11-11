@@ -2,6 +2,15 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.0] - 2025-11-12
+
+### 更新
+- 增加 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md`，为 ARCH 数据视图提供标准化的 ER 图与数据字段条目模板，并在 `/docs/data/README.md` 与 `AgentRoles/ARCHITECTURE-WRITER-EXPERT.md` 中明确引用。
+- 说明 `docs/data/ERD.md` 与 `docs/data/dictionary.md` 由数据视图流程动态生成，并移除仓库中的静态副本，只保留模板作为源文件；同时在 `docs/CONVENTIONS.md`、`docs/data/README.md` 中补充同步/生成提示。
+- 将包版本升至 `v1.18.0`，保持发布元数据与新的文档整理一致。
+
+---
+
 ## [v1.17.0] - 2025-11-11
 
 ### 更新

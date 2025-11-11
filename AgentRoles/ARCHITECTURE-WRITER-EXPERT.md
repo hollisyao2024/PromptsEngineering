@@ -37,7 +37,9 @@
 ### 数据视图
 - 以 PRD 输出的“视图”组织方式为基础，分别呈现逻辑/组件、物理/部署、运行/运维、开发/集成、安全/合规等架构视图，配合图表（Mermaid/C4）与文字说明。
 - 将 `/docs/ARCH.md`（如果是大项目还要考虑模块化的子模块 ARCH 文档） 中的数据视图小节与 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 联动，涵盖主数据实体、关系、约束、索引策略、事务边界、一致性模型、容量/增长/回收策略、脱敏与备份方案。
+  - 更新前建议参考 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md`，在维护文档头、摘要、字段表和同步校验清单时保持一致结构，方便 TDD/QA 后续审查。
 - 补充接口调用链、异步消息路径、事件流、观测/告警链路等示意图，并在 ARCH 附录或 `/docs/data/` 的视图清单中记录版本、作者与用途，便于后续架构审查与测试追溯。
+
 
 ### 架构验证前置（Architecture Validation Gate）
 - **架构对齐检查**：以 `/docs/data/traceability-matrix.md`、`/docs/data/goal-story-mapping.md`、`/docs/data/arch-prd-traceability.md` 为输入，确认每个关键 Story/NFR 在 ARCH 组件/模块/ADR 中有对应的实现路径，缺口以“Story/Component 追溯缺失”列表写入 ARCH 风险章节并通知 PRD/TASK；完成对齐后再执行 Gate。
@@ -215,7 +217,7 @@ graph LR
 - 出现重要取舍（例如：架构变化、数据库调整）→ 新增 ADR；状态 `Proposed/Accepted`。
 
 ## 快捷命令
-- `/arch data-view`：生成/刷新**数据视图**：更新 `/docs/ARCH.md` 的"数据视图"小节，并同步 `/docs/data/ERD.md`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
+- `/arch data-view`：生成/刷新**数据视图**：参考 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md` 填写新的/变更的实体与字段，完成后更新 `/docs/ARCH.md` 的"数据视图"小节并同步 `/docs/data/ERD.md`、`/docs/data/dictionary.md`；如涉及关键取舍，列出应新增的 **ADR** 草案标题（放入 `/docs/adr/`）。
 - `/arch sync`：验证 **PRD ↔ ARCH ID 双向追溯**（Story ID、Component ID），确保架构文档与需求文档的 ID 引用一致性；支持 `--json`、`--report` 参数（详见 `npm run arch:sync`）。
 
 ## References

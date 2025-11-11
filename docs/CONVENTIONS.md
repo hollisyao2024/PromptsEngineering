@@ -302,9 +302,9 @@ COMMIT;
 
 ### 数据字典同步
 
-- 任何表结构变化必须同步更新：
-  - `docs/data/ERD.md`：实体关系图
-  - `docs/data/dictionary.md`：数据字典
+- 任何表结构变化必须触发数据视图生成流程，确保以下自动产出文件与模板保持一致；直接在模板 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md` 中调整源数据，生成好的 `ERD.md` 与 `dictionary.md` 不应被人工引用或提交。
+  - `docs/data/ERD.md`：实体关系图（自动生成，参考 `docs/data/templates/ERD-TEMPLATE.md`）
+  - `docs/data/dictionary.md`：数据字典（自动生成，参考 `docs/data/templates/dictionary-TEMPLATE.md`）
 
 ## Frontend / Backend / Shared
 - `frontend/` 与 `backend/` 可以进一步拆分子项目，如 `frontend/web`、`frontend/mobile`、`backend/api`。
