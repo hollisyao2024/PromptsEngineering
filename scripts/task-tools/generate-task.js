@@ -320,7 +320,7 @@ function generateModuleTaskFiles(tasks, stories, components) {
     log(`   ✅ 创建模块文档：${module.toLowerCase()}.md (${moduleTasks.length} 个任务)`, 'green');
   });
 
-  // 更新 task-modules/README.md
+  // 更新 task-modules/module-list.md
   updateTaskModulesReadme(modules, tasks, stories);
 
   return moduleFileCount;
@@ -451,9 +451,9 @@ function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks
   return md;
 }
 
-// 更新 task-modules/README.md
+// 更新 task-modules/module-list.md
 function updateTaskModulesReadme(modules, tasks, stories) {
-  const readmePath = path.join(CONFIG.taskModulesDir, 'README.md');
+  const readmePath = path.join(CONFIG.taskModulesDir, 'module-list.md');
   const today = new Date().toISOString().split('T')[0];
 
   let md = `# 模块任务索引\n\n`;
@@ -476,7 +476,7 @@ function updateTaskModulesReadme(modules, tasks, stories) {
   md += `> **维护说明**：本文档由 TASK 专家自动生成，每次执行 \`/task plan\` 时自动更新。\n`;
 
   fs.writeFileSync(readmePath, md);
-  log(`   ✅ 更新模块索引：task-modules/README.md`, 'green');
+  log(`   ✅ 更新模块索引：task-modules/module-list.md`, 'green');
 }
 
 // 生成主 TASK.md（小型项目：完整结构；大型项目：总纲结构）
@@ -632,7 +632,7 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
     const moduleFile = `${module.toLowerCase()}.md`;
     md += `| ${module} | ${moduleTasks.length} | TBD | [${moduleFile}](task-modules/${moduleFile}) | 📝 待确认 | ${today} |\n`;
   });
-  md += `\n详见 [task-modules/README.md](task-modules/README.md)\n\n`;
+  md += `\n详见 [task-modules/module-list.md](task-modules/module-list.md)\n\n`;
 
   // 3. 全局里程碑
   md += `## 3. 全局里程碑（跨模块）\n\n`;
@@ -686,7 +686,7 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   md += `## 7. 相关文档\n\n`;
   md += `- **PRD 文档**：[PRD.md](PRD.md)\n`;
   md += `- **架构文档**：[ARCH.md](ARCH.md)\n`;
-  md += `- **模块任务索引**：[task-modules/README.md](task-modules/README.md)\n`;
+  md += `- **模块任务索引**：[task-modules/module-list.md](task-modules/module-list.md)\n`;
   md += `- **测试计划**：[QA.md](QA.md)\n`;
   md += `- **追溯矩阵**：[data/traceability-matrix.md](data/traceability-matrix.md)\n`;
 
@@ -763,7 +763,7 @@ function main() {
     log(`\n📋 大型项目已完成模块化拆分：`, 'cyan');
     log(`   - 主文档：docs/TASK.md（总纲与索引）`, 'cyan');
     log(`   - 模块文档：docs/task-modules/*.md`, 'cyan');
-    log(`   - 模块索引：docs/task-modules/README.md`, 'cyan');
+    log(`   - 模块索引：docs/task-modules/module-list.md`, 'cyan');
   }
 
   log(`\n接下来建议：`, 'yellow');

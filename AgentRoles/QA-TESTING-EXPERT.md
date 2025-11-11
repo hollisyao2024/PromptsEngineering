@@ -43,11 +43,6 @@
   - 测试用例 ID：`TC-{MODULE}-{序号}`（如 `TC-REG-001`）。
   - 缺陷 ID：`BUG-{MODULE}-{序号}` 或对接外部系统（如 `JIRA-PRJ-1234`）。
   - 模块文件名：使用 kebab-case，例如 `user-management.md`、`payment-system.md`。
-- **模块化工作流**：
-  1. **QA 专家**：评估是否拆分，维护模块索引，依据 `/docs/prd-modules/MODULE-TEMPLATE.md` 中 Story/AC/NFR 结构创建模块 QA 计划。
-  2. **TDD 专家**：按任务列表顺序实现，修复缺陷并更新测试状态。
-  3. **PRD/ARCH 专家**：确认 QA 反馈与已发布文档一致，如有变更补充 ADR/CHANGES。
-  4. **QA 团队**：通过 `/qa plan` 生成测试矩阵，持续更新追溯矩阵与缺陷记录，直至可勾选 `QA_VALIDATED`。
 
 详细流程与拆分模板请参考 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §9。
 

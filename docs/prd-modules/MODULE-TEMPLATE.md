@@ -28,17 +28,20 @@
 - **验收标准 ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（例如 `AC-USER-001-01`）
 - **测试用例 ID**：`TC-{MODULE}-{序号}`（例如 `TC-REG-001`）
 
+#### 状态与优先级
+- 状态
+  - 📝 待启动（计划中）
+  - 🔄 进行中（编写/修订中）
+  - ✅ 已确认（PRD 完成）
+  - ❌ 已废弃（不再计划）
+   
+- 优先级：P0（阻塞发布）→ P1（重要）→ P2（增值）→ P3（可延后）。
+
 ## 2. 模块清单模板
 
 | 模块名称 | 优先级 | 负责团队 | 文件链接 | 状态 |
 |---------|--------|---------|----------|------|
 | （待添加） | - | - | - | - |
-
-**状态说明**：
-- ✅ 已确认（PRD 完成）
-- 🔄 进行中（编写/修订中）
-- 📝 待启动（计划中）
-- ❌ 已废弃（不再计划）
 
 该表格仅作为模板，实际模块清单信息由 PRD 专家根据以上表格生成到`module-list.md`，每次PRD 模块变化都更新`module-list.md`。
 
@@ -104,30 +107,91 @@
 
 | 命令 | 功能 |
 |------|------|
-| `npm run prd:lint` | 校验主/模块 PRD 结构、Story/AC 格式、Given-When-Then 规范 |
-| `npm run prd:check-dependency-cycles` | 检测模块与全局依赖循环、无效引用 |
-| `npm run nfr:check-compliance` | 汇总模块 `nfr-tracking.md`，生成发布 Gate 报告（阻塞/警告/待验证） |
+| `npm run prd:lint` | 校验模块 PRD 结构、Story/AC（GWT）与 NFR/依赖/风险字段 |
+| `npm run prd:check-dependency-cycles` | 检查模块 Story 依赖/PRD 文档之间是否存在循环或缺失引用 |
+| `npm run prd:generate-dependency-graph` |（若配置）自动抽取 Story/Task 依赖生成 summary 图 |
+| `npm run nfr:check-compliance` | 校验模块级 NFR 追踪表并输出发布 Gate 状态（阻塞/警告/待验证） |
+| `npm run prd:sync-matrix` | 把 Story→AC 映射同步到 `/docs/data/traceability-matrix.md` 并保持 AC 状态更新 |
 
 ## 8. 相关资源
 
-- `/AGENTS.md` — 角色路由规范与状态机
-- `/docs/CONVENTIONS.md` — 目录与产物规范
-- `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` — 角色手册（包含核心流程与 Shift-Left 检查）
-- `/docs/data/traceability-matrix.md` — 全局 Story → AC → Test Case 映射
+- `/docs/PRD.md` — 主 PRD 总纲与章节模板
+- `/docs/prd-modules/README.md` — PRD 模块化指南与流程说明
+- `/AgentRoles/PRD-WRITER-EXPERT.md` 与 `Handbook` — 角色职责、DoD、验证与 Gate 清单
+- `/docs/data/traceability-matrix.md` — Story → AC → Test Case 追溯与模板
+- `/docs/data/global-dependency-graph.md` — 依赖追溯与模块层级视图
+- `/docs/data/templates/TRACEABILITY-MATRIX-TMPLATE.md` — Traceability 初始化模板
+- `/docs/CONVENTIONS.md` — PRD/模块命名、拆分与产物规范
+- 脚本：`scripts/prd-tools/*.js` 以及 `package.json` 中的 `prd:*` 命令（`prd:lint`、`prd:check-dependency-cycles`、`prd:sync-matrix` 等）
+- `/docs/AGENT_STATE.md` 与 `/AGENTS.md` — 状态机与 Agent 流程（触发 `PRD_CONFIRMED` / `ARCHITECTURE_DEFINED`）
 
 ---
 
 ## Appendix A: PRD 模块模板
-> 以下内容不允许 PRD 专家自动修改，只能由人工修改。
+> 以下内容不允许自动工具修改，仅由 PRD 专家编辑。
 
 # {功能域名称} - PRD 模块
 
 > **所属主 PRD**: [PRD.md](../PRD.md)
 > **负责团队**: @team-name
 > **最后更新**: YYYY-MM-DD
-> **状态**: 📝 草稿 / 🔄 进行中 / ✅ 已确认
+> **状态**: 📝 待启动 / 🔄 进行中 / ✅ 已确认 / ⚠️ 需更新
+> **追溯说明**: 列出 Story/AC/Task/QA 链接并同步 `docs/data/traceability-matrix.md`
 
 ---
+
+### 1. 模块概述（业务目标与交付）
+- 简述模块业务能力、核心价值与作用场景
+- 关联 Story（`US-...`）、PRD/Task/ARCH 链接
+- 交付产物列表（功能/文档/接口）
+
+### 2. 范围与约束
+- In-Scope 与 Out-of-Scope
+- 关键约束（资源、合规、时间）
+- 前置依赖模块与接口（指向 PRD/ARCH/Task）
+
+### 3. 用户故事与验收
+- Story ID 与描述
+
+```markdown
+| Story ID | 验收标准（Given-When-Then） | Task ID | Test Case ID | QA 负责人 |
+|----------|---------------------------|---------|--------------|-----------|
+| US-XXX-001 | Given..., When..., Then... | TASK-XXX-001 | TC-XXX-001 | @qa-lead |
+```
+
+- 在每条故事后注明是否已写入 `traceability-matrix`、是否需要 ARCH/QA 复核
+
+### 4. 非功能需求（NFR）
+- 列出性能/安全/可用/可维护等指标
+- 表示需要的监控/验证（如 SLO、性能测试脚本）
+- 标注相关 QA 负责人与验证状态
+
+### 5. 依赖与风险
+- 依赖表格：模块/外部系统/数据服务
+- 风险表格：风险、影响、缓解、责任人、状态
+- 提到与 ARCH/Task 的追溯（说明 arch-prd-traceability、task dependency 表）
+
+### 6. 里程碑与 Gate
+- Milestone ID、名称、日期、目标、验收标准
+- Gate（`PRD_CONFIRMED`→`ARCHITECTURE_DEFINED`）要求的补充资料
+
+### 7. 追溯矩阵与验证
+- Story → AC → Test Case → Task 追踪表（可复制 Table）
+- 描述 Traceability 与 QA 校验状态
+- 提示如何更新 `/docs/data/traceability-matrix.md` 并生成 release gate 报告
+
+### 8. 开放问题
+- 问题描述、影响、负责人、计划解决时间
+- 每条问题附上相关 Task/Story ID
+
+### 9. 变更记录
+- 版本、日期、描述、责任人
+
+### 10. 自检清单
+- [ ] 是否运行 `npm run prd:lint`、`prd:check-dependency-cycles`、`prd:sync-matrix`？
+- [ ] 是否同步 traceability matrix 与 QA 状态？
+- [ ] 是否通知 ARCH/TASK/TDD/QA（接口验证/风险/依赖）？
+- [ ] 是否在 `/docs/AGENT_STATE.md` 标注 `PRD_CONFIRMED`、`ARCHITECTURE_DEFINED` 等阶段？
 
 ## 1. 模块概述
 
@@ -193,7 +257,7 @@
 
 ---
 
-## 4. 接口与依赖（增强版）
+## 4. 接口与依赖
 
 ### 4.1 提供的接口（Exports）
 

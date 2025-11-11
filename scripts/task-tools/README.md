@@ -90,7 +90,7 @@ TASK 自动生成工具 v1.0
    ✅ 创建模块文档：payment.md (92 个任务)
    ✅ 创建模块文档：notification.md (68 个任务)
    ✅ 创建模块文档：infra.md (75 个任务)
-   ✅ 更新模块索引：task-modules/README.md
+   ✅ 更新模块索引：task-modules/module-list.md
 ✅ 已创建 4 个模块任务文档
 ✅ 主 TASK.md 已转换为总纲结构（< 500 行）
 
@@ -100,7 +100,7 @@ TASK 自动生成工具 v1.0
 📋 大型项目已完成模块化拆分：
    - 主文档：docs/TASK.md（总纲与索引）
    - 模块文档：docs/task-modules/*.md
-   - 模块索引：docs/task-modules/README.md
+   - 模块索引：docs/task-modules/module-list.md
 
 接下来建议：
 1. 检查生成的 TASK.md：cat docs/TASK.md

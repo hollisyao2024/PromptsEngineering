@@ -135,7 +135,7 @@
 
 ### 拆分决策（大型项目）
 - 若满足拆分条件（主文档 > 1000 行 或 50+ 工作包 或 3+ 并行开发流），TASK 专家会：
-  1. 在 `/docs/task-modules/README.md` 注册模块索引
+  1. 在 `/docs/task-modules/module-list.md` 注册模块索引
   2. 创建 `/docs/task-modules/{domain}.md` 模块任务文档
   3. 修改主 `/docs/TASK.md` 为总纲与索引（< 500 行）
 - 详见 `/AgentRoles/TASK-PLANNING-EXPERT.md` 的"自动生成规范"章节

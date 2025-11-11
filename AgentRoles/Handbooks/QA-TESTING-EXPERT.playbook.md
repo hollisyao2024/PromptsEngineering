@@ -1084,14 +1084,6 @@ npm run qa:generate-risk-report          # 生成风险报告
 
 ---
 
-#### 7. 模块化工作流
-
-**步骤 1**：PRD 专家产出主 PRD + 模块 PRD + 追溯矩阵
-**步骤 2**：ARCH 专家按需读取对应模块 PRD，输出主 ARCH + 模块 ARCH
-**步骤 3**：TASK 专家按需读取对应模块 PRD/ARCH，输出主 TASK + 模块 TASK
-**步骤 4**：TDD 专家按需读取对应模块 TASK，实现功能
-**步骤 5**：QA 专家按需读取对应模块 PRD/ARCH/TASK，输出主 QA + 模块 QA，更新追溯矩阵
-
 **优势**：
 - LLM 只读取需要的模块，避免上下文撑爆
 - 多团队并行测试，互不干扰

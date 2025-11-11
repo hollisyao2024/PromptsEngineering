@@ -10,7 +10,7 @@
 
 ```
 /docs/
-└── prd-modules/
+└── arch-modules/
     ├── MODULE-TEMPLATE.md # 本模板（权威）
     ├── module-list.md # 模板清单（由 ARCH 专家根据本文件 §3 模块清单模板 生成）
     └── {domain}/
@@ -40,6 +40,15 @@
   - `PAY-SVC-001`：支付服务
   - `PAY-CACHE-001`：支付缓存
 
+#### 状态与优先级
+- 状态
+  - 📝 待启动（尚未编写）
+  - 🔄 进行中（正在撰写或评审中）
+  - ✅ 已确认（通过审查并已记录）
+  - ⚠️ 需更新（依赖/需求变化，需回写或补充）
+   
+- 优先级：P0（阻塞发布）→ P1（重要）→ P2（增值）→ P3（可延后）。
+
 ## 2. 模块清单模板
 
 | 模块名称 | 文档路径 | 负责团队 | 核心服务 | 状态 | 最后更新 |
@@ -47,14 +56,7 @@
 | （示例）用户管理 | [ARCH.md](user-management/ARCH.md) | @team-auth | USER-SVC-001 | 📝 待启动 | - |
 | （示例）支付系统 | [ARCH.md](payment-system/ARCH.md) | @team-payment | PAY-SVC-001 | 📝 待启动 | - |
 
-**状态说明**：
-- 📝 待启动
-- 🔄 进行中
-- ✅ 已确认
-- ⚠️ 需更新
-
-
-该表格仅作为模板，实际模块清单信息由 ARCH 专家根据以上表格生成到`module-list.md`，每次ARCH 模块变化都更新`module-list.md`。
+该表格仅作为模板，实际模块清单信息由 ARCH 专家根据以上表格生成到`module-list.md`，每次 ARCH 模块变化都更新`module-list.md`。
 
 ## 3. 标准模块 ARCH 结构
 
@@ -110,16 +112,22 @@
 
 | 命令 | 功能 |
 |------|------|
-| `npm run prd:lint` | 校验主/模块 PRD 结构、Story/AC 格式、Given-When-Then 规范 |
-| `npm run prd:check-dependency-cycles` | 检测模块与全局依赖循环、无效引用 |
-| `npm run nfr:check-compliance` | 汇总模块 `nfr-tracking.md`，生成发布 Gate 报告（阻塞/警告/待验证） |
+| `npm run arch:lint` | 校验模块 ARCH 文档的章节、Mermaid、链接与 Artifact |
+| `npm run arch:check-api-contracts` | 验证主 ARCH 跨模块引用的接口是否在模块 ARCH 中定义 |
+| `npm run arch:check-component-cycles` | 检查 `docs/data/component-dependency-graph.md` 中的循环依赖 |
+| `npm run arch:sync` | 扫描 PRD ↔ ARCH 的 Story/Component ID，并生成 `docs/data/arch-prd-traceability.md` 报告 |
+| `npm run arch:check-dependencies` |（如存在）验证模块依赖表格/traceability 与 TASK/PRD 同步 |
 
 ## 8. 相关资源
 
-- `/AGENTS.md` — 角色路由规范与状态机
-- `/docs/CONVENTIONS.md` — 目录与产物规范
-- `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` — 角色手册（包含核心流程与 Shift-Left 检查）
-- `/docs/data/traceability-matrix.md` — 全局 Story → AC → Test Case 映射
+- `/docs/ARCH.md` — 主架构总纲
+- `/docs/arch-modules/module-list.md` — 模块索引与状态
+- `/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md` 与 Handbook — 架构角色职责、模板与 Gate
+- `/docs/data/global-dependency-graph.md` + `/docs/data/component-dependency-graph.md` — 模块/组件依赖图
+- `/docs/data/arch-prd-traceability.md` 与 templates — PRD ↔ ARCH 追溯报告
+- `/docs/CONVENTIONS.md` — ARCH 命名/章节/文档规范
+- `scripts/arch-tools/*` 与 `package.json` 中 `arch:*` 命令（`arch:lint`、`arch:check-api-contracts`、`arch:check-component-cycles`、`arch:sync`）
+- `/docs/AGENT_STATE.md` + `/AGENTS.md` — 状态机与 `ARCHITECTURE_DEFINED` Gate
 
 ---
 
@@ -131,7 +139,13 @@
 > **所属主 ARCH**: [ARCH.md](../ARCH.md)
 > **负责团队**: @team-name
 > **最后更新**: YYYY-MM-DD
-> **状态**: 📝 草稿 / 🔄 进行中 / ✅ 已确认
+> **状态**: 📝 待启动 / 🔄 进行中 / ✅ 已确认 / ⚠️ 需更新
+
+### 必填字段与追溯
+- **模块状态**：必须标明当前交付状态（如待启动/进行中/已确认/需更新）。
+- **Story/Component ID**：列出涉及的 Story、Component 与 Task ID，并在各视图中引用 `US-`/`AC-`/`COMP-` 等编号。
+- **追溯链接**：每节结束前附注“与主 ARCH/PRD/Task 的链接”（如 “参见主 ARCH §3、Traceability Matrix”）。
+- **Owner 与验收**：在顶部或每节注明模块负责人、审核人与验收条件，便于 Doc Sync Gate。
 
 ---
 
@@ -450,5 +464,12 @@ graph TB
 - [模块索引](module-list.md)
 - [全局数据目录](../data/README.md)
 - [ADR 目录](../adr/)
+
+## 12. 自检清单
+
+- [ ] 是否更新 `/docs/data/arch-prd-traceability.md` 并标明 Story/Component 变更？
+- [ ] 是否同步 `component-dependency-graph`/`global-dependency-graph` 中的节点或边？
+- [ ] 是否记录了 ADR/决策编号并与 PRD/Task 追溯？
+- [ ] 是否在主 ARCH/module-list 文档中更新状态并通知 TDD/QA？
 
 ---

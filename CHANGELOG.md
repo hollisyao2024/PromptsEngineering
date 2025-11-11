@@ -114,7 +114,7 @@
 - **大型项目模块文档自动生成**：
   - 自动创建 `/docs/task-modules/{domain}.md` 模块任务文档
   - 每个模块包含：模块概述、WBS、内部依赖、外部依赖、里程碑、风险、Story 映射
-  - 自动生成 `/docs/task-modules/README.md` 模块索引
+  - 自动生成 `/docs/task-modules/module-list.md` 模块索引
   - 支持模块间依赖关系可视化
 
 ### 修改
@@ -153,7 +153,7 @@ PRD + ARCH → /task plan → 检测项目规模
             - /docs/task-modules/user.md
             - /docs/task-modules/payment.md
             - /docs/task-modules/notification.md
-            - /docs/task-modules/README.md（索引）
+            - /docs/task-modules/module-list.md（索引）
                 ↓
             提取跨模块依赖关系
 ```
@@ -178,7 +178,7 @@ PRD + ARCH → /task plan → 检测项目规模
   - § 4. 跨模块依赖关系（可视化依赖表）
   - § 5. 全局关键路径（CPM 跨模块分析）
   - § 6. 全局风险与缓解（影响多模块的风险）
-- **模块文档标准结构**（遵循 [task-modules/README.md](docs/task-modules/README.md) 规范）：
+- **模块文档标准结构**（遵循 [task-modules/module-list.md](docs/task-modules/module-list.md) 规范）：
   - § 1. 模块概述（关联 Story 数量、任务类型分布）
   - § 2. 模块 WBS（详细任务表格）
   - § 3. 模块内依赖关系（内部依赖矩阵）
@@ -192,7 +192,7 @@ PRD + ARCH → /task plan → 检测项目规模
 - ✅ 小型项目（25 Story / 78 Task）：生成单文件 TASK.md
 - ✅ 大型项目（120 Story / 320 Task / 4 模块）：自动拆分为主文档 + 4 个模块文档
 - ✅ 跨模块依赖识别：正确提取 15 个跨模块依赖关系
-- ✅ 模块索引自动生成：task-modules/README.md 包含完整模块清单
+- ✅ 模块索引自动生成：task-modules/module-list.md 包含完整模块清单
 
 ---
 
@@ -280,7 +280,7 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 支持跨模块依赖管理与组件 ID 命名规范（`{MODULE}-{TYPE}-{序号}`，如 `USER-SVC-001`、`PAY-DB-001`）。
 - **TASK 模块化架构**：支持大型项目按功能域拆分任务计划，避免 WBS 过大导致依赖关系混乱。
   - 新增 `/docs/task-modules/` 目录，用于存放按功能域拆分的子模块任务计划。
-  - 新增 `/docs/task-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块任务文档结构（220 行）。
+  - 新增 `/docs/task-modules/module-list.md` 模块索引文件，包含命名规范、模块清单、标准模块任务文档结构（220 行）。
   - 支持内部依赖与外部依赖分离管理，任务 ID 命名规范（`TASK-{MODULE}-{序号}`，如 `TASK-USER-001`）。
 - **QA 模块化架构**：支持大型项目按功能域拆分测试计划，避免测试用例过多导致可读性下降。
   - 新增 `/docs/qa-modules/` 目录，用于存放按功能域拆分的子模块测试计划。

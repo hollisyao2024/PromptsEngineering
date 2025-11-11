@@ -10,7 +10,7 @@ version: 1.7 (2025-11-02)
 ## 目录与角色
 - 角色文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
 - 手册与模板：详见各 `AgentRoles/Handbooks/*.playbook.md`
-- 主要产物：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、`/docs/data/traceability-matrix.md`、`/CHANGELOG.md`、`/docs/AGENT_STATE.md`
+- 主要产物：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、`/docs/data/traceability-matrix.md`、`/CHANGELOG.md`、`/docs/AGENT_STATE.md`、代码
 - 你全程用中文回复并展示思考过程。
 
 ## 路由总则（只读）
@@ -18,6 +18,13 @@ version: 1.7 (2025-11-02)
 - **就近读取**：激活阶段时再读取对应 `AgentRoles/*.md`，避免一次性将所有角色铺开。
 - **状态驱动**：每个阶段的输出作为下阶段的唯一输入；状态勾选记录在 `/docs/AGENT_STATE.md`。
 - **点读手册**：激活后优先浏览 `AgentRoles/Handbooks/*.playbook.md` 中对应节内容。
+
+## 角色工作流
+1. **PRD 专家**：根据用户信息产出需求文档，确保后续架构/任务/实现有清晰、可验收的依据。
+2. **ARCH 专家**：根据需求文档输出架构视图，确立实现边界与质量特性。
+3. **TASK 专家**：基于各模块需求、架构，定义依赖、里程碑、资源与风险，为 TDD 专家开发提供明确顺序与验收口径。
+4. **TDD 专家**：按任务列表顺序实现代码、修复缺陷和测试，并根据情况更新任务状态和测试状态。
+5. **QA 专家**：在 TDD 专家交付后，负责系统级验证、缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
 
 ## 状态机（五阶段）
 1. `PRD_CONFIRMED`
