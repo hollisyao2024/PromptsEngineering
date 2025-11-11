@@ -13,12 +13,14 @@
 - 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
+- 若项目拆分为模块，请同步读取 `/docs/task-modules/module-list.md`：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考；在生成子模块任务前需确认该表格的状态/依赖列反映最新计划。
 
 ## 输出
 
 ### 核心产物
 - **`/docs/TASK.md`**：主 TASK 文档，唯一权威版本，模板参考本文件 § TASK 模板。TASK 文档承载项目任务、模块任务索引、里程碑、WBS、依赖矩阵、资源/时间线、风险/沟通等，与对应 PRD/ARCH 模块对齐。小项目时是唯一 TASK 文档，大项目时是主 TASK 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
 - **子模块 TASK 文档**：所有子模块目录结构、子模块模板、ID 规范等均在 `/docs/task-modules/MODULE-TEMPLATE.md` 详解。
+- **模块清单同步**：主 TASK 中的“模块任务索引”表需定期与 `/docs/task-modules/module-list.md` 中的状态/依赖/最后更新字段互为镜像；每次模块级子任务完成、里程碑变更或依赖调整时，都要同步更新模块清单并在主 TASK 记录新状态与更新时间，以便 ARCH/TDD/QA 能一眼识别当前模块交付节奏。
 
 ### 拆分条件
 - **拆分触发条件**（任一成立）：
@@ -27,6 +29,19 @@
   - 存在 3+ 并行开发流
   - 项目周期 > 6 个月
   - 跨模块依赖复杂 > 10 条
+
+## 模块化任务流程
+
+- 在模块化项目中，先从 `/docs/task-modules/module-list.md` 中确认各模块的阶段、负责人与依赖，主 TASK 只保留总纲、重要依赖与跨模块里程碑，其余具体 Story/Task 由对应 `/docs/task-modules/{domain}/TASK.md` 维护。
+- 每个模块必须包含：
+  - Story → Task → Deliverable 的模块级 WBS，明确 Owner/Estimate/依赖；
+  - DB/接口/事件迁移/监控/QA 验收清单，提供模块双向追溯；
+  - 模块状态与风险，随着子任务完成即时在当前模块文档、主 TASK 的模块索引表及 `module-list.md` 更新“状态”“最后更新”字段。
+- 模块任务更新触发点：
+  1. 子任务完成：在 `/docs/task-modules/{domain}/TASK.md` 中勾选复选框并补写简要交付说明，同时在 `module-list.md` 对应行写入 `✅ 已完成 (YYYY-MM-DD)`/状态调整；
+  2. 依赖变更：在主 TASK 的“依赖矩阵”与模块索引中注明变更，并在模块清单附加说明，驱动 ARCH/TDD/QA 同步；
+  3. 新模块启动：在模块清单新增行、在主 TASK 模块索引建立链接、同 `/docs/task-modules/{domain}/TASK.md` 生成模板内容。
+- `module-list.md` 也作为模块间依赖/交付节奏的 quick reference，建议对接看板/仪表盘时直接引用此文件，避免不同专家之间因状态失真产生分歧。
 
 ## 完成定义（DoD）
 - **自动生成完成**：

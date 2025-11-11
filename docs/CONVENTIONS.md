@@ -55,7 +55,7 @@
 
 所有 mermaid 图形文件应遵循以下结构：
 
-\`\`\`markdown
+```markdown
 # {图形名称}
 
 > **用途**：{用途说明}
@@ -81,7 +81,7 @@
 ## 参考
 
 - [关联文档链接]
-\`\`\`
+```
 
 ### 文件位置约定
 
@@ -97,9 +97,9 @@
 ### 更新时机
 
 - **PRD 阶段**：创建/更新 `global-dependency-graph.md`、`{domain}/dependency-graph.md`
-- **ARCH 阶段**：创建/更新 `ERD.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
+- **ARCH 阶段**：创建/更新 `ERD.md`、`dictionary.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
 - **TASK 阶段**：创建/更新 `task-dependency-matrix.md`、`milestone-gantt.md`
-- **数据库迁移时**：同步更新 `ERD.md`
+- **数据库迁移时**：同步更新 `ERD.md`、`dictionary.md`
 - **架构变更时**：同步更新 `component-dependency-graph.md`
 
 ### 验证清单
@@ -117,42 +117,6 @@
 - [global-dependency-graph.md](data/global-dependency-graph.md) — 全局依赖图示例
 - [component-dependency-graph.md](data/component-dependency-graph.md) — 组件依赖图示例
 
-## 自动生成产物说明
-
-### TASK.md 的生成与维护
-- **自动生成时机**：激活 TASK 专家后，通过 `/task plan` 快捷命令自动生成或刷新
-- **生成输入**：`/docs/PRD.md` + `/docs/ARCH.md`
-- **生成工具**：`npm run task:generate`（由 `/task plan` 内部调用）
-- **首次生成**：TASK.md 不存在时，工具从零生成；若已存在，工具执行增量更新
-- **人工调整**：生成后可手工修改 Owner、优先级、风险备注等
-- **再次刷新**：下次执行 `/task plan --update-only` 时，工具保留人工标注，仅刷新 WBS/依赖/关键路径
-
-### TASK 复选框与分支命名约定
-- **复选框格式**：任务条目必须写成 `- [ ] [TASK-<DOMAIN>-<序号>] 任务标题 ...`，完成后改为 `- [x] ...`。主文档与模块文档保持一致，方便自动脚本定位。
-- **自动勾选脚本**：TDD 专家运行 `npm run tdd:tick`（由 `/tdd sync` 触发）即可依据当前分支名自动在 `/docs/TASK.md` 与 `/docs/task-modules/*.md` 勾选匹配任务。
-- **分支命名要求**：功能分支需包含至少一个 TASK ID，推荐格式 `feature/TASK-ACC-001-short-desc`；若一次提交覆盖多任务，使用 `+` 连接，例如 `feature/TASK-ACC-001+TASK-RISK-003`。
-- **异常处理**：若分支名缺少 TASK ID 或任务条目未采用标准复选框格式，`npm run tdd:tick` 会失败并阻断 `/tdd sync`，需先修复命名或格式。
-
-### 拆分决策（大型项目）
-- 若满足拆分条件（主文档 > 1000 行 或 50+ 工作包 或 3+ 并行开发流），TASK 专家会：
-  1. 在 `/docs/task-modules/module-list.md` 注册模块索引
-  2. 创建 `/docs/task-modules/{domain}.md` 模块任务文档
-  3. 修改主 `/docs/TASK.md` 为总纲与索引（< 500 行）
-- 详见 `/AgentRoles/TASK-PLANNING-EXPERT.md` 的"自动生成规范"章节
-
-### 文档依赖关系
-```
-PRD.md + ARCH.md
-         ↓
-    /task plan (TASK 专家激活)
-         ↓
-    task:generate 工具
-         ↓
-    /docs/TASK.md （自动生成产物）
-         ↓
-    TDD/QA 专家读取
-```
-
 ## Scripts 约定
 - 脚本按用途分类，如 `scripts/ci.sh`、`scripts/deploy.sh`、`scripts/analyze_logs.py`。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
@@ -163,7 +127,7 @@ PRD.md + ARCH.md
 - 测试命名遵循 `test_*` / `*_spec` 约定，与所用框架一致。
 - 测试数据或快照应放在 `tests/fixtures/` 或子目录，避免污染主数据目录。
 
-## 数据库迁移文件规范 ⚠️ 强制要求
+## 数据库迁移文件规范 ⚠️ 强制要求（全局统一）
 
 ### 文件名格式
 - **格式：** `YYYYMMDDHHmmss_description.sql`
@@ -211,6 +175,14 @@ touch "db/migrations/${TIMESTAMP}_add_feature_name.sql"
 # ❌ 错误示例 - 日期不准确！
 touch "db/migrations/20251104093000_add_feature.sql"
 ```
+
+### 数据库迁移幂等性原则 ✅
+- **幂等性定义**：迁移脚本可以安全地被执行多次，最终结果保持一致，不会重复创建表、列、索引或数据；这对 dry-run、失败恢复、测试环境重复部署与生产回滚都至关重要。
+- **保障机制**：
+  - 使用 `IF NOT EXISTS` / `IF EXISTS` 等条件判断，避免重复定义（详见 TDD Handbook §迁移脚本的幂等性保障）。
+  - 在数据迁移前增加状态检查（如 `WHERE field IS NULL`），仅处理未完成部分。
+  - 用事务包裹每一步，保证脚本要么完全成功，要么完全回滚。
+- **验证要求**：提交前需至少在本地执行 3 次验证：第一次正常执行、第二次重复执行、第三次回滚后再执行一次，确认幂等性。
 
 ### 为什么必须使用实际时间戳？
 
@@ -297,7 +269,7 @@ COMMIT;
 - [ ] 文件名是否符合格式 `YYYYMMDDHHmmss_description.sql`？
 - [ ] 文件内容是否包含必要的注释（日期、目标、回滚提示）？
 - [ ] 迁移是否可以安全回滚？
-- [ ] 是否满足幂等性要求（详见 TDD Playbook）？
+- [ ] 是否满足幂等性要求（参见下方“数据库迁移幂等性原则”）？
 - [ ] 是否已测试迁移可以正确执行？
 
 ### 数据字典同步

@@ -38,89 +38,13 @@
 
 ### 2.0 数据库迁移文件命名规范 ⚠️ 强制要求
 
-**文件名格式：** `YYYYMMDDHHmmss_description.sql`
-- `YYYYMMDD`：年月日
-- `HHmmss`：时分秒
-- `description`：简短的英文描述，使用下划线分隔
+> **唯一规范源：** `docs/CONVENTIONS.md#数据库迁移文件规范`
 
-**创建迁移文件的标准方法（强制使用）：**
+命名格式、脚本使用方法、模板示例与提交前验证清单已统一收录在 Conventions。TDD 专家需确保：
+- **创建与验证**：严格按 Conventions 中的优先顺序执行 `create-migration.sh` / Supabase CLI 等命令，禁止手填时间戳；若发现模板缺失或命名不符，立即回写该章节。
+- **传递信息**：在 PR / 交付说明中引用对应迁移文件名，并注明已按 Conventions 运行本地多次验证；若规范更新，应同步通知团队并在本 Playbook 记录参考日期。
 
-```bash
-# ✅ 推荐方法 1：使用通用项目脚本（可选目录/方言）
-./scripts/tdd-tools/create-migration.sh add_user_roles --dir db/migrations --dialect postgres
-
-# ✅ 推荐方法 1b：Supabase 仓库
-./scripts/tdd-tools/create-migration-supabase.sh add_user_roles
-
-# ✅ 推荐方法 2：使用 Supabase CLI（Supabase 数据库推荐）
-supabase migration new add_user_roles
-
-# ⚠️ 手动创建（不推荐，容易出错）
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-touch "db/migrations/${TIMESTAMP}_add_feature_name.sql"
-
-# ❌ 严禁：手动输入日期
-touch "db/migrations/20251104093000_add_feature.sql"  # 日期不准确！
-```
-
-**为什么必须使用实际时间戳？**
-
-1. **迁移顺序混乱**：Supabase 按文件名字典序执行迁移，不准确的日期会导致：
-   - 后创建的文件可能先执行（如果日期更早）
-   - 依赖关系被打破（新表还未创建就被引用）
-   - 回滚和重放迁移时出错
-
-2. **问题追溯困难**：文件名日期与实际创建时间不一致，无法准确追溯问题发生的时间线
-
-3. **团队协作冲突**：多人同时开发时，手动编造的日期可能冲突
-
-**文件内容模板：**
-
-使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板（Supabase 版本同理，仅输出目录不同）：
-
-```sql
--- ============================================================
--- description_here
--- 日期: YYYY-MM-DD
--- 数据库方言: postgres|mysql|oracle|sqlite|generic
--- 目标: [请描述此迁移的目的]
--- 幂等性提示:
---   1) 使用 IF EXISTS / IF NOT EXISTS / CREATE OR REPLACE 等条件语句
---   2) 数据变更前执行状态检查，避免重复写入
---   3) 始终遵循 Expand → Migrate/Backfill → Contract 流程
--- ============================================================
-
-BEGIN;
-
--- ============================================================
--- 在此处添加 SQL 语句（可保留/删除方言示例）
--- ============================================================
-
--- PostgreSQL 示例:
--- DO $$ BEGIN ... END $$;
-
--- MySQL 示例:
--- CREATE TABLE IF NOT EXISTS ...;
-
--- Oracle 示例:
--- BEGIN ... EXCEPTION ... END;
-
-COMMIT;
-
--- ============================================================
--- 回滚提示（Contract 阶段）
--- ============================================================
--- 如需回滚此迁移，请执行以下操作:
--- [描述如何安全回滚此迁移]
-```
-
-**验证清单（提交前必查）：**
-
-- [ ] 文件名时间戳是否使用脚本或 `date` 命令生成？
-- [ ] 文件名是否符合格式 `YYYYMMDDHHmmss_description.sql`？
-- [ ] 文件内容是否包含日期、目标、回滚提示？
-- [ ] 迁移是否可以安全回滚？
-- [ ] 是否满足幂等性要求（见 2.1 节）？
+（以下 2.1 节继续提供幂等性细则，作为 Conventions 的补充示例。）
 
 ### 2.1 迁移脚本的幂等性保障
 

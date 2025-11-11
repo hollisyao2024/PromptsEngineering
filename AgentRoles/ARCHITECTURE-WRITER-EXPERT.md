@@ -197,12 +197,12 @@
 
 ## 5. 跨模块依赖关系
 
-``````mermaid
+\`\`\`mermaid
 graph LR
     UserMgmt[用户管理] -->|提供用户信息| PaymentSys[支付系统]
     PaymentSys -->|触发通知| NotifSvc[通知服务]
     UserMgmt -->|用户事件| NotifSvc
-``````
+\`\`\`
 
 - **依赖说明**：
 - **用户管理 → 支付系统**：支付功能依赖用户身份验证（JWT Token）
