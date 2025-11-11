@@ -131,6 +131,7 @@ version: 1.7 (2025-11-02)
 - `/tdd diagnose` — 诊断当前代码/测试问题
 - `/tdd fix` — 修复已识别问题
 - `/tdd sync` — 执行文档回写 Gate（同步 PRD/ARCH/TASK/CHANGELOG/ADR）
+- `/tdd push`：执行版本号递增，并推送到远程仓库
 - `/ci run` — 触发 CI 流水线
 - `/ci status` — 查看 CI 状态
 
