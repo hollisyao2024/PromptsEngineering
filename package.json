@@ -44,7 +44,8 @@
     "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js",
     "tdd:tick": "node scripts/tdd-tools/tdd-tick.js",
     "tdd:sync": "npm run tdd:tick",
-    "tdd:push": "node scripts/tdd-tools/tdd-push.js"
+    "tdd:push": "node scripts/tdd-tools/tdd-push.js",
+    "tdd:new-branch": "node scripts/tdd-tools/new-branch.js"
   },
   "keywords": [
     "prd",

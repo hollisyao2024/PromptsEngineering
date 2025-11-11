@@ -97,7 +97,10 @@ version: 1.7 (2025-11-02)
 
 **完成状态**：合并前在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`；如被退回则取消并回到对应阶段。
 
-**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`（每个命令触发即激活 TDD 专家）。
+**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`、`/tdd new-branch`（每个命令触发即激活 TDD 专家）。
+**分支生成**：
+  - `/tdd new-branch` TASK-<DOMAIN>-<编号>（如 `/tdd new-branch` TASK-EXPORT-004）可直接创建具有 Task ID 的 feature 分支，`TASK_SHORT` 只在需要附加简短描述时才额外填写。
+  - 该命令会把 `TASK_ID` 装进 `feature/TASK-XXX-<desc>` 分支并执行 `git checkout -b`，保持 `/tdd` 流程所需的命名约束。
 
 **说明**：TDD、文档回写、CI/CD 实施规范在角色卡片与 Handbook 中对齐。
 
@@ -132,6 +135,7 @@ version: 1.7 (2025-11-02)
 - `/tdd fix` — 修复已识别问题
 - `/tdd sync` — 执行文档回写 Gate（同步 PRD/ARCH/TASK/CHANGELOG/ADR）
 - `/tdd push`：执行版本号递增，并推送到远程仓库
+- `/tdd new-branch`：在 TDD 编码前，新开一个任务分支
 - `/ci run` — 触发 CI 流水线
 - `/ci status` — 查看 CI 状态
 

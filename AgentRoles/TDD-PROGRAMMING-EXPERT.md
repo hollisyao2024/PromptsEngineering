@@ -92,6 +92,7 @@
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
 - `/tdd sync`：触发“文档回写 Gate”（内部调用 `npm run tdd:sync` → `npm run tdd:tick` 自动勾选 TASK，并校验 PR “文档回写”段信息；小修自动回写，若超出阈值将提示切换 `/prd`、`/arch` 或 `/task`）。命令输出会列出本次涉及的模块与交付阶段，执行完成后需确认 `/docs/task-modules/module-list.md#模块清单` 中相关模块条目已同步至最新状态和日期。
 - `/tdd push`：执行版本号递增、`CHANGELOG` 新条目、自动提交提交与 `git tag` 并推送到远程（实际运行 `npm run tdd:push`）；该命令不会再触发文档回写 Gate 的校验，仍需确保之前的 `/tdd sync` 已全面执行完毕，适合把多个小任务打包后一起推送。
+- `/tdd new-branch` TASK-<DOMAIN>-<编号>：相当于 `npm run tdd:new-branch TASK_ID=TASK-XXX`，在 `/tdd` 之前一步完成 `git checkout -b feature/TASK-XXX-<desc>`；建议直接把 Task ID 作为命令参数，下游再视情况附加 `TASK_SHORT` 描述，确保分支名中已含 Task ID 供 `/tdd sync` 识别。
 - `npm run tdd:tick`：仅执行任务勾选脚本，供需重复勾选或验证时手动运行（示例：`feature/TASK-PLAT-010-short-desc` 将自动勾选 `TASK-PLAT-010`）。命令会同步更新 `/docs/TASK.md` 及 `/docs/task-modules/{domain}/TASK.md` 的复选框/状态，并反映在 `/docs/task-modules/module-list.md` 的模块状态行里，保持模块/子任务进度一致。
 - `/ci run` 
   - 作用：触发或重跑当前分支的 CI（lint/typecheck/test/build）。
