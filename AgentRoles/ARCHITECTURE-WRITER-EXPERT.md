@@ -13,10 +13,10 @@
 - 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md` 对应的模块 PRD。
 - PRD 阶段产出的追溯与前置验证素材：`/docs/data/traceability-matrix.md`（Story → AC → Test Case）、`/docs/data/global-dependency-graph.md`、`/docs/data/goal-story-mapping.md`、`/docs/data/persona-story-matrix.md`，以及 PRD Playbook §7 中提到的前置验证报告（技术/合规/依赖风险），用于核对架构对齐与缓解策略。
 
-## 输出（写入路径）
+## 输出
 
 ### 核心产物
-- **`/docs/ARCH.md`**：主 ARCH 文档，唯一权威版本，模板参考本文件 § ARCH 模板。ARCH 文档承载逻辑/物理/运行/开发/安全视图与技术选型，与 PRD 主文档形成对应。小项目时是唯一  ARCH 文档，大项目时是主 ARCH 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
+- **`/docs/ARCH.md`**：主 ARCH 文档，唯一权威版本，模板参考本文件 § ARCH 模板。ARCH 文档承载逻辑/物理/运行/开发/安全视图与技术选型，与 PRD 主文档形成对应。小项目时是唯一 ARCH 文档，大项目时是主 ARCH 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
 - **子模块 ARCH 文档**：所有子模块目录结构、子模块模板、ID 规范等均在 `/docs/arch-modules/MODULE-TEMPLATE.md` 详解。
 - **关键取舍与 ADR**：对架构取舍（如技术栈、数据分层、部署策略）产出 `/docs/adr/NNN-arch-{module}-{decision}.md` 或 `NNN-arch-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 
@@ -62,21 +62,23 @@
 
 ## ARCH 模板
 
-> 此模板落地了《Playbook》“标准ARCH文档结构”中的各项板块，使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（例如 架构对齐、技术选型、风险/依赖列表、架构验证前置等）。
+> 此模板落地了《Playbook》“标准 ARCH 文档结构”中的各项板块，使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（例如 架构对齐、技术选型、风险/依赖列表、架构验证前置等）。
 
-> 本文件承担小型项目架构模板与大型项目主架构模板的说明职责；如需拆分模块，参照 `/docs/arch-modules/MODULE-TEMPLATE.md` 生成每个功能域的模块架构文档，保持格式一致。
+> 本模板承担小型项目架构模板与大型项目主架构模板的说明职责；如需拆分模块，参照 `/docs/arch-modules/MODULE-TEMPLATE.md` 生成每个功能域的模块架构文档，保持格式一致。
 
 ### 小型项目（单一 ARCH 模板）
-**主 ARCH模板** 复制到 `/docs/ARCH.md`并补充内容。
+**主 ARCH 模板** 复制到 `/docs/ARCH.md`并补充内容。
 ```markdown
 # 系统架构文档
 日期：YYYY-MM-DD   版本：v0
 
 ## 1. 总览与目标
 - 质量属性优先级（性能/可靠/成本/可演进…）
+- 当前架构状态标签（草案/评审中/已确认）与验收人（ARCH/TDD/QA）
 
 ## 2. 视图
 ### 2.1 上下文/容器/组件（C4）
+- 关键依赖：列出外部系统/第三方依赖、内网服务、认证/授权服务等
 - Mermaid 图或文字结构
 ### 2.2 运行时视图
 - 关键链路时序
@@ -87,6 +89,7 @@
 - 外部/内部 API 契约、错误码、限流/幂等
 ### 2.5 运维视图
 - 部署拓扑、弹性策略、可观测性、告警、SLO
+- 发布准备：列出必须验证的监控/告警/回滚流程，确保 `ARCHITECTURE_DEFINED` 阶段与 AGENT_STATE 同步
 ### 2.6 安全与合规
 - 身份与权限、审计、数据安全、合规要求
 
@@ -97,8 +100,15 @@
 - …
 ```
 
+## 9. 发布准备与状态对齐
+- 把本模板的状态标签/里程碑与 `/docs/AGENT_STATE.md` 中的 `ARCHITECTURE_DEFINED` 状态锁定，完成后记录确认时间与审批人。
+- 要求 TDD/QA 在回归/验收前引用此节的监控/告警/回滚列表，并确认 Doc Sync Gate（如 `/docs/data/traceability-matrix.md`）已更新。
+
+## 10. 文档快照
+- 每次 ARCH 更新时，在此记录变更日期、作者和触发原因（如新需求、依赖变化、性能回退），便于后续追溯与敏捷迭代。
+
 ### 大型项目（主从 ARCH 结构）
-**主架构文档** 复制到`/docs/ARCH.md`并补充内容，保持**总纲与索引**，< 500 行，避免详细需求。
+**主架构文档** 复制到`/docs/ARCH.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细架构。
 
 ```markdown
 # 系统架构文档（总纲）
@@ -116,12 +126,14 @@
 
 ## 2. 功能域架构索引
 
-| 功能域 | 负责团队 | 文档链接 | 状态 | 最后更新 |
-|--------|---------|---------|------|---------|
-| 用户管理 | @team-backend | [ARCH.md](arch-modules/user-management/ARCH.md) | ✅ 已确认 | YYYY-MM-DD |
-| 支付系统 | @team-payment | [ARCH.md](arch-modules/payment-system/ARCH.md) | 🔄 进行中 | YYYY-MM-DD |
-| 通知服务 | @team-notification | [ARCH.md](arch-modules/notification-service/ARCH.md) | 📝 待启动 | - |
-| （补充其他模块）| - | - | - | - |
+| 功能域 | 负责团队 | 文档链接 | 状态 | 追溯/接口对齐 | 最后更新 |
+|--------|---------|---------|------|---------------|---------|
+| 用户管理 | @team-backend | [ARCH.md](arch-modules/user-management/ARCH.md) | ✅ 已确认 | Traceability/接口已同步 | YYYY-MM-DD |
+| 支付系统 | @team-payment | [ARCH.md](arch-modules/payment-system/ARCH.md) | 🔄 进行中 | Traceability 待确认 | YYYY-MM-DD |
+| 通知服务 | @team-notification | [ARCH.md](arch-modules/notification-service/ARCH.md) | 📝 待启动 | Traceability 待构建 | - |
+| （补充其他模块）| - | - | - | - | - |
+
+> 建议在此表中用熔断器颜色/图标标记“关键依赖/阻塞”，并在“追溯/接口对齐”列备注需要同步的 Traceability Matrix 或接口表，方便 ARCH/TASK/TDD 交互。
 
 ## 3. 全局视图（跨模块）
 
@@ -132,7 +144,7 @@
 - **数据流**：用户管理 → 支付系统 → 通知服务
 - **集成点**：API Gateway、消息队列、共享数据库
 
-### 3.3 横切关注点
+- ### 3.3 横切关注点
 - **日志**：ELK Stack（集中式日志）
 - **监控**：Prometheus + Grafana（系统指标）
 - **安全**：JWT 认证 + RBAC 授权
@@ -162,6 +174,7 @@ graph LR
 - **用户管理 → 支付系统**：支付功能依赖用户身份验证（JWT Token）
 - **支付系统 → 通知服务**：支付完成后通过消息队列异步发送通知
 - **用户管理 → 通知服务**：用户注册/登录时发送欢迎邮件
+- **当前阻塞/待定**：消息队列升级→支付系统（需确认兼容性）、通知服务监控覆盖仍在构建
 
 ## 6. 全局风险与缓解
 
@@ -170,6 +183,8 @@ graph LR
 | 单点故障 | 数据库主节点宕机 | 全系统 | 主从复制+自动故障转移 | @dba |
 | 性能瓶颈 | API Gateway 过载 | 全系统 | 水平扩展+限流 | @devops |
 | 数据一致性 | 跨模块数据不一致 | 支付+通知 | 使用分布式事务（Saga 模式） | @architect |
+
+> 📌 各项风险/ADR 变更同步到 `AGENT_STATE` / release checklist，并在完成后确认 `ARCHITECTURE_DEFINED` 状态。
 
 ## 7. 变更记录
 
@@ -185,21 +200,16 @@ graph LR
 - **架构模块索引**：[module-list.md](arch-modules/module-list.md)
 - **ADR 目录**：[adr/](adr/)
 - **目录规范**：[CONVENTIONS.md](CONVENTIONS.md)
+
+> ✅ 发布/DEL Gate：确认 Traceability Matrix、Component Graph、Monitoring Coverage、QA 验证报告等文档已更新，同步提示至 TDD/QA 专家，确保后续阶段无漏检。
 ```
 
-**子模块 ARCH 模板**（`/docs/arch-modules/{domain}/ARCH.md`）：详细需求
+**子模块 ARCH 模板**（`/docs/arch-modules/{domain}/ARCH.md`）：聚焦子模块详细架构
 - 模块概述与边界（功能目标、质量属性、负责团队、上下游依赖）
 - 模块级技术视图（Container/Component/运行时/数据/接口/部署）与数据模型、容量/保留、监控/SLO
 - 模块级 ADR/风险（包括依赖冲突、合规/安全、性能边界）以及需要同步的全局追溯/接口表格
 
-详细子模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，ARCH 专家只需在主 ARCH 维护总纲/索引并调用该模板产出模块文档。
-
-### 模块化工作流
-1. **PRD 专家**：评估是否拆分，定位功能域，在主 PRD 维护模块索引，并根据 `/docs/prd-modules/MODULE-TEMPLATE.md` 创建子模块 PRD。
-2. **ARCH 专家**：加载主 PRD 与相关模块 PRD 输出架构视图，保持架构模块与需求模块的追溯（参照 `/docs/data/global-dependency-graph.md`）。
-3. **TASK 专家**：基于各模块 PRD 细化 WBS，可按模块记录依赖、关键路径与里程碑。
-4. **TDD 专家**：依赖模块 PRD 实现、测试，确保 Story/AC 映射到追溯矩阵，并执行 Doc Sync Gate 。
-5. **QA 专家**：基于追溯矩阵与模块 PRD 验证覆盖率，更新 `/docs/data/traceability-matrix.md` 和模块 `nfr-tracking.md` 状态。
+详细子模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，ARCH 专家只需在主 ARCH 维护总纲/索引并调用该模板产出子模块文档。
 
 ## ADR 触发规则（PRD 阶段）
 - 出现重要取舍（例如：架构变化、数据库调整）→ 新增 ADR；状态 `Proposed/Accepted`。
