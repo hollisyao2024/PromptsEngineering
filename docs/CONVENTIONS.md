@@ -38,6 +38,7 @@
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
 - 若在 `AGENTS.md` 或角色卡片中引用新目录，需同步更新此文档。
+- 所有与交付相关的变更必须在以 `feature/TASK-<MODULE>-<编号>-<短描述>` 命名的分支上完成。`/tdd sync` 与 `npm run tdd:tick` 依赖分支名中包含的 `TASK-` ID 自动勾选 `/docs/TASK.md` 或模块任务中的复选框、更新 Traceability，以及让 `docs/task-modules/module-list.md` 反映状态；在没有 Task ID（例如 `main`）的分支上直接改动会被脚本拒绝（“未找到 TASK ID”），因此请先在规范命名的 feature 分支上编辑再合并。
 
 ## Mermaid 图形文件规范
 

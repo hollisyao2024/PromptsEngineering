@@ -70,6 +70,11 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 ## 5. 模块协作规范
 
+### 5.0 分支与 Task ID 绑定
+- **分支命名**：每个 Task 实施前，在仓库根执行 `git checkout -b feature/TASK-<MODULE>-<编号>-<短描述>`。将 Task ID 编入分支名让 `npm run task:sync`、`npm run tdd:tick`（`/tdd sync`）等自动化工具能直接识别当前 Task，在 `/docs/TASK.md`、模块 TASK、`module-list.md` 中标记状态。
+- **保持分支一致性**：文档更新、实现代码与测试都在这个 feature 分支上完成，避免先在 `main`/其他 default 分支改动再 cherry-pick；若需要同时推进多个紧密相关 Task，可以通过 `feature/TASK-FOO-001+TASK-FOO-002` 把它们一起放入分支名。
+- **进度回写**：每次 `tdd-tick`、`task:sync` 执行时，保证触发它们的分支名仍包含当前 Task ID，否则脚本会因为“未找到 TASK ID”而拒绝，提示切回规范命名的 feature 分支再重试。
+
 ### 5.1 跨模块依赖协作
 - 在模块 Task 中列出依赖模块/团队（Task/Story/接口），并同步更新 `/docs/data/task-dependency-matrix.md` 与 `module-list.md` 中的关键路径。
 - 依赖变更（scope 延迟、外部服务变动）要通知对应模块/团队，并在主 TASK 或 module list 的“状态”栏中标明阻塞点。

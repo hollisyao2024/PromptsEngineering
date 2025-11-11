@@ -329,8 +329,20 @@ function markTasksInFile(filePath, targetIds, completionText) {
   };
 }
 
+function determineBranchName() {
+  const forced = process.env.TDD_BRANCH || process.env.BRANCH_NAME;
+  if (forced) {
+    return forced.trim();
+  }
+  return getBranchName();
+}
+
 function main() {
-  const branchName = getBranchName();
+  const branchName = determineBranchName();
+  if (!branchName) {
+    console.error('❌ 无法确定当前分支（git rev-parse 未返回内容）。请设置 TDD_BRANCH 环境变量或确保仓库存在 Git 分支。');
+    process.exit(1);
+  }
   const taskIds = parseTaskIds(branchName);
 
   if (!taskIds.length) {
