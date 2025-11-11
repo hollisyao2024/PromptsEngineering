@@ -420,8 +420,8 @@ function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks
   md += `## 5. 模块里程碑\n\n`;
   md += `| 里程碑 | 目标日期 | 交付物 | 状态 |\n`;
   md += `|--------|---------|--------|------|\n`;
-  md += `| ${moduleName} - Phase 1 | TBD | 核心功能完成 | 📝 待完成 |\n`;
-  md += `| ${moduleName} - Phase 2 | TBD | 测试通过 | 📝 待完成 |\n\n`;
+  md += `| ${moduleName} - Phase 1 | TBD | 核心功能完成 | 📝 待开始 |\n`;
+  md += `| ${moduleName} - Phase 2 | TBD | 测试通过 | 📝 待开始 |\n\n`;
 
   // 6. 模块风险
   md += `## 6. 模块风险\n\n`;
@@ -638,9 +638,9 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   md += `## 3. 全局里程碑（跨模块）\n\n`;
   md += `| 里程碑 ID | 里程碑名称 | 目标日期 | 交付物 | 验收标准 | 状态 |\n`;
   md += `|----------|----------|---------|--------|---------|------|\n`;
-  md += `| M1 | MVP 发布 | TBD | 核心功能上线 | 基础功能可用、主流程打通 | 📝 待完成 |\n`;
-  md += `| M2 | Beta 测试 | TBD | 功能增强 | 完成 80% 需求、性能达标 | 📝 待完成 |\n`;
-  md += `| M3 | 正式上线 | TBD | 生产就绪 | 所有功能完成、通过验收测试 | 📝 待完成 |\n\n`;
+  md += `| M1 | MVP 发布 | TBD | 核心功能上线 | 基础功能可用、主流程打通 | 📝 待开始 |\n`;
+  md += `| M2 | Beta 测试 | TBD | 功能增强 | 完成 80% 需求、性能达标 | 📝 待开始 |\n`;
+  md += `| M3 | 正式上线 | TBD | 生产就绪 | 所有功能完成、通过验收测试 | 📝 待开始 |\n\n`;
 
   // 4. 跨模块依赖关系
   md += `## 4. 跨模块依赖关系\n\n`;
