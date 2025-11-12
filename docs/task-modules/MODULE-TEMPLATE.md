@@ -1,8 +1,16 @@
-# 子模块 TASK 模板
+# 模块 TASK 文档模板
 
 > 本文档整合了模块目录约定、模板结构、协作规范等要素，是模块化需求治理的唯一权威参考。
 >
-> **提醒**：TASK 专家在评估拆分前，请先梳理本文件的目录与模板规范后再展开模块产出，生成的模块 TASK 仍以 `{domain}/TASK.md` 为主体，从本模板获取章节/支撑产物的定义。
+> **提醒**：TASK 专家在评估拆分前，请先梳理本文件的目录与模板规范；拆分后各模块的 `/docs/task-modules/{domain}/TASK.md` 均按此模板生成，并在开头引用主 `/docs/TASK.md`，确保模块文档与主文档保持追溯与协同。
+
+**维护者**：TASK 专家
+**创建日期**：2025-11-05
+**最后更新**：2025-11-06
+**模板版本**：v1.0（TASK 模块化拆分，如有变更请更新此字段）
+**功能域**：{domain}（复制模板时替换为具体模块名称以保持一致）
+
+---
 
 ## 1. 目录与命名规范
 
@@ -14,7 +22,7 @@
     ├── MODULE-TEMPLATE.md # 本模板（权威）
     ├── module-list.md # 模板清单（由 TASK 专家根据本文件 §3 模块清单模板 生成）
     └── {domain}/
-        └── TASK.md
+        └── TASK.md （模块 TASK 文档）
 ```
 
 ### 1.2 命名与 ID
@@ -41,7 +49,7 @@
    - 🔄 已提交（代码/变更已提交，待验证）
    - ✅ 已完成（验证通过并已发布）
    - ⏸️ 暂停（因依赖或资源问题暂缓）
-   - ❌ 已取消（调整范围或无需实施）📝 待开始 / 🚀 进行中 / 🔄 已提交 / ✅ 已完成 / ⏸️ 暂停 / ❌ 已取消。
+   - ❌ 已取消（调整范围或无需实施）
    
 - 优先级：P0（阻塞发布）→ P1（重要）→ P2（增值）→ P3（可延后）。
 
@@ -51,15 +59,15 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 | 模块名称 | 文件路径 | 负责团队 | 对应 PRD 模块 | 对应 ARCH 模块 | 状态 | 最后更新 |
 |---------|---------|---------|--------------|---------------|------|---------|
-| 示例：用户管理 | [TASK.md](user-management/TASK.md) | @team-backend | [prd-modules/user-management/PRD.md](../prd-modules/user-management/PRD.md) | [arch-modules/user-management/ARCH.md](../arch-modules/user-management/ARCH.md) | ✅ 已确认 | 2025-11-05 |
-| 示例：支付系统 | [TASK.md](payment-system/TASK.md) | @team-payment | [prd-modules/payment-system/PRD.md](../prd-modules/payment-system/PRD.md) | [arch-modules/payment-system/ARCH.md](../arch-modules/payment-system/ARCH.md) | 🔄 进行中 | 2025-11-05 |
+| 示例：用户管理 | [user-management/TASK.md](user-management/TASK.md) | @team-backend | [prd-modules/user-management/PRD.md](../prd-modules/user-management/PRD.md) | [arch-modules/user-management/ARCH.md](../arch-modules/user-management/ARCH.md) | ✅ 已确认 | 2025-11-05 |
+| 示例：支付系统 | [payment-system/TASK.md](payment-system/TASK.md) | @team-payment | [prd-modules/payment-system/PRD.md](../prd-modules/payment-system/PRD.md) | [arch-modules/payment-system/ARCH.md](../arch-modules/payment-system/ARCH.md) | 🔄 进行中 | 2025-11-05 |
 | （待补充） | - | - | - | - | - | - |
 
 该表格仅作为模板，实际模块清单信息由 TASK 专家根据以上表格生成到`module-list.md`，每次 TASK 模块变化都更新`module-list.md`。
 
-## 3. 标准模块 ARCH 结构
+## 3. 标准模块 ARCH 文档结构
 
-`{domain}/TASK.md` 根据模板创建，模板见本文件 § Appendix A: TASK 模块模板。
+`{domain}/TASK.md` 根据模板创建，模板见本文件 § Appendix A: 模块 TASK 文档模板。
 - 每次更新需记录 `最后更新` 时间戳
 - 重大变更需在主 TASK 的“变更记录”章节同步
 
@@ -133,18 +141,21 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 ---
 
 
-## Appendix A: TASK 模块模板
+## Appendix A: 模块 TASK 文档模板
 > 以下内容不允许 TASK 专家自动修改，只能由人工修改。
 
 # {功能域名称} - 任务计划
->
->
-> **所属功能域**：[PRD 链接] | [ARCH 链接]
-> **负责团队**：@team
-> **状态**：📝/🚀/✔️/🔄/⏸️/❌
+
+> **所属主 TASK**: [TASK.md](../TASK.md)
+> **关联 PRD 模块**: [prd-modules/{domain}/PRD.md](../prd-modules/{domain}/PRD.md)
+> **关联 ARCH 模块**: [arch-modules/{domain}/ARCH.md](../arch-modules/{domain}/ARCH.md)
+> **状态**: 📝 待开始 / 🚀 进行中 / 🔄 已提交 / ✅ 已完成 / ⏸️ 暂停 / ❌ 已取消
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
 > **Story→Task ID**：列出 `US-...` / `TASK-...` / `TC-...` 并注明主 TASK 对应章节
-> **最后更新**：YYYY-MM-DD
+> **负责团队**: @qa-team-name
+> **最后更新**: YYYY-MM-DD
+> **版本**: v0.1.0
+
 >
 ## 1. 模块概述
 - 业务目标、核心交付、技术范围、关键交付物

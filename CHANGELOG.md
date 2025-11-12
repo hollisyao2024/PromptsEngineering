@@ -287,19 +287,19 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
 ## [v1.8] - 2025-11-05
 ### 新增
 - **PRD 模块化架构**：支持大型项目按功能域拆分 PRD，避免单文件过大导致上下文撑爆。
-  - 新增 `/docs/prd-modules/` 目录，用于存放按功能域拆分的子模块 PRD。
+  - 新增 `/docs/prd-modules/` 目录，用于存放按功能域拆分的模块 PRD。
   - 新增 `/docs/prd-modules/MODULE-TEMPLATE.md` 模块模板，将拆分判断、命名规范、模块清单、标准模块 PRD 结构、协作规范和示例全部整合；原 `README.md`/`STRUCTURE-GUIDE.md`/`MODULE-TEMPLATE-ENHANCED.md` 迁移为备份供复盘。
   - 新增 `/docs/data/traceability-matrix.md` 追溯矩阵模板，集中维护 Story → AC → Test Case ID 映射。
 - **ARCHITECTURE 模块化架构**：支持大型项目按功能域拆分架构文档，避免单文件过大导致维护困难。
-  - 新增 `/docs/arch-modules/` 目录，用于存放按功能域拆分的子模块架构文档。
+  - 新增 `/docs/arch-modules/` 目录，用于存放按功能域拆分的模块架构文档。
   - 新增 `/docs/arch-modules/module-list.md` 模块索引文件，包含命名规范、模块清单、标准模块架构文档结构（195 行）。
   - 支持跨模块依赖管理与组件 ID 命名规范（`{MODULE}-{TYPE}-{序号}`，如 `USER-SVC-001`、`PAY-DB-001`）。
 - **TASK 模块化架构**：支持大型项目按功能域拆分任务计划，避免 WBS 过大导致依赖关系混乱。
-  - 新增 `/docs/task-modules/` 目录，用于存放按功能域拆分的子模块任务计划。
+  - 新增 `/docs/task-modules/` 目录，用于存放按功能域拆分的模块任务计划。
   - 新增 `/docs/task-modules/module-list.md` 模块索引文件，包含命名规范、模块清单、标准模块任务文档结构（220 行）。
   - 支持内部依赖与外部依赖分离管理，任务 ID 命名规范（`TASK-{MODULE}-{序号}`，如 `TASK-USER-001`）。
 - **QA 模块化架构**：支持大型项目按功能域拆分测试计划，避免测试用例过多导致可读性下降。
-  - 新增 `/docs/qa-modules/` 目录，用于存放按功能域拆分的子模块测试计划。
+  - 新增 `/docs/qa-modules/` 目录，用于存放按功能域拆分的模块测试计划。
   - 新增 `/docs/qa-modules/README.md` 模块索引文件，包含命名规范、模块清单、标准模块 QA 文档结构（230 行）。
   - 支持测试用例 ID 命名规范（`TC-{MODULE}-{序号}`）与缺陷 ID 命名规范（`BUG-{MODULE}-{序号}`）。
 - **主文档模板升级**：为所有核心文档提供小型项目与大型项目的双模板结构。
@@ -308,7 +308,7 @@ PRD + ARCH 完成 → 激活 TASK 专家 → 执行 /task plan → 自动生成 
   - 更新 `/docs/QA.md` 模板（522 行），包含 9 个标准章节（测试策略、用例、缺陷、执行记录、指标、发布建议等）与双模板结构。
 - 在 PRD-WRITER-EXPERT.playbook.md 中新增"§7. 大型项目 PRD 拆分指南"，包含：
   - 拆分触发条件与决策树（单文件 > 1000 行 或 50+ 用户故事 或 3+ 业务域）
-  - 主从 PRD 结构设计（主 PRD < 500 行，子模块 PRD 按需加载）
+  - 主从 PRD 结构设计（主 PRD < 500 行，模块 PRD 按需加载）
   - 追溯矩阵分离策略
   - 模块拆分最佳实践（功能域边界划分、ID 命名规范、依赖管理、数据共享）
   - 与其他专家的协作方式

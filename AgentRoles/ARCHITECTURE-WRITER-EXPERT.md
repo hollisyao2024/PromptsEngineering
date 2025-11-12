@@ -12,38 +12,45 @@
 - 已确认的 `/docs/PRD.md`（作为总纲）。
 - 若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md` 对应的模块 PRD。
 - PRD 阶段产出的追溯与前置验证素材：`/docs/data/traceability-matrix.md`（Story → AC → Test Case）、`/docs/data/global-dependency-graph.md`、`/docs/data/goal-story-mapping.md`、`/docs/data/persona-story-matrix.md`，以及 PRD Playbook §7 中提到的前置验证报告（技术/合规/依赖风险），用于核对架构对齐与缓解策略。
+- 激活时先锁定主 PRD 的版本与状态，并列出所有关联模块 PRD（含路径、负责团队、最新更新及与主 Story/AC 的映射），作为后续架构产出引用的基础。
 
 ## 输出
 
 ### 核心产物
 - **`/docs/ARCH.md`**：主 ARCH 文档，唯一权威版本，模板参考本文件 § ARCH 模板。ARCH 文档承载逻辑/物理/运行/开发/安全视图与技术选型，与 PRD 主文档形成对应。小项目时是唯一 ARCH 文档，大项目时是主 ARCH 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
-- **子模块 ARCH 文档**：所有子模块目录结构、子模块模板、ID 规范等均在 `/docs/arch-modules/MODULE-TEMPLATE.md` 详解。
+- 主 ARCH 文档应在每个视图或关键章节旁附带对应的主 PRD Story/AC 及相关模块 PRD 条目的引用，Traceability 表中说明哪些 PRD 片段驱动本章节的选择，以便 TDD/QA 快速追溯需求来源。
+- **模块 ARCH 文档**：所有模块目录结构、模块模板、ID 规范等均在 `/docs/arch-modules/MODULE-TEMPLATE.md` 详解。
+- 模块 ARCH 文档需明确依赖的模块 PRD（章节、Story ID、对应主 PRD 链接），并在每个主要决策的脚注处注明“来源 PRD”，从而保持模块架构对需求的可追溯。
 - **关键取舍与 ADR**：对架构取舍（如技术栈、数据分层、部署策略）产出 `/docs/adr/NNN-arch-{module}-{decision}.md` 或 `NNN-arch-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 
 ### 拆分条件
 - **拆分触发条件**（任一成立）：
   - 主架构文档 > 1000 行
   - 子系统/服务 > 8 个
-  - 业务域 > 3+ 
+  - 业务域 > 3
   - 多团队并行开发
   - 数据模型复杂 > 30 实体表
 
 ### 全局数据（存放在 `/docs/data/`）
 - **全局 ARCH 数据表格**：在主 `/docs/ARCH.md`（或模块 `ARCH.md`）中以结构化表格维护组件/服务清单、接口契约矩阵、数据模型汇总、部署与运维规范、第三方依赖与成本估算，供 TASK/QA 直接引用与验证；同时将这些数据驱动 `/docs/data/global-dependency-graph.md`、`/docs/data/traceability-matrix.md`、`/docs/data/arch-prd-traceability.md` 等全局追溯文档，以维持与 PRD 的一致性和可追溯性。
 - **追溯产物**：参考 PRD 级别的追溯产物（如 `/docs/data/global-dependency-graph.md`、`/docs/data/traceability-matrix.md`、`/docs/data/arch-prd-traceability.md`），同步记录跨模块依赖、容量/性能指标、可用性目标、安全审查要点等“全局数据”字段，并确保这三份 `/docs/data/` 报告随架构更新一并刷新，以维持与 PRD 的一致性。
+- 在同步这些追溯数据时注明每条记录源自主 PRD、某个模块 PRD 或二者的组合，并在 `/docs/data/arch-prd-traceability.md` 中增加“PRD 来源”栏/字段，防止某个模块架构脱离原始需求。
 - **跨模块组件依赖图**：模块化项目时，在 `/docs/arch-modules/module-list.md` 维护模块索引表（含团队、状态、文档链接），并同步 `/docs/data/component-dependency-graph.md`，保持组件 ↔ Story 的追溯与依赖一致性。
 - **PRD ↔ ARCH 追溯报告**：`/docs/data/arch-prd-traceability.md` 自动比对 Story ID 与 Component ID 在 PRD 与 ARCH 中的引用一致性，识别缺失项并标记需补充的故事/组件；通过 `npm run arch:sync -- --report` 或 `/arch sync` 生成，作为 ARCH 专家每日核查的“对齐仪表盘”。
 
 ### 数据视图
 - 以 PRD 输出的“视图”组织方式为基础，分别呈现逻辑/组件、物理/部署、运行/运维、开发/集成、安全/合规等架构视图，配合图表（Mermaid/C4）与文字说明。
-- 将 `/docs/ARCH.md`（如果是大项目还要考虑模块化的子模块 ARCH 文档） 中的数据视图小节与 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 联动，涵盖主数据实体、关系、约束、索引策略、事务边界、一致性模型、容量/增长/回收策略、脱敏与备份方案。
+- 将 `/docs/ARCH.md`（如果是大项目还要考虑模块化的模块 ARCH 文档） 中的数据视图小节与 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 联动，涵盖主数据实体、关系、约束、索引策略、事务边界、一致性模型、容量/增长/回收策略、脱敏与备份方案。
   - 更新前建议参考 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md`，在维护文档头、摘要、字段表和同步校验清单时保持一致结构，方便 TDD/QA 后续审查。
 - 补充接口调用链、异步消息路径、事件流、观测/告警链路等示意图，并在 ARCH 附录或 `/docs/data/` 的视图清单中记录版本、作者与用途，便于后续架构审查与测试追溯。
+- 所有图表和链路说明应注明所依据的主 PRD Story/AC 及模块 PRD 条目（如在图例或附注里写明“参考 PRD §3.2、模块 PRD Foo/Story-1234”），以让 TDD/QA 快速追踪需求源。
 
 
 ### 架构验证前置（Architecture Validation Gate）
 - **架构对齐检查**：以 `/docs/data/traceability-matrix.md`、`/docs/data/goal-story-mapping.md`、`/docs/data/arch-prd-traceability.md` 为输入，确认每个关键 Story/NFR 在 ARCH 组件/模块/ADR 中有对应的实现路径，缺口以“Story/Component 追溯缺失”列表写入 ARCH 风险章节并通知 PRD/TASK；完成对齐后再执行 Gate。
+- 额外在这一阶段列出主 PRD 与各模块 PRD 的不一致项（如主 PRD 已确认但模块 PRD 还未覆盖的 Story，以及模块 PRD 新增但主文档未同步的细节），分别标为“主 PRD 缺口”与“模块差异”并指派负责人。
 - **架构风险清单**：参考 PRD Playbook §7 的技术风险、合规检查与依赖冲突条目，梳理当前架构未覆盖的风险（如新依赖链、数据合规点、性能边界），在 ARCH 风险表或 ADR 中记录缓解方案与责任人。
+- 每条风险/问题均在表中备注其对应的 PRD 来源（主 PRD 或具体模块 PRD）以及是否已同步至 ARCH/模块文档，便于后续追踪与回退。
 - **验证产出**：借助 `/arch sync` 或 `npm run arch:sync -- --report` 更新 `/docs/data/arch-prd-traceability.md` 与 `/docs/data/global-dependency-graph.md`，确保 PRD ↔ ARCH ID 与依赖图的双向一致；必要时生成新的 ADR/组件图供 TASK/QA 核查。
 - **Gate 执行时点**：在 ARCH 文档审查/交付前完成验证后勾选 `ARCHITECTURE_DEFINED`，若发现阻塞性风险则退回 PRD/TASK，确保所有调整通过 ADR/风控表记录并同步。
 
@@ -69,7 +76,7 @@
 > 本模板承担小型项目架构模板与大型项目主架构模板的说明职责；如需拆分模块，参照 `/docs/arch-modules/MODULE-TEMPLATE.md` 生成每个功能域的模块架构文档，保持格式一致。
 
 ### 小型项目（单一 ARCH 模板）
-**主 ARCH 模板** 复制到 `/docs/ARCH.md`并补充内容。
+**主 ARCH 文档模板** 复制到 `/docs/ARCH.md`并补充内容。
 ```markdown
 # 系统架构文档
 日期：YYYY-MM-DD   版本：v0
@@ -139,7 +146,7 @@
 ```
 
 ### 大型项目（主从 ARCH 结构）
-**主架构文档** 复制到`/docs/ARCH.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细架构。
+**主 ARCH 文档模板** 复制到`/docs/ARCH.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细架构。
 
 ```markdown
 # 系统架构文档（总纲）
@@ -224,6 +231,7 @@ graph LR
 ## 7. 文档审查与更新节奏
 
 - 每次主架构更新需记录版本、触发原因、影响范围、审查负责人和 Traceability/QA 同步状态，确保 QA/TDD/Traceability 可回溯决策与验证工件；建议此表定期用于 Doc Sync Gate 备注。
+- Doc Sync Gate 除了主 PRD 的变更摘要，也需列出每个模块 PRD 的当前状态/版本与是否已同频更新，避免某个模块因旧 PRD 而在架构中被错标为完成。
   | 版本 | 日期 | 触发类型 | 影响功能域 | 审查人 | Traceability/QA 状态 | 说明 |
   | ---- | ---- | -------- | -------- | ------ | ------------------- | ---- |
   | v1.0 | YYYY-MM-DD | 模块重构 | 支付 + 通知 | @architect | Traceability ×，QA Review ✔ | 从单一文件迁移到模块化架构 |
@@ -242,12 +250,13 @@ graph LR
 > ✅ 发布/DEL Gate：确认 Traceability Matrix、Component Graph、Monitoring Coverage、QA 验证报告等文档已更新，同步提示至 TDD/QA 专家，确保后续阶段无漏检。
 ```
 
-**子模块 ARCH 模板**（`/docs/arch-modules/{domain}/ARCH.md`）：聚焦子模块详细架构
+**模块 ARCH 文档模板**（`/docs/arch-modules/{domain}/ARCH.md`）：聚焦模块详细架构
 - 模块概述与边界（功能目标、质量属性、负责团队、上下游依赖）
 - 模块级技术视图（Container/Component/运行时/数据/接口/部署）与数据模型、容量/保留、监控/SLO
 - 模块级 ADR/风险（包括依赖冲突、合规/安全、性能边界）以及需要同步的全局追溯/接口表格
+- 模块模板应额外提供“关联模块 PRD/Story ID”小节，列出参考的模块 PRD 页面、Story/AC 列表及对应的主 PRD 链接，确保即使单独查看模块文档也能追溯回原始需求。
 
-详细子模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，ARCH 专家只需在主 ARCH 维护总纲/索引并调用该模板产出子模块文档。
+详细模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，ARCH 专家只需在主 ARCH 维护总纲/索引并调用该模板产出模块文档。
 
 ## ADR 触发规则（PRD 阶段）
 - 出现重要取舍（例如：架构变化、数据库调整）→ 新增 ADR；状态 `Proposed/Accepted`。

@@ -13,13 +13,14 @@
 - 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
-- 若项目拆分为模块，请同步读取 `/docs/task-modules/module-list.md`：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考；在生成子模块任务前需确认该表格的状态/依赖列反映最新计划。
+- 若项目拆分为模块，请同步读取 `/docs/task-modules/module-list.md`：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考；在生成模块任务前需确认该表格的状态/依赖列反映最新计划。
+- 若模块同时维护 `/docs/task-modules/{domain}/TASK.md`，在分析主/模块任务时务必同步批注并明确哪些字段由模块文档决定（如模块 WBS、交付事件、状态），以确保主 TASK 的模块索引/依赖矩阵与模块 TASK 文档保持一致。
 
 ## 输出
 
 ### 核心产物
-- **`/docs/TASK.md`**：主 TASK 文档，唯一权威版本，模板参考本文件 § TASK 模板。TASK 文档承载项目任务、模块任务索引、里程碑、WBS、依赖矩阵、资源/时间线、风险/沟通等，与对应 PRD/ARCH 模块对齐。小项目时是唯一 TASK 文档，大项目时是主 TASK 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
-- **子模块 TASK 文档**：所有子模块目录结构、子模块模板、ID 规范等均在 `/docs/task-modules/MODULE-TEMPLATE.md` 详解。
+- **`/docs/TASK.md`**：主 TASK 文档，唯一权威版本，模板参考本文件 § TASK 模板。TASK 文档承载项目任务、模块任务索引、里程碑、WBS、依赖矩阵、资源/时间线、风险/沟通等，与对应 PRD/ARCH 模块对齐。为每个模块 Task 描述提供模块 TASK 文档路径、当前状态与最后更新说明，确保主文档不仅列出总纲，也能从索引直接跳转到具体模块任务；如模块文档发生状态/依赖/里程碑变更，必须同步反映在主 TASK 的模块索引/依赖矩阵中。
+- **子模块 TASK 文档**：所有模块目录结构、子模块模板、ID 规范等均在 `/docs/task-modules/MODULE-TEMPLATE.md` 详解。模块 TASK 文档负责模块级 WBS、Deliverable、QA 验收等具体内容，并在每次交付或依赖调整时回写主文档的模块索引状态与更新时间，保持双向追溯。
 - **模块清单同步**：主 TASK 中的“模块任务索引”表需定期与 `/docs/task-modules/module-list.md` 中的状态/依赖/最后更新字段互为镜像；每次模块级子任务完成、里程碑变更或依赖调整时，都要同步更新模块清单并在主 TASK 记录新状态与更新时间，以便 ARCH/TDD/QA 能一眼识别当前模块交付节奏。
 
 ### 拆分条件
@@ -38,7 +39,7 @@
   - DB/接口/事件迁移/监控/QA 验收清单，提供模块双向追溯；
   - 模块状态与风险，随着子任务完成即时在当前模块文档、主 TASK 的模块索引表及 `module-list.md` 更新“状态”“最后更新”字段。
 - 模块任务更新触发点：
-  1. 子任务完成：在 `/docs/task-modules/{domain}/TASK.md` 中勾选复选框并补写简要交付说明，同时在 `module-list.md` 对应行写入 `✅ 已完成 (YYYY-MM-DD)`/状态调整；
+  1. 子任务完成：在 `/docs/task-modules/{domain}/TASK.md` 中勾选复选框并补写简要交付说明，任务列表状态列手动写入`✅ 已完成 (YYYY-MM-DD)`（示例：`✅ 已完成 (2025-11-09)`）记录实际交付日期；同时在 `module-list.md` 对应行状态列更新，在最近更新时间写入 `✅ 已完成 (YYYY-MM-DD)`（示例：`✅ 已完成 (2025-11-09)`）记录实际交付日期；
   2. 依赖变更：在主 TASK 的“依赖矩阵”与模块索引中注明变更，并在模块清单附加说明，驱动 ARCH/TDD/QA 同步；
   3. 新模块启动：在模块清单新增行、在主 TASK 模块索引建立链接、同 `/docs/task-modules/{domain}/TASK.md` 生成模板内容。
 - `module-list.md` 也作为模块间依赖/交付节奏的 quick reference，建议对接看板/仪表盘时直接引用此文件，避免不同专家之间因状态失真产生分歧。
@@ -52,8 +53,10 @@
 - **依赖矩阵**与**关键路径**标注清晰
 - 定义里程碑（含通过条件）
 - 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`
+- 主/模块 TASK 文档联动核查：每当 DoD 条件达成时，主 TASK 的模块索引/依赖状态需与对应模块 TASK 文档同步，并在文档修订记录中注明核对时间，防止主文档提前汇总。
 
 ## 交接
+- 交接前复查主/模块 TASK 文档状态/里程碑/依赖，确保任何模块调整都在主文档中刷新，并记录差异/待办，方便 TDD 协同。
 - 移交给 TDD 编程专家（TDD）。
 
 ## TASK 模板
@@ -148,19 +151,21 @@
 - R1：… → 缓解：…
 
 ## 7. 模块同步与回收策略
-- 在主 TASK 中把模块任务链接/状态与子模块 TASK 文档保持双向指向，任何模块调整（scope creep、延期）都需写入“模块任务索引”和“里程碑状态”列，并通知 ARCH/TDD/QA。
-- 若某子模块任务内容被回收，需在主 TASK 的“依赖关系”与“DB 任务”段标注变更，并在 release/里程碑说明中记录差异，确保所有专家都能追踪版本演进。
+- 在主 TASK 中把模块任务链接/状态与模块 TASK 文档保持双向指向，任何模块调整（scope creep、延期）都需写入“模块任务索引”和“里程碑状态”列，并通知 ARCH/TDD/QA。
+- 若某模块任务内容被回收，需在主 TASK 的“依赖关系”与“DB 任务”段标注变更，并在 release/里程碑说明中记录差异，确保所有专家都能追踪版本演进。
+- 主 TASK 的“模块任务索引”表建议记录模块 TASK 文档的路径、版本或最后更新时间，并在模块文档中列出对应的主 TASK 模块 ID/里程碑/依赖编号，形成双向追溯与审计线索，方便后续 TDD/QA 直接定位上下文。
 ```
 
-**子模块 TASK 模板**（`/docs/task-modules/{domain}/TASK.md`）：聚焦模块级可执行任务
+**模块 TASK 模板**（`/docs/task-modules/{domain}/TASK.md`）：聚焦模块级可执行任务
 - 模块级 WBS/任务清单：Story→Task→Deliverable→Owner/Estimate/Dependency（含 DB/数据迁移、接口、自动化与验证任务）
 - 交付视图与运行准备：描述接口部署、数据管道、容量与监控计划、QA 验收项与可交付物验收标准
 - 风险与质量 Gate：列出模块依赖冲突、合规/安全/性能风险、测试/回归/文档同步步奏以及与追溯矩阵和接口表格的回写要求
+- 主 TASK 链路引用：在模块文档开头列出对应主 TASK 模块索引 ID、依赖编号、里程碑与当前版本/最后更新信息，方便主文档与模块文档进行双向核对与追溯。
 
-详细子模块模板示例均集中在 `/docs/task-modules/MODULE-TEMPLATE.md`，TASK 专家只需在主 TASK 维护总纲/索引并调用该模板产出模块文档。
+详细模块模板示例均集中在 `/docs/task-modules/MODULE-TEMPLATE.md`，TASK 专家只需在主 TASK 维护总纲/索引并调用该模板产出模块文档。
 
 ## 快捷命令
-- `/task plan`：基于 PRD+ARCH 生成/刷新 `/docs/TASK.md`及（如有）子模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充“**DB 任务段**”（固定表头：Backfill/双写观察/对账/回滚等）。完成后在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
+- `/task plan`：基于 PRD+ARCH 生成/刷新 `/docs/TASK.md`及（如有）模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充“**DB 任务段**”（固定表头：Backfill/双写观察/对账/回滚等）。完成后在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
 
 ## References
 - Handbook: /AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md

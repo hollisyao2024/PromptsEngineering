@@ -1,8 +1,16 @@
-# 子模块 ARCH 模板
+# 模块 ARCH 文档模板
 
 > 本文档整合了模块目录约定、模板结构、协作规范等要素，是模块化需求治理的唯一权威参考。
 >
-> **提醒**：ARCH 专家在评估拆分前，请先梳理本文件的目录与模板规范后再展开模块产出，生成的模块 ARCH 仍以 `{domain}/ARCH.md` 为主体，从本模板获取章节/支撑产物的定义。
+> **提醒**：ARCH 专家在评估拆分前，请先梳理本文件的目录与模板规范；拆分后各模块的 `/docs/arch-modules/{domain}/ARCH.md` 均按此模板生成，并在开头引用主 `/docs/ARCH.md`，确保模块文档与主文档保持追溯与协同。
+
+**维护者**：ARCH 专家
+**创建日期**：2025-11-05
+**最后更新**：2025-11-06
+**模板版本**：v1.0（ARCH 模块化拆分，如有变更请更新此字段）
+**功能域**：{domain}（复制模板时替换为具体模块名称以保持一致）
+
+---
 
 ## 1. 目录与命名规范
 
@@ -14,7 +22,7 @@
     ├── MODULE-TEMPLATE.md # 本模板（权威）
     ├── module-list.md # 模板清单（由 ARCH 专家根据本文件 §3 模块清单模板 生成）
     └── {domain}/
-        └── ARCH.md
+        └── ARCH.md （模块 ARCH 文档）
 ```
 
 ### 1.2 命名与 ID
@@ -51,16 +59,16 @@
 
 ## 2. 模块清单模板
 
-| 模块名称 | 文档路径 | 负责团队 | 核心服务 | 状态 | 最后更新 |
-|---------|---------|---------|---------|------|---------|
-| （示例）用户管理 | [ARCH.md](user-management/ARCH.md) | @team-auth | USER-SVC-001 | 📝 待启动 | - |
-| （示例）支付系统 | [ARCH.md](payment-system/ARCH.md) | @team-payment | PAY-SVC-001 | 📝 待启动 | - |
+| 模块名称 | 文件路径 | 负责团队 | 对应 PRD 模块 | 核心服务 | 状态 | 最后更新 |
+|---------|---------|---------|--------------|---------|------|---------|
+| （示例）用户管理 | [user-management/ARCH.md](user-management/ARCH.md) | @team-auth | [prd-modules/user-management/PRD.md](../prd-modules/user-management/PRD.md) | USER-SVC-001 | 📝 待启动 | - |
+| （示例）支付系统 | [payment-system/ARCH.md](payment-system/ARCH.md) | @team-payment | [prd-modules/payment-system/PRD.md](../prd-modules/payment-system/PRD.md) | PAY-SVC-001 | 📝 待启动 | - |
 
 该表格仅作为模板，实际模块清单信息由 ARCH 专家根据以上表格生成到`module-list.md`，每次 ARCH 模块变化都更新`module-list.md`。
 
-## 3. 标准模块 ARCH 结构
+## 3. 标准模块 ARCH 文档结构
 
-`{domain}/ARCH.md` 根据模板创建，模板见本文件 § Appendix A: ARCH 模块模板。
+`{domain}/ARCH.md` 根据模板创建，模板见本文件 § Appendix A: 模块 ARCH 文档模板。
 - 每次更新需记录 `最后更新` 时间戳
 - 重大变更需在主 ARCH 的“变更记录”章节同步，并补齐必要 ADR
 
@@ -131,15 +139,17 @@
 
 ---
 
-## Appendix A: ARCH 模块模板
+## Appendix A: 模块 ARCH 文档模板
 > 以下内容不允许 ARCH 专家自动修改，只能由人工修改。
 
 # {功能域名称} - ARCH 模块
 
 > **所属主 ARCH**: [ARCH.md](../ARCH.md)
-> **负责团队**: @team-name
-> **最后更新**: YYYY-MM-DD
+> **关联 PRD 模块**: [prd-modules/{domain}/PRD.md](../prd-modules/{domain}/PRD.md)
 > **状态**: 📝 待启动 / 🔄 进行中 / ✅ 已确认 / ⚠️ 需更新
+> **负责团队**: @qa-team-name
+> **最后更新**: YYYY-MM-DD
+> **版本**: v0.1.0
 
 ### 必填字段与追溯
 - **模块状态**：必须标明当前交付状态（如待启动/进行中/已确认/需更新）。

@@ -15,7 +15,7 @@
 
 ### 核心产物
 - **`/docs/PRD.md`**：主 PRD 文档，唯一权威版本，模板参考本文件 § PRD 模板。小项目时是唯一 PRD 文档，大项目时是主 PRD 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
-- **子模块 PRD 文档**：所有子模块目录结构、子模块模板、ID 规范等均在 `/docs/prd-modules/MODULE-TEMPLATE.md` 详解。
+- **模块 PRD 文档**：所有模块目录结构、模块模板、ID 规范等均在 `/docs/prd-modules/MODULE-TEMPLATE.md` 详解。
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 - **追溯矩阵**：在 `/docs/data/traceability-matrix.md` 集中维护 `Story → AC → Test Case ID` 映射。
 
@@ -57,7 +57,7 @@
 > 此模板落地了《Playbook》“标准 PRD 文档结构”中的各项板块，使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（例如 NFR、技术方案、实施计划、Shift-Left 清单等）。
 
 ### 小型项目（单一 PRD 模板）
-**主 PRD模板** 复制到 `/docs/PRD.md`并补充内容。
+**主 PRD 文档模板** 复制到 `/docs/PRD.md`并补充内容。
 
 ```markdown
 # 产品需求文档（PRD）
@@ -116,7 +116,7 @@
 ```
 
 ### 大型项目（主从 PRD 结构）
-**主 PRD模板** 复制到`/docs/PRD.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细需求。
+**主 PRD 文档模板** 复制到`/docs/PRD.md`并补充内容，保持**总纲与索引**，< 1000 行，避免详细需求。
 
 ```markdown
 # 产品需求文档（PRD）
@@ -130,7 +130,7 @@
 - 各成功指标需同时包含：业务/技术可观测数据、预计完成时间，并说明由 PO/PM/QA/TDD/Traceability 在 Doc Sync Gate 或对应评审点确认，帮助主 PRD 既做战略也做验收依据。
 
 ## 2. 全局范围与边界
-- 核心功能域列表（链接到子模块）
+- 核心功能域列表（链接到模块）
 - 非范围（Out of Scope）
 - 关键假设与约束
 - **模块状态/追溯**：每个功能域备注是否与 Traceability Matrix、ARCH、TASK 同步（如 `Traceability ✅` / `接口待补`），方便追踪差异
@@ -154,7 +154,7 @@
   | -------- | ------------- | ------ | -------- | ------ | -------- |
   | 响应性能 | 平均响应时间 | < 300 ms | TDD+QA | @perf | `/docs/data/traceability-matrix.md`、CI 压测任务 |
 
-## 5. 功能域索引（链接到子模块）
+## 5. 功能域索引（链接到模块）
 | 功能域 | 优先级/阶段 | 负责人 | 文档链接 | 依赖状态/Traceability | 当前 Gate 状态 |
 |--------|--------------|--------|----------|------------------------|---------------|
 | 用户管理 | P0 / ARCH 已确认 | @team-a | [PRD.md](prd-modules/user-management/PRD.md) | Traceability ✅ / API 完成 | 进入 TASK |
@@ -166,7 +166,7 @@
   | 里程碑 | 预期完成时间 | 交付物 | 责任人 | Gate 条件 | 依赖状态 |
   | ------ | ------------ | ------ | ------ | ---------- | -------- |
   | M0 定义 | 2025-11-10 | 主架构文档 + Traceability 初稿 | @arch | Doc Sync | 无外部依赖 |
-  | M1 MVP | 2026-01-05 | 子模块 PRD + API 列表 | @pm | Traceability 完成 | 支付系统接口待确认 |
+  | M1 MVP | 2026-01-05 | 模块 PRD + API 列表 | @pm | Traceability 完成 | 支付系统接口待确认 |
   | 发布 | 2026-02-28 | QA 验证报告/发布 Checklist | @qa | 最终 Gate + Traceability ✓ | 合规审批中 |
 - 对跨模块依赖请额外维护“系统/数据/团队、负责人、影响范围、当前状态”表，方便 ARCH/TASK 确定优先级与资源分布。
 
@@ -186,11 +186,11 @@
 - 补充一个 Gate 校验清单，至少包含：每个功能域有代表性 Story/AC、Traceability 初稿完成、QA 覆盖关键旅程、NFR 验证计划同步、Doc Sync 注记完成。由 PO/TDD/QA/Traceability 共同确认或记录在 Doc Sync Gate 备注。
 ```
 
-**子模块 PRD 模板**（`/docs/prd-modules/{domain}/PRD.md`）：聚焦子模块详细需求
+**模块 PRD 文档模板**（`/docs/prd-modules/{domain}/PRD.md`）：聚焦模块详细需求
 - 模块概述、用户故事、验收标准（Given-When-Then）
 - 模块级 NFR、接口与依赖、数据模型、风险
 
-详细子模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，PRD 专家只需在主 PRD 维护总纲/索引并调用该模板产出子模块文档。
+详细模块模板示例均集中在 `/docs/prd-modules/MODULE-TEMPLATE.md`，PRD 专家只需在主 PRD 维护总纲/索引并调用该模板产出模块文档。
 
 ## ADR 触发规则（PRD 阶段）
 - 出现重要取舍（例如：收费模型、关键数据采集/留存策略）→ 新增 ADR；状态 `Proposed/Accepted`。
