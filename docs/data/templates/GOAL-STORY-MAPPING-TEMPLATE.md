@@ -1,73 +1,60 @@
-# Global Dependency Graph 模板
+# 业务目标追溯模板（Goal → Story Mapping）
 
-> **目的**：提供 ARCH/PRD/QA/TDD 之间的跨模块依赖视图，说明模块目标、Story 对应关系、依赖类型与执行状态，为 `global-dependency-graph.md` 提供唯一模板。  
-> **维护者**：ARCH 专家与 TASK 专家协同填充，大模型可根据此模板直接输出完整文件。
+> **用途**：帮助 ARCH/PRD/QA 明确每个业务目标对应的 Story/验收标准与依赖；大模型或 ARCH 专家可依据本模板直接输出 `/docs/data/goal-story-mapping.md`。  
+> **维护者**：ARCH/PRD 专家；在每轮需求/架构更新后重新生成。  
+> **输入**：PRD（目标/Story/AC）、ARCH（组件/接口）、QA 测试要求、OKR/KPI 数据。  
 
-## 1. 生成说明
+---
 
-- **输入来源**：
-  - `/docs/PRD.md` 与 `/docs/prd-modules/{domain}/PRD.md` 提供 Story ID/Title、Goal、Priority
-  - `/docs/ARCH.md` 与 `/docs/arch-modules/{domain}/ARCH.md` 提供 Component ID、Module/Service 结构
-  - `/docs/task-modules/{domain}/TASK.md` 提供 Task ID、里程碑/状态、依赖关系
-  - `docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 用于补充细化依赖图形
+## 1. 概要
 
-- **输出位置**：生成路径 `/docs/data/global-dependency-graph.md`，并在 `qa-modules/module-list.md`、`task-modules/module-list.md` 中同步记录依赖状态。
-- **生成方式**：大模型可根据模板结构依次填充“目标/Story Mapping”、“依赖摘要”、“依赖图”与“风险、一致性核查”段落。
+- **生成时间**：`{generation_time}`  
+- **覆盖目标**：列出本次报告覆盖的业务目标（如“增长转化、稳定性、合规”）  
+- **关键发现**：指出目标与 Story/架构之间的差异、依赖瓶颈或风险  
+- **负责人**：@po / @arch-lead
 
-## 2. 目标与 Story Mapping
+## 2. 目标 → Story 映射
 
-| Module/Goal | Story ID | Story Title | 相应 ARCH Component | Priority | Owner | 状态 |
-|-------------|----------|-------------|--------------------|----------|-------|------|
-| User Management - 身份认证目标 | US-USER-001 | 用户注册 | USER-SVC-001 | P0 | @arch-lead | `📝 待启动` |
-| Payment System - 高可用结算 | US-PAY-005 | 支付确认 | PAY-SVC-001 | P0 | @arch-pay | `🔄 进行中` |
+| 业务目标 GOAL | Story ID | Story Title | Priority | ARCH Component | QA Gate | Traceability 状态 |
+|---------------|----------|-------------|----------|----------------|---------|-------------------|
+| 提升注册转化 | US-USER-001 | 用户注册 | P0 | USER-SVC | ✅ 已覆盖 | 📝 待启动 |
+| 全链路支付一致性 | US-PAY-005 | 支付确认 | P0 | PAY-SVC | 🔄 进行中 | 🔄 进行中 |
 
-- `Module/Goal`：按 ARCH 服务或目标拆分（如“支付安全目标”、“通知高可靠性”）。  
-- `Story ID`：来源 PRD/模块 PRD。  
-- `Arch Component`：与 `Component ID` 保持一致，方便 `component-dependency-graph` 与 `global-dependency-graph` 对齐。  
-- `状态`：使用统一状态 `📝/🔄/✅/⚠️` 反馈依赖评审/Story/Task 进度。
+- `业务目标 GOAL`：直接引用 OKR/KPI/Business Mission 语言；  
+- `Priority`：P0/P1/P2；`ARCH Component` 保持与 `component-dependency-graph` 中一致；  
+- `QA Gate` 与 `Traceability 状态` 采用统一 emoji（📝/🔄/✅/⚠️）表示准备度。
 
-## 3. 跨模块依赖摘要
+## 3. Story → Goal 亲密度分析
 
-| 来源模块 | 目标模块 | 依赖类型 | 触发条件 | 影响 | 当前状态 | 缓解措施 |
-|-----------|-----------|----------|----------|------|------------|------------------|
-| auth-service | payment-system | FS | 用户注册完成 | 支付需要认证 | `🔄 进行中` | mock auth, 补充接口契约 |
-| payment-system | notification | SS | 支付完成后推送 | 通知依赖回调 | `⚠️ 需更新` | 事件重试队列 |
+| Story ID | Goal Linked | Coverage Gap | 验收标准 | 状态 |
+|----------|-------------|--------------|----------|------|
+| US-USER-001 | 提升注册转化 | 无 | AC-USER-001-01/02 | ✅ 已确认 |
+| US-PAY-002 | 全链路支付一致性 | 依赖第三方接口 | AC-PAY-002-01 | ⚠️ 需更新 |
 
-- `依赖类型`：FS/SS/FF/Other。  
-- `触发条件`：描述何种事件/里程碑使后置任务触发。  
-- `当前状态`：依赖当前是否确认；若阻塞列 `⚠️`，并补充后续行动。
+- `Coverage Gap`：说明 GOAL 与 Story/AC 之间的差距（如“架构未包含 X 接口”）；  
+- `状态` 使用统一符号，便于 QA/Traceability 迅速识别需补充项。
 
-## 4. 依赖图示
+## 4. 目标依赖关系摘录
 
-```
-graph TB
-    USER-SVC["USER-SVC<br/>用户管理<br/>P0"]
-    AUTH-SVC["AUTH-SVC<br/>认证<br/>P0"]
-    PAY-SVC["PAY-SVC<br/>支付<br/>P0"]
+| Goal | Dependent Module/Story | Dependency Type | Impact | Action | Status |
+|------|------------------------|----------------|--------|--------|--------|
+| 提升注册转化 | payment-system / US-PAY-001 | FS | 支付需登录 | 协调接口契约 | `🔄 进行中` |
+| 提升注册转化 | analytics / US-ANALYTICS-001 | Weak | 埋点需 login 触发 | 同步 Data Platform | `📝 待启动` |
 
-    USER-SVC --> AUTH-SVC
-    AUTH-SVC --> PAY-SVC
+- `Dependency Type`：FS/SS/Weak/Other；`Action` 写出下步协调（比如“补充 API 设计”）；  
+- `Status` 与全局追踪状态一致，用 emoji 表示是否需要更新或已完成。
 
-    classDef critical fill:#f96,stroke:#333,stroke-width:2px;
-    class USER-SVC,AUTH-SVC critical;
-```
+## 5. 指标与验收（可选）
 
-- 图中节点命名应与模块/Component 动态同步，如 `AUTH-SVC`。  
-- `class critical/blocked` 用于标记关键路径/阻塞模块。  
-- 箭头关系须与“依赖摘要”表格一致。
+- 列出与 Goal 相关的关键指标（如转化率、响应/成功率）及其目标值、验证方式与责任人，便于 QA/Traceability 对齐测试。  
+- 可添加表格：`Metric / Target / Owner / Validation`。
 
-## 5. 风险与一致性核查
+## 6. 维护指南
 
-1. **发现**：列出 Story<>Component 还未对齐的项（如 PRD Story 未在 ARCH 任何 Component 中体现）。  
-2. **影响**：说明可能影响的里程碑/测试（如“若认证延迟，则支付无法执行 E2E”）。  
-3. **责任人**：明确归属（ARCH/QA/TASK）。  
-4. **行动计划**：如“补充 Mock 接口”“调整依赖顺序”。
+1. 复制本模板到 `/docs/data/goal-story-mapping.md` 并替换占位值；  
+2. 每次 Story/Goal 修改时更新此文件并同步 `/docs/prd-modules/module-list.md`、`/docs/data/traceability-matrix.md`；  
+3. 若发现 Goal 未对应 Story，立即在 PRD 中补齐 Story/AC 与 Traceability 跟踪；  
+4. 生成完成后记录 `generation_time` 到 `AGENT_STATE` 以便审计。
 
-## 6. 生成与维护建议
-
-- 大模型生成时可先列出 Story/Component 对应表，再输出“依赖摘要”、“Mermaid 图”、“风险”段，每段保持标题明确。  
-- 更新时同步 `/docs/prd-modules/module-list.md` 与 `/docs/task-modules/module-list.md` 中的“依赖”状态，保持 ARCH/PRD/TASK/QA 完整追溯。  
-- 有新增模块或依赖时，调用 `/task plan` 或 `npm run arch:sync` 以刷新 global dependency 视图，确保 `global-dependency-graph.md` 与 `global-dependency-graph` 计划一致。
-
----  
-> 将本模板复制到 `/docs/data/global-dependency-graph.md` 并替换占位内容即可，生成后与 ARCH/PRD/QA 流程共享，保持跨模块依赖清晰。  
+---
+> 本模板提供业务目标追溯的一致视图，大模型可直接填充表格、状态与摘要内容，生成后即可交付 `goal-story-mapping.md`。EOF
