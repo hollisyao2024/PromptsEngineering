@@ -23,6 +23,36 @@ const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
 const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 const REPORT_FILE = path.join(PROJECT_ROOT, 'docs/data/arch-prd-traceability.md');
 
+function collectMarkdownFiles(dir, excludeNames = new Set()) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...collectMarkdownFiles(entryPath, excludeNames));
+      continue;
+    }
+
+    if (!entry.isFile() || !entry.name.endsWith('.md')) {
+      continue;
+    }
+
+    if (excludeNames.has(entry.name)) {
+      continue;
+    }
+
+    files.push(entryPath);
+  }
+
+  return files;
+}
+
 // 存储
 const storyIDsInArch = new Map(); // story_id -> { files: [file], lines: [line] }
 const storyIDsInPRD = new Map(); // story_id -> { file, line }
@@ -95,23 +125,21 @@ function scanArchForStoryIDs() {
   }
 
   // 扫描模块 ARCH 文档
-  if (fs.existsSync(ARCH_MODULES_DIR)) {
-    const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
+  const moduleArchFiles = collectMarkdownFiles(ARCH_MODULES_DIR, new Set(['module-list.md', 'MODULE-TEMPLATE.md']));
 
-    for (const file of moduleFiles) {
-      const modulePath = path.join(ARCH_MODULES_DIR, file);
-      const content = fs.readFileSync(modulePath, 'utf8');
-      const results = extractStoryIDs(content, `arch-modules/${file}`);
+  moduleArchFiles.forEach(modulePath => {
+    const content = fs.readFileSync(modulePath, 'utf8');
+    const relativePath = path.relative(PROJECT_ROOT, modulePath).replace(/\\/g, '/');
+    const results = extractStoryIDs(content, relativePath);
 
-      results.forEach(({ storyID, file, line }) => {
-        if (!storyIDsInArch.has(storyID)) {
-          storyIDsInArch.set(storyID, { files: [], lines: [] });
-        }
-        storyIDsInArch.get(storyID).files.push(file);
-        storyIDsInArch.get(storyID).lines.push(line);
-      });
-    }
-  }
+    results.forEach(({ storyID, file, line }) => {
+      if (!storyIDsInArch.has(storyID)) {
+        storyIDsInArch.set(storyID, { files: [], lines: [] });
+      }
+      storyIDsInArch.get(storyID).files.push(file);
+      storyIDsInArch.get(storyID).lines.push(line);
+    });
+  });
 
   console.log(`\n🔍 Found ${storyIDsInArch.size} unique Story IDs in ARCH documents\n`);
 }
@@ -180,24 +208,24 @@ function scanComponentGraph() {
  * 扫描模块架构文档中的 Component ID
  */
 function scanModulesForComponentIDs() {
-  if (!fs.existsSync(ARCH_MODULES_DIR)) {
-    console.log('⚠️  Architecture modules directory not found, skipping Component ID check\n');
+  const moduleFiles = collectMarkdownFiles(ARCH_MODULES_DIR, new Set(['module-list.md', 'MODULE-TEMPLATE.md']));
+
+  if (moduleFiles.length === 0) {
+    console.log('⚠️  Architecture module documents not found, skipping Component ID check\n');
     return;
   }
 
-  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
-
-  for (const file of moduleFiles) {
-    const modulePath = path.join(ARCH_MODULES_DIR, file);
+  moduleFiles.forEach(modulePath => {
     const content = fs.readFileSync(modulePath, 'utf8');
-    const results = extractComponentIDs(content, `arch-modules/${file}`);
+    const relativePath = path.relative(PROJECT_ROOT, modulePath).replace(/\\/g, '/');
+    const results = extractComponentIDs(content, relativePath);
 
     results.forEach(({ componentID, file, line }) => {
       if (!componentIDsInModules.has(componentID)) {
         componentIDsInModules.set(componentID, { file, line });
       }
     });
-  }
+  });
 
   console.log(`📦 Found ${componentIDsInModules.size} unique Component IDs in module documents\n`);
 }
