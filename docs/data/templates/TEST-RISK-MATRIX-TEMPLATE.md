@@ -1,4 +1,4 @@
-# 测试风险识别与缓解矩阵
+# 测试风险识别与缓解矩阵模板
 
 > **目的**：主动识别测试活动中的潜在风险，量化评估风险等级，制定缓解措施，确保测试活动顺利进行与质量目标达成。
 
@@ -32,6 +32,13 @@
 | 1-5 分 | **R4（低风险）** | 🟢 绿色 | 记录备案，定期检查 |
 
 ---
+
+## 数据来源与阶段对齐
+为确保风险矩阵与 PRD/ARCH/TASK 保持一致，QA 填写时请遵循：
+- `风险描述` 与 `影响模块`：来源于 `/docs/PRD.md`（或 `/docs/prd-modules/{domain}/PRD.md`）中识别的 Story/AC，结合 `/docs/ARCH.md`（或 `/docs/arch-modules/{domain}/ARCH.md`）的组件与接口契约定义影响范围与潜在风险。  
+- `概率` 与 `影响`：参考 `/docs/TASK.md`（或 `/docs/task-modules/{domain}/TASK.md`）的里程碑、Owner、依赖状态，对任务延迟、环境准备与资源瓶颈的概率/影响进行估算。  
+- `缓解措施` 与 `应急预案`：与 TDD/ARCH 任务协调所需的工作项、监控策略与回流路径，并在 `/docs/data/traceability-matrix.md` 中记录关联 Story/Test Case 的状态。  
+- 风险状态变化必须同步模块缺陷日志与追溯矩阵，保持 QA 风险、缺陷和 Traceability 之间的可追溯性。
 
 ## 测试风险清单
 

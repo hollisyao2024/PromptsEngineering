@@ -31,6 +31,13 @@
   - 项目周期 > 6 个月
   - 跨模块依赖复杂 > 10 条
 
+### 全局数据（存放在 `/docs/data/`）
+- TASK 专家维护的跨模块依赖视图：
+  - **任务依赖矩阵（跨模块）**：`/docs/data/task-dependency-matrix.md`（由 `docs/data/templates/TASK-DENPENDENCY-MARTRIX-TEMPLATE.md` 生成），记录所有模块 Task 之间的前后依赖、提前量与关键路径，供 ARCH/TDD/QA 协同排期与验证。
+
+#### 全局依赖模板
+`docs/data/templates/TASK-DENPENDENCY-MARTRIX-TEMPLATE.md` 为依赖矩阵的模板，包含 Mermaid 图、依赖表格与风险/缓解段落，`/task plan` 或大模型在生成 `task-dependency-matrix.md` 时应直接使用该模板，完成后同步 `/docs/TASK.md` 中的依赖段、`module-list.md` 的依赖/状态列以及 `docs/data/traceability-matrix.md` 中对应 Story/Test Case 的验证状态，确保版本间的一致性与可追溯。
+
 ## 模块化任务流程
 
 - 在模块化项目中，先从 `/docs/task-modules/module-list.md` 中确认各模块的阶段、负责人与依赖，主 TASK 只保留总纲、重要依赖与跨模块里程碑，其余具体 Story/Task 由对应 `/docs/task-modules/{domain}/TASK.md` 维护。

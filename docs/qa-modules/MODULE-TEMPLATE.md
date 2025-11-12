@@ -50,18 +50,18 @@
 
 #### priority-matrix.md
 - 模块级测试优先级矩阵，按 Story/TC 的风险、影响、资源与依赖打分，输出综合优先级（P0~P3）与调整建议。
-- 结构通常包含 Story/TC ID、风险等级、自动化覆盖、依赖冲突、建议轮次，并附带当前状态与执行人。
+- 结构通常包含 Story/TC ID、风险等级、自动化覆盖、依赖冲突、建议轮次，并附带当前状态与执行人。参考 `docs/qa-modules/PRIORITY-MATRIX-TEMPALTE.md`，或由大模型根据该模板生成最终 `priority-matrix.md`，再在 `/qa plan` 中补入最新 Story/Task 状态。
 - QA 在测试计划开始时初始化该表，`/qa plan` 可参考 `/docs/data/test-priority-matrix.md` 的评分维度，每轮执行后刷新实际执行顺序与异常说明。
 - 若资源紧张或优先级发生冲突，标注“复核人”“调整理由”并同步至 ARCH/TASK 以便决策。
 
 #### nfr-tracking.md
-- 记录模块 NFR（性能、安全、可靠性、容量、可观测性等）的目标 vs 实际值、验证轮次、状态与证据链接。
+- 记录模块 NFR（性能、安全、可靠性、容量、可观测性等）的目标 vs 实际值、验证轮次、状态与证据链接。模板详见 `docs/qa-modules/NFR-TRACKING-TEMPLATE.md`，QA 或大模型可据此生成 `nfr-tracking.md`，并参照 ARCH/TASK 中确认的 NFR 目标逐项填充。
 - 状态可采用 `✅ 达标`、`⚠️ 需观察`、`🔄 优化中`、`❌ 未达标`，每条记录需附带验证环境与负责人。
 - QA 在执行测试后更新该表，未达标项需填写缓解措施与回归计划，并与 ARCH/TASK 同步影响/上线前检查。
 - 建议参照 `/docs/prd-modules/NFR-TRACKING-TEMPLATE.md` 的字段命名，但以“验证结果”与“证据”为核心，形成需求→验证→发布的闭环。
 
 #### defect-log.md
-- 模块缺陷日志，按照 Handbook §8.3 模板记录 ID、模块、严重程度、状态、关联 Story/TC、复现步骤、环境、影响分析与建议回流阶段。
+- 模块缺陷日志，使用 `docs/qa-modules/DEFECT-LOG-TEMPLATE.md` 或让大模型参照该模板生成 `defect-log.md`，再由 QA 补入具体缺陷/验证信息。
 - 追踪当前验证状态（Pending/Fixed/Verified）、回归计划、验证人、CI 结果与冒烟结论，确保缺陷闭环可审计。
 - 可附带“阻塞等级”“回流责任人”“审查备注”列，必要时引用外部缺陷 ID（如 Jira）。
 - QA 与 TDD 协同更新，修复后 QA 在该表中补写验证结果/签字，并同步至主 QA 与 `module-list`。
@@ -77,7 +77,7 @@
 
 ##### 初始阶段
 - ✅ **必创建**：`{domain}/QA.md` (模块 QA 文档)
-- ✅ **必创建**：在 `qa-modules/README.md` 添加模块索引条目
+- ✅ **必创建**：在 `qa-modules/module-list.md` 添加模块清单索引条目
 
 ##### 测试准备阶段
 - ⚠️ **推荐创建**：`{domain}/test-data/fixtures/`（有静态测试数据时）

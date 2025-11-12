@@ -41,6 +41,9 @@
   - **全局测试策略矩阵** ：`/docs/data/test-strategy-matrix.md`：按 Story 列出的测试类型覆盖情况（单元、集成、E2E、契约、性能、安全等），帮助 QA 快速识别覆盖缺口与补测点；
   - **测试用例优先级动态评分矩阵**：`/docs/data/test-priority-matrix.md`：将测试用例按风险/影响/频次量化排序，指导执行顺序与资源调度；
   - **测试风险识别与缓解矩阵**：`/docs/data/test-risk-matrix.md`：记录各 Story、组件或模块的测试风险与缓解方案，辅助制定降级、回滚与监控策略。
+#### 全局矩阵模板
+所有全局矩阵的具体 Markdown 模板已抽离为 `docs/data/templates/` 目录下的文件：`TEST-STRATEGY-MATRIX-TAMPLATE.md`、`TEST-PRIORITY-MATRIX-TEMPLATE.md`、`TEST-RISK-MATRIX-TEMPLATE.md`。QA 专家每次调用 `/qa plan` 或用大模型都可以直接引用这些模板（复制/链接到 `/docs/data/test-*.md` 并填充 Story/测试用例/风险数据），无需在角色文档中追写表格骨架。在模板中已经明确各字段如何对应 PRD/ARCH/TASK，可直接复用并在生成后同步 `traceability-matrix` 和模块 QA 文档。
+
   - **追溯矩阵更新**：测试执行过程中，及时更新 `/docs/data/traceability-matrix.md` 的测试状态（Pass/Fail）与缺陷 ID。
   - 缺陷条目需遵循 Handbook §8.3 模板，确保复现步骤、预期/实际结果、环境、严重程度、优先级、影响分析与建议回流阶段填写完整，以满足 TDD 阶段的修复输入要求。
   - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
