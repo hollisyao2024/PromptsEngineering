@@ -1,152 +1,73 @@
-# 业务目标与需求追溯表
+# Global Dependency Graph 模板
 
-> **目的**：确保每个用户故事与业务目标强绑定，验证需求集合是否充分覆盖业务目标，支持 ROI 分析与 OKR 复盘。
+> **目的**：提供 ARCH/PRD/QA/TDD 之间的跨模块依赖视图，说明模块目标、Story 对应关系、依赖类型与执行状态，为 `global-dependency-graph.md` 提供唯一模板。  
+> **维护者**：ARCH 专家与 TASK 专家协同填充，大模型可根据此模板直接输出完整文件。
 
----
+## 1. 生成说明
 
-## 目标追溯矩阵
+- **输入来源**：
+  - `/docs/PRD.md` 与 `/docs/prd-modules/{domain}/PRD.md` 提供 Story ID/Title、Goal、Priority
+  - `/docs/ARCH.md` 与 `/docs/arch-modules/{domain}/ARCH.md` 提供 Component ID、Module/Service 结构
+  - `/docs/task-modules/{domain}/TASK.md` 提供 Task ID、里程碑/状态、依赖关系
+  - `docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 用于补充细化依赖图形
 
-### O1: 提升用户留存率到 40%
+- **输出位置**：生成路径 `/docs/data/global-dependency-graph.md`，并在 `qa-modules/module-list.md`、`task-modules/module-list.md` 中同步记录依赖状态。
+- **生成方式**：大模型可根据模板结构依次填充“目标/Story Mapping”、“依赖摘要”、“依赖图”与“风险、一致性核查”段落。
 
-| KR（关键结果） | 当前值 | 目标值 | 关联 Story | 预期贡献 | Story 状态 | 实际贡献 |
-|--------------|--------|--------|-----------|---------|-----------|---------|
-| KR1.1: 30 天留存率 | 25% | 40% | US-USER-003（登录优化）<br>US-NOTIF-001（邮件通知）<br>US-ANALYTICS-001（行为埋点） | +8%<br>+5%<br>+2% | ✅ 已上线<br>🔄 开发中<br>📝 待启动 | +7%<br>-<br>- |
-| KR1.2: 7 天活跃率 | 35% | 50% | US-USER-005（个人资料）<br>US-PAY-004（支付历史） | +10%<br>+5% | 🔄 开发中<br>📝 待启动 | -<br>- |
+## 2. 目标与 Story Mapping
 
-**目标达成进度**：40% → 预计 47%（基于已上线 Story 的实际贡献）
+| Module/Goal | Story ID | Story Title | 相应 ARCH Component | Priority | Owner | 状态 |
+|-------------|----------|-------------|--------------------|----------|-------|------|
+| User Management - 身份认证目标 | US-USER-001 | 用户注册 | USER-SVC-001 | P0 | @arch-lead | `📝 待启动` |
+| Payment System - 高可用结算 | US-PAY-005 | 支付确认 | PAY-SVC-001 | P0 | @arch-pay | `🔄 进行中` |
 
----
+- `Module/Goal`：按 ARCH 服务或目标拆分（如“支付安全目标”、“通知高可靠性”）。  
+- `Story ID`：来源 PRD/模块 PRD。  
+- `Arch Component`：与 `Component ID` 保持一致，方便 `component-dependency-graph` 与 `global-dependency-graph` 对齐。  
+- `状态`：使用统一状态 `📝/🔄/✅/⚠️` 反馈依赖评审/Story/Task 进度。
 
-### O2: 月活达到 10,000 用户
+## 3. 跨模块依赖摘要
 
-| KR（关键结果） | 当前值 | 目标值 | 关联 Story | 预期贡献 | Story 状态 | 实际贡献 |
-|--------------|--------|--------|-----------|---------|-----------|---------|
-| KR2.1: 新用户注册数 | 2000/月 | 5000/月 | US-USER-001（用户注册）<br>US-USER-002（邮箱验证）<br>US-MARKETING-001（邀请奖励） | +2000<br>+500<br>+500 | ✅ 已上线<br>✅ 已上线<br>🔄 开发中 | +1800<br>+400<br>- |
-| KR2.2: 用户推荐转化率 | 5% | 15% | US-SHARE-001（分享功能）<br>US-MARKETING-002（推荐奖励） | +6%<br>+4% | 📝 待启动<br>📝 待启动 | -<br>- |
+| 来源模块 | 目标模块 | 依赖类型 | 触发条件 | 影响 | 当前状态 | 缓解措施 |
+|-----------|-----------|----------|----------|------|------------|------------------|
+| auth-service | payment-system | FS | 用户注册完成 | 支付需要认证 | `🔄 进行中` | mock auth, 补充接口契约 |
+| payment-system | notification | SS | 支付完成后推送 | 通知依赖回调 | `⚠️ 需更新` | 事件重试队列 |
 
-**目标达成进度**：2000 → 4200/月（基于已上线 Story 的实际贡献）
+- `依赖类型`：FS/SS/FF/Other。  
+- `触发条件`：描述何种事件/里程碑使后置任务触发。  
+- `当前状态`：依赖当前是否确认；若阻塞列 `⚠️`，并补充后续行动。
 
----
-
-### O3: 提升支付转化率到 20%
-
-| KR（关键结果） | 当前值 | 目标值 | 关联 Story | 预期贡献 | Story 状态 | 实际贡献 |
-|--------------|--------|--------|-----------|---------|-----------|---------|
-| KR3.1: 购物车转化率 | 12% | 20% | US-PAY-001（创建订单优化）<br>US-PAY-002（支付确认流程）<br>US-NOTIF-002（支付提醒） | +4%<br>+3%<br>+1% | ✅ 已上线<br>🔄 开发中<br>📝 待启动 | +3.5%<br>-<br>- |
-| KR3.2: 支付成功率 | 95% | 98% | US-PAY-003（退款处理）<br>US-PAY-RISK-001（风控优化） | +2%<br>+1% | 📝 待启动<br>🔄 开发中 | -<br>- |
-
-**目标达成进度**：12% → 15.5%（基于已上线 Story 的实际贡献）
-
----
-
-## 使用指南
-
-### 1. PRD 阶段（PRD 专家）
-在编写用户故事时：
-1. 明确该 Story 支持哪个业务目标（Objective）和关键结果（KR）
-2. 评估预期贡献（基于竞品数据、历史数据、用户调研）
-3. 在本表中记录关联关系
-
-### 2. OKR 复盘（业务方 + PRD 专家）
-每季度或每个里程碑后：
-1. 更新"实际贡献"列（基于数据分析）
-2. 对比预期与实际，分析偏差原因
-3. 调整后续 Story 的优先级或范围
-
-### 3. 优先级决策（PRD 专家 + TASK 专家）
-当资源有限时：
-- 优先实施对目标贡献度高的 Story
-- 对于贡献度低的 Story，考虑延后或删除
-- 使用"预期贡献"作为优先级评分的输入
-
-### 4. 需求覆盖验证
-在 PRD 评审时，检查：
-- [ ] 每个 KR 是否至少有 2 个关联 Story？
-- [ ] 所有 Story 的预期贡献之和是否能覆盖目标差值？
-- [ ] 是否存在"孤儿 Story"（无关联业务目标）？
-
----
-
-## 反向索引：Story → 目标
-
-| Story ID | Story Title | 关联目标 | 关联 KR | 预期贡献 |
-|----------|-------------|---------|---------|---------|
-| US-USER-001 | 用户注册 | O2: 月活 10,000 | KR2.1 | +2000 新用户/月 |
-| US-USER-003 | 用户登录 | O1: 留存率 40% | KR1.1 | +8% 留存率 |
-| US-PAY-001 | 创建订单 | O3: 支付转化 20% | KR3.1 | +4% 转化率 |
-| US-NOTIF-001 | 邮件通知 | O1: 留存率 40% | KR1.1 | +5% 留存率 |
-| （待填充） | - | - | - | - |
-
----
-
-## 孤儿 Story 清单（需重新评估）
-
-> 以下 Story 未关联任何业务目标，需确认是否为技术债务、基础设施或可删除需求。
-
-| Story ID | Story Title | Story 类型 | 处理建议 |
-|----------|-------------|-----------|---------|
-| US-ADMIN-005 | 管理后台日志查询 | 基础设施 | 保留（运维必需） |
-| US-UI-003 | 深色模式 | 体验优化 | 延后至 v2.0 |
-| （待填充） | - | - | - |
-
----
-
-## ROI 分析（可选）
-
-| Story ID | 预估工时 | 预期贡献（量化） | ROI 指数 | 优先级建议 |
-|----------|---------|----------------|---------|-----------|
-| US-USER-001 | 16h | +2000 用户/月 | **125** | P0（高 ROI） |
-| US-ANALYTICS-001 | 24h | +2% 留存率 | **0.08** | P2（低 ROI） |
-| US-PAY-001 | 32h | +4% 转化率 | **0.125** | P0（中 ROI，但阻塞其他） |
-
-**ROI 指数计算**：预期贡献数值 / 预估工时
-
----
-
-## 与其他文档的关系
+## 4. 依赖图示
 
 ```
-业务目标追溯表（goal-story-mapping.md）
-  ├─ 数据来源 → PRD 模块（/docs/prd-modules/{domain}/PRD.md）的用户故事
-  ├─ 数据来源 → 公司 OKR（外部文档）
-  ├─ 影响 → 优先级矩阵（priority-matrix.md）的业务价值评分
-  ├─ 影响 → Sprint 规划（选择高目标贡献度的 Story）
-  └─ 输出 → 季度/年度 OKR 复盘报告
+graph TB
+    USER-SVC["USER-SVC<br/>用户管理<br/>P0"]
+    AUTH-SVC["AUTH-SVC<br/>认证<br/>P0"]
+    PAY-SVC["PAY-SVC<br/>支付<br/>P0"]
+
+    USER-SVC --> AUTH-SVC
+    AUTH-SVC --> PAY-SVC
+
+    classDef critical fill:#f96,stroke:#333,stroke-width:2px;
+    class USER-SVC,AUTH-SVC critical;
 ```
 
----
+- 图中节点命名应与模块/Component 动态同步，如 `AUTH-SVC`。  
+- `class critical/blocked` 用于标记关键路径/阻塞模块。  
+- 箭头关系须与“依赖摘要”表格一致。
 
-## 自动化建议（可选）
+## 5. 风险与一致性核查
 
-### 脚本工具
-```bash
-# 检查孤儿 Story（无关联目标）
-npm run goal:check-orphans
+1. **发现**：列出 Story<>Component 还未对齐的项（如 PRD Story 未在 ARCH 任何 Component 中体现）。  
+2. **影响**：说明可能影响的里程碑/测试（如“若认证延迟，则支付无法执行 E2E”）。  
+3. **责任人**：明确归属（ARCH/QA/TASK）。  
+4. **行动计划**：如“补充 Mock 接口”“调整依赖顺序”。
 
-# 生成目标覆盖报告
-npm run goal:coverage-report
+## 6. 生成与维护建议
 
-# 生成 ROI 分析表
-npm run goal:roi-analysis
-```
+- 大模型生成时可先列出 Story/Component 对应表，再输出“依赖摘要”、“Mermaid 图”、“风险”段，每段保持标题明确。  
+- 更新时同步 `/docs/prd-modules/module-list.md` 与 `/docs/task-modules/module-list.md` 中的“依赖”状态，保持 ARCH/PRD/TASK/QA 完整追溯。  
+- 有新增模块或依赖时，调用 `/task plan` 或 `npm run arch:sync` 以刷新 global dependency 视图，确保 `global-dependency-graph.md` 与 `global-dependency-graph` 计划一致。
 
-### 示例输出
-```
-⚠️  目标覆盖分析
-
-O1: 提升用户留存率到 40%
-  - 目标缺口: 15%（当前 25% → 目标 40%）
-  - 已关联 Story 预期贡献: +15%
-  - 覆盖率: 100% ✅
-
-O2: 月活达到 10,000 用户
-  - 目标缺口: 8000 用户（当前 2000 → 目标 10000）
-  - 已关联 Story 预期贡献: +3000 用户
-  - 覆盖率: 37.5% ⚠️  需补充需求
-
-建议: 为 O2 新增营销活动相关的 Story，补齐 5000 用户缺口。
-```
-
----
-
-> 本文件由 PRD 专家与业务方协同维护。业务目标来源于公司 OKR，每个季度更新一次。
+---  
+> 将本模板复制到 `/docs/data/global-dependency-graph.md` 并替换占位内容即可，生成后与 ARCH/PRD/QA 流程共享，保持跨模块依赖清晰。  

@@ -17,7 +17,7 @@
 - **`/docs/PRD.md`**：主 PRD 文档，唯一权威版本，模板参考本文件 § PRD 模板。小项目时是唯一 PRD 文档，大项目时是主 PRD 文档，作为总纲和索引。当拆分条件触发（见下文 § 拆分条件）时，按照模板拆分。
 - **模块 PRD 文档**：所有模块目录结构、模块模板、ID 规范等均在 `/docs/prd-modules/MODULE-TEMPLATE.md` 详解。
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
-- **追溯矩阵**：在 `/docs/data/traceability-matrix.md` 集中维护 `Story → AC → Test Case ID` 映射。
+- **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/TRACEABILITY-MATRIX-TMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。
 
 ### 拆分条件
 - **拆分触发条件**（任一成立）：

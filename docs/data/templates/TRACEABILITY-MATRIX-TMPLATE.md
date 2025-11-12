@@ -1,15 +1,4 @@
-## traceability-matrix.md 模板说明
-
-本文件即 `/docs/data/traceability-matrix.md` 的完整模板：PRD 专家在 Story/AC 确认后应该**完整复制本文件**到 `/docs/data/traceability-matrix.md`，以本说明、表格、命名规范与状态定义作为初版内容。  
-1. 在“追溯矩阵”表格内记录 Story ID、Story Title 与 AC ID，状态可以先置为 `📝 Draft`；  
-2. TDD 阶段在同一文件补入 Test Case ID 并注明相关实现细节，QA 阶段再更新状态、负责人与缺陷链接；  
-3. 后续任何更新必须保持与模板一致（尤其保留开头的“目的/维护职责”段），方便跨阶段的追溯与审计。  
-
-> ⚠️ 请务必复制整个模板内容，而不是只复制表格或某一段落；模板也可以用于审计和版本对比，确保 `/docs/data/traceability-matrix.md` 始终和本文件保持同步。
-
----
-
-# 需求追溯矩阵
+# 全局需求追溯矩阵
 
 > **目的**：维护全局的 User Story → Acceptance Criteria → Test Case ID 映射，确保需求、验收标准与测试用例之间的完整追溯性。
 >
@@ -78,21 +67,19 @@
 
 | 状态 | 说明 |
 |------|------|
-| ✅ **Pass** | 测试通过，验收标准已满足 |
-| ❌ **Fail** | 测试失败，存在缺陷需修复 |
-| 🔄 **Pending** | 待测试，测试用例已编写但尚未执行 |
-| ⏸️ **Blocked** | 测试阻塞，无法执行（如依赖环境未就绪） |
-| 📝 **Draft** | 草稿状态，验收标准或测试用例尚未完成 |
-| ⏭️ **Skipped** | 跳过测试（如非当前版本范围） |
+| 📝 **待启动** | Story/AC 已确认，尚未分配到任务/测试；由 TASK/QA 安排里程碑与 Test Case |
+| 🔄 **进行中** | 测试用例已编写或正在执行，TDD/QA 正在验证对应 AC |
+| ✅ **已确认** | 测试通过，验收标准已满足，可作为发布门禁依据 |
+| ⚠️ **需更新** | 状态或 Test Case 需要重新审查（如 Story 变更、测试失败待复测或 Traceability 信息需补） |
 
 ---
 
 ## 状态落地指南
 
-- PRD 阶段把每行状态设为 `📝 Draft`，备注记录依赖/待确认项，方便 QA 后续追踪再验证；
-- TDD 实现阶段在表格内补入 Test Case ID，验证通过即设置 `✅ Pass`，验证失败则记录 `❌ Fail` 并在备注附上 BUG ID（如 `[BUG-123](link)`）；
-- QA 验证紧密跟踪 `🔄 Pending`/`⏸️ Blocked` 的行，完成后统一切换状态并把负责人、环境、缺陷信息写入备注；
-- 每次状态更新可在备注中加上“更新人 + 日期”，便于追溯谁在什么时候改变了状态。
+- PRD 阶段把每行状态设为 `📝 待启动`，备注记录依赖与待确认项，便于 TASK/QA 后续排入计划；
+- 当 Task/TDD 已编写或开始执行 Test Case，状态改为 `🔄 进行中`，Test Case ID、负责人、环境、用例路径等信息同步补入；
+- QA 完成验证且无缺陷或缺陷已复测通过时置为 `✅ 已确认`，同时在备注中链接验证报告或 evidence；
+- 若 Story/AC 已调整、Traceability 信息不完整或测试失败需复测，改为 `⚠️ 需更新` 并在备注附上重做原因与目标担当；每次状态变更可写“更新人 + 日期”提升审计性。
 
 ## 使用指南
 
@@ -181,4 +168,4 @@ describe('User Registration (US-USER-001)', () => {
 
 ---
 
-> 本文档模板的唯一真相由 PRD 专家复制到 `/docs/data/traceability-matrix.md` 并初始化 Story/AC，TASK/TDD/QA 专家在各自阶段继续补充 Test Case ID、状态与缺陷链接；任何修改都必须与 `/docs/PRD.md` 及各子 PRD 保持同步，以保障追溯链路完整。
+> 本文档模板的唯一真相由 PRD 专家复制到 `/docs/data/traceability-matrix.md` 并初始化 Story/AC，TASK/TDD/QA 专家在各自阶段继续补充 Test Case ID、状态与缺陷链接；任何修改都必须与 `/docs/PRD.md` 及各模块 PRD 保持同步，以保障追溯链路完整。
