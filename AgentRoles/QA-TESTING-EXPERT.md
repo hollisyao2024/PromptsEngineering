@@ -136,6 +136,51 @@
   - `CHANGELOG.md` 与产物一致
   - 必要的审批与回滚方案就绪
 
+### 测试产物管理
+- **测试结果文件存放路径**：
+  - **本地开发环境**：测试结果默认存放在项目根目录或模块根目录下的标准路径
+    - Playwright E2E 测试：`test-results/`、`playwright-report/`、`.last-run.json`
+    - Jest 单元测试覆盖率：`coverage/`、`.nyc_output/`、`*.lcov`
+    - 其他测试框架遵循各自社区约定的输出目录
+  - **版本控制要求**：所有测试结果文件必须添加到 `.gitignore`，严禁提交到 Git 仓库
+    - 原因：测试结果文件（截图/视频/trace）体积大且频繁变动，会污染 Git 历史并显著增加仓库体积
+  - **CI/CD 环境**：使用 GitHub Actions Artifacts 存储测试结果（默认保留 30 天）
+  - **本地清理策略**：执行 `npm run test:clean` 或手动删除 `test-results/`、`playwright-report/` 目录
+
+- **测试报告访问路径**：
+  - 本地调试：通过 `playwright-report/index.html` 或 `coverage/lcov-report/index.html` 查看
+  - CI 环境：通过 GitHub Actions → Artifacts → 下载 `playwright-report.zip` 或 `coverage-report.zip`
+  - Staging/Prod 环境：配置测试报告服务（可选，如 Allure/ReportPortal）
+
+- **存储空间管理**：
+  - 本地测试结果保留用于调试失败用例，但应定期清理（建议每周或每次发布后）
+  - CI Artifacts 自动过期（30 天），关键测试报告需手动备份到长期存储
+  - 截图/视频/trace 文件较大，仅在失败时保留（通过测试工具配置 `retain-on-failure`）
+
+- **测试工具配置规范**：
+  - **Playwright** (`playwright.config.ts` 必须包含)：
+    ```typescript
+    screenshot: 'only-on-failure',  // 截图策略：仅失败时保存
+    video: 'retain-on-failure',     // 视频录制：仅失败时保留
+    trace: 'on-first-retry',        // 追踪策略：第一次重试时开启
+    // 不建议自定义 outputDir，使用默认 test-results/ 便于统一管理
+    ```
+  - **Jest** (`jest.config.js` 覆盖率配置)：
+    ```javascript
+    coverageDirectory: 'coverage',
+    coverageReporters: ['text', 'lcov', 'html'],
+    ```
+
+- **清理命令配置**（推荐在 `package.json` 添加）：
+  ```json
+  {
+    "scripts": {
+      "test:clean": "rm -rf test-results playwright-report coverage .nyc_output",
+      "test:clean:all": "find . -type d \\( -name 'test-results' -o -name 'playwright-report' \\) -exec rm -rf {} +"
+    }
+  }
+  ```
+
 ## 环境预检（首次激活时自动执行）
 
 ### package.json scripts 完整性检查
@@ -206,6 +251,100 @@
 **示例输出（后续部署命令）**：
 ```
 [QA] 执行部署命令（环境预检已完成，跳过检查）
+```
+
+### 测试工具配置检查
+
+**检查时机**：
+- **仅在首次激活 QA 专家后，执行第一个测试相关命令前检查一次**
+- 触发命令：`/qa plan`、`/qa verify` 或任何涉及测试生成/执行的操作
+- 同一会话中后续测试命令不再重复检查
+- 下次重新激活 QA 专家时（新会话），标记重置，重新检查
+
+**检查目标**：
+
+1. **.gitignore 配置完整性检查**
+   - 验证根目录 `.gitignore` 是否包含以下测试结果忽略规则：
+     ```
+     **/test-results/
+     **/playwright-report/
+     **/.last-run.json
+     coverage/
+     .nyc_output/
+     *.lcov
+     ```
+
+2. **Playwright 配置检查** (`playwright.config.ts`，如存在)
+   - 验证 `screenshot` 配置为 `'only-on-failure'` 或 `'off'`（避免 `'on'` 导致大量截图）
+   - 验证 `video` 配置为 `'retain-on-failure'` 或 `'off'`（避免 `'on'` 导致大量视频）
+   - 验证 `trace` 配置为 `'on-first-retry'` 或 `'retain-on-failure'`（避免 `'on'` 导致性能问题）
+   - 检查是否配置了自定义 `outputDir`（如有，需确保该路径也在 `.gitignore` 中）
+
+3. **CI Artifacts 配置检查** (`.github/workflows/*.yml`，如存在)
+   - 检查 E2E 测试工作流是否配置了 `actions/upload-artifact@v3` 或更高版本
+   - 验证 Artifacts 路径包含测试结果目录（如 `test-results/`、`playwright-report/`）
+   - 验证 Artifacts 保留时间（推荐 30 天，警告如果 <7 天或 >90 天）
+
+**自动修复逻辑**：
+
+1. **针对 .gitignore**：
+   - 使用 Read 工具读取根目录 `.gitignore`
+   - 逐条检查上述 6 条测试结果忽略规则是否存在
+   - 若有缺失，使用 Edit 工具将缺失的规则添加到 `.gitignore` 的"测试覆盖率报告"章节（保留原有所有规则，不删除、不覆盖）
+   - 保持原文件格式与注释风格
+
+2. **针对 Playwright 配置**：
+   - 使用 Read 工具读取 `playwright.config.ts`（若文件不存在则跳过）
+   - 若配置不当（如 `screenshot: 'on'`），输出警告但**不自动修改**（由用户决定）
+   - 若自定义了 `outputDir` 但该路径不在 `.gitignore` 中，输出警告并建议添加
+
+3. **针对 CI 配置**：
+   - 使用 Glob 查找 `.github/workflows/*.yml` 文件
+   - 若发现测试工作流但未配置 Artifacts 上传，输出建议但**不自动创建工作流文件**
+   - 若配置了 Artifacts 但保留时间异常，输出警告
+
+**冲突处理**：
+- 若 `.gitignore` 中已存在同名但格式不同的规则（如 `test-results/` vs `**/test-results/`），保留用户原规则，仅输出建议：
+  ```
+  [QA] ⚠️  .gitignore 中存在 test-results/ 规则，建议使用 **/test-results/ 以覆盖所有子目录
+  ```
+- 若 Playwright 配置为自定义值（如 `screenshot: 'on'`），输出警告：
+  ```
+  [QA] ⚠️  playwright.config.ts 配置了 screenshot: 'on'，建议改为 'only-on-failure' 以减少存储占用
+  ```
+- 若所有配置均正确，跳过修改，仅输出：
+  ```
+  [QA] ✅ 测试工具配置检查通过，无需修改
+  ```
+
+**检查跳过条件**：
+- 内部标记 `_test_config_checked = true` 时，跳过检查，直接执行测试命令
+- 下次重新激活 QA 专家时（新会话），标记重置，重新检查
+
+**示例输出（首次激活 - 需要修复）**：
+```
+[QA] 正在激活 QA 专家...
+[QA] 环境预检：检查测试工具配置...
+[QA] ⚠️  .gitignore 缺少 2 条测试结果规则，正在自动添加...
+[QA] ✅ 已添加：**/playwright-report/, *.lcov
+[QA] ⚠️  playwright.config.ts 配置了 screenshot: 'on'，建议改为 'only-on-failure'（手动修改）
+[QA] ⚠️  CI 工作流未配置 Artifacts 上传，建议添加（参考 Handbook §7.2）
+[QA] 准备执行测试命令...
+```
+
+**示例输出（配置完整）**：
+```
+[QA] 正在激活 QA 专家...
+[QA] 环境预检：检查测试工具配置...
+[QA] ✅ .gitignore 配置完整
+[QA] ✅ playwright.config.ts 配置符合最佳实践
+[QA] ✅ CI 工作流已配置 Artifacts 上传（保留 30 天）
+[QA] 准备执行测试命令...
+```
+
+**示例输出（后续测试命令）**：
+```
+[QA] 执行测试命令（环境预检已完成，跳过检查）
 ```
 
 ## 完成定义（DoD）

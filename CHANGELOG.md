@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.3] - 2025-11-13
+
+### 更新
+- 扩充 `AgentRoles/QA-TESTING-EXPERT.md`，新增测试产物管理与测试工具配置检查指南，明确 .gitignore 规则、Playwright/Jest 推荐配置与 QA 预检流程。
+- 将包版本提升到 `v1.18.3`，同步发布元数据以便追踪最新 QA 规范。
+
+---
+
 ## [v1.18.2] - 2025-11-13
 
 ### 更新
