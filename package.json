@@ -1,6 +1,6 @@
 {
   "name": "prompts-engineering-agents-router",
-  "version": "1.18.1",
+  "version": "1.18.2",
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
   "scripts": {
     "prd:lint": "node scripts/prd-tools/check-completeness.js",

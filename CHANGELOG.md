@@ -1,6 +1,14 @@
 # Changelog
 
-遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
+ 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
+
+## [v1.18.2] - 2025-11-13
+
+### 更新
+- 扩展 `.gitignore`，纳入环境变量、构建产物、IDE 配置、测试缓存等常见临时文件夹，避免误提交个人或生成内容。
+- 将包版本提升到 `v1.18.2`，保持发布元数据与当前仓库状态一致。
+
+---
 
 ## [v1.18.1] - 2025-11-13
 
