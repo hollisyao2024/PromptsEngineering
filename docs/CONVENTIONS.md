@@ -12,7 +12,7 @@
 - `scripts/`：自动化脚本（CI/CD、部署、诊断、数据工具），要求使用可执行命名并提供 Usage 注释。
 - `tests/`：端到端或跨模块测试套件；若各子项目自带测试目录，可在此放置集成级别脚本。
 - `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
-- 其他目录：若新增（如 `infra/`、`ops/`、`notebooks/`），请在本文件补充说明。
+- 其他目录：若新增（如 `infra/`、`notebooks/`），请在本文件补充说明。
 
 ## `docs/` 子结构
 - `docs/PRD.md`：产品需求文档（小项目时是单一 PRD.md，大项目时是主 PRD，作为总纲与索引）。
@@ -32,7 +32,7 @@
 - `docs/CONVENTIONS.md`：本文档，描述目录与约定。
 - 可选扩展：
   - `docs/security/`：威胁建模、安全评估。
-  - `docs/operations/`：运维手册、SLO、值班指南。
+  - `docs/ops/`：运维手册、SLO、值班指南。
 
 ## 命名与引用规则
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
