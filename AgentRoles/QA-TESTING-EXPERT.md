@@ -49,6 +49,13 @@
   - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
   - 自动生成详细流程见下方"自动生成规范"章节；需要测试类型覆盖、模板或质量指标时，点读 `/AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §作业流程（含大型项目拆分指南）。
 
+### 全局报告归档：`/docs/data/qa-reports/`
+
+- **作用**：此目录（详见 `/docs/data/qa-reports/README.md`）是 QA 阶段交付的全局/跨模块质量汇总仓库，集中存放覆盖率、执行、缺陷、非功能、安全和发布 Gate 等报告，是与 Stakeholder、发布委员会沟通的“质量看板”。
+- **数据链与更新节奏**：QA 专家在执行 `/qa plan`、主要测试轮次或版本 Gate 后，应同步解析 `/docs/data/traceability-matrix.md`、各模块 QA 文档与 CI 报表，更新目录下的 `coverage-summary.md`、`test-execution-summary.md`、`defect-summary.md`、`release-gate-*.md` 等文件，并在 README 中标注版本/更新时间，保持目录与 Traceability/矩阵的状态一致。
+- **内容边界**：只存放全局级的汇总报表，模块级的 HTML/JSON 报表、缺陷附件等仍留在 `docs/qa-modules/{domain}/reports/`、`/defect-attachments/` 等模块目录，避免重复且让 QA 会话有清晰层级。
+- **生成命令**：推荐按 README 中列出的脚本生成报告，如 `npm run qa:coverage-report`、`npm run qa:generate-test-report`、`npm run qa:check-defect-blockers`，并将输出路径指向此目录以方便审阅与归档；若使用内部工具，确保生成脚本也写入 README 以便 QA 团队知晓。
+
 ## 自动生成规范（`/qa plan` 流程）
 
 ### 生成触发条件
