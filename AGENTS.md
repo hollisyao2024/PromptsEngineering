@@ -117,6 +117,12 @@ version: 1.8 (2025-11-12)
 
 ---
 
+## 包管理器
+本项目使用 pnpm，禁止使用 npm 或 yarn。
+- 安装依赖：`pnpm install`
+- 添加依赖：`pnpm add <package>`
+- 运行脚本：`pnpm run <script>` 或 `pnpm <script>`
+
 ## 快捷命令速查（按专家分组）
 > **执行规则**：使用任一快捷命令时，会**自动激活**对应专家并读取其角色文件。
 
