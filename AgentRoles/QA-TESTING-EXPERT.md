@@ -203,12 +203,13 @@
 ```json
 {
   "scripts": {
-    "ship:staging": "./scripts/deploy.sh staging",
-    "ship:staging:skip-ci": "./scripts/deploy.sh staging --skip-ci",
-    "ship:prod": "./scripts/deploy.sh production",
-    "ship:prod:skip-ci": "./scripts/deploy.sh production --skip-ci",
+    "ship:staging": "./scripts/server/deploy.sh staging",
+    "ship:staging:skip-ci": "./scripts/server/deploy.sh staging --skip-ci",
+    "ship:prod": "./scripts/server/deploy.sh production",
+    "ship:prod:skip-ci": "./scripts/server/deploy.sh production --skip-ci",
     "cd:staging": "./scripts/cd.sh staging",
     "cd:prod": "./scripts/cd.sh production"
+  }
   }
 }
 ```
