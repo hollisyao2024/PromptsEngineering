@@ -2,7 +2,9 @@
   "name": "prompts-engineering-agents-router",
   "version": "1.18.3",
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
+  "packageManager": "pnpm@10.18.3",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "prd:lint": "node scripts/prd-tools/check-completeness.js",
     "prd:check-dependency-cycles": "node scripts/prd-tools/check-dependency-cycles.js",
     "prd:check-dependencies": "node scripts/prd-tools/check-external-dependencies.js",
@@ -43,9 +45,16 @@
     "qa:generate-test-report": "node scripts/qa-tools/generate-test-report.js",
     "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js",
     "tdd:tick": "node scripts/tdd-tools/tdd-tick.js",
-    "tdd:sync": "npm run tdd:tick",
+    "tdd:sync": "pnpm tdd:tick",
     "tdd:push": "node scripts/tdd-tools/tdd-push.js",
-    "tdd:new-branch": "node scripts/tdd-tools/new-branch.js"
+    "tdd:new-branch": "node scripts/tdd-tools/new-branch.js",
+    "ship:dev": "bash scripts/server/deploy.sh local dev",
+    "ship:dev:quick": "SKIP_CI=true bash scripts/server/deploy.sh local dev",
+    "ship:staging": "bash scripts/server/deploy.sh local staging",
+    "ship:staging:quick": "SKIP_CI=true bash scripts/server/deploy.sh local staging",
+    "ship:prod": "bash scripts/server/deploy.sh local production",
+    "cd:staging": "bash scripts/server/deploy.sh ci staging",
+    "cd:prod": "bash scripts/server/deploy.sh ci production"
   },
   "keywords": [
     "prd",
