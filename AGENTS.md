@@ -148,10 +148,11 @@ version: 1.8 (2025-11-12)
 ### QA 专家
 - `/qa plan` — 基于 PRD+ARCH+TASK 自动生成/刷新 QA.md，包含测试策略、测试用例、测试矩阵
 - `/qa verify` — 快速聚焦验收项（更多操作见角色卡片）
-- `/ship staging` — 在本地直接部署到预发环境
-- `/ship prod` — 在本地直接部署到生产环境
-- `/cd staging` — 通过 GitHub Actions 触发远程部署到预发环境
-- `/cd prod` — 通过 GitHub Actions 触发远程部署到生产环境
+- `/ship dev` — 本地部署到开发环境（支持 `:quick` 快速模式）
+- `/ship staging` — 本地部署到预发环境（支持 `:quick` 快速模式）
+- `/ship prod` — 本地部署到生产环境（仅完整检查）
+- `/cd staging` — 通过 CI/CD 远程部署到预发环境
+- `/cd prod` — 通过 CI/CD 远程部署到生产环境
 
 ---
 

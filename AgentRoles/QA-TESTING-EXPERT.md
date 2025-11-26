@@ -198,18 +198,18 @@
 - 同一会话中后续部署命令不再重复检查
 
 **检查目标**：
-根目录 `/package.json` 的 `scripts` 字段必须包含以下 6 个部署命令：
+根目录 `/package.json` 的 `scripts` 字段必须包含以下 7 个部署命令：
 
 ```json
 {
   "scripts": {
-    "ship:staging": "./scripts/server/deploy.sh staging",
-    "ship:staging:skip-ci": "./scripts/server/deploy.sh staging --skip-ci",
-    "ship:prod": "./scripts/server/deploy.sh production",
-    "ship:prod:skip-ci": "./scripts/server/deploy.sh production --skip-ci",
-    "cd:staging": "./scripts/cd.sh staging",
-    "cd:prod": "./scripts/cd.sh production"
-  }
+    "ship:dev": "bash scripts/server/deploy.sh local dev",
+    "ship:dev:quick": "SKIP_CI=true bash scripts/server/deploy.sh local dev",
+    "ship:staging": "bash scripts/server/deploy.sh local staging",
+    "ship:staging:quick": "SKIP_CI=true bash scripts/server/deploy.sh local staging",
+    "ship:prod": "bash scripts/server/deploy.sh local production",
+    "cd:staging": "bash scripts/server/deploy.sh ci staging",
+    "cd:prod": "bash scripts/server/deploy.sh ci production"
   }
 }
 ```
@@ -217,7 +217,7 @@
 **自动修复逻辑**：
 1. 使用 Read 工具读取根目录 `package.json`
 2. 检查 `scripts` 字段是否存在（若不存在，创建空对象 `"scripts": {}`）
-3. 对比上述 6 个必需条目，识别缺失项
+3. 对比上述 7 个必需条目，识别缺失项
 4. 若有缺失，使用 Edit 工具将缺失的条目添加到 `scripts` 对象中：
    - 保留原有的所有 scripts（不删除、不覆盖）
    - 仅添加缺失的条目
@@ -507,42 +507,54 @@
 - `/qa verify`：快速聚焦关键验收项、同步 `/docs/QA.md` 并输出发布建议。
 
 ## 部署命令（QA 验证通过后触发）
-- `/ship staging [--skip-ci]`
-  - 作用：在本地直接部署到 staging。
+
+- `/ship dev`
+  - 作用：本地部署到开发环境（dev）。
+  - 前置条件：开发环境验证通过，基本功能可用。
+  - 触发方式（推荐优先级从高到低）：
+    1. `pnpm ship:dev` （推荐，执行完整检查）
+    2. `pnpm ship:dev:quick` （快速部署，跳过 CI 检查，适合频繁迭代）
+    3. `bash scripts/server/deploy.sh local dev` （直接调用脚本）
+  - 说明：开发环境推荐使用 `:quick` 版本以提高部署效率。
+  - 口令变体：`部署到 dev`、`ship dev`。
+
+- `/ship staging`
+  - 作用：本地部署到预发环境（staging）。
   - 前置条件：staging 环境验证通过，无阻塞缺陷。
   - 触发方式（推荐优先级从高到低）：
-    1. `npm run ship:staging` （跨平台推荐，避免命令截断）
-    2. `npm run ship:staging:skip-ci` （跳过 CI 检查）
-    3. `scripts/deploy.sh staging` （直接调用脚本）
-  - 口令变体：`本地部署到 staging`、`ship staging`。
+    1. `pnpm ship:staging` （推荐，执行完整检查）
+    2. `pnpm ship:staging:quick` （快速部署，跳过 CI 检查，仅紧急情况使用）
+    3. `bash scripts/server/deploy.sh local staging` （直接调用脚本）
+  - 说明：正式测试前应使用默认版本（完整检查），紧急修复可使用 `:quick` 版本。
+  - 口令变体：`部署到 staging`、`ship staging`。
 
-- `/ship prod [--skip-ci]`
-  - 作用：在本地直接部署到 production。
+- `/ship prod`
+  - 作用：本地部署到生产环境（production）。
   - 前置条件：生产环境验证通过，所有阻塞缺陷关闭，审批完成。
   - 触发方式（推荐优先级从高到低）：
-    1. `npm run ship:prod` （跨平台推荐，避免命令截断）
-    2. `npm run ship:prod:skip-ci` （跳过 CI 检查）
-    3. `scripts/deploy.sh production` （直接调用脚本）
-  - 口令变体：`本地部署到 production`、`ship prod`。
+    1. `pnpm ship:prod` （推荐，强制执行完整检查）
+    2. `bash scripts/server/deploy.sh local production` （直接调用脚本）
+  - 说明：生产环境不提供 `:quick` 版本，始终执行完整检查以确保质量。
+  - 口令变体：`部署到 production`、`ship prod`。
 
 - `/cd staging`
-  - 作用：通过 GitHub Actions 触发远程部署到 staging。
+  - 作用：通过 CI/CD（GitHub Actions）触发远程部署到 staging。
   - 前置条件：CI 全绿，staging 环境验证通过。
   - 触发方式（推荐优先级从高到低）：
-    1. `npm run cd:staging` （跨平台推荐，避免命令截断）
-    2. `scripts/cd.sh staging` （直接调用脚本）
+    1. `pnpm cd:staging` （推荐，跨平台兼容）
+    2. `bash scripts/server/deploy.sh ci staging` （直接调用脚本）
     3. `gh workflow run Deploy -f environment=staging -f ref=main` （GitHub CLI）
     4. GitHub UI：Actions → Deploy → Run workflow
   - 口令变体：`触发远程 staging 部署`、`cd staging`。
 
 - `/cd prod [vX.Y.Z]`
-  - 作用：通过 GitHub Actions 触发远程部署到 production（推荐使用 SemVer tag）。
+  - 作用：通过 CI/CD（GitHub Actions）触发远程部署到 production（推荐使用 SemVer tag）。
   - 前置条件：生产验收通过，所有阻塞缺陷关闭，`QA_VALIDATED` 已勾选。
   - 触发方式（推荐优先级从高到低）：
-    1. `npm run cd:prod` （跨平台推荐，避免命令截断）
-    2. `scripts/cd.sh production` （直接调用脚本）
-    3. `scripts/cd.sh production --ref vX.Y.Z` （指定版本标签）
-    4. `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z` （GitHub CLI）
+    1. `pnpm cd:prod` （推荐，跨平台兼容）
+    2. `bash scripts/server/deploy.sh ci production` （直接调用脚本）
+    3. `gh workflow run Deploy -f environment=production -f ref=vX.Y.Z` （GitHub CLI）
+    4. GitHub UI：Actions → Deploy → Run workflow
     5. 标签触发（若未来开启）：`git tag -a vX.Y.Z ... && git push origin vX.Y.Z`
   - 说明：需遵守 GitHub Environment 的保护规则（Required reviewers / Wait timer）。
   - 口令变体：`触发远程 production 部署`、`cd prod`。
