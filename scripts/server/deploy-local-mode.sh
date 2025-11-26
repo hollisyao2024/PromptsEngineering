@@ -23,11 +23,20 @@ deploy_from_local() {
     log_info "前端目录: $FRONTEND_DIR"
     echo ""
 
-    # 加载环境变量
-    ENV_FILE="$PROJECT_ROOT/.env.$ENV"
+    # 加载环境变量（dev 环境使用 .env.local，其他环境使用 .env.$ENV）
+    if [[ "$ENV" == "dev" ]]; then
+        ENV_FILE="$PROJECT_ROOT/.env.local"
+    else
+        ENV_FILE="$PROJECT_ROOT/.env.$ENV"
+    fi
+
     if [[ ! -f "$ENV_FILE" ]]; then
         log_error "找不到环境变量文件: $ENV_FILE"
-        log_error "请先创建 .env.$ENV 文件"
+        if [[ "$ENV" == "dev" ]]; then
+            log_error "请先创建 .env.local 文件"
+        else
+            log_error "请先创建 .env.$ENV 文件"
+        fi
         exit 1
     fi
 
@@ -36,29 +45,47 @@ deploy_from_local() {
 
     # 从环境变量获取服务器信息
     if [[ "$ENV" == "dev" ]]; then
-        SERVER_HOST="${DEV_SERVER_HOST:-localhost}"
-        SERVER_USER="${DEV_SERVER_USER:-$USER}"
-        DEPLOY_PATH="${DEV_DEPLOY_PATH:-/tmp/dev-deploy}"
-        APP_NAME="dev-app"
+        # 开发环境：本地部署，不使用 SSH
+        IS_LOCAL_DEPLOY=true
+        SERVER_HOST="localhost"
+        SERVER_USER="$USER"
+
+        # 从 NEXT_PUBLIC_APP_URL 提取部署路径
+        if [[ -n "$NEXT_PUBLIC_APP_URL" ]]; then
+            # 使用项目根目录下的 .next-dev-deploy 作为部署目录
+            DEPLOY_PATH="$PROJECT_ROOT/.next-dev-deploy"
+            APP_NAME="dev-app"
+            log_info "应用访问地址: $NEXT_PUBLIC_APP_URL"
+        else
+            log_error "未配置 NEXT_PUBLIC_APP_URL"
+            log_error "请在 .env.local 中设置 NEXT_PUBLIC_APP_URL"
+            exit 1
+        fi
     elif [[ "$ENV" == "staging" ]]; then
+        IS_LOCAL_DEPLOY=false
         SERVER_HOST="${STAGING_SERVER_HOST:-}"
         SERVER_USER="${STAGING_SERVER_USER:-root}"
         DEPLOY_PATH="${STAGING_DEPLOY_PATH:-/var/www/staging}"
         APP_NAME="staging-app"
     else
+        IS_LOCAL_DEPLOY=false
         SERVER_HOST="${PRODUCTION_SERVER_HOST:-}"
         SERVER_USER="${PRODUCTION_SERVER_USER:-root}"
         DEPLOY_PATH="${PRODUCTION_DEPLOY_PATH:-/var/www/production}"
         APP_NAME="production-app"
     fi
 
-    if [[ -z "$SERVER_HOST" ]]; then
-        log_error "未配置服务器地址"
-        log_error "请在 $ENV_FILE 中设置 ${ENV^^}_SERVER_HOST"
-        exit 1
+    if [[ "$IS_LOCAL_DEPLOY" != "true" ]]; then
+        if [[ -z "$SERVER_HOST" ]]; then
+            log_error "未配置服务器地址"
+            log_error "请在 $ENV_FILE 中设置 ${ENV^^}_SERVER_HOST"
+            exit 1
+        fi
+        log_info "目标服务器: $SERVER_USER@$SERVER_HOST"
+    else
+        log_info "部署模式: 本地部署（无需 SSH）"
     fi
 
-    log_info "目标服务器: $SERVER_USER@$SERVER_HOST"
     log_info "部署路径: $DEPLOY_PATH"
     echo ""
 
@@ -257,54 +284,39 @@ deploy_from_local() {
     log_info "包大小: $(du -sh .next/standalone | cut -f1)"
     echo ""
 
-    # Step 6: 部署到服务器
-    log_info "Step 6/6: 部署到服务器..."
+    # Step 6: 部署到服务器或本地
+    log_info "Step 6/6: 部署..."
 
-    # 检查 SSH 连接
-    log_info "检查 SSH 连接..."
-    if ! ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" "echo 'SSH 连接成功'" 2>/dev/null; then
-        log_error "无法连接到服务器 $SERVER_HOST"
-        log_error "请检查:"
-        log_error "  1. 服务器地址是否正确"
-        log_error "  2. SSH 密钥是否已配置 (~/.ssh/config 或 ssh-copy-id)"
-        log_error "  3. 服务器安全组是否允许 SSH 访问"
-        exit 1
-    fi
+    if [[ "$IS_LOCAL_DEPLOY" == "true" ]]; then
+        # ========================================
+        # 开发环境：本地部署（不使用 SSH）
+        # ========================================
+        log_info "本地部署模式（无需 SSH）"
 
-    # 创建目标目录
-    log_info "创建目标目录..."
-    ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p $DEPLOY_PATH/frontend/.next"
+        # 创建目标目录
+        log_info "创建部署目录..."
+        mkdir -p "$DEPLOY_PATH"
 
-    # 同步文件
-    log_info "同步 standalone 包到服务器 (rsync)..."
-    rsync -avz --delete \
-        --exclude='*.map' \
-        .next/standalone/ \
-        "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/"
+        # 复制 standalone 包
+        log_info "复制 standalone 包到本地目录..."
+        rm -rf "$DEPLOY_PATH/standalone"
+        cp -r .next/standalone "$DEPLOY_PATH/"
 
-    # 同步静态文件 (CSS/JS) - Next.js standalone 需要手动复制
-    log_info "同步静态文件..."
-    rsync -avz \
-        .next/static/ \
-        "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/frontend/.next/static/"
+        # 复制环境变量文件
+        log_info "复制环境变量文件..."
+        cp "$ENV_FILE" "$DEPLOY_PATH/standalone/frontend/.env"
+        log_success "环境变量文件已复制: .env.local -> standalone/frontend/.env"
 
-    # 同步环境变量文件（必须在 rsync 之后，否则会被 --delete 删除）
-    log_info "同步环境变量文件到服务器..."
-    scp "$ENV_FILE" "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/frontend/.env"
-    log_success "环境变量文件已同步: .env.$ENV -> standalone/frontend/.env"
+        log_success "文件复制完成"
 
-    log_success "文件同步完成"
-
-    # 重启应用
-    log_info "重启应用..."
-    ssh "$SERVER_USER@$SERVER_HOST" << ENDSSH
-        set -e
-        cd $DEPLOY_PATH/frontend/.next/standalone/frontend
+        # 重启应用（使用 pm2）
+        log_info "重启应用..."
+        cd "$DEPLOY_PATH/standalone/frontend"
 
         # 停止旧进程
         pm2 delete $APP_NAME 2>/dev/null || true
 
-        # 启动新进程（设置 HOSTNAME=0.0.0.0 确保 Next.js 正确绑定）
+        # 启动新进程
         HOSTNAME=0.0.0.0 pm2 start server.js --name $APP_NAME
         pm2 save
 
@@ -313,31 +325,104 @@ deploy_from_local() {
 
         # 检查状态
         if pm2 list | grep -q "$APP_NAME.*online"; then
-            echo "✅ 应用已启动"
+            log_success "应用已启动"
             pm2 status $APP_NAME
         else
-            echo "❌ 应用启动失败"
+            log_error "应用启动失败"
             pm2 logs $APP_NAME --lines 20 --nostream
             exit 1
         fi
+    else
+        # ========================================
+        # 生产/预发环境：远程部署（使用 SSH）
+        # ========================================
+        log_info "远程部署模式（使用 SSH）"
+
+        # 检查 SSH 连接
+        log_info "检查 SSH 连接..."
+        if ! ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" "echo 'SSH 连接成功'" 2>/dev/null; then
+            log_error "无法连接到服务器 $SERVER_HOST"
+            log_error "请检查:"
+            log_error "  1. 服务器地址是否正确"
+            log_error "  2. SSH 密钥是否已配置 (~/.ssh/config 或 ssh-copy-id)"
+            log_error "  3. 服务器安全组是否允许 SSH 访问"
+            exit 1
+        fi
+
+        # 创建目标目录
+        log_info "创建目标目录..."
+        ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p $DEPLOY_PATH/frontend/.next"
+
+        # 同步文件
+        log_info "同步 standalone 包到服务器 (rsync)..."
+        rsync -avz --delete \
+            --exclude='*.map' \
+            .next/standalone/ \
+            "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/"
+
+        # 同步静态文件 (CSS/JS) - Next.js standalone 需要手动复制
+        log_info "同步静态文件..."
+        rsync -avz \
+            .next/static/ \
+            "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/frontend/.next/static/"
+
+        # 同步环境变量文件（必须在 rsync 之后，否则会被 --delete 删除）
+        log_info "同步环境变量文件到服务器..."
+        scp "$ENV_FILE" "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/frontend/.env"
+        log_success "环境变量文件已同步: .env.$ENV -> standalone/frontend/.env"
+
+        log_success "文件同步完成"
+
+        # 重启应用
+        log_info "重启应用..."
+        ssh "$SERVER_USER@$SERVER_HOST" << ENDSSH
+            set -e
+            cd $DEPLOY_PATH/frontend/.next/standalone/frontend
+
+            # 停止旧进程
+            pm2 delete $APP_NAME 2>/dev/null || true
+
+            # 启动新进程（设置 HOSTNAME=0.0.0.0 确保 Next.js 正确绑定）
+            HOSTNAME=0.0.0.0 pm2 start server.js --name $APP_NAME
+            pm2 save
+
+            # 等待启动
+            sleep 3
+
+            # 检查状态
+            if pm2 list | grep -q "$APP_NAME.*online"; then
+                echo "✅ 应用已启动"
+                pm2 status $APP_NAME
+            else
+                echo "❌ 应用启动失败"
+                pm2 logs $APP_NAME --lines 20 --nostream
+                exit 1
+            fi
 ENDSSH
+    fi
 
     echo ""
     log_success "============================================"
-    log_success "  🎉 本地部署完成!"
+    if [[ "$IS_LOCAL_DEPLOY" == "true" ]]; then
+        log_success "  🎉 本地部署完成!"
+    else
+        log_success "  🎉 远程部署完成!"
+    fi
     log_success "============================================"
     log_info "环境: $ENV"
-    log_info "服务器: $SERVER_HOST"
+    log_info "部署路径: $DEPLOY_PATH"
     log_info "部署信息: $DEPLOY_INFO"
     echo ""
 
     # 显示访问信息
-    if [[ "$ENV" == "staging" ]]; then
+    if [[ "$ENV" == "dev" ]]; then
+        log_info "访问地址: $NEXT_PUBLIC_APP_URL"
+        log_info "PM2 管理: pm2 status $APP_NAME"
+        log_info "PM2 日志: pm2 logs $APP_NAME"
+    elif [[ "$ENV" == "staging" ]]; then
         log_info "访问地址: http://$SERVER_HOST"
     elif [[ "$ENV" == "production" ]]; then
         log_info "访问地址: https://linghuiai.net"
-    else
-        log_info "访问地址: http://$SERVER_HOST:3000"
     fi
 
     # 重启本地 dev server（后台运行）

@@ -119,7 +119,7 @@
 - [component-dependency-graph.md](data/component-dependency-graph.md) — 组件依赖图示例
 
 ## Scripts 约定
-- 脚本按用途分类，如 `scripts/ci.sh`、`scripts/deploy.sh`、`scripts/analyze_logs.py`。
+- 脚本按用途分类，如 `scripts/ci.sh`、`scripts/server/deploy.sh`、`scripts/analyze_logs.py`。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
 
@@ -285,7 +285,7 @@ COMMIT;
 - `shared/` 存放可复用模块（UI 组件、SDK、API 契约、设计系统等），保持 README 或注释说明归属。
 
 ## 其他约定
-- 配置文件（如 `.env.development`、`.env.production`、`.github/`、`Dockerfile`）应按技术栈默认放置；若自定义位置，在此说明理由。
+- 配置文件（如 `.env.local、.env.staging`、`.env.production`、`.github/`、`Dockerfile`）应按技术栈默认放置；若自定义位置，在此说明理由。
 - 机密文件保持 `.gitignore` 遮盖；若需本地存放，创建 `secret/README.md` 引导操作。
 
 ## QA 模块化规范
