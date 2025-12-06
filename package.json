@@ -55,7 +55,7 @@
     "ship:prod": "bash scripts/server/deploy.sh local production",
     "cd:staging": "bash scripts/server/deploy.sh ci staging",
     "cd:prod": "bash scripts/server/deploy.sh ci production",
-    "restart": "pkill -f 'next dev' || true && pnpm dev"
+    "restart": "pkill -f 'next dev' || true && pnpm --filter frontend dev"
   },
   "keywords": [
     "prd",
