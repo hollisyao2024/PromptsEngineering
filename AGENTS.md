@@ -154,6 +154,9 @@ version: 1.8 (2025-11-12)
 - `/cd staging` — 通过 CI/CD 远程部署到预发环境
 - `/cd prod` — 通过 CI/CD 远程部署到生产环境
 
+### 通用开发命令
+- `/restart` — 停止并重启本地开发服务器（执行 `pnpm restart`）
+
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。

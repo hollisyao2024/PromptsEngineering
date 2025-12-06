@@ -54,7 +54,8 @@
     "ship:staging:quick": "SKIP_CI=true bash scripts/server/deploy.sh local staging",
     "ship:prod": "bash scripts/server/deploy.sh local production",
     "cd:staging": "bash scripts/server/deploy.sh ci staging",
-    "cd:prod": "bash scripts/server/deploy.sh ci production"
+    "cd:prod": "bash scripts/server/deploy.sh ci production",
+    "restart": "pkill -f 'next dev' || true && pnpm dev"
   },
   "keywords": [
     "prd",
