@@ -1,4 +1,5 @@
 ---
+
 name: agents-router
 summary: 单文件、多模型（Codex CLI / Claude Code CLI / Gemini CLI）通用的轻量级 Agent 路由说明；按需加载角色，最小上下文占用。
 version: 1.8 (2025-11-12)
@@ -155,7 +156,7 @@ version: 1.8 (2025-11-12)
 - `/cd prod` — 通过 CI/CD 远程部署到生产环境
 
 ### 通用开发命令
-- `/restart` — 停止并重启本地开发服务器（执行 `pnpm restart`）
+- `/restart` — 停止并重启本地开发服务器（执行 `pnpm run restart`）
 
 ---
 
