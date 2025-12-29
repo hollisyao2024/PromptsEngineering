@@ -1,5 +1,4 @@
 ---
-
 name: agents-router
 summary: 单文件、多模型（Codex CLI / Claude Code CLI / Gemini CLI）通用的轻量级 Agent 路由说明；按需加载角色，最小上下文占用。
 version: 1.8 (2025-11-12)
