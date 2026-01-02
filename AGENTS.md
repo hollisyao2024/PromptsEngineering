@@ -155,7 +155,7 @@ version: 1.8 (2025-11-12)
 - `/cd prod` — 通过 CI/CD 远程部署到生产环境
 
 ### 通用开发命令
-- `/restart` — 停止并重启本地开发服务器（执行 `pnpm run restart`）
+- `/restart` — 停止并重启本地开发服务器（执行 `pnpm dev:restart`，后台运行，日志: `/tmp/frontend-dev.log`）
 
 ---
 
