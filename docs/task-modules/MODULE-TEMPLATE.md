@@ -28,7 +28,7 @@
 ### 1.2 命名与 ID
 
 - **模块目录**：`{domain}` 使用 kebab-case 域名（如 `user-management`、`payment-system`），保持与主 PRD 功能域索引中的 ID 一致，便于追溯与自动化脚本查找。
-- **模块文件**：`{domain}/ARCH.md`（目录固定，文件名统一为 `ARCH.md`），与主 ARCH 的结构保持同步，方便引用与导航。
+- **模块文件**：`{domain}/TASK.md`（目录固定，文件名统一为 `TASK.md`），与主 TASK 的结构保持同步，方便引用与导航。
 - **Story ID**：`US-{MODULE}-{序号}`（例如 `US-USER-001`、`US-PAY-005`）
 - **验收标准 ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（例如 `AC-USER-001-01`）
 - **测试用例 ID**：`TC-{MODULE}-{序号}`（例如 `TC-REG-001`）
@@ -65,7 +65,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 该表格仅作为模板，实际模块清单信息由 TASK 专家根据以上表格生成到`module-list.md`，每次 TASK 模块变化都更新`module-list.md`。
 
-## 3. 标准模块 ARCH 文档结构
+## 3. 标准模块 TASK 文档结构
 
 `{domain}/TASK.md` 根据模板创建，模板见本文件 § Appendix A: 模块 TASK 文档模板。
 - 每次更新需记录 `最后更新` 时间戳
@@ -79,7 +79,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 ## 5. 模块协作规范
 
 ### 5.0 分支与 Task ID 绑定
-- **分支命名**：每个 Task 实施前，在仓库根执行 `git checkout -b feature/TASK-<MODULE>-<编号>-<短描述>`。将 Task ID 编入分支名让 `npm run task:sync`、`npm run tdd:tick`（`/tdd sync`）等自动化工具能直接识别当前 Task，在 `/docs/TASK.md`、模块 TASK、`module-list.md` 中标记状态。
+- **分支命名**：每个 Task 实施前，在仓库根执行 `git checkout -b feature/TASK-<MODULE>-<编号>-<短描述>`。将 Task ID 编入分支名让 `pnpm run task:sync`、`pnpm run tdd:tick`（`/tdd sync`）等自动化工具能直接识别当前 Task，在 `/docs/TASK.md`、模块 TASK、`module-list.md` 中标记状态。
 - **保持分支一致性**：文档更新、实现代码与测试都在这个 feature 分支上完成，避免先在 `main`/其他 default 分支改动再 cherry-pick；若需要同时推进多个紧密相关 Task，可以通过 `feature/TASK-FOO-001+TASK-FOO-002` 把它们一起放入分支名。
 - **进度回写**：每次 `tdd-tick`、`task:sync` 执行时，保证触发它们的分支名仍包含当前 Task ID，否则脚本会因为“未找到 TASK ID”而拒绝，提示切回规范命名的 feature 分支再重试。
 
@@ -105,7 +105,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 ### 6.1 更新节奏
 - 每当 Task/WBS/依赖/风险/里程碑变化时，立即在模块 TASK 中记录版本、日期、负责人，并同步更新 `module-list.md` 与主 TASK 的“模块任务索引”表。
-- 完成变更后运行 `npm run task:lint`、`npm run task:check-cycles`、`npm run task:sync`，保障结构、依赖与 Traceability 与主线对齐。
+- 完成变更后运行 `pnpm run task:lint`、`pnpm run task:check-cycles`、`pnpm run task:sync`，保障结构、依赖与 Traceability 与主线对齐。
 - 重大交付（接口变更、DB 迁移、关键里程碑）触发时，按照 AGENT_STATE 的阶段（`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`）更新状态并填补 Gate 注记。
 
 ### 6.2 状态与 Gate 自检
@@ -120,10 +120,10 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 | 命令 | 功能 |
 |------|------|
-| `npm run task:lint` | 校验模块 TASK 结构、Task ID、依赖矩阵、Story→Task 映射 |
-| `npm run task:check-cycles` | 检查模块与跨模块依赖中的环路与资源冲突 |
-| `npm run task:sync` | 同步 `module-list.md`、`story-task-mapping.md`、依赖表与 traceability 记录 |
-| `npm run task:generate` | 生成任务卡片/里程碑表、可选 WBS 拆解初稿 |
+| `pnpm run task:lint` | 校验模块 TASK 结构、Task ID、依赖矩阵、Story→Task 映射 |
+| `pnpm run task:check-cycles` | 检查模块与跨模块依赖中的环路与资源冲突 |
+| `pnpm run task:sync` | 同步 `module-list.md`、`story-task-mapping.md`、依赖表与 traceability 记录 |
+| `pnpm run task:generate` | 生成任务卡片/里程碑表、可选 WBS 拆解初稿 |
 | `/tdd tick` | 自动勾选模块/主 TASK 中完成的任务，确保 AGENT_STATE/QA 交付状态更新 |
 
 ## 8. 相关资源
@@ -142,8 +142,10 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 
 
 ## Appendix A: 模块 TASK 文档模板
-> 以下内容不允许 TASK 专家自动修改，只能由人工修改。
 
+> 以下模板复制到 `{domain}/TASK.md` 后使用，仅由 TASK 专家编辑。
+
+```markdown
 # {功能域名称} - 任务计划
 
 > **所属主 TASK**: [TASK.md](../TASK.md)
@@ -204,7 +206,8 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 - 表格：`| 版本 | 日期 | 描述 | 负责人 |`
 
 ## 11. 自检与 Gate 清单
-- [ ] 执行 `npm run task:lint`、`task:check-cycles`、`task:sync`
+- [ ] 执行 `pnpm run task:lint`、`task:check-cycles`、`task:sync`
 - [ ] 同步 `module-list.md`、`traceability-matrix.md`、`story-task-mapping.md`
 - [ ] 通知 ARCH/TDD/QA（接口、依赖、风险、验证）
 - [ ] 工作态更新至 `/docs/AGENT_STATE.md`
+```

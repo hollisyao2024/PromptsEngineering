@@ -24,8 +24,8 @@
     # 全局依赖与架构（ARCH 维护）
     component-dependency-graph.md     # 跨模块组件依赖图（架构层级，Component ID 追溯）
     arch-prd-traceability.md         # 全局 PRD↔ARCH 追溯报告（Story/Component ID 对齐）
-    ERD.md                            # 全局 ER 图（实体关系图，按 templates/ERD-TEMPLATE.md 生成）
-    dictionary.md                      # 数据字典（全局实体与字段定义，按 templates/dictionary-TEMPLATE.md 生成）
+    ERD.md                            # 全局 ER 图（实体关系图，按 templates/arch/ERD-TEMPLATE.md 生成）
+    dictionary.md                      # 数据字典（全局实体与字段定义，按 templates/arch/dictionary-TEMPLATE.md 生成）
 
     # 全局测试策略与规划（QA 维护）
     test-strategy-matrix.md            # 测试策略矩阵（Story → 测试类型覆盖）
@@ -45,7 +45,7 @@
 
 ---
 
-> **提示**：`ERD.md` 和 `dictionary.md` 由数据视图生成流程根据 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md` 动态产出，模板即源头；请勿将它们作为手工编辑的源文件提交。
+> **提示**：`ERD.md` 和 `dictionary.md` 由数据视图生成流程根据 `docs/data/templates/arch/ERD-TEMPLATE.md` 与 `docs/data/templates/arch/dictionary-TEMPLATE.md` 动态产出，模板即源头；请勿将它们作为手工编辑的源文件提交。
 
 ## 🔍 全局数据 vs 模块数据
 
@@ -64,8 +64,8 @@
 | `test-priority-matrix.md` | **全局** | 跨模块测试用例优先级量化评分，指导测试执行顺序，QA 专家维护 |
 | `test-risk-matrix.md` | **全局** | 全局测试风险识别、评估与缓解措施，QA 专家维护 |
 | `change-requests/` | **全局** | 影响多个模块的变更请求流程，PRD 专家维护 |
-| `ERD.md` | **全局** | 跨模块的实体关系图（数据库设计），ARCH 专家维护；由 `docs/data/templates/ERD-TEMPLATE.md` 生成 |
-| `dictionary.md` | **全局** | 共享数据实体与字段定义，ARCH 专家维护；由 `docs/data/templates/dictionary-TEMPLATE.md` 生成 |
+| `ERD.md` | **全局** | 跨模块的实体关系图（数据库设计），ARCH 专家维护；由 `docs/data/templates/arch/ERD-TEMPLATE.md` 生成 |
+| `dictionary.md` | **全局** | 共享数据实体与字段定义，ARCH 专家维护；由 `docs/data/templates/arch/dictionary-TEMPLATE.md` 生成 |
 
 ### 模块内部数据存放在 prd-modules/{domain}/：
 
@@ -231,7 +231,7 @@ graph TB
 
 **格式**：Mermaid 图表（使用 Component ID 命名）
 
-**模板**：可参考 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 复制骨架（包含头部说明、Mermaid 图占位、依赖说明表与维护指南）并替换具体 Component/依赖信息，ARCH 专家在架构设计阶段或跨模块依赖变更时生成/刷新 `/docs/data/component-dependency-graph.md`。
+**模板**：可参考 `/docs/data/templates/arch/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 复制骨架（包含头部说明、Mermaid 图占位、依赖说明表与维护指南）并替换具体 Component/依赖信息，ARCH 专家在架构设计阶段或跨模块依赖变更时生成/刷新 `/docs/data/component-dependency-graph.md`。
 
 **示例**：
 ```mermaid
@@ -325,7 +325,7 @@ graph TB
 
 **自动化支持**：
 ```bash
-npm run task:sync   # 验证 Story ↔ Task 映射的一致性
+pnpm run task:sync   # 验证 Story ↔ Task 映射的一致性
 ```
 
 **与其他产物的关系**：
@@ -353,7 +353,7 @@ npm run task:sync   # 验证 Story ↔ Task 映射的一致性
 **作用**：定义跨模块的实体关系模型（数据库设计）
 
 **格式**：Mermaid ER 图
-**模板**：请先复制 `docs/data/templates/ERD-TEMPLATE.md` 作为起点。
+**模板**：请先复制 `docs/data/templates/arch/ERD-TEMPLATE.md` 作为起点。
 
 **ARCH 建议**：
 - 在更新实体/关系前先用模板记录当前版本、维护人、关联模块；完成后同步 `ARCH.md`（“数据视图”节）与 `/docs/data/dictionary.md`。
@@ -375,7 +375,7 @@ npm run task:sync   # 验证 Story ↔ Task 映射的一致性
 | user_id | UUID | 是 | 用户唯一标识 |
 | email | String | 是 | 用户邮箱 |
 ```
-**模板**：统一参照 `docs/data/templates/dictionary-TEMPLATE.md`，使所有实体条目保持一致结构（描述、字段表、约束、同步清单）。
+**模板**：统一参照 `docs/data/templates/arch/dictionary-TEMPLATE.md`，使所有实体条目保持一致结构（描述、字段表、约束、同步清单）。
 
 **ARCH 建议**：
 - 每次字段/约束变化同步更新 ERD 和 ARCH 数据视图，并在模板的“同步校验清单”中确认相关文档已经触达 QA/TDD。

@@ -5,7 +5,7 @@
 > **上下游输入**：
 > - PRD：`/docs/PRD.md` 或 `/docs/prd-modules/{domain}/PRD.md` 提供 Story/AC/优先级
 > - ARCH：`/docs/ARCH.md` 或 `/docs/arch-modules/{domain}/ARCH.md` 提供组件/接口/依赖、Component ID
-> - 模块 Component 图：`docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 或模块 `component-dependency-graph.md`
+> - 模块 Component 图：`docs/data/templates/arch/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 或模块 `component-dependency-graph.md`
 
 ---
 

@@ -186,9 +186,9 @@
 4. **更新模块索引**：在本文件的"模块清单"表格中注册新模块
 5. **制定测试用例**：基于 PRD/ARCH/TASK 模块，编写详细测试用例
 6. **执行与记录**：执行测试并实时更新测试结果与缺陷清单
-7. **运行质量检查**：使用 `npm run qa:lint` 检查文档完整性
-8. **生成测试报告**：使用 `npm run qa:generate-test-report` 汇总结果
-9. **发布决策**：使用 `npm run qa:check-defect-blockers` 执行发布门禁检查
+7. **运行质量检查**：使用 `pnpm run qa:lint` 检查文档完整性
+8. **生成测试报告**：使用 `pnpm run qa:generate-test-report` 汇总结果
+9. **发布决策**：使用 `pnpm run qa:check-defect-blockers` 执行发布门禁检查
 
 ---
 
@@ -199,31 +199,31 @@
 ### 核心命令
 ```bash
 # 1. QA 文档完整性检查
-npm run qa:lint
+pnpm run qa:lint
 
 # 2. 测试覆盖率分析（生成 coverage-summary.md）
-npm run qa:coverage-report
+pnpm run qa:coverage-report
 
 # 3. PRD ↔ QA ID 同步验证
-npm run qa:sync-prd-qa-ids
+pnpm run qa:sync-prd-qa-ids
 
 # 4. 测试报告生成（汇总所有模块）
-npm run qa:generate-test-report
+pnpm run qa:generate-test-report
 
 # 5. 缺陷阻塞检查与发布门禁
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 
 ### 工作流集成
 ```bash
 # 提交前本地检查
-npm run qa:lint && npm run qa:sync-prd-qa-ids
+pnpm run qa:lint && pnpm run qa:sync-prd-qa-ids
 
 # 测试执行后汇总
-npm run qa:generate-test-report && npm run qa:coverage-report
+pnpm run qa:generate-test-report && pnpm run qa:coverage-report
 
 # 发布前质量门禁
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 
 **详细文档**：[scripts/qa-tools/README.md](../../scripts/qa-tools/README.md)
@@ -329,7 +329,7 @@ module.exports = { generateUsers };
 
 ## 清理脚本
 \`\`\`bash
-npm run qa:cleanup-test-data -- --module={domain}
+pnpm run qa:cleanup-test-data -- --module={domain}
 \`\`\`
 ```
 
@@ -519,7 +519,7 @@ defect-attachments/
 
 ### 1. QA 文档完整性检查
 ```bash
-npm run qa:lint
+pnpm run qa:lint
 ```
 **检查内容**：
 - 主 QA 必需章节
@@ -530,7 +530,7 @@ npm run qa:lint
 
 ### 2. 覆盖率分析
 ```bash
-npm run qa:coverage-report -- --module={domain}
+pnpm run qa:coverage-report -- --module={domain}
 ```
 **检查内容**：
 - 解析 `traceability-matrix.md`
@@ -540,7 +540,7 @@ npm run qa:coverage-report -- --module={domain}
 
 ### 3. PRD ↔ QA 同步检查
 ```bash
-npm run qa:sync-prd-qa-ids
+pnpm run qa:sync-prd-qa-ids
 ```
 **检查内容**：
 - 验证 QA 文档中引用的 Story ID 是否存在于 PRD 模块
@@ -549,7 +549,7 @@ npm run qa:sync-prd-qa-ids
 
 ### 4. 缺陷阻塞检查
 ```bash
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 **检查内容**：
 - 扫描所有模块 QA 的缺陷列表
@@ -558,7 +558,7 @@ npm run qa:check-defect-blockers
 
 ### 5. 测试数据清理
 ```bash
-npm run qa:cleanup-test-data -- --module={domain}
+pnpm run qa:cleanup-test-data -- --module={domain}
 ```
 **执行操作**：
 - 根据 `test-data/cleanup.md` 策略清理测试数据
@@ -579,13 +579,13 @@ npm run qa:cleanup-test-data -- --module={domain}
 **A**:
 1. 模块报告（`{domain}/reports/`）：实时生成，便于模块团队查看
 2. 全局报告（`/docs/data/qa-reports/`）：定期汇总（如每日 CI 聚合），用于发布决策
-3. **工具支持**：`npm run qa:aggregate-reports` 自动汇总所有模块报告到全局目录
+3. **工具支持**：`pnpm run qa:aggregate-reports` 自动汇总所有模块报告到全局目录
 
 ### Q3: 测试数据如何管理避免数据污染？
 **A**:
 1. 使用统一前缀（`test-*`、`perf-*`）标识测试数据
 2. 在 `test-data/cleanup.md` 定义清理策略
-3. 测试结束后运行 `npm run qa:cleanup-test-data`
+3. 测试结束后运行 `pnpm run qa:cleanup-test-data`
 4. 生产环境禁止使用测试数据（通过环境变量隔离）
 
 ### Q4: 模块 QA 与主 QA 的职责边界？
@@ -1222,8 +1222,8 @@ Error: [错误信息]
 
 **测试数据准备**:
 - **Fixtures 路径**: `tests/fixtures/{module}/`
-- **Seed 脚本**: `npm run seed:{module}`
-- **数据清理**: `npm run cleanup:{module}`
+- **Seed 脚本**: `pnpm run seed:{module}`
+- **数据清理**: `pnpm run cleanup:{module}`
 
 **测试数据示例**:
 \`\`\`javascript
@@ -1269,9 +1269,9 @@ Error: [错误信息]
 
 ### 9.3 CI/CD 集成
 - **CI 配置**: `.github/workflows/qa-{module}.yml`
-- **测试命令**: `npm run test:{module}`
-- **覆盖率命令**: `npm run coverage:{module}`
-- **发布 Gate**: `npm run qa:release-gate`
+- **测试命令**: `pnpm run test:{module}`
+- **覆盖率命令**: `pnpm run coverage:{module}`
+- **发布 Gate**: `pnpm run qa:release-gate`
 
 ---
 

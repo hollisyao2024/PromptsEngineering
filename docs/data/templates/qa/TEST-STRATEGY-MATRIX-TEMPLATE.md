@@ -295,11 +295,11 @@ npm run qa:suggest-test-strategy -- --story=US-NEW-001
 
 ## 10. 参考资料
 
-- **主 QA 文档**：[/docs/QA.md](../QA.md)
+- **主 QA 文档**：[/docs/QA.md](../../QA.md)
 - **PRD 优先级矩阵**：[priority-matrix.md](priority-matrix.md)
 - **全局追溯矩阵**：[traceability-matrix.md](traceability-matrix.md)
 - **NFR 追踪表**：[nfr-tracking.md](nfr-tracking.md)
-- **QA 工具说明**：[/scripts/qa-tools/README.md](../../scripts/qa-tools/README.md)
+- **QA 工具说明**：[/scripts/qa-tools/README.md](../../../scripts/qa-tools/README.md)
 
 ---
 

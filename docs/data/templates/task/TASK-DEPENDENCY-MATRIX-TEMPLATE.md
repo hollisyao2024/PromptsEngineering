@@ -54,7 +54,7 @@ graph TB
 
 1. 给模型提供最新的模块/任务列表（含 Task ID、Story、Owner、里程碑）与当前状态，指示模型输出 Mermaid 图 + 完整表格 + 风险段落。  
 2. 要求模型用 `class critical` 标记关键路径节点，用 `class blocked` 标识当前阻塞任务，并在表格备注说明阻塞原因。  
-3. 生成后 QA/Task 专家需再跑 `npm run task:check-cycles`（如有），验证无循环依赖并同步 `module-list.md` 的依赖状态。
+3. 生成后 QA/Task 专家需再跑 `pnpm run task:check-cycles`（如有），验证无循环依赖并同步 `module-list.md` 的依赖状态。
 4. 完成后将模板头部 `最后更新` 替换为实际日期，并把生成结果推送至 `/docs/TASK.md` 的依赖矩阵段及 `/docs/AGENT_STATE.md`（如触发 `TASK_PLANNED`）。
 
 ## 同步与维护

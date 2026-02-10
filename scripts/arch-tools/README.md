@@ -137,7 +137,7 @@ jobs:
 **A**：可能是 `docs/ARCH.md` 中未写 `跨模块依赖关系` 章节或格式不规范，请补充章节并采用 `METHOD /path` 风格描述。
 
 ### Q2: `component-dependency-graph.md` 还是模板样式？
-**A**：脚本会拒绝运行，先复制 `docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 并按实际组件补齐节点/边，再重新运行。
+**A**：脚本会拒绝运行，先复制 `docs/data/templates/arch/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 并按实际组件补齐节点/边，再重新运行。
 
 ### Q3: 如何阅读 `arch-prd-traceability.md`？
 **A**：该报告列出所有 Story/Component ID 统计与差异表，适合与 QA/PO 复核追溯；若差异超过 0，说明 ARCH 与 PRD 之间的追溯链不完整。

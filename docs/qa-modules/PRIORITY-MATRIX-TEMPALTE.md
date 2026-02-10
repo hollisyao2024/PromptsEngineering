@@ -14,7 +14,7 @@
 
 ## 字段说明与对齐要求
 - `Story / AC`：必须与 `/docs/prd-modules/{module}/PRD.md` 或主 `/docs/PRD.md` 中的 Story ID/AC 对应，确保回溯，便于追踪到 Story 优先级。
-- `评分`：可使用 `TEST-PRIORITY-MATRIX-TEMPLATE.md` 中定义的计算公式（关联 Story 优先级、覆盖范围、执行难度、历史缺陷率）得出，保证分数透明可复现。
+- `评分`：可使用 `/docs/data/templates/qa/TEST-PRIORITY-MATRIX-TEMPLATE.md` 中定义的计算公式（关联 Story 优先级、覆盖范围、执行难度、历史缺陷率）得出，保证分数透明可复现。
 - `频次`与`拟执行轮次`：参考 `/docs/TASK.md`（或 `/docs/task-modules/{module}/TASK.md`）中的里程碑与测试轮次安排，标明本轮/下轮的执行计划。
 - `依赖`：记录依赖的服务/环境/数据（可来源于 `/docs/ARCH.md` 或 Task 中的准备任务），便于协调。
 - `状态`：使用 `待执行/执行中/通过/失败/阻塞` 标签，阻塞项需说明原因与下步行动。

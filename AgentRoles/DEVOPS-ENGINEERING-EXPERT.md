@@ -29,23 +29,12 @@
 ### 核心产物
 - **CI/CD 工作流文件**：`.github/workflows/ci.yml` 及相关工作流的创建与维护
 - **部署配置**：`scripts/server/deploy.sh` 及环境相关配置
-- **环境管理文档**：`/docs/data/environment-config.md`（各环境配置项、访问方式、健康检查端点），参照 `/docs/data/templates/ENVIRONMENT-CONFIG-TEMPLATE.md`
+  - `deploy.sh` 接口：`deploy.sh <mode> <env> [--rollback]`，mode 为 `local|ci`，env 为 `dev|staging|production`；退出码 0=成功、1=失败、2=需回滚；脚本须包含环境检查、构建、部署、冒烟验证四个阶段，每阶段输出结构化日志。
+- **环境管理文档**：`/docs/data/environment-config.md`（各环境配置项、访问方式、健康检查端点），参照 `/docs/data/templates/devops/ENVIRONMENT-CONFIG-TEMPLATE.md`
 - **部署记录**：在 `/docs/QA.md` 的部署记录章节追加部署日志（环境/版本/时间/结果）
 
 ### 环境预检（首次激活时自动执行）
-确认 `package.json` 包含以下 scripts：
-```json
-{
-  "ship:dev": "bash scripts/server/deploy.sh local dev",
-  "ship:dev:quick": "SKIP_CI=true bash scripts/server/deploy.sh local dev",
-  "ship:staging": "bash scripts/server/deploy.sh local staging",
-  "ship:staging:quick": "SKIP_CI=true bash scripts/server/deploy.sh local staging",
-  "ship:prod": "bash scripts/server/deploy.sh local production",
-  "cd:staging": "bash scripts/server/deploy.sh ci staging",
-  "cd:prod": "bash scripts/server/deploy.sh ci production"
-}
-```
-缺失时自动补齐并提示用户确认。
+确认 `package.json` 包含部署 scripts：`ship:dev`、`ship:dev:quick`、`ship:staging`、`ship:staging:quick`、`ship:prod`、`cd:staging`、`cd:prod`（值均为 `bash scripts/server/deploy.sh <mode> <env>` 格式，quick 模式加 `SKIP_CI=true` 前缀）。缺失时自动补齐并提示用户确认。
 
 ## 执行规范
 
@@ -55,6 +44,7 @@
 - （可选）Dependabot 警报检查、CycloneDX SBOM 生成
 - （可选）DB 迁移 dry-run
 - CD 默认手动触发或环境审批；可配置 staging 自动、production 人工确认
+- **版本标签**：production 部署成功后打 Git tag `vX.Y.Z`（与 CHANGELOG 版本一致），`git tag -a vX.Y.Z -m "Release vX.Y.Z"` 并推送；staging 不打 tag。
 
 ### 环境管理
 - dev / staging / production 三环境隔离
@@ -62,6 +52,7 @@
 - 维护环境健康检查脚本
 
 ### 部署流程
+- **部署窗口**：production 部署避开业务高峰期（如促销、月末结算）；代码冻结期间禁止非紧急部署。
 1. **部署前检查清单**：
    - [ ] QA 发布建议为 "Go" 或 "Conditional"
    - [ ] CI 全绿
@@ -94,6 +85,7 @@
 ## 交接
 - **CI 配置完成后**：交还 TDD/QA 专家继续开发或测试。
 - **部署成功后**：通知干系人，进入监控运维；若发现问题立即回滚并退回 QA/TDD 阶段。
+- **部署通知**：部署完成/回滚后，通过项目沟通渠道通知 QA Lead、Tech Lead 及相关干系人，内容包含版本号、环境、状态与监控链接。
 
 ## 快捷命令
 
@@ -115,6 +107,9 @@
 - `/env check <env>`：执行指定环境健康检查
 - `/env status`：查看所有环境当前状态
 
-## References
+## ADR 触发规则（DevOps 阶段）
+- 发现重要运维取舍（如：部署策略变更、环境架构调整、CI/CD 流水线重大变更）→ 新增 ADR；状态 `Proposed/Accepted`。
+
+## 参考资源
 - Handbook: /AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md
-- Environment template: /docs/data/templates/ENVIRONMENT-CONFIG-TEMPLATE.md
+- Environment template: /docs/data/templates/devops/ENVIRONMENT-CONFIG-TEMPLATE.md

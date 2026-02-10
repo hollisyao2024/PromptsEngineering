@@ -38,7 +38,7 @@
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
 - 若在 `AGENTS.md` 或角色卡片中引用新目录，需同步更新此文档。
-- 所有与交付相关的变更必须在以 `feature/TASK-<MODULE>-<编号>-<短描述>` 命名的分支上完成。`/tdd sync` 与 `npm run tdd:tick` 依赖分支名中包含的 `TASK-` ID 自动勾选 `/docs/TASK.md` 或模块任务中的复选框、更新 Traceability，以及让 `docs/task-modules/module-list.md` 反映状态；在没有 Task ID（例如 `main`）的分支上直接改动会被脚本拒绝（“未找到 TASK ID”），因此请先在规范命名的 feature 分支上编辑再合并。
+- 所有与交付相关的变更必须在以 `feature/TASK-<MODULE>-<编号>-<短描述>` 命名的分支上完成。`/tdd sync` 与 `pnpm run tdd:tick` 依赖分支名中包含的 `TASK-` ID 自动勾选 `/docs/TASK.md` 或模块任务中的复选框、更新 Traceability，以及让 `docs/task-modules/module-list.md` 反映状态；在没有 Task ID（例如 `main`）的分支上直接改动会被脚本拒绝（“未找到 TASK ID”），因此请先在规范命名的 feature 分支上编辑再合并。
 
 ## Mermaid 图形文件规范
 
@@ -98,7 +98,7 @@
 ### 更新时机
 
 - **PRD 阶段**：创建/更新 `global-dependency-graph.md`、`{domain}/dependency-graph.md`
-- **ARCH 阶段**：创建/更新 `ERD.md`、`dictionary.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
+- **ARCH 阶段**：创建/更新 `ERD.md`、`dictionary.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/arch/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
 - **TASK 阶段**：创建/更新 `task-dependency-matrix.md`、`milestone-gantt.md`
 - **数据库迁移时**：同步更新 `ERD.md`、`dictionary.md`
 - **架构变更时**：同步更新 `component-dependency-graph.md`
@@ -275,9 +275,9 @@ COMMIT;
 
 ### 数据字典同步
 
-- 任何表结构变化必须触发数据视图生成流程，确保以下自动产出文件与模板保持一致；直接在模板 `docs/data/templates/ERD-TEMPLATE.md` 与 `docs/data/templates/dictionary-TEMPLATE.md` 中调整源数据，生成好的 `ERD.md` 与 `dictionary.md` 不应被人工引用或提交。
-  - `docs/data/ERD.md`：实体关系图（自动生成，参考 `docs/data/templates/ERD-TEMPLATE.md`）
-  - `docs/data/dictionary.md`：数据字典（自动生成，参考 `docs/data/templates/dictionary-TEMPLATE.md`）
+- 任何表结构变化必须触发数据视图生成流程，确保以下自动产出文件与模板保持一致；直接在模板 `docs/data/templates/arch/ERD-TEMPLATE.md` 与 `docs/data/templates/arch/dictionary-TEMPLATE.md` 中调整源数据，生成好的 `ERD.md` 与 `dictionary.md` 不应被人工引用或提交。
+  - `docs/data/ERD.md`：实体关系图（自动生成，参考 `docs/data/templates/arch/ERD-TEMPLATE.md`）
+  - `docs/data/dictionary.md`：数据字典（自动生成，参考 `docs/data/templates/arch/dictionary-TEMPLATE.md`）
 
 ## Frontend / Backend / Shared
 - `frontend/` 与 `backend/` 可以进一步拆分子项目，如 `frontend/web`、`frontend/mobile`、`backend/api`。

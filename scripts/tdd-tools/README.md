@@ -54,9 +54,9 @@
 ### 3. 任务自动勾选（/tdd tick）
 
 ```bash
-npm run tdd:tick
+pnpm run tdd:tick
 或者
-npm run tdd:sync
+pnpm run tdd:sync
 ```
 
 **检查项：**
@@ -71,7 +71,7 @@ npm run tdd:sync
 ### 4. 发布前自动推送（/tdd push）
 
 ```bash
-npm run tdd:push [bump|vX.Y.Z] [release-note]
+pnpm run tdd:push [bump|vX.Y.Z] [release-note]
 ```
 
 **执行流程：**
@@ -108,11 +108,11 @@ npm run tdd:push [bump|vX.Y.Z] [release-note]
 ```yaml
 steps:
   - name: Run TDD Tick
-    run: npm run tdd:tick
+    run: pnpm run tdd:tick
   - name: Create Deployment Migration
     run: ./scripts/tdd-tools/create-migration.sh add_new_feature --dir db/migrations --dialect postgres
   - name: Publish Release
-    run: npm run tdd:push bump "Release prep"
+    run: pnpm run tdd:push bump "Release prep"
 ```
 
 ---

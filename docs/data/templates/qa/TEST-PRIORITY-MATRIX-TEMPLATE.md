@@ -237,7 +237,7 @@ npm run test:full
 
 **测试类型**：E2E
 **关联 Story**：US-USER-001（用户注册）
-**测试优先级**：TP0（综合得分 24.5，详见 [test-priority-matrix.md](../../data/test-priority-matrix.md)）
+**测试优先级**：TP0（综合得分 24.5，详见 [test-priority-matrix.md](../../../data/test-priority-matrix.md)）
 **执行频率**：每次构建（CI Smoke Test）
 
 **Given**：用户访问注册页面

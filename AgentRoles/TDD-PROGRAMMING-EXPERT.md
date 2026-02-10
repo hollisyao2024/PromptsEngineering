@@ -170,23 +170,12 @@ pnpm prisma migrate resolve --applied 0_init
 
 Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`，规则同 `/docs/CONVENTIONS.md` §数据字典同步。
 
-### 仓库/技术栈约定
-
-> 示例，可按项目实际调整。
-
-- 前端：TypeScript + React/Next.js，ESLint 严格模式；
-- 后端：Python + FastAPI，Black/flake8；
-- Monorepo：`/frontend`、`/backend`、`/docs`、`/scripts`；
-- 机密：`.env`、`secret/` 不入库，遵循 `.gitignore`。
-
 ## 文档回写 Gate（提交前必做）
 - 执行顺序（漏任一步即判定 Gate 失败，`/tdd sync` 会比对触及的任务 ID 与 `/docs/TASK.md` 未完成项并立即阻断）：
-  1. **同步 TASK**：运行 `npm run tdd:tick`（依据当前分支名中的 `TASK-*` ID 自动将 `/docs/TASK.md` 及 `/docs/task-modules/{domain}/TASK*.md` 中匹配条目由 `- [ ]` 勾为 `- [x]`；分支命名需包含 `TASK-<DOMAIN>-<序号>`，多任务以 `+` 连接，例如 `feature/TASK-ACC-001+TASK-RISK-003`）。脚本报错或未执行即视为 Gate 失败；自动勾选后至少复核依赖/Owner 等字段，并在 PR “文档回写”段落粘贴 Task ID / 截图。除复选框之外，还要同步更新：
-     - 主 `/docs/TASK.md` WBS 表格中的“状态”列，手写 `✅ 已完成 (<YYYY-MM-DD>)`（示例：`✅ 已完成 (2025-11-09)`）记录实际交付日期，保持任务列表直观可追溯；
-     - `/docs/task-modules/{domain}/TASK.md` 中对应子任务的复选框与状态/说明，建议在文档的“相关模块”小节补写测试范围与接口契约；
-     - `/docs/task-modules/module-list.md` 的 `## 模块清单` 表格，将对应模块的“状态”“最后更新”列同步至最新，必要时补写最新日期和说明，确保模块进展记录与子任务一致。
-     - 完成交付的模块在 `## 模块清单` 中以 `✅ 模块已完成（模块名·阶段）` 形式标注，并可附加模块负责人/下游提醒，确保触发下一个模块前的依赖说明清晰。
-     - 将同一模块下 `/docs/task-modules/{domain}/TASK.md` 中对应子任务的勾选/状态与说明同步更新，并在该文档的模块小节补充本次交付的测试覆盖、接口契约与已解决风险，维持模块与域任务的一致性。
+  1. **同步 TASK**：运行 `pnpm run tdd:tick`（自动依据分支名中 `TASK-*` ID 勾选 TASK.md 及模块 TASK 文档的复选框；分支名须含 `TASK-<DOMAIN>-<序号>`，多任务以 `+` 连接）。脚本报错即 Gate 失败。勾选后复核依赖/Owner 字段，在 PR "文档回写"段粘贴 Task ID。除复选框外，还需同步：
+     - 主 `/docs/TASK.md` WBS 表格中"状态"列手写 `✅ 已完成 (<YYYY-MM-DD>)` 记录交付日期；
+     - `/docs/task-modules/{domain}/TASK.md` 中对应子任务的复选框与状态，并补写测试覆盖、接口契约与已解决风险；
+     - `/docs/task-modules/module-list.md` 的 `## 模块清单` 表格同步"状态""最后更新"列；完成的模块标注 `✅ 模块已完成（模块名·阶段）` 并附下游依赖提醒。
   2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCH.md` 及其模块文件。
   3. **同步 QA 记录**：若 QA 已拆分，依据缺陷影响范围更新 `/docs/qa-modules/{domain}.md` 并在主 `/docs/QA.md` 补充结论。
   4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接。
@@ -197,18 +186,13 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## CHANGELOG 模块化与归档
 - **触发阈值**：当根 `CHANGELOG.md` 超过 ~500 行、覆盖 ≥3 个季度/迭代、或需归档上一季度时，即执行分卷；保持 `CHANGELOG.md` 只保留最近 1~2 个主版本条目。
-- **分割步骤**：
-  1. 将要归档的条目剪切至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md` 或 `CHANGELOG-iter-{iteration}.md`（默认优先季度/迭代命名，特殊策略在 `docs/changelogs/README.md` 说明）。
-  2. 在根 `CHANGELOG.md` 顶部的“历史记录索引”段落新增/更新链接，指向对应分卷。
-  3. 只有根 `CHANGELOG.md` 可写，所有 `npm run changelog:*` 脚本或自动化仅作用于该文件；历史分卷视为只读。
+- **分割步骤**：归档条目移至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md`（或 `CHANGELOG-iter-{iteration}.md`），在根 `CHANGELOG.md` 顶部"历史记录索引"段更新链接；根文件可写，分卷只读，`pnpm run changelog:*` 仅作用于根文件。
 - **引用规范**：需求/架构/任务/QA 文档或 ADR 若需引用旧条目，必须链接到 `docs/changelogs/CHANGELOG-*.md` 中的具体分卷，避免模糊引用。
 - **同步提醒**：`/tdd push` 在推送前会校验 `CHANGELOG.md` 是否已更新；若执行分卷请务必在 PR “文档回写”段落列出新分卷编号与链接。
 
 ## CI/CD 协作
-> CI/CD 流水线配置与执行、部署运维统一由 **DevOps 专家**负责，详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
-- TDD 专家负责确保代码通过 CI 验证（lint/typecheck/test/build 全绿）。
-- CI 流水线的创建、配置与优化由 DevOps 专家管理。
-- 部署操作由 QA 验证通过后，**DevOps 专家**执行（见 `/devops` 快捷命令）。
+- TDD 专家负责代码通过 CI 验证（lint/typecheck/test/build 全绿）。
+- CI/CD 流水线配置/执行与部署由 **DevOps 专家**管理（见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。
 
 ## 完成定义（DoD）
 - 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR “文档回写”段粘贴）；需要的 ADR/变更记录齐全；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
@@ -221,11 +205,11 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 ## 快捷命令
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
-- `/tdd sync`：触发“文档回写 Gate”（内部调用 `npm run tdd:sync` → `npm run tdd:tick` 自动勾选 TASK，并校验 PR “文档回写”段信息；小修自动回写，若超出阈值将提示切换 `/prd`、`/arch` 或 `/task`）。命令输出会列出本次涉及的模块与交付阶段，执行完成后需确认 `/docs/task-modules/module-list.md#模块清单` 中相关模块条目已同步至最新状态和日期。
-- `/tdd push`：执行版本号递增、`CHANGELOG` 新条目、自动提交提交与 `git tag` 并推送到远程（实际运行 `npm run tdd:push`）；该命令不会再触发文档回写 Gate 的校验，仍需确保之前的 `/tdd sync` 已全面执行完毕，适合把多个小任务打包后一起推送。
-- `/tdd new-branch` TASK-<DOMAIN>-<编号>：相当于 `npm run tdd:new-branch TASK_ID=TASK-XXX`，在 `/tdd` 之前一步完成 `git checkout -b feature/TASK-XXX-<desc>`；建议直接把 Task ID 作为命令参数，下游再视情况附加 `TASK_SHORT` 描述，确保分支名中已含 Task ID 供 `/tdd sync` 识别。
-- `npm run tdd:tick`：仅执行任务勾选脚本，供需重复勾选或验证时手动运行（示例：`feature/TASK-PLAT-010-short-desc` 将自动勾选 `TASK-PLAT-010`）。命令会同步更新 `/docs/TASK.md` 及 `/docs/task-modules/{domain}/TASK.md` 的复选框/状态，并反映在 `/docs/task-modules/module-list.md` 的模块状态行里，保持模块/子任务进度一致。
-- `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**，详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
+- `/tdd sync`：触发文档回写 Gate（内调 `pnpm run tdd:sync` → `pnpm run tdd:tick`；小修自动回写，超阈值提示切 `/prd`/`/arch`/`/task`），完成后确认 `module-list.md#模块清单` 已同步。
+- `/tdd push`：版本递增 + CHANGELOG 条目 + commit/tag/push（运行 `pnpm run tdd:push`）；不再触发 Gate，需确保 `/tdd sync` 已完成。
+- `/tdd new-branch` TASK-<DOMAIN>-<编号>：创建 `feature/TASK-XXX-<desc>` 分支（运行 `pnpm run tdd:new-branch`），确保分支含 Task ID。
+- `pnpm run tdd:tick`：手动执行任务勾选，依据分支名 `TASK-*` ID 勾选 TASK 文档复选框并同步 module-list 状态。
+- `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**。
 
 ## TDD Pull Request 最小模板（片段）
 ```markdown
@@ -245,5 +229,8 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 - 风险：…；回滚方案：…
 ```
 
-## References
-- Handbook: /AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md
+## ADR 触发规则（TDD 阶段）
+- 实现中发现重要技术取舍（如：性能优化策略、依赖库选择、数据库方案变更）→ 新增 ADR；状态 `Proposed/Accepted`。
+
+## 参考资源
+- Handbook: `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md`

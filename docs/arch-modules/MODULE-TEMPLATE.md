@@ -120,11 +120,11 @@
 
 | 命令 | 功能 |
 |------|------|
-| `npm run arch:lint` | 校验模块 ARCH 文档的章节、Mermaid、链接与 Artifact |
-| `npm run arch:check-api-contracts` | 验证主 ARCH 跨模块引用的接口是否在模块 ARCH 中定义 |
-| `npm run arch:check-component-cycles` | 检查 `docs/data/component-dependency-graph.md` 中的循环依赖 |
-| `npm run arch:sync` | 扫描 PRD ↔ ARCH 的 Story/Component ID，并生成 `docs/data/arch-prd-traceability.md` 报告 |
-| `npm run arch:check-dependencies` |（如存在）验证模块依赖表格/traceability 与 TASK/PRD 同步 |
+| `pnpm run arch:lint` | 校验模块 ARCH 文档的章节、Mermaid、链接与 Artifact |
+| `pnpm run arch:check-api-contracts` | 验证主 ARCH 跨模块引用的接口是否在模块 ARCH 中定义 |
+| `pnpm run arch:check-component-cycles` | 检查 `docs/data/component-dependency-graph.md` 中的循环依赖 |
+| `pnpm run arch:sync` | 扫描 PRD ↔ ARCH 的 Story/Component ID，并生成 `docs/data/arch-prd-traceability.md` 报告 |
+| `pnpm run arch:check-dependencies` |（如存在）验证模块依赖表格/traceability 与 TASK/PRD 同步 |
 
 ## 8. 相关资源
 
@@ -134,14 +134,15 @@
 - `/docs/data/global-dependency-graph.md` + `/docs/data/component-dependency-graph.md` — 模块/组件依赖图
 - `/docs/data/arch-prd-traceability.md` 与 templates — PRD ↔ ARCH 追溯报告
 - `/docs/CONVENTIONS.md` — ARCH 命名/章节/文档规范
-- `scripts/arch-tools/*` 与 `package.json` 中 `arch:*` 命令（`arch:lint`、`arch:check-api-contracts`、`arch:check-component-cycles`、`arch:sync`）
+- `scripts/arch-tools/*` 与 `package.json` 中 `arch:*` 命令（`pnpm run arch:lint`、`arch:check-api-contracts`、`arch:check-component-cycles`、`arch:sync`）
 - `/docs/AGENT_STATE.md` + `/AGENTS.md` — 状态机与 `ARCHITECTURE_DEFINED` Gate
 
 ---
 
 ## Appendix A: 模块 ARCH 文档模板
-> 以下内容不允许 ARCH 专家自动修改，只能由人工修改。
+> 以下模板复制到 `{domain}/ARCH.md` 后使用，仅由 ARCH 专家编辑。
 
+````markdown
 # {功能域名称} - ARCH 模块
 
 > **所属主 ARCH**: [ARCH.md](../ARCH.md)
@@ -151,7 +152,7 @@
 > **最后更新**: YYYY-MM-DD
 > **版本**: v0.1.0
 
-### 必填字段与追溯
+## 必填字段与追溯
 - **模块状态**：必须标明当前交付状态（如待启动/进行中/已确认/需更新）。
 - **Story/Component ID**：列出涉及的 Story、Component 与 Task ID，并在各视图中引用 `US-`/`AC-`/`COMP-` 等编号。
 - **追溯链接**：每节结束前附注“与主 ARCH/PRD/Task 的链接”（如 “参见主 ARCH §3、Traceability Matrix”）。
@@ -481,5 +482,4 @@ graph TB
 - [ ] 是否同步 `component-dependency-graph`/`global-dependency-graph` 中的节点或边？
 - [ ] 是否记录了 ADR/决策编号并与 PRD/Task 追溯？
 - [ ] 是否在主 ARCH/module-list 文档中更新状态并通知 TDD/QA？
-
----
+````

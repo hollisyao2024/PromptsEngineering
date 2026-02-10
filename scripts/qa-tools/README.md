@@ -24,7 +24,7 @@ chmod +x scripts/qa-tools/*.js
 检查 QA 文档的章节完整性、Test Case ID 格式、缺陷 ID 规范、Given-When-Then 格式。
 
 ```bash
-npm run qa:lint
+pnpm run qa:lint
 ```
 
 **检查项**：
@@ -86,7 +86,7 @@ QA 文档完整性检查工具 v1.0
 基于追溯矩阵，分析需求覆盖率（Story → Test Case 映射完整性）。
 
 ```bash
-npm run qa:coverage-report
+pnpm run qa:coverage-report
 ```
 
 **检查项**：
@@ -172,7 +172,7 @@ npm run qa:coverage-report
 验证 QA 文档中引用的 Story ID 是否在 PRD 中存在，以及 PRD 中的 Story 是否都有对应测试用例。
 
 ```bash
-npm run qa:sync-prd-qa-ids
+pnpm run qa:sync-prd-qa-ids
 ```
 
 **检查项**：
@@ -256,7 +256,7 @@ PRD ↔ QA ID 同步验证工具 v1.0
 汇总所有模块的测试执行结果，生成全局测试报告。
 
 ```bash
-npm run qa:generate-test-report
+pnpm run qa:generate-test-report
 ```
 
 **功能**：
@@ -381,7 +381,7 @@ npm run qa:generate-test-report
 扫描所有模块的缺陷列表，识别 P0/P1 阻塞性缺陷，生成发布门禁报告。
 
 ```bash
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 
 **检查项**：
@@ -520,11 +520,11 @@ npm run qa:check-defect-blockers
 ### QA 核心检查（优先级 ⭐⭐⭐）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run qa:lint` | QA 文档完整性检查 | ⭐⭐⭐ |
-| `npm run qa:coverage-report` | 测试覆盖率分析 | ⭐⭐⭐ |
-| `npm run qa:sync-prd-qa-ids` | PRD ↔ QA ID 同步验证 | ⭐⭐⭐ |
-| `npm run qa:check-defect-blockers` | 缺陷阻塞检查 | ⭐⭐⭐ |
-| `npm run qa:generate-test-report` | 测试报告生成 | ⭐⭐⭐ |
+| `pnpm run qa:lint` | QA 文档完整性检查 | ⭐⭐⭐ |
+| `pnpm run qa:coverage-report` | 测试覆盖率分析 | ⭐⭐⭐ |
+| `pnpm run qa:sync-prd-qa-ids` | PRD ↔ QA ID 同步验证 | ⭐⭐⭐ |
+| `pnpm run qa:check-defect-blockers` | 缺陷阻塞检查 | ⭐⭐⭐ |
+| `pnpm run qa:generate-test-report` | 测试报告生成 | ⭐⭐⭐ |
 
 ---
 
@@ -534,21 +534,21 @@ npm run qa:check-defect-blockers
 在提交 QA 变更前运行：
 
 ```bash
-npm run qa:lint && npm run qa:sync-prd-qa-ids
+pnpm run qa:lint && pnpm run qa:sync-prd-qa-ids
 ```
 
 ### 测试执行后
 每次测试轮次完成后运行：
 
 ```bash
-npm run qa:generate-test-report && npm run qa:coverage-report
+pnpm run qa:generate-test-report && pnpm run qa:coverage-report
 ```
 
 ### 发布前检查
 在发布前运行完整的质量门禁：
 
 ```bash
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 
 ### CI/CD 集成
@@ -576,16 +576,16 @@ jobs:
           node-version: '18'
 
       - name: Run QA Lint
-        run: npm run qa:lint
+        run: pnpm run qa:lint
 
       - name: Check Test Coverage
-        run: npm run qa:coverage-report
+        run: pnpm run qa:coverage-report
 
       - name: Verify PRD ↔ QA Sync
-        run: npm run qa:sync-prd-qa-ids
+        run: pnpm run qa:sync-prd-qa-ids
 
       - name: Check Defect Blockers
-        run: npm run qa:check-defect-blockers
+        run: pnpm run qa:check-defect-blockers
 ```
 
 ### 定时任务（每日聚合）
@@ -612,13 +612,13 @@ jobs:
           node-version: '18'
 
       - name: Generate Test Report
-        run: npm run qa:generate-test-report
+        run: pnpm run qa:generate-test-report
 
       - name: Generate Coverage Report
-        run: npm run qa:coverage-report
+        run: pnpm run qa:coverage-report
 
       - name: Check Defect Status
-        run: npm run qa:check-defect-blockers
+        run: pnpm run qa:check-defect-blockers
 
       - name: Commit Reports
         run: |
@@ -742,7 +742,7 @@ chmod +x scripts/qa-tools/*.js
 **A**: 可以。脚本使用纯 JavaScript 编写，跨平台兼容。但颜色输出在 Windows CMD 中可能显示异常（PowerShell 和 Windows Terminal 正常）。
 
 ### Q6: 如何与 PRD/TASK 工具联动？
-**A**: 使用 `npm run qa:sync-prd-qa-ids` 可自动验证 PRD 中的 Story ID 与 QA 中的测试用例映射关系。确保需求追溯完整。
+**A**: 使用 `pnpm run qa:sync-prd-qa-ids` 可自动验证 PRD 中的 Story ID 与 QA 中的测试用例映射关系。确保需求追溯完整。
 
 ### Q7: 发布门禁报告的判断标准是什么？
 **A**: 阻塞发布条件：

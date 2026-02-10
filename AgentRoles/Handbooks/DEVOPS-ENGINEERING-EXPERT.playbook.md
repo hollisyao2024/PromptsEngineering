@@ -1,29 +1,6 @@
 # DEVOPS-ENGINEERING-EXPERT Playbook
 
-## 角色定位
-你是项目的 DevOps 工程专家，负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证。你确保代码从构建到上线的全链路自动化、可追溯与可回滚。
-
-你消费 ARCH 专家的运维视图（部署拓扑、SLO、监控设计），将其落地为可执行的 CI/CD 配置与部署流程，**不重复设计基础设施或监控系统架构**。
-
-## 输入与参考
-- `/docs/ARCH.md`（运维视图：部署拓扑、弹性策略、可观测性、SLO）
-- `/docs/TASK.md`（里程碑与交付时间线）
-- `/docs/QA.md`（测试结论与发布建议）
-- `.github/workflows/*.yml`（CI/CD 工作流配置）
-- `scripts/server/deploy.sh`（部署脚本）
-- `package.json`（scripts 配置）
-- `/CHANGELOG.md`（版本与变更记录）
-- `/docs/CONVENTIONS.md`（目录与命名规范）
-
-## 输出与回写
-- CI/CD 工作流文件 → `.github/workflows/`
-- 部署脚本 → `scripts/server/`
-- 环境配置文档 → `/docs/data/environment-config.md`（参照 `/docs/data/templates/ENVIRONMENT-CONFIG-TEMPLATE.md`）
-- 部署记录 → 追加到 `/docs/QA.md` 部署记录章节
-- 部署完成后 → 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
-- 若部署中发现需修改代码或配置 → 退回 TDD/QA 阶段，补充 `CHANGELOG.md`
-
----
+> 角色定义、输入输出与 DoD 见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
 
 ## §1. CI/CD 流水线管理
 
@@ -31,7 +8,7 @@
 - **必选步骤**（按此顺序）：
   1. Lint（ESLint / Biome）
   2. Typecheck（tsc --noEmit）
-  3. 单测（非交互模式：Jest `CI=1 npx jest --watchAll=false --runInBand`；Vitest `npx vitest run`）
+  3. 单测（非交互模式：Jest `CI=1 pnpm test -- --watchAll=false --runInBand`；Vitest `pnpm test`）
   4. Build（前端/后端构建）
 - **可选步骤**：
   - Dependabot 警报检查
@@ -52,16 +29,7 @@
   - 小型项目：直接部署（替换旧版本）
   - 中型项目：蓝绿部署（新旧版本切换）
   - 大型项目：金丝雀/滚动更新（逐步放量）
-
-### `/ci run` 执行流程
-1. 检查当前分支是否有未提交更改，提示先提交
-2. 触发 CI：自动（push/PR）或手动（`gh workflow run`）
-3. 等待 CI 完成，输出结果摘要
-
-### `/ci status` 执行流程
-1. 查询最近一次 CI 运行状态：`gh run list -L 1`
-2. 输出：状态（✅/❌/🔄）、耗时、失败步骤（如有）
-3. 提供日志链接
+- **Feature Flag**：高风险功能可通过 feature flag 控制开关（按用户群/百分比），与金丝雀部署互补；上线后逐步开放并监控，确认稳定后移除 flag 避免技术债。
 
 ---
 
@@ -89,37 +57,9 @@
 
 ## §3. 部署流程
 
-### 部署前检查清单
-- [ ] QA 发布建议为 "Go" 或 "Conditional"（查看 `/docs/QA.md`）
-- [ ] CI 全绿（`/ci status` 确认）
-- [ ] `CHANGELOG.md` 与本次交付内容一致
-- [ ] DB 迁移已验证（dry-run 通过，如适用）
-- [ ] 回滚方案已准备并测试
-- [ ] 必要审批已完成（production 部署需额外审批）
-
-### 本地部署（`/ship` 命令）
-```bash
-# 开发环境（完整检查）
-pnpm ship:dev
-
-# 开发环境（跳过 CI 检查，快速模式）
-pnpm ship:dev:quick
-
-# 预发环境
-pnpm ship:staging
-
-# 生产环境（仅完整检查，无快速模式）
-pnpm ship:prod
-```
-
-### 远程部署（`/cd` 命令）
-```bash
-# 通过 GitHub Actions 部署到 staging
-pnpm cd:staging
-
-# 通过 GitHub Actions 部署到 production
-pnpm cd:prod
-```
+### 部署时数据库迁移
+- 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f db/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
+- 迁移失败立即中止部署，执行 L2 回滚（见下方回滚流程），不启动新版本应用。
 
 ### 部署后验证
 1. **冒烟测试**（部署后立即执行）：
@@ -131,80 +71,36 @@ pnpm cd:prod
    - 延迟（Latency P50/P95/P99）— 符合 ARCH 定义的 SLO
    - 吞吐量（Requests/s）— 在预期范围内
    - 资源占用（CPU/Memory）— 无异常飙升
+   - ARCH 运维视图对照：验证部署拓扑、SLO 指标（响应时间、可用性）与 `/docs/ARCH.md` 运维视图定义一致
 3. **确认与记录**：
    - 在 `/docs/QA.md` 部署记录章节追加本次部署信息
    - 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
 
+### 灰度/金丝雀部署验证
+- 采用金丝雀部署时，按 5%→25%→100% 分阶段放量，每阶段完成冒烟测试 + 关键指标对比后再扩量。
+- 任一阶段出现错误率飙升或 SLO 违反，立即暂停扩量并执行回滚。
+
+### Staging→Production 升级
+- staging 验证通过后，使用相同构建产物（tag/commit hash）部署 production：`/ship prod` 或 `/cd prod vX.Y.Z`，禁止重新构建以避免不一致。
+- production 部署前须完成 Expert §部署前检查清单 全部项目，staging 冒烟通过不免除 production 检查。
+
 ### 回滚流程
 当部署后发现严重问题时：
-
-1. **L1 即时回滚**（应用层）：
-   ```bash
-   scripts/server/deploy.sh <env> --rollback
-   # 或 git revert <commit-hash>
-   ```
-2. **L2 数据库回滚**（如涉及迁移）：
-   ```bash
-   # SQL 迁移回滚
-   psql -f db/migrations/rollback/<migration_name>.sql
-   # 或 Prisma 回滚
-   prisma migrate resolve --rolled-back
-   # 或从备份恢复
-   pg_restore <backup_file>
-   ```
-3. **L3 回滚后处理**：
-   - 通知 QA 专家并取消 `DEPLOYED` 勾选
-   - 记录回滚原因与影响范围
-   - 退回 TDD/QA 阶段修复后重新部署
+1. **L1 即时回滚**（应用层）：`scripts/server/deploy.sh <env> --rollback` 或 `git revert <hash>`
+2. **L2 数据库回滚**（如涉及迁移）：`psql -f db/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
+3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 记录回滚原因 → 退回 TDD/QA 修复后重新部署
+4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到 ADR 或专项文档。
 
 ---
 
-## §4. 协作模式与模板
+## 与其他专家的协作
 
-### 与 TDD 专家协作（CI 配置）
-1. TASK 专家完成任务规划后，DevOps 可被激活配置 CI
-2. CI 配置完成后，TDD 专家可通过 `/ci run`、`/ci status` 触发 CI（会临时激活 DevOps 专家，查看结果后切回 `/tdd` 继续开发）
-3. CI 失败时，TDD 专家先自行排查代码问题；若为 CI 配置问题，激活 DevOps 修复
+| 协作方 | 触发场景 | DevOps 职责 | 交接产物 |
+|--------|---------|-------------|---------|
+| TDD 专家 | TASK_PLANNED 后 CI 配置 | 配置 CI 流水线 → TDD 可用 `/ci run` | CI 工作流文件 |
+| TDD 专家 | CI 配置问题 | 排查修复 CI 配置 | 修复后 CI 恢复绿色 |
+| QA 专家 | QA_VALIDATED 后部署 | 执行部署 + 冒烟验证 | 部署记录写入 QA.md |
+| QA 专家 | 部署后发现问题 | 执行回滚 | 回滚记录 + 退回 TDD/QA |
 
-### 与 QA 专家协作（部署执行）
-1. QA 专家完成验证，在 `/docs/QA.md` 记录发布建议（Go / Conditional / No-Go）
-2. QA 激活 DevOps 执行部署
-3. 部署后，QA 协助执行冒烟测试与关键指标验证
-4. 若发现问题，QA 记录缺陷，DevOps 执行回滚
-
-### 回流与退回
-- 部署后发现代码缺陷 → 回滚 → 退回 TDD 修复 → QA 重新验证 → DevOps 重新部署
-- CI 配置变更导致构建失败 → DevOps 自行修复 CI 配置
-- 环境配置问题（如密钥过期、外部服务不可用）→ DevOps 自行处理并记录
-
-### CI 工作流模板（GitHub Actions）
-```yaml
-name: CI
-on:
-  push:
-    branches: [main, 'feature/**']
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: '.node-version'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test -- --watchAll=false --runInBand
-        env:
-          CI: true
-      - run: pnpm build
-```
+## CI 工作流模板
+创建新项目 CI 时，复制 `/docs/data/templates/devops/CI-WORKFLOW-TEMPLATE.yml` 到 `.github/workflows/ci.yml` 并按项目实际调整。
