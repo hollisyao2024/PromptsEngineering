@@ -276,7 +276,7 @@ npm run cr:pending                        # 查看待审批 CR
 - `AGENTS.md`
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
 - `docs/`（含 `ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
-  - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板已内置于 `AgentRoles/PRD-WRITER-EXPERT.md` §PRD 模板）
+  - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板见 `docs/data/templates/prd/PRD-TEMPLATE-SMALL.md` 和 `PRD-TEMPLATE-LARGE.md`）
   - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
 - `db/`（含 `migrations/` 模板）
 - `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）

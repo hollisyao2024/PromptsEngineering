@@ -23,7 +23,7 @@ const CONFIG = {
   moduleTemplatePath: path.join(__dirname, '../../docs/prd-modules/MODULE-TEMPLATE.md'),
 };
 
-// 主 PRD 必需章节（与 AgentRoles/PRD-WRITER-EXPERT.md §PRD 模板保持一致）
+// 主 PRD 必需章节（与 docs/data/templates/prd/PRD-TEMPLATE-*.md 保持一致）
 const MAIN_SECTION_PATTERNS = [
   { label: '## 1.', pattern: /^##\s*1\./m },
   { label: '## 2.', pattern: /^##\s*2\./m },
@@ -75,7 +75,7 @@ function checkFileExists(filePath, description) {
     if (description === '主 PRD') {
       log(`ℹ️  主 PRD 尚未创建`, 'cyan');
       log(`   提示：PRD.md 为模板文件，请使用 PRD 专家按需生成`, 'cyan');
-      log(`   参考：AgentRoles/PRD-WRITER-EXPERT.md §PRD 模板`, 'cyan');
+      log(`   参考：docs/data/templates/prd/PRD-TEMPLATE-SMALL.md 或 PRD-TEMPLATE-LARGE.md`, 'cyan');
       return false;
     }
     log(`❌ ${description} 不存在: ${filePath}`, 'red');
