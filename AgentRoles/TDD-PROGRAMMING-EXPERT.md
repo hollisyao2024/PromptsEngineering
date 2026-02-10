@@ -204,19 +204,11 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 - **引用规范**：需求/架构/任务/QA 文档或 ADR 若需引用旧条目，必须链接到 `docs/changelogs/CHANGELOG-*.md` 中的具体分卷，避免模糊引用。
 - **同步提醒**：`/tdd push` 在推送前会校验 `CHANGELOG.md` 是否已更新；若执行分卷请务必在 PR “文档回写”段落列出新分卷编号与链接。
 
-## CI 任务（Solo Lite）
-- **触发**：PR / push 到主干；GitHub Actions 开启 **concurrency** 组并 `cancel-in-progress: true`。
-- **步骤**：
-  1) Lint / Typecheck；
-  2) **非交互测试**（Jest：`CI=1 npm test -- --watchAll=false --runInBand`；Vitest：`npx vitest run`）；
-  3) Build 前端/后端产物；
-  4) （可选）Dependabot 警报检查、生成 **CycloneDX SBOM**；
-  5) （可选）DB 迁移 **dry-run**（遵循 Expand→Migrate/Backfill→Contract）。
-
-## CD 任务（Solo Lite）
-- **策略**：默认**手动触发/环境审批**；或先对预发/灰度自动，生产人工确认。
-- **检查清单**：CI 全绿、必要审批、发布 **Runbook/回滚**、关键监控阈值在线；涉及结构性变更时同步 ADR 与迁移方案。
-- **部署触发**：TDD 专家负责 CI 验证；实际部署由 **QA 专家验证通过后**触发（见 `/qa` 快捷命令）。
+## CI/CD 协作
+> CI/CD 流水线配置与执行、部署运维统一由 **DevOps 专家**负责，详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
+- TDD 专家负责确保代码通过 CI 验证（lint/typecheck/test/build 全绿）。
+- CI 流水线的创建、配置与优化由 DevOps 专家管理。
+- 部署操作由 QA 验证通过后，**DevOps 专家**执行（见 `/devops` 快捷命令）。
 
 ## 完成定义（DoD）
 - 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR “文档回写”段粘贴）；需要的 ADR/变更记录齐全；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
@@ -224,7 +216,7 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## 交接
 - 交付可发布制品与文档；CI 全绿后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
-- 部署操作由 QA 专家在验证通过后执行。
+- 部署操作由 **DevOps 专家**在 QA 验证通过后执行。
 
 ## 快捷命令
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
@@ -233,15 +225,7 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 - `/tdd push`：执行版本号递增、`CHANGELOG` 新条目、自动提交提交与 `git tag` 并推送到远程（实际运行 `npm run tdd:push`）；该命令不会再触发文档回写 Gate 的校验，仍需确保之前的 `/tdd sync` 已全面执行完毕，适合把多个小任务打包后一起推送。
 - `/tdd new-branch` TASK-<DOMAIN>-<编号>：相当于 `npm run tdd:new-branch TASK_ID=TASK-XXX`，在 `/tdd` 之前一步完成 `git checkout -b feature/TASK-XXX-<desc>`；建议直接把 Task ID 作为命令参数，下游再视情况附加 `TASK_SHORT` 描述，确保分支名中已含 Task ID 供 `/tdd sync` 识别。
 - `npm run tdd:tick`：仅执行任务勾选脚本，供需重复勾选或验证时手动运行（示例：`feature/TASK-PLAT-010-short-desc` 将自动勾选 `TASK-PLAT-010`）。命令会同步更新 `/docs/TASK.md` 及 `/docs/task-modules/{domain}/TASK.md` 的复选框/状态，并反映在 `/docs/task-modules/module-list.md` 的模块状态行里，保持模块/子任务进度一致。
-- `/ci run` 
-  - 作用：触发或重跑当前分支的 CI（lint/typecheck/test/build）。
-  - 触发方式：
-    - 自动：push / PR 即触发；
-    - 手动：若 `ci.yml` 启用了 `workflow_dispatch`，执行：
-      `gh workflow run "CI (Solo Lite)" -f ref=<branch>`
-- `/ci status`
-  - 作用：查看最近一次 CI 状态与日志链接。
-  - 示例：`gh run list -L 1`，`gh run watch`。
+- `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**，详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
 
 ## TDD Pull Request 最小模板（片段）
 ```markdown

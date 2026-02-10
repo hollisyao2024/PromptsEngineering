@@ -18,6 +18,7 @@
 - **模块 PRD 文档**：所有模块目录结构、模块模板、ID 规范等均在 `/docs/prd-modules/MODULE-TEMPLATE.md` 详解。
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 - **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/TRACEABILITY-MATRIX-TMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。
+- **UX 规范文档**：`/docs/data/ux-specifications.md`（全局）或 `/docs/prd-modules/{domain}/ux-specifications.md`（模块级），由 `/docs/data/templates/UX-SPECIFICATIONS-TEMPLATE.md` 生成，包含用户研究、线框图/原型索引、设计系统规范、响应式设计矩阵、WCAG 检查清单、设计-开发交接清单。
 
 ### 拆分条件
 - **拆分触发条件**（任一成立）：
@@ -34,6 +35,7 @@
 
 ### 需求验证前置（Shift-Left）
 - 在 PRD 交付前，执行 Playbook §7 "需求验证前置检查清单"，涵盖技术可行性、数据合规性、依赖风险、验收标准完备性、业务目标对齐、角色覆盖、NFR 明确、文档完整性。
+- 在 PRD 交付前，执行 Playbook §8 "用户体验验证清单"，涵盖用户研究有效性、线框图/原型完整性、设计系统一致性、WCAG 合规性、响应式设计覆盖、设计-开发交接准备。
 - 必要时组织技术评审会（PRD 70% 完成时），产出技术风险评估报告。
 
 ### 参考手册
@@ -41,12 +43,15 @@
 - `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §核心工作流程
 - `/docs/prd-modules/MODULE-TEMPLATE.md` — 大型项目拆分模板与模块结构示例
 - `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7 需求验证前置检查清单
+- `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §8 用户体验验证清单
+- `/docs/data/templates/UX-SPECIFICATIONS-TEMPLATE.md` — UX 规范模板
 
 ## 完成定义（DoD）
 - PRD 含：目标、范围/非范围、角色与场景、用户故事、**验收标准（Given-When-Then）**、NFR（性能/安全/可用性/合规/数据保留与隐私）、依赖与风险、里程碑、开放问题。
 - **可追溯表**：`User Story → 验收标准 → 测试用例 ID`（小型项目可内嵌在主 PRD，大型项目独立维护在 `/docs/data/traceability-matrix.md`）。
 - **追溯矩阵初始化**：若 `/docs/data/traceability-matrix.md` 尚不存在，PRD 专家需参照 `/docs/data/templates/TRACEABILITY-MATRIX-TMPLATE.md` 创建初始文件，并先填入 Story/AC ID，供后续 QA 补充 Test Case 和状态；
 - **拆分决策**：评估项目规模，若满足拆分条件（见本文 § 拆分条件），采用主从 PRD 结构；否则维护单一 `/docs/PRD.md`。
+- **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、响应式断点矩阵定义、设计系统 Token 列表、设计-开发交接文档就绪。Playbook §8 用户体验验证清单逐项通过。
 - 与干系人达成一致，在 `/docs/AGENT_STATE.md` 勾选 `PRD_CONFIRMED`。
 
 ## 交接
@@ -102,7 +107,17 @@
   | 里程碑 | 预期完成时间 | 交付物 | 达成 Gate 条件（例如 Doc Sync、Traceability 完成） | 负责人 |
   | ------ | ------------ | ------ | ---------------------------------------------------- | ------ |
 
-## 8. 追溯关系
+## 8. 用户体验设计（UX）
+- 用户研究摘要（方法论、关键洞察、用户痛点）
+- 关键用户旅程与线框图/原型索引（附设计工具链接）
+- 设计系统规范摘要（色彩/排版/间距/组件 Token）
+- 响应式设计要求（断点矩阵、设备适配）
+- 无障碍访问（WCAG AA）要求
+- 设计-开发交接规范
+- UX 规范详见 `/docs/data/ux-specifications.md`
+- （纯后端项目可标注"不适用"并跳过）
+
+## 9. 追溯关系
 - Story → AC → Test Case ID
 - 若 `/docs/data/traceability-matrix.md` 尚不存在，请复制模板并立即填入当前 Story/AC，供 QA 后续补充 Test Case 与状态，避免遗漏追溯。
 - 当前 Story/AC 的状态可通过表格形式记录，包含负责 QA/Traceability 的人、最后更新时间与 Test Case 缺失情况（替换为 Gate 条件）。
@@ -110,7 +125,7 @@
   | -------- | ----- | ------------ | ---- | ------ | -------- |
   | S-001 | AC-01 | TC-100 | Test Case 缺失 | @qa | 2025-10-01 |
 
-## 9. 开放问题
+## 10. 开放问题
 - Q1 …
 - 开放问题需注明提出者、当前负责人、计划澄清时间与是否影响 `PRD_CONFIRMED` Gate，避免小项目在最后阶段遗忘待解问题。
 ```
@@ -180,7 +195,16 @@
   | 接口依赖 | ARCH | 外部接口未确认，支付无法推进 | `ARCHITECTURE_DEFINED` 前需确认契约 | @team-b | 协调中 |
   | 数据合规 | TASK | 数据留存策略待审批 | `TASK_PLANNED` 前需合规签核 | @legal | 待审批 |
 
-## 8. 追溯矩阵与发布 Gate
+## 8. 用户体验设计（UX）
+- 用户研究摘要与关键洞察
+- 核心用户旅程线框图/原型索引（附设计工具链接）
+- 设计系统规范摘要（Token 定义概览）
+- 响应式设计与无障碍访问（WCAG AA）要求
+- 设计-开发交接规范
+- 详见 `/docs/data/ux-specifications.md`
+- （纯后端项目可标注"不适用"并跳过）
+
+## 9. 追溯矩阵与发布 Gate
 - 详见 [traceability-matrix.md](data/traceability-matrix.md)
 - 记录 Story → AC → Test Case 的同步状态，并在 `PRD_CONFIRMED` 阶段确认 QA/QA/Traceability 更新完毕，作为进入 `ARCHITECTURE_DEFINED` 的 Gate 条件。
 - 补充一个 Gate 校验清单，至少包含：每个功能域有代表性 Story/AC、Traceability 初稿完成、QA 覆盖关键旅程、NFR 验证计划同步、Doc Sync 注记完成。由 PO/TDD/QA/Traceability 共同确认或记录在 Doc Sync Gate 备注。

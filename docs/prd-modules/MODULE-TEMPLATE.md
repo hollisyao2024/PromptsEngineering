@@ -25,7 +25,8 @@
         ├── PRD.md （模块 PRD 文档）
         ├── dependency-graph.md （模块依赖图）
         ├── nfr-tracking.md （模块 NFR 追踪表）
-        └── priority-matrix.md （模块优先级矩阵）
+        ├── priority-matrix.md （模块优先级矩阵）
+        └── ux-specifications.md （模块 UX 规范，可选，有前端界面时创建）
 ```
 #### PRD.md
 - 模块 PRD 文档
@@ -50,6 +51,11 @@
 - 输出综合得分与建议优先级（P0/P1/P2）
 - 适用于优先级冲突或资源紧张的模块
 - 可参照 `/docs/prd-modules/PRIORITY-MATRIX-TEMPLATE.md` 的示例模板生成初始表格，PRD+TASK 共同评估指标值，QA/ARCH 提供依赖与风险输入，定期刷新优先级排序并同步到 `TASK.md`。
+
+#### ux-specifications.md（可选，有前端界面时创建）
+- 模块级 UX 规范文档，记录该模块的用户旅程、线框图/原型索引、设计系统引用、响应式设计与无障碍要求。
+- 参照 `/docs/data/templates/UX-SPECIFICATIONS-TEMPLATE.md` 生成，根据模块实际前端界面裁剪章节。
+- PRD 专家在需求阶段创建，TDD 专家在实现时参考，QA 专家在验证时对照设计还原度与无障碍合规。
 
 ### 1.2 命名与 ID
 
@@ -196,18 +202,26 @@
 - 描述 Traceability 与 QA 校验状态
 - 提示如何更新 `/docs/data/traceability-matrix.md` 并生成 release gate 报告
 
-### 8. 开放问题
+### 8. 用户体验设计（UX）（可选，有前端界面时填写）
+- 模块级用户旅程摘要（关联 Story ID）
+- 关键页面/组件的线框图或原型链接
+- 设计系统引用（全局 Design Token + 模块特定组件）
+- 响应式断点与无障碍要求（WCAG 2.1 AA）
+- 详细 UX 规范见模块 `ux-specifications.md`（参照 `/docs/data/templates/UX-SPECIFICATIONS-TEMPLATE.md`）
+
+### 9. 开放问题
 - 问题描述、影响、负责人、计划解决时间
 - 每条问题附上相关 Task/Story ID
 
-### 9. 变更记录
+### 10. 变更记录
 - 版本、日期、描述、责任人
 
-### 10. 自检清单
+### 11. 自检清单
 - [ ] 是否运行 `npm run prd:lint`、`prd:check-dependency-cycles`、`prd:sync-matrix`？
 - [ ] 是否同步 traceability matrix 与 QA 状态？
 - [ ] 是否通知 ARCH/TASK/TDD/QA（接口验证/风险/依赖）？
 - [ ] 是否在 `/docs/AGENT_STATE.md` 标注 `PRD_CONFIRMED`、`ARCHITECTURE_DEFINED` 等阶段？
+- [ ] 若模块有前端界面，是否创建了 `ux-specifications.md` 并关联用户旅程与线框图？
 
 ## 1. 模块概述
 

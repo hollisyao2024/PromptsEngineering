@@ -1,4 +1,4 @@
-# Agents Router 模板（v1.8 · 2025-11-05）
+# Agents Router 模板（v1.9 · 2026-02-10）
 
 这是一套服务于 Codex CLI、Claude Code CLI、Gemini CLI 等多模型编码场景的提示词工程模板。核心目标是以极小的上下文体积，驱动多位领域专家按阶段协作，让大模型在明确的工序中持续交付一致、可追溯的结果。
 
@@ -13,7 +13,7 @@
 
 ## 目录速览
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
-- `AgentRoles/*.md`：五位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA）。
+- `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
 - `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
   - **`docs/prd-modules/`**（v1.8）：大型项目 PRD 模块化目录，按功能域拆分的详细 PRD，含 `README.md` 模块索引。
@@ -29,8 +29,8 @@
 ## 快速开始
 1. 将整个模板放置在目标项目根目录，确保路径与文档约定保持一致。
 2. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
-3. 根据项目阶段，使用 `/prd`、`/arch`、`/task`、`/tdd`、`/qa`（或对应自然语言）激活专家；激活后按提示点读对应 Playbook 章节。
-4. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中勾选阶段成果（五个状态：PRD_CONFIRMED → QA_VALIDATED），再切换下一位专家。
+3. 根据项目阶段，使用 `/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops`（或对应自然语言）激活专家；激活后按提示点读对应 Playbook 章节。
+4. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中勾选阶段成果（六个状态：PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED），再切换下一位专家。
 5. 实现阶段完成后，执行“文档回写 Gate”：同步 PRD/ARCHITECTURE/TASK/QA/CHANGELOG/ADR 等文件并回传给 QA。
 
 ## 阶段化工作流
@@ -44,6 +44,7 @@
 4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写、更新 `CHANGELOG.md` 并移交 QA。
 5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
    - **v1.8 增强**：自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
+6. **DevOps 专家**（v1.9 新增）：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
 
 ---
 

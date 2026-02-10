@@ -101,12 +101,12 @@ uvicorn app.main:app --reload  # 本地联调需手动停止
 ### 跨栈与自动化脚本
 ```bash
 npm run build
-scripts/ci.sh              # TDD 专家负责：CI 验证
-# scripts/deploy.sh        # 部署由 QA 专家负责，见 /qa 快捷命令
+scripts/ci.sh              # TDD 专家负责：确保 CI 全绿
+# scripts/server/deploy.sh # 部署由 DevOps 专家负责，见 /devops 快捷命令
 ```
 
-> **重要**：`scripts/deploy.sh` 和 `scripts/cd.sh` 由 QA 专家在验证通过后执行。
-> TDD 专家负责确保 CI 全绿，然后移交 QA 进行部署决策。
+> **重要**：部署脚本（`scripts/server/deploy.sh`）和 CI/CD 流水线配置由 **DevOps 专家**统一管理。
+> TDD 专家负责确保 CI 全绿，然后移交 QA 验证 → DevOps 部署。
 
 > 若命令产生新文件或缓存，请在提交前清理或加入 `.gitignore`。
 
@@ -167,7 +167,7 @@ test(backend): 增加订单接口异常用例
   - `CHANGELOG.md` 已更新
   - 文档回写完成（PRD/ARCH/TASK 同步）
   - `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`
-- **QA 职责**：验证通过后负责触发部署（使用 `/ship` 或 `/cd` 命令）
+- **三方交接流程**：TDD 移交 QA 验证 → QA 验证通过后移交 **DevOps 专家**执行部署（使用 `/ship` 或 `/cd` 命令）
 - 若 QA 发现阻塞问题，应撤销 `TDD_DONE` 勾选并回退到对应阶段处理
 
 ---

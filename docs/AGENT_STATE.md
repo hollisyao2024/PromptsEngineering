@@ -4,3 +4,4 @@
 - [ ] 3. TASK_PLANNED
 - [ ] 4. TDD_DONE (代码合并前)
 - [ ] 5. QA_VALIDATED (发布前)
+- [ ] 6. DEPLOYED (部署后)
