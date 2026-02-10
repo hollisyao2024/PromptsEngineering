@@ -119,7 +119,7 @@
 - [component-dependency-graph.md](data/component-dependency-graph.md) — 组件依赖图示例
 
 ## Scripts 约定
-- 脚本按用途分类，如 `scripts/ci.sh`、`scripts/server/deploy.sh`、`scripts/analyze_logs.py`。
+- 脚本按用途分类，如 `scripts/tdd-tools/tdd-push.js`、`scripts/server/deploy.sh`、`scripts/qa-tools/generate-qa.js`。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
 

@@ -77,7 +77,7 @@ uvicorn app.main:app --reload  # 本地联调需手动停止
 ### 跨栈与自动化脚本
 ```bash
 pnpm run build
-scripts/ci.sh
+# CI 流水线由 DevOps 专家管理（/ci run）
 ```
 
 > 若命令产生新文件或缓存，请在提交前清理或加入 `.gitignore`。

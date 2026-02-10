@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/CHANGELOG.md`）与 CI 结果。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）与 CI 结果。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接改代码实现（如需修复，退回 TDD 阶段）。
 
 ## 输入
