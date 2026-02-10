@@ -27,6 +27,31 @@ version: 1.9 (2026-02-10)
 5. **QA 专家**：在 TDD 专家交付后，负责系统级验证、缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
 6. **DevOps 专家**：负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证，确保代码从构建到上线的全链路自动化。
 
+## TDD 开发全流程（分支 → 编码 → PR → QA → 部署）
+
+```mermaid
+flowchart TD
+    A[TDD 专家激活] --> B{分支门禁}
+    B -->|主干分支| C{有 Task?}
+    B -->|已在正确分支| F
+    C -->|有| D["自动 /tdd new-branch TASK-XXX<br/>从 TASK.md 提取描述"]
+    C -->|无: bug/临时需求| E["自动 /tdd new-branch<br/>从用户描述生成 fix/feature 分支"]
+    D --> F[TDD 循环: 红→绿→重构]
+    E --> F
+    F --> G["/tdd sync — 文档回写 Gate"]
+    G --> H["/tdd push — 版本递增 + push + 创建 PR"]
+    H --> I[标记 TDD_DONE]
+    I --> J[QA 专家激活]
+    J --> K["/qa plan — 生成测试计划"]
+    K --> L[执行测试]
+    L --> M["/qa verify — 验收检查"]
+    M --> N{发布建议}
+    N -->|Go| O["/qa merge — 合并 PR 到 main"]
+    N -->|No-Go| P[退回 TDD 修复]
+    O --> Q[标记 QA_VALIDATED]
+    Q --> R[DevOps 从 main 部署]
+```
+
 ## 状态机（六阶段）
 1. `PRD_CONFIRMED`
 2. `ARCHITECTURE_DEFINED`
@@ -99,12 +124,19 @@ version: 1.9 (2026-02-10)
 
 **加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`，未读取前禁止执行任何操作。
 
-**完成状态**：合并前在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`；如被退回则取消并回到对应阶段。
+**完成状态**：`/tdd push` 完成后 PR 已自动创建，在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`；如被退回则取消并回到对应阶段。
 
-**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`、`/tdd new-branch`（每个命令触发即激活 TDD 专家）。
-**分支生成**：
-  - `/tdd new-branch` TASK-<DOMAIN>-<编号>（如 `/tdd new-branch` TASK-EXPORT-004）可直接创建具有 Task ID 的 feature 分支，`TASK_SHORT` 只在需要附加简短描述时才额外填写。
-  - 该命令会把 `TASK_ID` 装进 `feature/TASK-XXX-<desc>` 分支并执行 `git checkout -b`，保持 `/tdd` 流程所需的命名约束。
+**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`、`/tdd push`、`/tdd new-branch`（每个命令触发即激活 TDD 专家）。
+
+**分支门禁**（自动执行，无需手动触发）：
+  - TDD 专家激活后（含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等所有入口），**第一步**自动检查当前 Git 分支。
+  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，自动执行 `/tdd new-branch` 创建分支。
+  - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上则跳过。
+
+**分支生成**（`/tdd new-branch`）：
+  - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 TASK.md WBS 的"名称"列提取任务名称，转 kebab-case 英文短语（≤30 字符）作为描述 → `feature/TASK-XXX-<auto-desc>`
+  - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述提取关键词 → `fix/<desc>` 或 `feature/<desc>`
+  - 两种模式下用户可显式传入描述来覆盖自动生成。该命令通常由分支门禁自动调用，也可手动执行。
 
 **说明**：TDD、文档回写规范在角色卡片与 Handbook 中对齐。CI/CD 流水线配置与部署由 DevOps 专家负责。
 
@@ -113,9 +145,9 @@ version: 1.9 (2026-02-10)
 
 **加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/QA-TESTING-EXPERT.md`，未读取前禁止执行任何操作。
 
-**完成状态**：所有阻塞缺陷关闭后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
+**完成状态**：`/qa merge` 合并 PR 到 main 后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
 
-**快捷命令**：`/qa plan`、`/qa verify`（自动激活 QA 专家）。
+**快捷命令**：`/qa plan`、`/qa verify`、`/qa merge`（自动激活 QA 专家）。
 
 **说明**：测试策略、验证矩阵与发布建议由 QA 专家文件与 Handbook 描述，追溯矩阵同步也在其中。部署命令（`/ship`、`/cd`）已迁移至 DevOps 专家。
 
@@ -158,12 +190,13 @@ version: 1.9 (2026-02-10)
 - `/tdd diagnose` — 诊断当前代码/测试问题
 - `/tdd fix` — 修复已识别问题
 - `/tdd sync` — 执行文档回写 Gate（同步 PRD/ARCH/TASK/CHANGELOG/ADR）
-- `/tdd push`：执行版本号递增，并推送到远程仓库
-- `/tdd new-branch`：在 TDD 编码前，新开一个任务分支
+- `/tdd push` — 版本递增 + 推送到远程 + 自动创建 PR
+- `/tdd new-branch` — 创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
 
 ### QA 专家
 - `/qa plan` — 基于 PRD+ARCH+TASK 自动生成/刷新 QA.md，包含测试策略、测试用例、测试矩阵
-- `/qa verify` — 快速聚焦验收项（更多操作见角色卡片）
+- `/qa verify` — 快速聚焦验收项，输出发布建议（Go / Conditional / No-Go）
+- `/qa merge` — 合并 PR 到 main，标记 QA_VALIDATED（前置条件：verify 通过且 Go）
 
 ### DevOps 专家
 - `/ci run` — 触发 CI 流水线

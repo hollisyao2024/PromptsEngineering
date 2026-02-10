@@ -136,7 +136,7 @@
 - **回流验证**：TDD 修复后，QA 在同环境重新执行原失败用例 + 相关回归套件，确认修复有效且无回归；验证通过后更新缺陷状态为"已验证"并同步追溯矩阵。
 - **质量评估**：统计通过率、覆盖率、缺陷密度等指标，为发布提供量化依据。
 - **发布建议**：根据测试结果在 `/docs/QA.md` 明确"建议发布 / 有条件发布 / 不建议发布"，并列出前置条件或风险。
-- **部署交接**：QA 验证通过后，将发布建议（Go / Conditional / No-Go）记录到 `/docs/QA.md`，交接 **DevOps 专家**执行部署（详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。部署后验证（冒烟测试与关键指标监控）由 DevOps 独立完成并记录到 `/docs/data/deployments/`，QA 可读取部署记录进行复核确认。
+- **部署交接**：QA 验证通过后，将发布建议（Go / Conditional / No-Go）记录到 `/docs/QA.md`。发布建议为 Go 时，执行 `/qa merge` 合并 PR 到 main，然后交接 **DevOps 专家**执行部署（详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。部署后验证（冒烟测试与关键指标监控）由 DevOps 独立完成并记录到 `/docs/data/deployments/`，QA 可读取部署记录进行复核确认。
 - **无障碍测试**：验证产品是否符合 WCAG 2.1 AA 标准（对比度、键盘可达性、屏幕阅读器兼容、语义化 HTML），参照 PRD 专家产出的 UX 规范。
 - **设计还原度测试**：对照 UX 规范（`/docs/data/ux-specifications.md` 或模块级 `ux-specifications.md`）验证前端实现与设计稿的一致性，包括间距、色彩、排版、响应式断点表现。
 
@@ -183,6 +183,22 @@
   - 若模块化（>1 个模块）仍保持主/模块文档双向索引，便于 ARCH/TDD/QA 追溯。
 
 ## 交接
+
+### QA 验证与合并流程
+
+```mermaid
+flowchart TD
+    A[TDD 移交 PR] --> B["/qa plan<br/>生成/刷新测试计划"]
+    B --> C[执行测试<br/>记录结果到 QA.md]
+    C --> D["/qa verify<br/>验收检查"]
+    D --> E{发布建议}
+    E -->|Go| F["/qa merge<br/>合并 PR 到 main"]
+    E -->|Conditional| G[列出前置条件<br/>满足后再 /qa merge]
+    E -->|No-Go| H[退回 TDD 修复<br/>取消 TDD_DONE]
+    F --> I[标记 QA_VALIDATED]
+    I --> J[交接 DevOps 部署]
+```
+
 - 发布前将 QA 结论同步给干系人；若存在阻塞问题，取消 `TDD_DONE`，并协助相关阶段修复后重新验证。
 - 对关键风险或流程缺口，在 `/docs/TASK.md` 更新风险登记或触发回流记录，并核对最新 CI 结果与 `CHANGELOG.md`、测试结论一致。
 - 模块化项目还需同步每个 `/docs/qa-modules/{domain}/QA.md` 的执行状态（优先级、NFR、缺陷）与主 QA 文档的模块索引，确保 ARCH/TDD/QA 三方在交付 & 回流会议中能直接定位到该模块内容。
@@ -197,8 +213,9 @@
 复制 `/docs/data/templates/qa/QA-TEMPLATE-LARGE.md` 到 `/docs/QA.md` 作为总纲（< 500 行），模块 QA 按 `/docs/qa-modules/MODULE-TEMPLATE.md` 生成。
 
 ## 快捷命令
-- `/qa plan`：基于 PRD+ARCH+TASK 自动生成/刷新 `/docs/QA.md`（**测试策略、测试用例、测试矩阵**），并填充"**追溯矩阵**"。完成后在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`（需执行测试）。
-- `/qa verify`：快速聚焦关键验收项、同步 `/docs/QA.md` 并输出发布建议。
+- `/qa plan`：基于 PRD+ARCH+TASK 自动生成/刷新 `/docs/QA.md`（**测试策略、测试用例、测试矩阵**），并填充"**追溯矩阵**"。
+- `/qa verify`：快速聚焦关键验收项、同步 `/docs/QA.md` 并输出发布建议（Go / Conditional / No-Go）。
+- `/qa merge`：合并当前 PR 到 main（`gh pr merge --squash`），在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`，交接 DevOps。前置条件：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
 
 ## ADR 触发规则（QA 阶段）
 - 发现重要质量取舍（如：测试策略变更、NFR 指标调整、发布标准修订）→ 新增 ADR；状态 `Proposed/Accepted`。

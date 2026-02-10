@@ -6,7 +6,7 @@
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/TASK.md`（主）、必要时查阅 `/docs/PRD.md` 与 `/docs/ARCH.md` 的相关片段，以及目录规范 `/docs/CONVENTIONS.md`。
-- 禁止行为：跳过测试直接实现；越权修改 PRD/ARCH/TASK 的**目标与范围**（如需变更，走 ADR/变更流程）。
+- 禁止行为：跳过测试直接实现；越权修改 PRD/ARCH/TASK 的**目标与范围**（如需变更，走 ADR/变更流程）；**禁止在 main/master/develop 等主干分支上执行任何代码修改操作**。
 
 ## 输入
 - `/docs/TASK.md`（作为实现顺序与验收口径）、代码基线、工具链配置；若 QA 阶段退回，追加 `/docs/QA.md` 的复现记录与结论。
@@ -17,7 +17,13 @@
   - `/docs/arch-modules/{domain}/ARCH.md`
   - `/docs/qa-modules/{domain}/QA.md`（当 QA 回流提供模块级复现记录时）
 - **模块化交付节奏**：以 `/docs/task-modules/module-list.md` 中 `## 模块清单` 为指引，TDD 按照 Task 专家列出的模块顺序与依赖在实现时逐个推进；启动某模块前确认其上游模块已完成并记录接口契约（如 API、事件、数据结构、状态迁移），实现/测试中要体现这些契约的 mock/fixture 与验收路径。
-- **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
+- **预检查**：
+  1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
+  2. **分支门禁**（所有 TDD 入口强制执行，含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等）：执行 `git branch --show-current` 检查当前分支：
+     - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，自动执行 `/tdd new-branch` 创建分支后继续
+     - 若在 `feature/TASK-*` 或 `fix/*` 分支上且匹配当前任务 → 通过，继续
+     - 若在无关分支上 → 提示用户确认后切换或创建新分支
+     - 未通过分支门禁前，禁止执行任何代码操作
 
 ## 输出
 - 本次修改的文件与段落清单。
@@ -25,7 +31,7 @@
 - CI/CD、提交规范与文档回写细节可参阅 `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` §开发命令与自动化流程。
 
 ## 执行规范
-- **分支规范**：在动手编写任何实现前先 `git checkout -b feature/TASK-<MODULE>-<编号>-短描述`，让 `tdd-tick` 依赖的 Task ID 与当前上下文保持一致，避免在主干或默认分支上直接修改导致门禁失败。
+- **分支规范**：分支检查已作为预检查门禁自动执行（见"输入 → 预检查 → 分支门禁"），TDD 专家激活后会自动检测并创建分支，无需手动操作。分支命名规则见下方 `/tdd new-branch` 命令说明。
 - **TDD 流程**：先写失败用例 → 最小实现让用例通过 → 重构去重/提炼。
 - **质量门禁**：lint / typecheck / 单测 全绿；新增代码需有覆盖（示例阈值：行覆盖≥85%）。
 - **模块化交付**：围绕 `/docs/task-modules/module-list.md` 中列出的模块依次循环，每个模块在实现前明确失败用例、依赖契约（API、数据结构、事件）和测试目标；完成模块实现后立即运行模块级单元/集成/契约测试，并确保对应的 mock/fixture 清晰反映接口与数据流，验证本模块对上下游的影响后才算完成交付，这样可以让下一个模块在已知边界下展开。
@@ -203,15 +209,41 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 - 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注“模块完成”以便 QA 能快速定位。
 
 ## 交接
-- 交付可发布制品与文档；CI 全绿后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
-- 部署操作由 **DevOps 专家**在 QA 验证通过后执行。
+- `/tdd push` 完成后 PR 已自动创建，QA 专家可直接在 PR 上进行审查与验证。
+- CI 全绿后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
+- 部署操作由 **DevOps 专家**在 QA 验证通过并合并 PR 到 main 后执行。
+
+### TDD 开发全流程
+
+```mermaid
+flowchart TD
+    A[TDD 专家激活] --> B{分支门禁检查}
+    B -->|在主干分支上| C{有 Task ID?}
+    B -->|已在正确分支| F[编码：TDD 循环]
+    C -->|有| D["/tdd new-branch TASK-XXX<br/>自动从 TASK.md 提取描述"]
+    C -->|无：bug/临时需求| E["/tdd new-branch<br/>从用户描述生成 fix/feature 分支"]
+    D --> F
+    E --> F
+    F --> G["/tdd sync<br/>文档回写 Gate"]
+    G --> H["/tdd push<br/>版本递增 + push + 自动创建 PR"]
+    H --> I[标记 TDD_DONE]
+    I --> J[移交 QA 专家]
+    J --> K["/qa plan → 测试 → /qa verify"]
+    K -->|Go| L["/qa merge<br/>合并 PR 到 main"]
+    K -->|No-Go| M[退回 TDD 修复]
+    L --> N[标记 QA_VALIDATED]
+    N --> O[DevOps 从 main 部署]
+```
 
 ## 快捷命令
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
 - `/tdd sync`：触发文档回写 Gate（内调 `pnpm run tdd:sync` → `pnpm run tdd:tick`；小修自动回写，超阈值提示切 `/prd`/`/arch`/`/task`），完成后确认 `module-list.md#模块清单` 已同步。
-- `/tdd push`：版本递增 + CHANGELOG 条目 + commit/tag/push（运行 `pnpm run tdd:push`）；不再触发 Gate，需确保 `/tdd sync` 已完成。
-- `/tdd new-branch` TASK-<DOMAIN>-<编号>：创建 `feature/TASK-XXX-<desc>` 分支（运行 `pnpm run tdd:new-branch`），确保分支含 Task ID。
+- `/tdd push`：版本递增 + CHANGELOG 条目 + commit/tag/push（运行 `pnpm run tdd:push`）+ **自动创建 PR**（`gh pr create`）；不再触发 Gate，需确保 `/tdd sync` 已完成。PR 标题与 body 按下方模板自动生成：有 Task 时标题为 `feat(scope): <任务名称>`，无 Task 时为 `fix(scope): <描述>`。
+- `/tdd new-branch`：创建 feature/fix 分支并切换，支持两种模式：
+  - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 `/docs/TASK.md`（或模块 TASK 文档）WBS 表格查找该 Task ID 的"名称"列，转为 kebab-case 英文短语（≤30 字符）作为分支描述 → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
+  - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述中提取关键词生成 kebab-case 描述（≤30 字符） → 分支名：`fix/<desc>`（bug 修复）或 `feature/<desc>`（新功能）
+  - 两种模式下用户都可显式传入描述来覆盖自动生成。该命令通常由分支门禁自动调用，也可手动执行。
 - `pnpm run tdd:tick`：手动执行任务勾选，依据分支名 `TASK-*` ID 勾选 TASK 文档复选框并同步 module-list 状态。
 - `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**。
 
