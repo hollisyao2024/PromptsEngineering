@@ -60,6 +60,7 @@
 ### 部署时数据库迁移
 - 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f db/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
 - 迁移失败立即中止部署，执行 L2 回滚（见下方回滚流程），不启动新版本应用。
+- 迁移脚本的编写规范与幂等性要求见 TDD 专家 §B.2~B.5（`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）。
 
 ### 部署后验证
 1. **冒烟测试**（部署后立即执行）：
@@ -73,7 +74,7 @@
    - 资源占用（CPU/Memory）— 无异常飙升
    - ARCH 运维视图对照：验证部署拓扑、SLO 指标（响应时间、可用性）与 `/docs/ARCH.md` 运维视图定义一致
 3. **确认与记录**：
-   - 在 `/docs/QA.md` 部署记录章节追加本次部署信息
+   - 在 `/docs/data/deployments/` 新建本次部署记录文件（`DEPLOY-{YYYYMMDD}-{SEQ}-{env}.md`）并更新 `README.md` 状态表
    - 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
 
 ### 灰度/金丝雀部署验证
@@ -85,11 +86,11 @@
 - production 部署前须完成 Expert §部署前检查清单 全部项目，staging 冒烟通过不免除 production 检查。
 
 ### 回滚流程
-当部署后发现严重问题时：
+当部署后发现严重问题时（回滚脚本规范见 TDD 专家 §B.4，`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）：
 1. **L1 即时回滚**（应用层）：`scripts/server/deploy.sh <env> --rollback` 或 `git revert <hash>`
 2. **L2 数据库回滚**（如涉及迁移）：`psql -f db/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
-3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 记录回滚原因 → 退回 TDD/QA 修复后重新部署
-4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到 ADR 或专项文档。
+3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 在部署记录中记录回滚原因 → QA 被重新激活后从回滚记录中提取信息，在 `defect-log.md` 正式登记缺陷条目 → 退回 TDD/QA 修复后重新部署
+4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到部署记录的事后回顾段及 ADR。
 
 ---
 
@@ -99,8 +100,8 @@
 |--------|---------|-------------|---------|
 | TDD 专家 | TASK_PLANNED 后 CI 配置 | 配置 CI 流水线 → TDD 可用 `/ci run` | CI 工作流文件 |
 | TDD 专家 | CI 配置问题 | 排查修复 CI 配置 | 修复后 CI 恢复绿色 |
-| QA 专家 | QA_VALIDATED 后部署 | 执行部署 + 冒烟验证 | 部署记录写入 QA.md |
-| QA 专家 | 部署后发现问题 | 执行回滚 | 回滚记录 + 退回 TDD/QA |
+| QA 专家 | QA_VALIDATED 后部署 | 执行部署 + 冒烟验证 | 部署记录写入 `/docs/data/deployments/` |
+| QA 专家 | 部署后发现问题 | 执行回滚 | 回滚记录写入部署日志 + QA 登记缺陷 + 退回 TDD/QA |
 
 ## CI 工作流模板
 创建新项目 CI 时，复制 `/docs/data/templates/devops/CI-WORKFLOW-TEMPLATE.yml` 到 `.github/workflows/ci.yml` 并按项目实际调整。

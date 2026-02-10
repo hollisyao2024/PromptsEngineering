@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）与 CI 结果。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接改代码实现（如需修复，退回 TDD 阶段）。
 
 ## 输入
@@ -136,7 +136,7 @@
 - **回流验证**：TDD 修复后，QA 在同环境重新执行原失败用例 + 相关回归套件，确认修复有效且无回归；验证通过后更新缺陷状态为"已验证"并同步追溯矩阵。
 - **质量评估**：统计通过率、覆盖率、缺陷密度等指标，为发布提供量化依据。
 - **发布建议**：根据测试结果在 `/docs/QA.md` 明确"建议发布 / 有条件发布 / 不建议发布"，并列出前置条件或风险。
-- **部署交接**：QA 验证通过后，将发布建议（Go / Conditional / No-Go）记录到 `/docs/QA.md`，交接 **DevOps 专家**执行部署（详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。部署后 QA 协助执行冒烟测试与关键指标验证。
+- **部署交接**：QA 验证通过后，将发布建议（Go / Conditional / No-Go）记录到 `/docs/QA.md`，交接 **DevOps 专家**执行部署（详见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。部署后验证（冒烟测试与关键指标监控）由 DevOps 独立完成并记录到 `/docs/data/deployments/`，QA 可读取部署记录进行复核确认。
 - **无障碍测试**：验证产品是否符合 WCAG 2.1 AA 标准（对比度、键盘可达性、屏幕阅读器兼容、语义化 HTML），参照 PRD 专家产出的 UX 规范。
 - **设计还原度测试**：对照 UX 规范（`/docs/data/ux-specifications.md` 或模块级 `ux-specifications.md`）验证前端实现与设计稿的一致性，包括间距、色彩、排版、响应式断点表现。
 
@@ -186,7 +186,7 @@
 - 发布前将 QA 结论同步给干系人；若存在阻塞问题，取消 `TDD_DONE`，并协助相关阶段修复后重新验证。
 - 对关键风险或流程缺口，在 `/docs/TASK.md` 更新风险登记或触发回流记录，并核对最新 CI 结果与 `CHANGELOG.md`、测试结论一致。
 - 模块化项目还需同步每个 `/docs/qa-modules/{domain}/QA.md` 的执行状态（优先级、NFR、缺陷）与主 QA 文档的模块索引，确保 ARCH/TDD/QA 三方在交付 & 回流会议中能直接定位到该模块内容。
-- **发布后**：协助 DevOps 专家监控关键指标，确认部署成功；若发现问题通知 DevOps 执行回滚并记录到 `/docs/QA.md`。
+- **发布后**：若部署后回滚，DevOps 在部署日志（`/docs/data/deployments/`）中记录回滚事件；QA 被重新激活后，从回滚记录中提取信息在 `defect-log.md` 正式登记缺陷条目，退回 TDD 修复。
 
 ## QA 模板
 

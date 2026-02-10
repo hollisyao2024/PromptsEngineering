@@ -85,6 +85,8 @@ pnpm dev:restart
 
 **B.3 预发/生产环境部署流程**
 
+> TDD 负责编写迁移脚本并在 dev 环境验证；staging/production 环境的迁移执行由 DevOps 专家在部署流程中编排，具体见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md` 部署流程。以下命令为 DevOps 执行时的技术参考。
+
 ```bash
 # ⓪ 备份数据库（强制！）
 pg_dump -Fc "$DATABASE_URL" > backups/pre_migrate_$(date +%Y%m%d%H%M%S).dump
@@ -104,6 +106,8 @@ pnpm build && <重启命令>
 ```
 
 **B.4 回滚策略**
+
+> TDD 负责编写 `rollback.sql` / 配置回滚方案；实际回滚执行由 DevOps 专家在部署失败时触发。
 
 | 层级 | 方式 | 强制/推荐 |
 |------|------|-----------|

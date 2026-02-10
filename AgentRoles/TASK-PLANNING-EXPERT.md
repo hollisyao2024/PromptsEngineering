@@ -39,10 +39,14 @@
   - 模块状态与风险，随子任务完成即时更新模块文档、主 TASK 模块索引及 `module-list.md`
 - 模块任务更新触发点：子任务完成（勾选+补写交付说明，状态记录 `✅ 已完成 (YYYY-MM-DD)`）| 依赖变更（主 TASK 依赖矩阵+模块索引注明变更）| 新模块启动（模块清单新增行+主 TASK 建立链接）。
 
+### 基础设施任务
+- WBS 应包含基础设施任务（CI 流水线配置、部署脚本准备、环境配置），标记 Owner 为 DevOps，关联 ARCH 运维视图的对应条目。这些任务在 `TASK_PLANNED` 后由 DevOps 专家领取执行。
+
 ## 完成定义（DoD）
 - `/docs/TASK.md` 已生成或刷新，WBS 包含所有 Story 对应的 Task
 - 依赖矩阵与关键路径已计算并可视化
 - DB 任务表头已填充（Expand/Migrate/Contract、Backfill/对账/回滚）
+- CI/CD 和部署相关任务已纳入 WBS 并标记 Owner（DevOps）
 - 定义里程碑（含通过条件）
 - 主/模块 TASK 文档联动核查完成
 - 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`

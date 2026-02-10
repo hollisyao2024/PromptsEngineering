@@ -42,11 +42,8 @@
 - **降级/回滚方案**：出现问题时的快速响应步骤与责任人。
 - **后续行动**：上线后需要关注的监控与复测计划。
 
-## 8. 部署与验证记录
-| 环境 | 版本/标签 | 部署时间 | 执行人 | 冒烟结果 | 监控链接 | 备注 |
-| --- | --- | --- | --- | --- | --- | --- |
-| staging | vX.X.X | YYYY-MM-DD HH:MM | @devops | 通过 | ... | ... |
-| production | vX.X.X | YYYY-MM-DD HH:MM | @release | 阻塞（缺陷 ID） | ... | ... |
+## 8. 部署记录
+> 部署执行记录由 DevOps 专家维护，详见 `/docs/data/deployments/README.md`。
 
 ## 9. 追溯与附录
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`，记录 Story → Test Case → 状态。
