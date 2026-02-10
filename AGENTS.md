@@ -8,16 +8,16 @@ version: 1.8 (2025-11-12)
 > 目的：用**一个**上下文文件在三款 CLI 中协同 5 位专家，**分阶段按需激活**，避免一次性加载过多上下文。
 
 ## 目录与角色
-- 角色文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
+- 专家文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`
 - 手册与模板：详见各 `AgentRoles/Handbooks/*.playbook.md`
 - 主要产物：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、`/docs/data/traceability-matrix.md`、`/CHANGELOG.md`、`/docs/AGENT_STATE.md`、代码
 - 你全程用中文回复并展示思考过程。
 
 ## 路由总则（只读）
-- **单阶段激活**：任一时刻仅激活 1 位专家，未激活专家不加载对应角色文档。
-- **就近读取**：激活阶段时再读取对应 `AgentRoles/*.md`，避免一次性将所有角色铺开。
+- **单阶段激活**：任一时刻仅激活 1 位专家，未激活专家不加载对应专家文件。
+- **强制加载**：激活任何专家时，**必须先读取**对应专家文件（`AgentRoles/<对应专家>.md`）；**未完成读取前，禁止执行该专家的任何操作或产出**。
 - **状态驱动**：每个阶段的输出作为下阶段的唯一输入；状态勾选记录在 `/docs/AGENT_STATE.md`。
-- **点读手册**：激活后优先浏览 `AgentRoles/Handbooks/*.playbook.md` 中对应节内容。
+- **点读手册**：完成专家文件读取后，**必须浏览**对应 `AgentRoles/Handbooks/*.playbook.md` 中的相关章节，再开始执行。
 
 ## 角色工作流
 1. **PRD 专家**：根据用户信息产出需求文档，确保后续架构/任务/实现有清晰、可验收的依据。
@@ -60,29 +60,29 @@ version: 1.8 (2025-11-12)
 ## Phase 1 — PRD 专家路由
 **激活条件**：项目启动、需求变更或 `/docs/PRD.md` 需创建/重写。
 
-**加载**：激活时读取 `/AgentRoles/PRD-WRITER-EXPERT.md`（需求与 PRD 细节由该文件维护）。
+**加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/PRD-WRITER-EXPERT.md`，未读取前禁止执行任何操作。
 
 **完成状态**：在 `/docs/AGENT_STATE.md` 勾选 `PRD_CONFIRMED`。
 
-**快捷命令**：`/prd confirm`（自动执行 `[[ACTIVATE: PRD]]` 并读取角色文件）。
+**快捷命令**：`/prd confirm`（自动执行 `[[ACTIVATE: PRD]]` 并读取专家文件）。
 
 **说明**：具体产出、拆分规则与校验工具请见 `/AgentRoles/PRD-WRITER-EXPERT.md` 及其 Handbook。
 
 ## Phase 2 — ARCH 专家路由
 **激活条件**：`PRD_CONFIRMED` 之后，准备定义系统视图与架构决策。
 
-**加载**：激活时读取 `/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`。
+**加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`，未读取前禁止执行任何操作。
 
 **完成状态**：在 `/docs/AGENT_STATE.md` 勾选 `ARCHITECTURE_DEFINED`。
 
-**快捷命令**：`/arch data-view`、`/arch sync`（调用时自动激活 ARCH，并加载对应角色文档）。
+**快捷命令**：`/arch data-view`、`/arch sync`（调用时自动激活 ARCH，并加载对应专家文件）。
 
-**说明**：具体架构产出与 ADR 创建细节由该角色文件和 Handbook 说明。
+**说明**：具体架构产出与 ADR 创建细节由该专家文件和 Handbook 说明。
 
 ## Phase 3 — TASK 规划专家路由
 **激活条件**：`ARCHITECTURE_DEFINED` 后，进入任务分解与依赖规划。
 
-**加载**：激活时读取 `/AgentRoles/TASK-PLANNING-EXPERT.md`。
+**加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/TASK-PLANNING-EXPERT.md`，未读取前禁止执行任何操作。
 
 **完成状态**：在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
 
@@ -93,7 +93,7 @@ version: 1.8 (2025-11-12)
 ## Phase 4 — TDD 编程专家路由
 **激活条件**：`TASK_PLANNED` 勾选后，进入实现与持续回写。
 
-**加载**：激活时读取 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`。
+**加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`，未读取前禁止执行任何操作。
 
 **完成状态**：合并前在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`；如被退回则取消并回到对应阶段。
 
@@ -107,13 +107,13 @@ version: 1.8 (2025-11-12)
 ## Phase 5 — QA 专家路由
 **激活条件**：`TDD_DONE` 勾选后，发布前需独立验证或回归测试时。
 
-**加载**：激活时读取 `/AgentRoles/QA-TESTING-EXPERT.md`。
+**加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/QA-TESTING-EXPERT.md`，未读取前禁止执行任何操作。
 
 **完成状态**：所有阻塞缺陷关闭后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
 
 **快捷命令**：`/qa plan`、`/qa verify`、`/ship staging`/`/ship prod`、`/cd staging`/`/cd prod`（均自动激活 QA 专家）。
 
-**说明**：测试策略、验证矩阵与发布建议由 QA 角色文档与 Handbook 描述，追溯矩阵同步也在其中。
+**说明**：测试策略、验证矩阵与发布建议由 QA 专家文件与 Handbook 描述，追溯矩阵同步也在其中。
 
 ---
 
@@ -124,7 +124,7 @@ version: 1.8 (2025-11-12)
 - 运行脚本：`pnpm run <script>` 或 `pnpm <script>`
 
 ## 快捷命令速查（按专家分组）
-> **执行规则**：使用任一快捷命令时，会**自动激活**对应专家并读取其角色文件。
+> **执行规则**：使用任一快捷命令时，**必须先激活**对应专家并**读取其专家文件**（`AgentRoles/<对应专家>.md`），完成读取后才可执行命令逻辑。
 
 ### PRD 专家
 - `/prd confirm` — 收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`
