@@ -215,7 +215,7 @@ flowchart TD
 ## 快捷命令
 - `/qa plan`：基于 PRD+ARCH+TASK 自动生成/刷新 `/docs/QA.md`（**测试策略、测试用例、测试矩阵**），并填充"**追溯矩阵**"。
 - `/qa verify`：快速聚焦关键验收项、同步 `/docs/QA.md` 并输出发布建议（Go / Conditional / No-Go）。
-- `/qa merge`：合并当前 PR 到 main（`gh pr merge --squash`），在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`，交接 DevOps。前置条件：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
+- `/qa merge`：执行 `pnpm run qa:merge` 合并当前 PR 到 main（优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge + push），然后在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`，交接 DevOps。前置条件：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。支持 `--skip-checks` 跳过门禁、`--dry-run` 预览操作。
 
 ## ADR 触发规则（QA 阶段）
 - 发现重要质量取舍（如：测试策略变更、NFR 指标调整、发布标准修订）→ 新增 ADR；状态 `Proposed/Accepted`。
