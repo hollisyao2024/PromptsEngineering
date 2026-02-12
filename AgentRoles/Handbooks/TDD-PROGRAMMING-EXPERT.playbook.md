@@ -54,6 +54,15 @@
 
 ## 常用命令与自动化
 
+### 命令作用域规则（新增）
+- `/tdd sync`、`/tdd push` 裸命令默认 `session` 作用域（仅处理当前会话内容）。
+- 传入描述/参数或显式 `--project` 时，进入 `project` 作用域（允许全项目级操作）。
+- 推荐：
+  - `pnpm run tdd:sync`（session）
+  - `pnpm run tdd:sync -- --project`（project）
+  - `pnpm run tdd:push`（session：发布当前分支并创建当前分支 PR）
+  - `pnpm run tdd:push -- --project bump "release note"`（project 发布）
+
 ### 前端
 ```bash
 cd frontend

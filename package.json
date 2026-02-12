@@ -46,7 +46,7 @@
     "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js",
     "qa:merge": "node scripts/qa-tools/qa-merge.js",
     "tdd:tick": "node scripts/tdd-tools/tdd-tick.js",
-    "tdd:sync": "pnpm tdd:tick",
+    "tdd:sync": "node scripts/tdd-tools/tdd-sync.js",
     "tdd:push": "node scripts/tdd-tools/tdd-push.js",
     "tdd:new-branch": "node scripts/tdd-tools/new-branch.js",
     "ship:dev": "bash scripts/server/deploy.sh local dev",

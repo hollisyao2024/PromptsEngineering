@@ -54,6 +54,40 @@ function ensureCleanWorkingTree() {
   }
 }
 
+function parseCliArgs(argv) {
+  let scope = 'session';
+  let dryRun = false;
+  const positional = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--project') {
+      scope = 'project';
+      continue;
+    }
+    if (arg === '--scope' && argv[i + 1]) {
+      scope = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--scope=')) {
+      scope = arg.split('=')[1];
+      continue;
+    }
+    if (arg === '--dry-run') {
+      dryRun = true;
+      continue;
+    }
+    positional.push(arg);
+  }
+
+  return {
+    scope: scope === 'project' ? 'project' : 'session',
+    dryRun,
+    positional
+  };
+}
+
 // ==================== 版本管理 ====================
 
 function readPackageVersion() {
@@ -340,8 +374,11 @@ function createPullRequest(targetVersion, releaseNote) {
 function main() {
   try {
     loadProjectGhToken();
+    const cliArgs = parseCliArgs(process.argv.slice(2));
+    const args = cliArgs.positional;
+    const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
+    console.log(`\x1b[36m/tdd push 作用域：${scopeLabel}。本次仅操作当前分支与对应 PR。\x1b[0m`);
     ensureCleanWorkingTree();
-    const args = process.argv.slice(2);
     const { pkg, version: currentVersion } = readPackageVersion();
     const targetVersion = prepareTargetVersion(currentVersion, args);
     if (targetVersion === currentVersion) {
@@ -349,6 +386,16 @@ function main() {
     }
 
     const releaseNote = extractReleaseNote(args) || `发布新版 v${targetVersion}`;
+
+    if (cliArgs.dryRun) {
+      console.log('\x1b[33m[DRY RUN] /tdd push 预览：\x1b[0m');
+      console.log(`- 当前版本: ${currentVersion}`);
+      console.log(`- 目标版本: ${targetVersion}`);
+      console.log(`- 版本说明: ${releaseNote}`);
+      console.log('- 将执行: 更新 package.json/CHANGELOG.md -> commit -> tag -> push -> 创建 PR');
+      return;
+    }
+
     updatePackageVersion(pkg, targetVersion);
     insertChangelogEntry(targetVersion, releaseNote);
 

@@ -33,6 +33,20 @@
 4. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中勾选阶段成果（六个状态：PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED），再切换下一位专家。
 5. 实现阶段完成后，执行“文档回写 Gate”：同步 PRD/ARCHITECTURE/TASK/QA/CHANGELOG/ADR 等文件并回传给 QA。
 
+## 命令作用域速查（TDD / QA）
+以下 5 个命令采用统一规则：
+- 裸命令（前后无描述/参数）默认 `session`：仅处理当前会话内容
+- 显式 `--project`（或附加明确描述/参数）进入 `project`
+- 说明：`/tdd push`、`/qa merge` 在两种作用域下都只处理当前分支/当前 PR，不会操作其他分支
+
+| 命令 | 默认（session） | 项目级（project） |
+|------|------------------|-------------------|
+| `/tdd sync` | `pnpm run tdd:sync` | `pnpm run tdd:sync -- --project` |
+| `/tdd push` | `pnpm run tdd:push`（推送当前分支并创建当前分支 PR） | `pnpm run tdd:push -- --project bump "release note"` |
+| `/qa plan` | `/qa plan`（仅会话范围） | `/qa plan --project`（全量刷新） |
+| `/qa verify` | `/qa verify`（仅会话范围） | `/qa verify --project`（项目级验收） |
+| `/qa merge` | `pnpm run qa:merge`（合并当前分支对应 PR） | `pnpm run qa:merge -- --project`（显式项目模式） |
+
 ## 阶段化工作流
 1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
    - **v1.8 增强**：自动评估是否需要拆分 PRD（> 1000 行 或 50+ 用户故事 或 3+ 业务域），采用主从结构（主 PRD + 模块 PRD + 追溯矩阵）。

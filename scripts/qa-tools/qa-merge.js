@@ -8,7 +8,8 @@
  *   策略 B: 本地 git merge --squash + push + gh pr close（权限不足时自动降级）
  *
  * 用法：
- *   pnpm run qa:merge                  # 完整流程
+ *   pnpm run qa:merge                  # 默认 session 模式（合并当前分支对应 PR）
+ *   pnpm run qa:merge -- --project     # 项目模式（同样仅合并当前分支对应 PR）
  *   pnpm run qa:merge -- --dry-run     # 预览操作，不执行
  *   pnpm run qa:merge -- --skip-checks # 跳过发布门禁检查
  */
@@ -95,7 +96,25 @@ function getRemoteUrl() {
 // ==================== qa-merge 专用函数 ====================
 
 function parseArgs(argv) {
+  let scope = 'session';
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--project') {
+      scope = 'project';
+      continue;
+    }
+    if (arg === '--scope' && argv[i + 1]) {
+      scope = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--scope=')) {
+      scope = arg.split('=')[1];
+    }
+  }
+
   return {
+    scope: scope === 'project' ? 'project' : 'session',
     skipChecks: argv.includes('--skip-checks'),
     dryRun: argv.includes('--dry-run'),
   };
@@ -379,7 +398,10 @@ function main() {
       console.log('\x1b[33m跳过发布门禁检查 (--skip-checks)\x1b[0m');
     }
 
-    // Step 8: Dry run 模式
+    const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
+    console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
+
+    // Step 8: Dry run
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');

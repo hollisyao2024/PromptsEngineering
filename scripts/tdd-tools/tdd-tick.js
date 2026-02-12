@@ -18,6 +18,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const docsDir = path.join(repoRoot, 'docs');
 const mainTaskFile = path.join(docsDir, 'TASK.md');
 const taskModulesDir = path.join(docsDir, 'task-modules');
+const moduleListFile = path.join(taskModulesDir, 'module-list.md');
 
 function formatCompletionText() {
   return `✅ 已完成 (${new Date().toISOString().slice(0, 10)})`;
@@ -57,12 +58,76 @@ function isNoTaskBranchAllowed(branchName) {
   return normalized.startsWith('fix/') || normalized.startsWith('feature/');
 }
 
-function collectTaskFiles() {
+function parseScope(argv) {
+  let scope = 'project';
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--scope' && argv[i + 1]) {
+      scope = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--scope=')) {
+      scope = arg.split('=')[1];
+    }
+  }
+  return scope === 'session' ? 'session' : 'project';
+}
+
+function extractTaskDomains(taskIds) {
+  const domains = new Set();
+  taskIds.forEach((taskId) => {
+    const match = taskId.match(/^TASK-([A-Z0-9]+)-\d+$/i);
+    if (match) {
+      domains.add(match[1].toLowerCase());
+    }
+  });
+  return domains;
+}
+
+function collectTaskFiles(scope, taskIds) {
   const files = [];
   if (fs.existsSync(mainTaskFile)) {
     files.push(mainTaskFile);
   }
-  if (fs.existsSync(taskModulesDir)) {
+
+  if (!fs.existsSync(taskModulesDir)) {
+    return files;
+  }
+
+  if (scope === 'session') {
+    if (fs.existsSync(moduleListFile)) {
+      files.push(moduleListFile);
+    }
+    const domains = extractTaskDomains(taskIds);
+    if (!domains.size) {
+      return files;
+    }
+
+    const stack = [taskModulesDir];
+    while (stack.length) {
+      const current = stack.pop();
+      const entries = fs.readdirSync(current, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(entryPath);
+          continue;
+        }
+        if (!entry.isFile() || entry.name !== 'TASK.md') {
+          continue;
+        }
+        const relativePath = path.relative(taskModulesDir, entryPath).replace(/\\/g, '/');
+        const ownerDir = relativePath.split('/')[0].toLowerCase();
+        if (domains.has(ownerDir)) {
+          files.push(entryPath);
+        }
+      }
+    }
+    return files;
+  }
+
+  if (scope === 'project') {
     const stack = [taskModulesDir];
     while (stack.length) {
       const current = stack.pop();
@@ -346,6 +411,7 @@ function determineBranchName() {
 }
 
 function main() {
+  const scope = parseScope(process.argv.slice(2));
   const branchName = determineBranchName();
   if (!branchName) {
     console.error('❌ 无法确定当前分支（git rev-parse 未返回内容）。请设置 TDD_BRANCH 环境变量或确保仓库存在 Git 分支。');
@@ -362,11 +428,13 @@ function main() {
     process.exit(1);
   }
 
-  const taskFiles = collectTaskFiles();
+  const taskFiles = collectTaskFiles(scope, taskIds);
   if (!taskFiles.length) {
     console.error('❌ 未找到任务文档（docs/TASK.md 或 docs/task-modules/*.md）。请先运行 /task plan 生成任务计划。');
     process.exit(1);
   }
+
+  console.log(`ℹ️ tdd:tick 作用域: ${scope === 'session' ? 'session（当前会话）' : 'project（全项目）'}`);
 
   const targetIds = new Set(taskIds);
   const overallHandled = new Set();

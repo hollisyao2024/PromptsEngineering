@@ -54,14 +54,16 @@
 ### 3. 任务自动勾选（/tdd tick）
 
 ```bash
-pnpm run tdd:tick
-或者
 pnpm run tdd:sync
+pnpm run tdd:sync -- --project
+或者
+pnpm run tdd:tick
 ```
 
 **检查项：**
 - 根据当前 Git 分支名称提取 `TASK-XXX` ID（例如 `feature/TASK-PAY-010`）。
-- 遍历 `docs/TASK.md` 与 `docs/task-modules/**/*.md` 中的复选框、表格与可交付工作条目，将对应行从 `- [ ]` 转为 `- [x]` 并记录完成时间。
+- `tdd:sync` 默认是 `session` 作用域：仅处理当前会话涉及模块（主 `TASK.md` + 对应域的模块 TASK + `module-list.md`）。
+- `tdd:sync -- --project` 或 `tdd:tick` 为全项目作用域：遍历 `docs/TASK.md` 与 `docs/task-modules/**/*.md`。
 - 输出未找到的任务 ID 以阻断缺失勾选。
 
 **Tip**：脚本还会根据任务名称生成标准化变种，尽量匹配表格/列表中的描述，避免手工漏勾。
@@ -72,13 +74,16 @@ pnpm run tdd:sync
 
 ```bash
 pnpm run tdd:push [bump|vX.Y.Z] [release-note]
+pnpm run tdd:push -- --project [bump|vX.Y.Z] [release-note]
 ```
 
 **执行流程：**
-- 校验工作树干净（`git status --porcelain`）。
-- 读取 `package.json` 当前版本，默认自动递增 patch 版本，也可指定 `bump` 或精确版本（支持 `v1.2.3` 或 `1.2.3`）。
-- 根据版本更新 `package.json`，在 `CHANGELOG.md` 顶部插入新条目（含时间与 release-note）。
-- `git add package.json CHANGELOG.md`、`git commit`、打 `vX.Y.Z` 标签并推送分支与标签。
+- `tdd:push` 会发布当前分支（版本变更、tag、push、创建当前分支 PR），不会操作其他分支。
+- `tdd:push -- --project` 为显式项目模式，仍只针对当前分支执行：
+  - 校验工作树干净（`git status --porcelain`）。
+  - 读取 `package.json` 当前版本并决定目标版本。
+  - 更新 `package.json` 与 `CHANGELOG.md`。
+  - `git add` / `git commit` / `git tag` / `git push` / 自动创建 PR。
 
 > ℹ️ 如果提供 `release-note`，会作为 `chore(release)` commit 的内容与标签说明使用。
 

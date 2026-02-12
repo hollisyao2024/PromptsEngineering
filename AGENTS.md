@@ -38,15 +38,15 @@ flowchart TD
     C -->|无: bug/临时需求| E["自动 /tdd new-branch<br/>从用户描述生成 fix/feature 分支"]
     D --> F[TDD 循环: 红→绿→重构]
     E --> F
-    F --> G["/tdd sync — 文档回写 Gate"]
-    G --> H["/tdd push — 版本递增 + push + 创建 PR"]
+    F --> G["/tdd sync — 文档回写 Gate（默认 session）"]
+    G --> H["/tdd push — 推送当前分支 + 创建 PR（默认 session）"]
     H --> I[标记 TDD_DONE]
     I --> J[QA 专家激活]
-    J --> K["/qa plan — 生成测试计划"]
+    J --> K["/qa plan — 生成测试计划（默认 session）"]
     K --> L[执行测试]
-    L --> M["/qa verify — 验收检查"]
+    L --> M["/qa verify — 验收检查（默认 session）"]
     M --> N{发布建议}
-    N -->|Go| O["/qa merge — 合并 PR 到 main"]
+    N -->|Go| O["/qa merge — 合并当前分支 PR 到 main（默认 session）"]
     N -->|No-Go| P[退回 TDD 修复]
     O --> Q[标记 QA_VALIDATED]
     Q --> R[DevOps 从 main 部署]
@@ -145,7 +145,7 @@ flowchart TD
 
 **加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/QA-TESTING-EXPERT.md`，未读取前禁止执行任何操作。
 
-**完成状态**：`/qa merge` 合并 PR 到 main 后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
+**完成状态**：`/qa merge` 合并当前分支对应 PR 到 main 后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
 
 **快捷命令**：`/qa plan`、`/qa verify`、`/qa merge`（自动激活 QA 专家）。
 
@@ -175,6 +175,7 @@ flowchart TD
 
 ## 快捷命令速查（按专家分组）
 > **执行规则**：使用任一快捷命令时，**必须先激活**对应专家并**读取其专家文件**（`AgentRoles/<对应专家>.md`），完成读取后才可执行命令逻辑。
+> **命令作用域规则（新增）**：`/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge` 若仅输入裸命令（前后无描述/参数），默认按 `session` 作用域执行（仅处理当前会话上下文）；传入描述、参数或显式 `--project` 时进入 `project` 作用域。`/tdd push` 与 `/qa merge` 在两种作用域下都只处理当前分支/当前 PR，不会操作其他分支。
 
 ### PRD 专家
 - `/prd confirm` — 收口 PRD（范围/AC/追溯/开放问题），勾选 `PRD_CONFIRMED`
@@ -189,14 +190,14 @@ flowchart TD
 ### TDD 专家
 - `/tdd diagnose` — 诊断当前代码/测试问题
 - `/tdd fix` — 修复已识别问题
-- `/tdd sync` — 执行文档回写 Gate（同步 PRD/ARCH/TASK/CHANGELOG/ADR）
-- `/tdd push` — 版本递增 + 推送到远程 + 自动创建 PR
+- `/tdd sync` — 默认 `session`（仅同步当前会话相关文档/任务）；`--project` 执行全量文档回写 Gate
+- `/tdd push` — 默认 `session`（仅操作当前分支：版本递增 + 推送 + 创建当前分支 PR）；`--project` 仅用于显式声明项目模式
 - `/tdd new-branch` — 创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
 
 ### QA 专家
-- `/qa plan` — 基于 PRD+ARCH+TASK 自动生成/刷新 QA.md，包含测试策略、测试用例、测试矩阵
-- `/qa verify` — 快速聚焦验收项，输出发布建议（Go / Conditional / No-Go）
-- `/qa merge` — 合并 PR 到 main，标记 QA_VALIDATED（前置条件：verify 通过且 Go）
+- `/qa plan` — 默认 `session`（仅会话范围生成/更新 QA 内容）；`--project` 执行全量 QA 计划刷新
+- `/qa verify` — 默认 `session`（仅会话范围验收）；`--project` 执行项目级验收建议
+- `/qa merge` — 默认 `session`（仅合并当前分支对应 PR 到 main，并标记 QA_VALIDATED）；`--project` 仅用于显式声明项目模式
 
 ### DevOps 专家
 - `/ci run` — 触发 CI 流水线

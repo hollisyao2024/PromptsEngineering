@@ -229,17 +229,18 @@ flowchart TD
     H --> I[标记 TDD_DONE]
     I --> J[移交 QA 专家]
     J --> K["/qa plan → 测试 → /qa verify"]
-    K -->|Go| L["/qa merge<br/>合并 PR 到 main"]
+    K -->|Go| L["/qa merge<br/>合并当前分支 PR 到 main"]
     K -->|No-Go| M[退回 TDD 修复]
     L --> N[标记 QA_VALIDATED]
     N --> O[DevOps 从 main 部署]
 ```
 
 ## 快捷命令
+- **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`（仅当前会话/当前分支范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
-- `/tdd sync`：触发文档回写 Gate（内调 `pnpm run tdd:sync` → `pnpm run tdd:tick`；小修自动回写，超阈值提示切 `/prd`/`/arch`/`/task`），完成后确认 `module-list.md#模块清单` 已同步。
-- `/tdd push`：版本递增 + CHANGELOG 条目 + commit/tag/push（运行 `pnpm run tdd:push`）+ **自动创建 PR**（`gh pr create`）；不再触发 Gate，需确保 `/tdd sync` 已完成。PR 标题与 body 按下方模板自动生成：有 Task 时标题为 `feat(scope): <任务名称>`，无 Task 时为 `fix(scope): <描述>`。
+- `/tdd sync`：默认执行 `session` 回写（运行 `pnpm run tdd:sync`，仅同步当前会话涉及的 TASK/模块文档）；`/tdd sync --project` 执行全量文档回写 Gate（`pnpm run tdd:sync -- --project`，等价全项目 `tdd:tick` 扫描）。
+- `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：版本递增 + CHANGELOG 条目 + commit/tag/push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前需先完成 `/tdd sync`。
 - `/tdd new-branch`：创建 feature/fix 分支并切换，支持两种模式：
   - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 `/docs/TASK.md`（或模块 TASK 文档）WBS 表格查找该 Task ID 的"名称"列，转为 kebab-case 英文短语（≤30 字符）作为分支描述 → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
   - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述中提取关键词生成 kebab-case 描述（≤30 字符） → 分支名：`fix/<desc>`（bug 修复）或 `feature/<desc>`（新功能）
