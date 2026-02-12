@@ -2,16 +2,13 @@
 
 /**
  * QA 文档自动生成工具
- * 基于 PRD、ARCH、TASK 自动生成测试策略、测试用例、测试矩阵
- * v1.0.0
+ * - 默认 session 作用域：仅更新当前会话关联模块的 QA 文档
+ * - 显式 --project：执行全项目刷新（主 QA + 模块 QA）
  */
 
 const fs = require('fs');
 const path = require('path');
-
-// ============================================================
-// 配置
-// ============================================================
+const { spawnSync } = require('child_process');
 
 const CONFIG = {
   paths: {
@@ -21,25 +18,14 @@ const CONFIG = {
     qa: 'docs/QA.md',
     traceabilityMatrix: 'docs/data/traceability-matrix.md',
     prdModulesDir: 'docs/prd-modules',
-    archModulesDir: 'docs/arch-modules',
-    taskModulesDir: 'docs/task-modules',
     qaModulesDir: 'docs/qa-modules',
   },
   splitThresholds: {
-    minStories: 50,          // 超过 50 个 Story 需要拆分
-    minTestCases: 100,       // 超过 100 个测试用例需要拆分
-    minDomains: 3,           // 超过 3 个功能域需要拆分
-  },
-  smallProjectThresholds: {
-    maxStories: 30,          // 小于 30 个 Story 为小型项目
-    maxTestCases: 100,       // 小于 100 个测试用例为小型项目
-    maxDomains: 3,           // 小于 3 个功能域为小型项目
+    minStories: 50,
+    minTestCases: 100,
+    minDomains: 3,
   },
 };
-
-// ============================================================
-// 颜色输出工具
-// ============================================================
 
 const colors = {
   reset: '\x1b[0m',
@@ -54,52 +40,156 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-function toDomainDirectory(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'general';
+function parseModuleList(raw) {
+  if (!raw) return [];
+  return String(raw)
+    .split(/[,\s]+/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-// ============================================================
-// 文件工具
-// ============================================================
+function parseCliArgs(argv) {
+  let scope = 'session';
+  let dryRun = false;
+  const moduleSet = new Set(
+    parseModuleList(process.env.QA_SESSION_MODULES || process.env.QA_MODULES || '')
+  );
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--project') {
+      scope = 'project';
+      continue;
+    }
+    if (arg === '--scope' && argv[i + 1]) {
+      scope = argv[i + 1] === 'project' ? 'project' : 'session';
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--scope=')) {
+      scope = arg.split('=')[1] === 'project' ? 'project' : 'session';
+      continue;
+    }
+    if (arg === '--modules' && argv[i + 1]) {
+      parseModuleList(argv[i + 1]).forEach((moduleDir) => moduleSet.add(moduleDir));
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--modules=')) {
+      parseModuleList(arg.slice('--modules='.length)).forEach((moduleDir) => moduleSet.add(moduleDir));
+      continue;
+    }
+    if (arg === '--module' && argv[i + 1]) {
+      parseModuleList(argv[i + 1]).forEach((moduleDir) => moduleSet.add(moduleDir));
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--module=')) {
+      parseModuleList(arg.slice('--module='.length)).forEach((moduleDir) => moduleSet.add(moduleDir));
+      continue;
+    }
+    if (arg === '--dry-run') {
+      dryRun = true;
+    }
+  }
+
+  return { scope, dryRun, modules: Array.from(moduleSet) };
+}
 
 function readFile(filePath) {
   const fullPath = path.resolve(process.cwd(), filePath);
-  if (!fs.existsSync(fullPath)) {
-    return null;
-  }
-  return fs.readFileSync(fullPath, 'utf-8');
+  if (!fs.existsSync(fullPath)) return null;
+  return fs.readFileSync(fullPath, 'utf8');
 }
 
 function writeFile(filePath, content) {
   const fullPath = path.resolve(process.cwd(), filePath);
   const dir = path.dirname(fullPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(fullPath, content, 'utf-8');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(fullPath, content, 'utf8');
 }
 
 function fileExists(filePath) {
-  const fullPath = path.resolve(process.cwd(), filePath);
-  return fs.existsSync(fullPath);
+  return fs.existsSync(path.resolve(process.cwd(), filePath));
 }
 
-// ============================================================
-// 数据解析器
-// ============================================================
+function runGit(args, { allowFailure = false } = {}) {
+  const result = spawnSync('git', args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
 
-/**
- * 解析 PRD 文件，提取 Story ID 列表
- */
+  if (result.error) {
+    if (allowFailure) return '';
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    if (allowFailure) return '';
+    throw new Error(`git ${args.join(' ')} failed with exit ${result.status}`);
+  }
+
+  return result.stdout || '';
+}
+
+function listDirsWithRequiredFile(baseDir, requiredFile) {
+  const fullBaseDir = path.resolve(process.cwd(), baseDir);
+  if (!fs.existsSync(fullBaseDir)) return [];
+
+  return fs
+    .readdirSync(fullBaseDir, { withFileTypes: true })
+    .filter((entry) => {
+      if (!entry.isDirectory()) return false;
+      const requiredPath = path.join(fullBaseDir, entry.name, requiredFile);
+      return fs.existsSync(requiredPath);
+    })
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function getChangedFilesForSession() {
+  const fileSet = new Set();
+
+  const diffSources = [
+    ['diff', '--name-only', '--diff-filter=ACMR', 'origin/main...HEAD'],
+    ['diff', '--name-only', '--diff-filter=ACMR', 'origin/master...HEAD'],
+    ['diff', '--name-only', '--diff-filter=ACMR', 'HEAD~1..HEAD'],
+  ];
+
+  for (const args of diffSources) {
+    const out = runGit(args, { allowFailure: true });
+    if (!out.trim()) continue;
+    out
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => fileSet.add(line));
+    break;
+  }
+
+  const statusOut = runGit(['status', '--porcelain'], { allowFailure: true });
+  if (statusOut.trim()) {
+    statusOut
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const rawPath = line.slice(3).trim();
+        const normalizedPath = rawPath.includes(' -> ')
+          ? rawPath.split(' -> ').at(-1).trim()
+          : rawPath;
+        if (normalizedPath) fileSet.add(normalizedPath);
+      });
+  }
+
+  return Array.from(fileSet).sort();
+}
+
 function parsePRD(content) {
   if (!content) return { stories: [], domains: [] };
 
-  const storyRegex = /(?:^|\n)(?:#+\s+)?(?:Story|US-[A-Z0-9]+-\d+)[:\s]+([^\n]+)/gi;
   const storyIdRegex = /US-([A-Z0-9]+)-(\d+)/g;
-
   const stories = [];
   const domainSet = new Set();
 
@@ -107,33 +197,21 @@ function parsePRD(content) {
   while ((match = storyIdRegex.exec(content)) !== null) {
     const domain = match[1];
     const number = match[2];
-    const storyId = `US-${domain}-${number}`;
-
     stories.push({
-      id: storyId,
-      domain: domain,
+      id: `US-${domain}-${number}`,
+      domain,
       number: parseInt(number, 10),
     });
-
     domainSet.add(domain);
   }
 
-  return {
-    stories,
-    domains: Array.from(domainSet),
-  };
+  return { stories, domains: Array.from(domainSet) };
 }
 
-/**
- * 解析 ARCHITECTURE 文件，提取组件和技术选型
- */
 function parseARCH(content) {
   if (!content) return { components: [], isMicroservice: false };
 
-  // 简单检测是否为微服务架构
   const isMicroservice = /微服务|microservice|service-oriented/i.test(content);
-
-  // 提取组件（简化版）
   const componentRegex = /(?:Component|组件|服务)[:\s]+([^\n]+)/gi;
   const components = [];
 
@@ -142,72 +220,48 @@ function parseARCH(content) {
     components.push(match[1].trim());
   }
 
-  return {
-    components,
-    isMicroservice,
-  };
+  return { components, isMicroservice };
 }
 
-/**
- * 解析 TASK 文件，提取任务和里程碑
- */
 function parseTASK(content) {
   if (!content) return { milestones: [], owners: [] };
 
-  // 提取里程碑
   const milestoneRegex = /(?:M\d+|里程碑)[:\s]+([^\n]+)/gi;
+  const ownerRegex = /@([a-zA-Z0-9_-]+)/g;
+
   const milestones = [];
+  const ownerSet = new Set();
 
   let match;
   while ((match = milestoneRegex.exec(content)) !== null) {
     milestones.push(match[1].trim());
   }
 
-  // 提取 Owner（简化版）
-  const ownerRegex = /@([a-zA-Z0-9_-]+)/g;
-  const ownerSet = new Set();
-
   while ((match = ownerRegex.exec(content)) !== null) {
     ownerSet.add(match[1]);
   }
 
-  return {
-    milestones,
-    owners: Array.from(ownerSet),
-  };
+  return { milestones, owners: Array.from(ownerSet) };
 }
 
-/**
- * 解析追溯矩阵（如果存在）
- */
 function parseTraceabilityMatrix(content) {
   if (!content) return { mappings: [] };
 
   const mappings = [];
-  const lines = content.split('\n');
-
-  for (const line of lines) {
+  for (const line of content.split('\n')) {
     const storyMatch = line.match(/US-([A-Z0-9]+)-(\d+)/);
     const testCaseMatch = line.match(/TC-([A-Z0-9]+)-(\d+)/);
-
     if (storyMatch && testCaseMatch) {
-      mappings.push({
-        storyId: storyMatch[0],
-        testCaseId: testCaseMatch[0],
-      });
+      mappings.push({ storyId: storyMatch[0], testCaseId: testCaseMatch[0] });
     }
   }
-
   return { mappings };
 }
 
-/**
- * 检测是否需要拆分为模块化 QA
- */
-function shouldSplit(prdData, archData) {
+function shouldSplit(prdData) {
   const storyCount = prdData.stories.length;
   const domainCount = prdData.domains.length;
-  const estimatedTestCases = storyCount * 3; // 假设每个 Story 平均 3 个测试用例
+  const estimatedTestCases = storyCount * 3;
 
   return (
     storyCount > CONFIG.splitThresholds.minStories ||
@@ -216,266 +270,164 @@ function shouldSplit(prdData, archData) {
   );
 }
 
-// ============================================================
-// 模板生成器
-// ============================================================
-
-/**
- * 生成小型项目 QA.md
- */
-function generateSmallProjectQA(prdData, archData, taskData) {
-  const today = new Date().toISOString().split('T')[0];
-  const storyCount = prdData.stories.length;
-  const estimatedTestCases = storyCount * 3;
-
-  return `# 测试与质量保证文档
-日期：${today}   版本：v0.1.0
-
-> 本文档由 \`/qa plan\` 自动生成，基于 PRD、ARCH、TASK 文档。
-
-## 1. 测试概述
-- **测试目标**：确保所有用户故事（共 ${storyCount} 个）的验收标准得到验证
-- **测试范围**：${prdData.domains.join('、')} 功能域
-- **测试环境**：
-  - Dev: 开发测试环境
-  - Staging: 集成测试环境
-  - Production: 生产验证环境
-
-## 2. 测试策略
-
-### 2.1 测试类型覆盖
-| 测试类型 | 优先级 | 覆盖目标 | 自动化要求 |
-|---------|--------|---------|-----------|
-| **功能测试** | P0/P1 | 100% Story 覆盖 | ≥ 80% |
-| **集成测试** | P0/P1 | 所有模块内集成点 | ≥ 70% |
-| **E2E 测试** | P0 | 核心用户旅程 | ≥ 90% |
-| **回归测试** | P0/P1 | 核心功能 | 100% |
-| **性能测试** | P1 | 关键接口 | 100% |
-| **安全测试** | P0 | OWASP Top 10 | 100% |
-
-### 2.2 测试优先级定义
-- **P0（阻塞）**：核心功能，必须通过才能发布
-- **P1（严重）**：重要功能，发布前必须修复
-- **P2（一般）**：增值功能，可延迟修复
-- **P3（建议）**：优化项，不阻塞发布
-
-### 2.3 入口准则
-- ✅ PRD 已确认（\`PRD_CONFIRMED\` 勾选）
-- ✅ ARCHITECTURE 已定义（\`ARCHITECTURE_DEFINED\` 勾选）
-- ✅ TASK 已规划（\`TASK_PLANNED\` 勾选）
-- ✅ CI 流水线全绿
-- ✅ 测试环境可用
-
-### 2.4 出口准则
-- ✅ P0 用例通过率 100%
-- ✅ 总体通过率 ≥ 90%
-- ✅ 无阻塞缺陷（P0）
-- ✅ 需求覆盖率 ≥ 85%
-- ✅ 关键 NFR 达标
-
-## 3. 测试矩阵
-
-### 3.1 测试用例概览
-预计测试用例数：~${estimatedTestCases} 条（基于 ${storyCount} 个 Story，平均每个 Story 3 条测试用例）
-
-### 3.2 功能测试用例
-
-${generateTestCasesTable(prdData.stories)}
-
-### 3.3 集成测试用例
-${archData.components.length > 0
-  ? `| 用例 ID | 用例名称 | 集成点 | 优先级 | 状态 | 执行人 |
-|---------|---------|--------|--------|------|--------|
-| TC-INT-001 | ${archData.components[0] || '组件 A'} 集成测试 | 组件间集成 | P0 | 📝 待执行 | TBD |
-| （待补充） | - | - | - | - | - |`
-  : '（待补充：根据架构文档中的组件关系添加集成测试用例）'
+function prettifyModuleName(moduleDir) {
+  return moduleDir
+    .split('-')
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(' ');
 }
 
-### 3.4 E2E 测试用例
-| 用例 ID | E2E 场景 | 涉及模块 | 优先级 | 状态 | 执行人 |
-|---------|---------|---------|--------|------|--------|
-| TC-E2E-001 | 核心用户旅程 | 全模块 | P0 | 📝 待执行 | TBD |
-| （待补充） | - | - | - | - | - |
-
-### 3.5 性能测试用例
-| 用例 ID | 测试场景 | 性能目标 | 工具 | 状态 | 执行人 |
-|---------|---------|---------|------|------|--------|
-| TC-PERF-001 | 关键接口响应时间 | P95 < 500ms | k6 | 📝 待执行 | TBD |
-| （待补充） | - | - | - | - | - |
-
-### 3.6 安全测试用例
-| 用例 ID | 安全场景 | OWASP 分类 | 工具 | 状态 | 执行人 |
-|---------|---------|-----------|------|------|--------|
-| TC-SEC-001 | SQL 注入防护 | A03:2021-Injection | OWASP ZAP | 📝 待执行 | TBD |
-| TC-SEC-002 | XSS 防护 | A03:2021-Injection | OWASP ZAP | 📝 待执行 | TBD |
-| （待补充） | - | - | - | - | - |
-
-## 4. 执行统计
-- **用例总数**：${estimatedTestCases} 条（预估）
-- **已执行**：0 条
-- **通过**：0 条
-- **失败**：0 条
-- **阻塞**：0 条
-- **测试通过率**：N/A（待执行）
-
-## 5. 缺陷与风险
-
-### 5.1 阻塞缺陷（P0）
-（暂无）
-
-### 5.2 严重缺陷（P1）
-（暂无）
-
-### 5.3 已知风险
-| 风险 ID | 风险描述 | 严重程度 | 缓解措施 | 状态 |
-|---------|---------|---------|---------|------|
-| （待补充） | - | - | - | - |
-
-## 6. 发布建议
-- **结论**：📝 待测试执行（当前为自动生成的模板）
-- **前置条件**：
-  - [ ] 所有 P0 用例通过
-  - [ ] 所有 P0 缺陷关闭
-  - [ ] CI 状态全绿
-  - [ ] CHANGELOG.md 与产物一致
-- **后续动作**：
-  1. 执行测试用例
-  2. 记录测试结果
-  3. 更新缺陷列表
-  4. 更新发布建议
-
-## 7. 部署记录
-| 环境 | 版本/标签 | 部署时间 | 执行人 | 冒烟结果 | 监控链接 | 备注 |
-|------|---------|---------|--------|---------|---------|------|
-| staging | - | - | - | - | - | 待部署 |
-| production | - | - | - | - | - | 待部署 |
-
-## 8. 附录
-- **PRD 文档**：[PRD.md](PRD.md)
-- **ARCHITECTURE 文档**：[ARCH.md](ARCH.md)
-- **TASK 文档**：[TASK.md](TASK.md)
-- **追溯矩阵**：[traceability-matrix.md](data/traceability-matrix.md)
-- **测试工具脚本**：[scripts/qa-tools/](../../scripts/qa-tools/)
-
----
-
-> **生成信息**：
-> - 生成时间：${today}
-> - 生成方式：自动生成（\`npm run qa:generate\`）
-> - 版本：v1.0.0
-> - 下次更新：执行 \`npm run qa:generate\` 刷新
-`;
+function extractModuleNameFromPRD(prdContent, moduleDir) {
+  if (!prdContent) return prettifyModuleName(moduleDir);
+  const heading = prdContent.match(/^#\s+(.+)$/m);
+  if (!heading) return prettifyModuleName(moduleDir);
+  const text = heading[1].replace(/\[|\]|\(|\)/g, '').trim();
+  return text || prettifyModuleName(moduleDir);
 }
 
-/**
- * 生成测试用例表格（基于 Story 列表）
- */
-function generateTestCasesTable(stories) {
-  if (stories.length === 0) {
-    return '（暂无用户故事，请先完成 PRD 文档）';
+function buildModuleEntries() {
+  const prdModuleDirs = listDirsWithRequiredFile(CONFIG.paths.prdModulesDir, 'PRD.md');
+  const qaModuleDirs = listDirsWithRequiredFile(CONFIG.paths.qaModulesDir, 'QA.md');
+  const moduleSet = new Set([...prdModuleDirs, ...qaModuleDirs]);
+
+  return Array.from(moduleSet)
+    .sort()
+    .map((moduleDir) => {
+      const prdPath = path.join(CONFIG.paths.prdModulesDir, moduleDir, 'PRD.md');
+      const qaPath = path.join(CONFIG.paths.qaModulesDir, moduleDir, 'QA.md');
+      const prdContent = readFile(prdPath);
+      const prdData = parsePRD(prdContent || '');
+
+      return {
+        moduleDir,
+        moduleName: extractModuleNameFromPRD(prdContent, moduleDir),
+        prdPath,
+        qaPath,
+        stories: prdData.stories,
+      };
+    });
+}
+
+function escapeRegex(source) {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizePath(filePath) {
+  return filePath.replace(/\\/g, '/');
+}
+
+function parseModuleFromModuleDocPath(filePath, moduleSet) {
+  const normalized = normalizePath(filePath);
+  const match = normalized.match(/^docs\/(?:prd|arch|task|qa)-modules\/([^/]+)\//i);
+  if (!match) return null;
+  const moduleDir = match[1];
+  return moduleSet.has(moduleDir) ? moduleDir : null;
+}
+
+function matchModuleInText(text, moduleDir) {
+  const normalized = normalizePath(text.toLowerCase());
+  const token = moduleDir.toLowerCase();
+  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegex(token)}([^a-z0-9]|$)`);
+  return pattern.test(normalized);
+}
+
+function inferSessionModules(moduleEntries, changedFiles, branchName) {
+  const moduleMap = new Map(moduleEntries.map((entry) => [entry.moduleDir, entry]));
+  const moduleSet = new Set(moduleEntries.map((entry) => entry.moduleDir));
+  const scores = new Map(moduleEntries.map((entry) => [entry.moduleDir, 0]));
+
+  for (const file of changedFiles) {
+    const normalized = normalizePath(file);
+
+    // 规则 1：若改动落在模块文档目录，直接高权重命中该模块
+    const fromDocPath = parseModuleFromModuleDocPath(normalized, moduleSet);
+    if (fromDocPath) {
+      scores.set(fromDocPath, (scores.get(fromDocPath) || 0) + 100);
+      continue;
+    }
+
+    // 规则 2：按完整模块目录名在改动路径中匹配（不使用硬编码别名）
+    for (const moduleDir of moduleSet) {
+      if (matchModuleInText(normalized, moduleDir)) {
+        scores.set(moduleDir, (scores.get(moduleDir) || 0) + 20);
+      }
+    }
   }
 
-  let table = `| 用例 ID | 用例名称 | 关联 Story | 优先级 | 前置条件 | 状态 | 执行人 |\n`;
-  table += `|---------|---------|-----------|--------|---------|------|--------|\n`;
+  // 规则 3：分支名仅作为弱信号，不覆盖文件路径推断
+  if (branchName) {
+    for (const moduleDir of moduleSet) {
+      if (matchModuleInText(branchName, moduleDir)) {
+        scores.set(moduleDir, (scores.get(moduleDir) || 0) + 5);
+      }
+    }
+  }
 
-  // 为每个 Story 生成一个测试用例示例
+  return Array.from(scores.entries())
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([moduleDir]) => moduleMap.get(moduleDir));
+}
+
+function resolveExplicitModules(moduleEntries, requestedModules) {
+  const moduleMap = new Map(moduleEntries.map((entry) => [entry.moduleDir.toLowerCase(), entry]));
+  const resolved = [];
+  const unknown = [];
+  const seen = new Set();
+
+  for (const rawModule of requestedModules) {
+    const key = String(rawModule || '').trim().toLowerCase();
+    if (!key) continue;
+
+    const entry = moduleMap.get(key);
+    if (!entry) {
+      unknown.push(rawModule);
+      continue;
+    }
+
+    if (seen.has(entry.moduleDir)) continue;
+    seen.add(entry.moduleDir);
+    resolved.push(entry);
+  }
+
+  return { resolved, unknown };
+}
+
+function generateTestCasesTable(stories, prefix = 'GEN') {
+  if (!stories || stories.length === 0) return '（暂无用户故事，请先完善模块 PRD）';
+
+  let table = '| 用例 ID | 用例名称 | 关联 Story | 优先级 | 前置条件 | 状态 | 执行人 |\n';
+  table += '|---------|---------|-----------|--------|---------|------|--------|\n';
+
   stories.slice(0, 10).forEach((story, index) => {
-    const testCaseId = `TC-${story.domain}-${String(index + 1).padStart(3, '0')}`;
+    const testCaseId = `TC-${prefix}-${String(index + 1).padStart(3, '0')}`;
     table += `| ${testCaseId} | ${story.id} 功能测试 | ${story.id} | P0 | （待补充） | 📝 待执行 | TBD |\n`;
   });
 
   if (stories.length > 10) {
-    table += `| （更多） | ... | ... | ... | ... | ... | ... |\n`;
-    table += `\n> 共 ${stories.length} 个 Story，每个 Story 建议至少 3 条测试用例（正常场景 + 边界场景 + 异常场景）\n`;
+    table += '| （更多） | ... | ... | ... | ... | ... | ... |\n';
+    table += `\n> 共 ${stories.length} 个 Story，建议每个 Story 至少 3 条测试用例（正常/边界/异常）。\n`;
   }
 
   return table;
 }
 
-/**
- * 生成大型项目主 QA 文档（总纲与索引）
- */
-function generateLargeProjectOverview(prdData, archData, taskData) {
-  const today = new Date().toISOString().split('T')[0];
+function toTestCaseDomainTag(moduleEntry) {
+  const firstDomain = moduleEntry.stories[0]?.domain;
+  if (firstDomain) return firstDomain;
 
-  return `# 测试与质量保证文档（总纲）
-日期：${today}   版本：v0.1.0
-
-> 本文档由 \`/qa plan\` 自动生成，作为大型项目的测试计划总纲与模块索引。
-
-## 1. 测试概览
-- **项目规模**：大型（${prdData.stories.length} 个 Story，${prdData.domains.length} 个功能域）
-- **测试目标**：确保所有功能域的质量标准达标
-- **测试范围**：${prdData.domains.join('、')}
-
-## 2. 模块测试计划索引
-
-| 模块名称 | 负责团队 | 文档链接 | Story 数 | 状态 | 最后更新 |
-|---------|---------|---------|---------|------|---------|
-${prdData.domains.map(domain => {
-  const domainDir = toDomainDirectory(domain);
-  const domainStories = prdData.stories.filter(s => s.domain === domain);
-  return `| ${domain} | @team-${domainDir} | [qa-modules/${domainDir}/QA.md](qa-modules/${domainDir}/QA.md) | ${domainStories.length} | 📝 待测试 | ${today} |`;
-}).join('\n')}
-
-详见 [qa-modules/README.md](qa-modules/README.md)
-
-## 3. 全局测试策略
-
-### 3.1 测试类型覆盖
-| 测试类型 | 优先级 | 覆盖目标 | 自动化要求 |
-|---------|--------|---------|-----------|
-| 功能测试 | P0/P1 | 100% Story 覆盖 | ≥ 80% |
-| 集成测试 | P0/P1 | 所有模块内集成点 | ≥ 70% |
-| E2E 测试 | P0 | 核心用户旅程 | ≥ 90% |
-| 回归测试 | P0/P1 | 核心功能 | 100% |
-| 性能测试 | P1 | 关键接口 | 100% |
-| 安全测试 | P0 | OWASP Top 10 | 100% |
-
-### 3.2 全局质量指标
-- **目标通过率**：≥ 90%
-- **P0 通过率**：100%
-- **需求覆盖率**：≥ 85%
-- **缺陷密度**：< 1 个/KLOC
-
-## 4. 跨模块集成测试
-（待补充：根据模块间依赖关系添加跨模块集成测试）
-
-## 5. 全局缺陷汇总
-（待补充：汇总各模块的 P0/P1 缺陷）
-
-## 6. 全局测试指标
-- **总用例数**：（待统计）
-- **总通过率**：N/A
-- **模块通过率**：（待统计）
-
-## 7. 发布建议
-- **结论**：📝 待测试执行
-- **前置条件**：所有模块 QA 验证通过
-
-## 8. 部署记录
-| 环境 | 版本/标签 | 部署时间 | 执行人 | 冒烟结果 | 备注 |
-|------|---------|---------|--------|---------|------|
-| staging | - | - | - | - | 待部署 |
-| production | - | - | - | - | 待部署 |
-
----
-
-> **生成信息**：
-> - 生成时间：${today}
-> - 生成方式：自动生成（\`npm run qa:generate\`）
-> - 版本：v1.0.0
-`;
+  return moduleEntry.moduleDir
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 12) || 'MODULE';
 }
 
-/**
- * 生成模块 QA 文档
- */
-function generateModuleQA(domain, domainStories) {
+function generateModuleQA(moduleEntry) {
   const today = new Date().toISOString().split('T')[0];
-  const domainDir = toDomainDirectory(domain);
+  const moduleTag = toTestCaseDomainTag(moduleEntry);
+  const storyCount = moduleEntry.stories.length;
 
-  return `# ${domain} - 测试计划
+  return `# ${moduleEntry.moduleName} - 测试计划
 
 > **所属主 QA**: [QA.md](../../QA.md)
 > **最后更新**: ${today}
@@ -485,17 +437,17 @@ function generateModuleQA(domain, domainStories) {
 
 ## 1. 模块概述
 
-**测试范围**：${domain} 功能域（包含 ${domainStories.length} 个用户故事）
+**测试范围**：${moduleEntry.moduleName}（包含 ${storyCount} 个用户故事）
 
 **测试关键指标**：
-- 测试用例总数：${domainStories.length * 3} 条（预估）
+- 测试用例总数：${storyCount * 3} 条（预估）
 - 测试通过率目标：≥ 95%
 - 需求覆盖率目标：100%
 
 **关联文档**：
-- **模块 PRD**: [prd-modules/${domainDir}/PRD.md](../../prd-modules/${domainDir}/PRD.md)
-- **模块 ARCH**: [arch-modules/${domainDir}/ARCH.md](../../arch-modules/${domainDir}/ARCH.md)
-- **模块 TASK**: [task-modules/${domainDir}/TASK.md](../../task-modules/${domainDir}/TASK.md)
+- **模块 PRD**: [../../${moduleEntry.prdPath}](${path.posix.join('..', '..', moduleEntry.prdPath)})
+- **模块 ARCH**: [../../docs/arch-modules/${moduleEntry.moduleDir}/ARCH.md](../../docs/arch-modules/${moduleEntry.moduleDir}/ARCH.md)
+- **模块 TASK**: [../../docs/task-modules/${moduleEntry.moduleDir}/TASK.md](../../docs/task-modules/${moduleEntry.moduleDir}/TASK.md)
 
 ---
 
@@ -519,7 +471,7 @@ function generateModuleQA(domain, domainStories) {
 
 ### 3.1 功能测试用例
 
-${generateModuleTestCasesTable(domain, domainStories)}
+${generateTestCasesTable(moduleEntry.stories, moduleTag)}
 
 ---
 
@@ -534,140 +486,258 @@ ${generateModuleTestCasesTable(domain, domainStories)}
 ---
 
 ## 6. 测试指标
-- **总用例数**：${domainStories.length * 3} 条（预估）
+- **总用例数**：${storyCount * 3} 条（预估）
 - **通过率**：N/A（待执行）
 
 ---
 
 > **生成信息**：
 > - 生成时间：${today}
-> - 生成方式：自动生成（\`npm run qa:generate\`）
+> - 生成方式：自动生成（\`pnpm run qa:generate\`）
+> - 作用域：session/project（由命令参数决定）
 `;
 }
 
-/**
- * 生成模块测试用例表格
- */
-function generateModuleTestCasesTable(domain, stories) {
-  let table = `| 用例 ID | 用例名称 | 关联 Story | 优先级 | 状态 | 执行人 |\n`;
-  table += `|---------|---------|-----------|--------|------|--------|\n`;
+function generateLargeProjectOverview(moduleEntries, prdData) {
+  const today = new Date().toISOString().split('T')[0];
+  const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
 
-  stories.forEach((story, index) => {
-    const testCaseId = `TC-${domain}-${String(index + 1).padStart(3, '0')}`;
-    table += `| ${testCaseId} | ${story.id} 功能测试 | ${story.id} | P0 | 📝 待执行 | TBD |\n`;
-  });
+  return `# 测试与质量保证文档（总纲）
+日期：${today}   版本：v0.1.0
 
-  return table;
+> 本文档由 \`/qa plan --project\` 自动生成，作为大型项目测试总纲与模块索引。
+
+## 1. 测试概览
+- **项目规模**：大型（${totalStories} 个 Story，${moduleEntries.length} 个模块）
+- **测试目标**：确保所有功能模块质量达标
+- **测试范围**：${moduleEntries.map((entry) => entry.moduleName).join('、')}
+
+## 2. 模块测试计划索引
+
+| 模块名称 | 负责团队 | 文档链接 | Story 数 | 状态 | 最后更新 |
+|---------|---------|---------|---------|------|---------|
+${moduleEntries
+  .map(
+    (entry) =>
+      `| ${entry.moduleName} | @qa-team | [qa-modules/${entry.moduleDir}/QA.md](qa-modules/${entry.moduleDir}/QA.md) | ${entry.stories.length} | 📝 待测试 | ${today} |`
+  )
+  .join('\n')}
+
+## 3. 全局测试策略
+
+### 3.1 测试类型覆盖
+| 测试类型 | 优先级 | 覆盖目标 | 自动化要求 |
+|---------|--------|---------|-----------|
+| 功能测试 | P0/P1 | 100% Story 覆盖 | ≥ 80% |
+| 集成测试 | P0/P1 | 所有模块内集成点 | ≥ 70% |
+| E2E 测试 | P0 | 核心用户旅程 | ≥ 90% |
+| 回归测试 | P0/P1 | 核心功能 | 100% |
+| 性能测试 | P1 | 关键接口 | 100% |
+| 安全测试 | P0 | OWASP Top 10 | 100% |
+
+### 3.2 全局质量指标
+- **目标通过率**：≥ 90%
+- **P0 通过率**：100%
+- **需求覆盖率**：≥ 85%
+- **缺陷密度**：< 1 个/KLOC
+
+## 4. 发布建议
+- **结论**：📝 待测试执行
+- **前置条件**：所有模块 QA 验证通过
+
+## 5. 附录
+- **PRD 文档**：[PRD.md](PRD.md)
+- **追溯矩阵**：[traceability-matrix.md](data/traceability-matrix.md)
+
+---
+
+> **生成信息**：
+> - 生成时间：${today}
+> - 生成方式：自动生成（\`pnpm run qa:generate -- --project\`）
+> - Story 总数（根 PRD）：${prdData.stories.length}
+`;
 }
 
-// ============================================================
-// 主函数
-// ============================================================
+function generateSmallProjectQA(prdData, archData, taskData) {
+  const today = new Date().toISOString().split('T')[0];
+  const storyCount = prdData.stories.length;
+  const estimatedTestCases = storyCount * 3;
+
+  return `# 测试与质量保证文档
+日期：${today}   版本：v0.1.0
+
+> 本文档由 \`/qa plan --project\` 自动生成，基于 PRD、ARCH、TASK 文档。
+
+## 1. 测试概述
+- **测试目标**：确保所有用户故事（共 ${storyCount} 个）的验收标准得到验证
+- **测试范围**：${prdData.domains.join('、')}
+
+## 2. 测试策略
+
+### 2.1 测试类型覆盖
+| 测试类型 | 优先级 | 覆盖目标 | 自动化要求 |
+|---------|--------|---------|-----------|
+| 功能测试 | P0/P1 | 100% Story 覆盖 | ≥ 80% |
+| 集成测试 | P0/P1 | 所有模块内集成点 | ≥ 70% |
+| E2E 测试 | P0 | 核心用户旅程 | ≥ 90% |
+
+## 3. 测试用例概览
+预计测试用例：~${estimatedTestCases} 条
+
+${generateTestCasesTable(prdData.stories, 'GEN')}
+
+## 4. 执行统计
+- **用例总数**：${estimatedTestCases} 条（预估）
+- **测试通过率**：N/A（待执行）
+
+## 5. 发布建议
+- **结论**：📝 待测试执行
+
+---
+
+> **生成信息**：
+> - 生成时间：${today}
+> - 架构组件数：${archData.components.length}
+> - 任务里程碑数：${taskData.milestones.length}
+`;
+}
+
+function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
+  log('🧭 作用域：session（仅当前会话相关模块）', 'cyan');
+
+  let matchedModules = [];
+  if (explicitModules.length > 0) {
+    const { resolved, unknown } = resolveExplicitModules(moduleEntries, explicitModules);
+    if (unknown.length > 0) {
+      log(`⚠️ 忽略未知模块: ${unknown.join(', ')}`, 'yellow');
+    }
+    if (resolved.length === 0) {
+      log('ℹ️ 显式传入的模块均未命中现有模块目录，本次不改写 QA 文档（no-op）。', 'yellow');
+      return [];
+    }
+    matchedModules = resolved;
+    log(`🤖 使用显式传入模块：${matchedModules.map((entry) => entry.moduleDir).join(', ')}`, 'gray');
+  } else {
+    const branchName = runGit(['branch', '--show-current'], { allowFailure: true }).trim();
+    const changedFiles = getChangedFilesForSession();
+    matchedModules = inferSessionModules(moduleEntries, changedFiles, branchName);
+  }
+
+  if (matchedModules.length === 0) {
+    log('ℹ️ 未识别到当前会话关联模块，本次不改写 QA 文档（no-op）。', 'yellow');
+    return [];
+  }
+
+  log(`📌 识别到会话模块：${matchedModules.map((entry) => entry.moduleDir).join(', ')}`, 'gray');
+
+  const touched = [];
+  for (const entry of matchedModules) {
+    const content = generateModuleQA(entry);
+    if (!dryRun) writeFile(entry.qaPath, content);
+    touched.push(entry.qaPath);
+    log(`   ✅ 已${dryRun ? '预览' : '更新'}模块 QA: ${entry.qaPath}`, 'green');
+  }
+
+  log('ℹ️ session 模式不会全量重写 docs/QA.md。', 'yellow');
+  return touched;
+}
+
+function runProjectPlan(moduleEntries, prdData, archData, taskData, dryRun) {
+  log('🧭 作用域：project（全项目刷新）', 'cyan');
+
+  const needsSplit = shouldSplit(prdData);
+  const touched = [];
+
+  if (needsSplit) {
+    log(`✅ 大型项目（${prdData.stories.length} 个 Story）→ 生成主 QA + 模块 QA`, 'green');
+    const mainQA = generateLargeProjectOverview(moduleEntries, prdData);
+    if (!dryRun) writeFile(CONFIG.paths.qa, mainQA);
+    touched.push(CONFIG.paths.qa);
+    log(`   ✅ 已${dryRun ? '预览' : '生成'}主 QA: ${CONFIG.paths.qa}`, 'green');
+
+    for (const entry of moduleEntries) {
+      const content = generateModuleQA(entry);
+      if (!dryRun) writeFile(entry.qaPath, content);
+      touched.push(entry.qaPath);
+      log(`   ✅ 已${dryRun ? '预览' : '生成'}模块 QA: ${entry.qaPath}`, 'green');
+    }
+  } else {
+    log(`✅ 小型项目（${prdData.stories.length} 个 Story）→ 生成单一 QA`, 'green');
+    const qa = generateSmallProjectQA(prdData, archData, taskData);
+    if (!dryRun) writeFile(CONFIG.paths.qa, qa);
+    touched.push(CONFIG.paths.qa);
+    log(`   ✅ 已${dryRun ? '预览' : '生成'} QA: ${CONFIG.paths.qa}`, 'green');
+  }
+
+  return touched;
+}
 
 function main() {
-  log('='.repeat(60), 'cyan');
-  log('QA 文档自动生成工具 v1.0.0', 'cyan');
-  log('='.repeat(60), 'cyan');
-  log('');
+  const cli = parseCliArgs(process.argv.slice(2));
 
-  // 1. 读取必需的输入文件
+  log('='.repeat(60), 'cyan');
+  log('QA 文档自动生成工具 v1.2.0', 'cyan');
+  log('='.repeat(60), 'cyan');
+
   log('📖 读取输入文件...', 'cyan');
-
   const prdContent = readFile(CONFIG.paths.prd);
   const archContent = readFile(CONFIG.paths.arch);
   const taskContent = readFile(CONFIG.paths.task);
   const matrixContent = readFile(CONFIG.paths.traceabilityMatrix);
 
-  // 2. 检查必需文件
   if (!prdContent) {
-    log('❌ PRD 文档不存在，请先完成 PRD.md', 'red');
-    log('   提示：激活 PRD 专家或执行 /prd confirm', 'yellow');
+    log('❌ PRD 文档不存在，请先完成 docs/PRD.md', 'red');
     process.exit(1);
   }
 
-  if (!archContent) {
-    log('⚠️  ARCHITECTURE 文档不存在，将使用默认配置', 'yellow');
-  }
-
-  if (!taskContent) {
-    log('⚠️  TASK 文档不存在，将使用默认配置', 'yellow');
-  }
-
-  // 3. 解析数据
-  log('🔍 解析数据...', 'cyan');
   const prdData = parsePRD(prdContent);
   const archData = parseARCH(archContent);
   const taskData = parseTASK(taskContent);
   const matrixData = parseTraceabilityMatrix(matrixContent);
+  const moduleEntries = buildModuleEntries();
 
-  log(`   - 找到 ${prdData.stories.length} 个用户故事`, 'gray');
-  log(`   - 找到 ${prdData.domains.length} 个功能域: ${prdData.domains.join(', ')}`, 'gray');
-  log(`   - 找到 ${archData.components.length} 个架构组件`, 'gray');
-  log(`   - 架构模式: ${archData.isMicroservice ? '微服务' : '单体'}`, 'gray');
-  log('');
-
-  // 4. 检测项目规模
-  log('📊 检测项目规模...', 'cyan');
-  const needsSplit = shouldSplit(prdData, archData);
-
-  if (needsSplit) {
-    log(`   ✅ 大型项目（${prdData.stories.length} 个 Story，${prdData.domains.length} 个功能域）`, 'green');
-    log('   → 将生成主 QA 文档 + 模块 QA 文档', 'gray');
-  } else {
-    log(`   ✅ 小型项目（${prdData.stories.length} 个 Story）`, 'green');
-    log('   → 将生成单一 QA 文档', 'gray');
+  log(`   - Story 数: ${prdData.stories.length}`, 'gray');
+  log(`   - 功能域数: ${prdData.domains.length}`, 'gray');
+  log(`   - 模块数（PRD/QA 目录）: ${moduleEntries.length}`, 'gray');
+  log(`   - 架构组件数: ${archData.components.length}`, 'gray');
+  log(`   - 追溯映射数: ${matrixData.mappings.length}`, 'gray');
+  if (cli.modules.length > 0) {
+    log(`   - 显式模块: ${cli.modules.join(', ')}`, 'gray');
   }
-  log('');
 
-  // 5. 生成 QA 文档
-  log('📝 生成 QA 文档...', 'cyan');
+  if (moduleEntries.length === 0) {
+    log('❌ 未找到任何模块（docs/prd-modules/*/PRD.md 或 docs/qa-modules/*/QA.md）', 'red');
+    process.exit(1);
+  }
 
-  if (needsSplit) {
-    // 大型项目：生成主 QA + 模块 QA
-    const mainQA = generateLargeProjectOverview(prdData, archData, taskData);
-    writeFile(CONFIG.paths.qa, mainQA);
-    log(`   ✅ 已生成主 QA 文档: ${CONFIG.paths.qa}`, 'green');
+  if (cli.dryRun) {
+    log('⚠️ DRY RUN 模式：不会写入文件。', 'yellow');
+  }
 
-    // 生成模块 QA
-    prdData.domains.forEach(domain => {
-      const domainStories = prdData.stories.filter(s => s.domain === domain);
-      const moduleQA = generateModuleQA(domain, domainStories);
-      const domainDir = toDomainDirectory(domain);
-      const modulePath = path.join(CONFIG.paths.qaModulesDir, domainDir, 'QA.md');
-      writeFile(modulePath, moduleQA);
-      log(`   ✅ 已生成模块 QA: ${modulePath}`, 'green');
-    });
-
-    // TODO: 更新 qa-modules/README.md 索引
-    log('   ℹ️  提示：请手动更新 qa-modules/README.md 的模块清单', 'yellow');
+  let touched = [];
+  if (cli.scope === 'project') {
+    if (cli.modules.length > 0) {
+      log('ℹ️ --modules 仅在 session 模式生效；当前 project 模式将忽略该参数。', 'yellow');
+    }
+    touched = runProjectPlan(moduleEntries, prdData, archData, taskData, cli.dryRun);
   } else {
-    // 小型项目：生成单一 QA
-    const qa = generateSmallProjectQA(prdData, archData, taskData);
-    writeFile(CONFIG.paths.qa, qa);
-    log(`   ✅ 已生成 QA 文档: ${CONFIG.paths.qa}`, 'green');
+    touched = runSessionPlan(moduleEntries, cli.dryRun, cli.modules);
   }
 
   log('');
+  log('='.repeat(60), 'cyan');
+  log('✅ QA 计划生成完成', 'green');
+  log('='.repeat(60), 'cyan');
 
-  // 6. 后续建议
-  log('='.repeat(60), 'cyan');
-  log('✅ QA 文档生成完成！', 'green');
-  log('='.repeat(60), 'cyan');
-  log('');
-  log('📋 后续步骤：', 'cyan');
-  log('   1. 检查生成的 QA.md，补充测试用例细节', 'gray');
-  log('   2. 执行测试并记录结果', 'gray');
-  log('   3. 运行质量检查：npm run qa:lint', 'gray');
-  log('   4. 验证 ID 同步：npm run qa:sync-prd-qa-ids', 'gray');
-  log('   5. 生成覆盖率报告：npm run qa:coverage-report', 'gray');
-  log('');
+  if (touched.length > 0) {
+    log('📄 本次回写文件：', 'cyan');
+    touched.forEach((file) => log(`   - ${file}`, 'gray'));
+  } else {
+    log('📄 本次未产生文档改动。', 'yellow');
+  }
 
   process.exit(0);
 }
-
-// ============================================================
-// 运行
-// ============================================================
 
 if (require.main === module) {
   try {
@@ -679,4 +749,15 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parsePRD, parseARCH, parseTASK, shouldSplit };
+module.exports = {
+  parseCliArgs,
+  parseModuleList,
+  parsePRD,
+  parseARCH,
+  parseTASK,
+  parseTraceabilityMatrix,
+  shouldSplit,
+  buildModuleEntries,
+  inferSessionModules,
+  resolveExplicitModules,
+};

@@ -20,6 +20,25 @@ chmod +x scripts/qa-tools/*.js
 
 ## 🚀 快速开始
 
+### 0. `/qa plan` 文档生成（推荐先执行）
+
+```bash
+# 默认 session（仅当前会话关联模块；不会全量重写 docs/QA.md）
+pnpm run qa:generate
+
+# session + 显式模块（可由大模型先推断后传入，支持多个模块）
+pnpm run qa:generate -- --modules pro-create,quick-create
+
+# project（全项目刷新：主 QA + 所有模块 QA）
+pnpm run qa:generate -- --project
+```
+
+说明：
+- 裸命令默认是 `session` 作用域，避免误生成大量无关 QA 文档。
+- 只有显式传入 `--project` 才会执行全量刷新。
+- `session` 模式可通过 `--modules`/`--module` 显式指定模块（如 `pro-create,quick-create`），脚本会优先使用该列表，不再依赖 Git 改动推断。
+- 也支持通过环境变量传入：`QA_SESSION_MODULES=pro-create,quick-create pnpm run qa:generate`。
+
 ### 1. QA 文档完整性检查
 检查 QA 文档的章节完整性、Test Case ID 格式、缺陷 ID 规范、Given-When-Then 格式。
 
