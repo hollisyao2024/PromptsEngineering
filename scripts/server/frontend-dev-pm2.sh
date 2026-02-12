@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 APP_NAME="frontend-dev"
 CONFIG_FILE="${ROOT_DIR}/scripts/server/pm2.frontend.dev.config.cjs"
 HEALTH_URL="http://127.0.0.1:3000"
+LOG_FILE="/tmp/frontend-dev.log"
 
 cd "$ROOT_DIR"
 
@@ -29,9 +30,51 @@ healthcheck() {
     sleep 1
   done
 
-  echo "frontend-dev failed health check. Recent logs:"
-  tail -n 120 /tmp/frontend-dev.log || true
-  exit 1
+  return 1
+}
+
+has_turbopack_cache_corruption() {
+  if [ ! -f "$LOG_FILE" ]; then
+    return 1
+  fi
+
+  tail -n 300 "$LOG_FILE" 2>/dev/null | grep -Eiq \
+    'TurbopackInternalError|Failed to restore task data|Unable to open static sorted file|app-paths-manifest\.json|Persisting failed: Another write batch or compaction is already active'
+}
+
+cleanup_next_cache() {
+  echo "Detected Turbopack cache corruption. Cleaning frontend/.next ..."
+  node -e "const fs=require('fs');fs.rmSync('frontend/.next',{recursive:true,force:true,maxRetries:5,retryDelay:200});console.log('Cleaned frontend/.next');"
+}
+
+start_with_auto_heal() {
+  local attempt
+
+  for attempt in 1 2; do
+    free_port_3000
+    run_pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
+    run_pm2 start "$CONFIG_FILE" --only "$APP_NAME" --update-env
+
+    if healthcheck; then
+      return 0
+    fi
+
+    if [ "$attempt" -eq 1 ] && has_turbopack_cache_corruption; then
+      echo "Auto-heal: stopping app and retrying after cache cleanup..."
+      run_pm2 stop "$APP_NAME" >/dev/null 2>&1 || true
+      run_pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
+      cleanup_next_cache
+      continue
+    fi
+
+    echo "frontend-dev failed health check. Recent logs:"
+    tail -n 120 "$LOG_FILE" || true
+    return 1
+  done
+
+  echo "frontend-dev failed after auto-heal retry. Recent logs:"
+  tail -n 120 "$LOG_FILE" || true
+  return 1
 }
 
 free_port_3000() {
@@ -54,16 +97,10 @@ ensure_pm2
 
 case "${1:-restart}" in
   start)
-    free_port_3000
-    run_pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-    run_pm2 start "$CONFIG_FILE" --only "$APP_NAME" --update-env
-    healthcheck
+    start_with_auto_heal
     ;;
   restart)
-    free_port_3000
-    run_pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-    run_pm2 start "$CONFIG_FILE" --only "$APP_NAME" --update-env
-    healthcheck
+    start_with_auto_heal
     ;;
   stop)
     run_pm2 stop "$APP_NAME" || true
