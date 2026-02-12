@@ -6,7 +6,8 @@
  * 1. 从当前 Git 分支名解析 TASK ID（支持 feature/TASK-123 或 TASK-PAY-005+TASK-NOTIF-002）。
  * 2. 在任务文档中查找以 "- [ ]" 开头且包含相应 TASK ID 的行，并改为 "- [x]".
  * 3. 若任务已勾选，则仅计为已处理，不重复修改。
- * 4. 找不到任何任务时脚本会报错，用以阻止漏勾选的提交。
+ * 4. bug/小需求分支（fix/*、feature/* 且不含 TASK ID）允许 no-op 放行。
+ * 5. 其他分支找不到 TASK ID 时脚本报错，用以阻止漏勾选的提交。
  */
 
 const fs = require('fs');
@@ -47,6 +48,11 @@ function parseTaskIds(branchName) {
     return [];
   }
   return Array.from(new Set(matches));
+}
+
+function isNoTaskBranchAllowed(branchName) {
+  const normalized = (branchName || '').trim().toLowerCase();
+  return normalized.startsWith('fix/') || normalized.startsWith('feature/');
 }
 
 function collectTaskFiles() {
@@ -346,6 +352,10 @@ function main() {
   const taskIds = parseTaskIds(branchName);
 
   if (!taskIds.length) {
+    if (isNoTaskBranchAllowed(branchName)) {
+      console.log(`ℹ️ 当前分支 ${branchName} 未包含 TASK ID，按 bug/小需求流程跳过 TASK 勾选（no-op）。`);
+      process.exit(0);
+    }
     console.error('❌ 当前分支名未包含任何 TASK ID（示例：feature/TASK-ACCOUNT-001-short-desc）。');
     process.exit(1);
   }
