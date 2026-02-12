@@ -23,7 +23,7 @@ const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
 const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 const REPORT_FILE = path.join(PROJECT_ROOT, 'docs/data/arch-prd-traceability.md');
 
-function collectMarkdownFiles(dir, excludeNames = new Set()) {
+function collectModuleArchFiles(dir) {
   if (!fs.existsSync(dir)) {
     return [];
   }
@@ -32,22 +32,14 @@ function collectMarkdownFiles(dir, excludeNames = new Set()) {
   const files = [];
 
   for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(...collectMarkdownFiles(entryPath, excludeNames));
+    if (!entry.isDirectory()) {
       continue;
     }
 
-    if (!entry.isFile() || !entry.name.endsWith('.md')) {
-      continue;
+    const archPath = path.join(dir, entry.name, 'ARCH.md');
+    if (fs.existsSync(archPath)) {
+      files.push(archPath);
     }
-
-    if (excludeNames.has(entry.name)) {
-      continue;
-    }
-
-    files.push(entryPath);
   }
 
   return files;
@@ -125,7 +117,7 @@ function scanArchForStoryIDs() {
   }
 
   // 扫描模块 ARCH 文档
-  const moduleArchFiles = collectMarkdownFiles(ARCH_MODULES_DIR, new Set(['module-list.md', 'MODULE-TEMPLATE.md']));
+  const moduleArchFiles = collectModuleArchFiles(ARCH_MODULES_DIR);
 
   moduleArchFiles.forEach(modulePath => {
     const content = fs.readFileSync(modulePath, 'utf8');
@@ -208,7 +200,7 @@ function scanComponentGraph() {
  * 扫描模块架构文档中的 Component ID
  */
 function scanModulesForComponentIDs() {
-  const moduleFiles = collectMarkdownFiles(ARCH_MODULES_DIR, new Set(['module-list.md', 'MODULE-TEMPLATE.md']));
+  const moduleFiles = collectModuleArchFiles(ARCH_MODULES_DIR);
 
   if (moduleFiles.length === 0) {
     console.log('⚠️  Architecture module documents not found, skipping Component ID check\n');

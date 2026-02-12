@@ -92,9 +92,6 @@ function collectAllTasks() {
         if (fs.existsSync(moduleTaskPath)) {
           allTasks = allTasks.concat(parseTasks(moduleTaskPath));
         }
-      } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md' && entry.name !== 'MODULE-TEMPLATE.md') {
-        const filePath = path.join(CONFIG.taskModulesDir, entry.name);
-        allTasks = allTasks.concat(parseTasks(filePath));
       }
     });
   }

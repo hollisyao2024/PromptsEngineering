@@ -50,7 +50,7 @@
 | 文档类型 | 文档路径 | 影响章节 | 变更类型 |
 |---------|---------|---------|---------|
 | 主 PRD | `/docs/PRD.md` | 第 4 章：用户故事 | 修改索引 |
-| 模块 PRD | `/docs/prd-modules/user-management.md` | US-USER-005 | 修改 AC |
+| 模块 PRD | `/docs/prd-modules/user-management/PRD.md` | US-USER-005 | 修改 AC |
 | 追溯矩阵 | `/docs/data/traceability-matrix.md` | Story US-USER-005 | 更新 AC ID |
 | 架构文档 | `/docs/ARCH.md` | 第 5 章：数据视图 | 新增数据导出接口 |
 | 任务计划 | `/docs/TASK.md` | WBS-2.3 | 调整工期 +2 天 |
@@ -182,7 +182,7 @@
 ### 7.1 实施清单
 
 - [ ] 更新 `/docs/PRD.md`（主 PRD）
-- [ ] 更新 `/docs/prd-modules/user-management.md`（模块 PRD）
+- [ ] 更新 `/docs/prd-modules/user-management/PRD.md`（模块 PRD）
 - [ ] 更新 `/docs/data/traceability-matrix.md`（追溯矩阵）
 - [ ] 更新 `/docs/ARCH.md`（如有架构影响）
 - [ ] 更新 `/docs/TASK.md`（调整任务计划）

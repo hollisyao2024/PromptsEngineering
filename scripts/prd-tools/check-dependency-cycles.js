@@ -87,11 +87,6 @@ function collectAllDependencies() {
         }
 
         // 注意：dependency-graph.md 也可能包含依赖信息，但格式不同，这里暂不解析
-      } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') {
-        // 兼容旧格式：直接在 prd-modules/ 下的 .md 文件
-        const filePath = path.join(CONFIG.prdModulesDir, entry.name);
-        const deps = parseDependencies(filePath);
-        deps.forEach((value, key) => allDeps.set(key, value));
       }
     });
   }

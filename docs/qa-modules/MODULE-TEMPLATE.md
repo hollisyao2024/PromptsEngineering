@@ -619,10 +619,10 @@ pnpm run qa:cleanup-test-data -- --module={domain}
 ```markdown
 # {功能域名称} - 测试计划
 
-> **所属主 QA**: [QA.md](../QA.md)
-> **关联 PRD 模块**: [prd-modules/{domain}/PRD.md](../prd-modules/{domain}/PRD.md)
-> **关联 ARCH 模块**: [arch-modules/{domain}/ARCH.md](../arch-modules/{domain}/ARCH.md)
-> **关联 TASK 模块**: [task-modules/{domain}/TASK.md](../task-modules/{domain}/TASK.md)
+> **所属主 QA**: [QA.md](../../QA.md)
+> **关联 PRD 模块**: [prd-modules/{domain}/PRD.md](../../prd-modules/{domain}/PRD.md)
+> **关联 ARCH 模块**: [arch-modules/{domain}/ARCH.md](../../arch-modules/{domain}/ARCH.md)
+> **关联 TASK 模块**: [task-modules/{domain}/TASK.md](../../task-modules/{domain}/TASK.md)
 > **状态**: 📝 待启动 / 🔄 测试中 / ✅ 已确认 / ⚠️ 有风险 / ❌ 未通过
 > **负责团队**: @qa-team-name
 > **最后更新**: YYYY-MM-DD
@@ -648,9 +648,9 @@ pnpm run qa:cleanup-test-data -- --module={domain}
 - 自动化覆盖率目标：≥ 80%
 
 **关联文档**：
-- **模块 PRD**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **模块 ARCH**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
-- **模块 TASK**: [task-modules/{domain}.md](../task-modules/{domain}.md)
+- **模块 PRD**: [prd-modules/{domain}/PRD.md](../../prd-modules/{domain}/PRD.md)
+- **模块 ARCH**: [arch-modules/{domain}/ARCH.md](../../arch-modules/{domain}/ARCH.md)
+- **模块 TASK**: [task-modules/{domain}/TASK.md](../../task-modules/{domain}/TASK.md)
 
 ---
 
@@ -1254,10 +1254,10 @@ Error: [错误信息]
 ## 9. 参考文档
 
 ### 9.1 关联文档
-- **模块 PRD**: [prd-modules/{domain}.md](../prd-modules/{domain}.md)
-- **模块 ARCH**: [arch-modules/{domain}.md](../arch-modules/{domain}.md)
-- **模块 TASK**: [task-modules/{domain}.md](../task-modules/{domain}.md)
-- **主 QA 文档**: [QA.md](../QA.md)
+- **模块 PRD**: [prd-modules/{domain}/PRD.md](../../prd-modules/{domain}/PRD.md)
+- **模块 ARCH**: [arch-modules/{domain}/ARCH.md](../../arch-modules/{domain}/ARCH.md)
+- **模块 TASK**: [task-modules/{domain}/TASK.md](../../task-modules/{domain}/TASK.md)
+- **主 QA 文档**: [QA.md](../../QA.md)
 - **追溯矩阵**: [traceability-matrix.md](../data/traceability-matrix.md)
 
 ### 9.2 测试资源

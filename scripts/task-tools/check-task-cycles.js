@@ -160,18 +160,6 @@ function collectAllDependencies() {
             }
           });
         }
-      } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md' && entry.name !== 'MODULE-TEMPLATE.md') {
-        // 兼容旧格式：直接在 task-modules/ 下的 .md 文件
-        const filePath = path.join(CONFIG.taskModulesDir, entry.name);
-        const deps = parseDependencies(filePath);
-        deps.forEach((value, key) => {
-          if (allDeps.has(key)) {
-            const existingDeps = allDeps.get(key);
-            allDeps.set(key, [...new Set([...existingDeps, ...value])]);
-          } else {
-            allDeps.set(key, value);
-          }
-        });
       }
     });
   }

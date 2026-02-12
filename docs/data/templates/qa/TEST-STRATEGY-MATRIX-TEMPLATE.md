@@ -186,7 +186,7 @@
 
 ### 6.1 新增 Story 时
 
-1. **PRD 专家**创建 Story（`/docs/PRD.md` 或 `prd-modules/{domain}.md`）
+1. **PRD 专家**创建 Story（`/docs/PRD.md` 或 `/docs/prd-modules/{domain}/PRD.md`）
 2. **QA 专家**基于以下规则自动映射测试类型：
    - 读取 Story 优先级（P0/P1/P2）
    - 识别功能特性（敏感数据/第三方依赖/高并发/异步等）

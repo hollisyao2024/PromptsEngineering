@@ -235,26 +235,32 @@ function checkModuleTaskFiles() {
   }
 
   const entries = fs.readdirSync(CONFIG.taskModulesDir, { withFileTypes: true });
-  const moduleFiles = entries.filter(entry => entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md' && entry.name !== 'MODULE-TEMPLATE.md');
+  const moduleDirs = entries.filter(entry => entry.isDirectory());
 
-  if (moduleFiles.length === 0) {
+  if (moduleDirs.length === 0) {
     log('ℹ️  未找到模块 TASK 文件，跳过模块检查', 'cyan');
     return true;
   }
 
-  log(`📋 找到 ${moduleFiles.length} 个模块 TASK 文件`, 'cyan');
+  log(`📋 找到 ${moduleDirs.length} 个模块 TASK 文件`, 'cyan');
 
   let allValid = true;
-  moduleFiles.forEach(file => {
-    const filePath = path.join(CONFIG.taskModulesDir, file.name);
+  moduleDirs.forEach(dir => {
+    const filePath = path.join(CONFIG.taskModulesDir, dir.name, 'TASK.md');
+    if (!fs.existsSync(filePath)) {
+      log(`⚠️  ${dir.name}/TASK.md 不存在`, 'yellow');
+      allValid = false;
+      return;
+    }
+
     const content = fs.readFileSync(filePath, 'utf-8');
 
     // 检查基本结构
     const hasTaskIdSection = /TASK-[A-Z]+-\d{3}/.test(content);
-    const hasWbsSection = /##\s+\d+\.\s+WBS/i.test(content);
+    const hasWbsSection = /##\s+\d+\.\s+(?:模块\s+)?WBS/i.test(content);
 
     if (!hasTaskIdSection || !hasWbsSection) {
-      log(`⚠️  ${file.name}: 缺少 Task ID 或 WBS 章节`, 'yellow');
+      log(`⚠️  ${dir.name}/TASK.md: 缺少 Task ID 或 WBS 章节`, 'yellow');
       allValid = false;
     }
   });

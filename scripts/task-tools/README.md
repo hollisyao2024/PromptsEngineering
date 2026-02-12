@@ -34,7 +34,7 @@ npm run task:generate
 - ✅ 计算关键路径（CPM 算法）
 - ✅ 生成 Story → Task 映射表
 - ✅ **智能检测项目规模，自动决定单文件 vs 模块化拆分**
-- ✅ **大型项目自动创建模块任务文档（`task-modules/{domain}.md`）**
+- ✅ **大型项目自动创建模块任务文档（`task-modules/{domain}/TASK.md`）**
 - ✅ **自动生成跨模块依赖关系表**
 - ✅ 支持增量更新（保留人工标注的 Owner、优先级、风险备注）
 
@@ -86,10 +86,10 @@ TASK 自动生成工具 v1.0
 ✅ 已生成：/docs/TASK.md
 
 📂 项目规模较大，自动创建模块化任务文档...
-   ✅ 创建模块文档：user.md (85 个任务)
-   ✅ 创建模块文档：payment.md (92 个任务)
-   ✅ 创建模块文档：notification.md (68 个任务)
-   ✅ 创建模块文档：infra.md (75 个任务)
+   ✅ 创建模块文档：user/TASK.md (85 个任务)
+   ✅ 创建模块文档：payment/TASK.md (92 个任务)
+   ✅ 创建模块文档：notification/TASK.md (68 个任务)
+   ✅ 创建模块文档：infra/TASK.md (75 个任务)
    ✅ 更新模块索引：task-modules/module-list.md
 ✅ 已创建 4 个模块任务文档
 ✅ 主 TASK.md 已转换为总纲结构（< 500 行）
@@ -99,7 +99,7 @@ TASK 自动生成工具 v1.0
 
 📋 大型项目已完成模块化拆分：
    - 主文档：docs/TASK.md（总纲与索引）
-   - 模块文档：docs/task-modules/*.md
+   - 模块文档：docs/task-modules/{domain}/TASK.md
    - 模块索引：docs/task-modules/module-list.md
 
 接下来建议：

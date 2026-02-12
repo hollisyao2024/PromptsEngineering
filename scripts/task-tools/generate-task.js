@@ -57,6 +57,13 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+function toDomainDirectory(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'general';
+}
+
 // 解析 PRD，提取 Story 信息
 function parsePRD(content) {
   const stories = [];
@@ -315,9 +322,11 @@ function generateModuleTaskFiles(tasks, stories, components) {
     const moduleStories = stories.filter(s => s.module === module);
     const moduleMarkdown = generateModuleMarkdown(module, moduleTasks, moduleStories, tasks);
 
-    const moduleFile = path.join(CONFIG.taskModulesDir, `${module.toLowerCase()}.md`);
+    const moduleDir = toDomainDirectory(module);
+    const moduleFile = path.join(CONFIG.taskModulesDir, moduleDir, 'TASK.md');
+    fs.mkdirSync(path.dirname(moduleFile), { recursive: true });
     fs.writeFileSync(moduleFile, moduleMarkdown);
-    log(`   ✅ 创建模块文档：${module.toLowerCase()}.md (${moduleTasks.length} 个任务)`, 'green');
+    log(`   ✅ 创建模块文档：${moduleDir}/TASK.md (${moduleTasks.length} 个任务)`, 'green');
   });
 
   // 更新 task-modules/module-list.md
@@ -330,6 +339,7 @@ function generateModuleTaskFiles(tasks, stories, components) {
 function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks) {
   const today = new Date().toISOString().split('T')[0];
   const totalEffort = moduleTasks.reduce((sum, t) => sum + (t.effort || 0), 0);
+  const moduleDir = toDomainDirectory(moduleName);
 
   let md = `# ${moduleName} 模块任务计划\n\n`;
   md += `> **说明**：本文档为 ${moduleName} 模块的详细任务计划，由 TASK 专家自动生成。\n\n`;
@@ -441,9 +451,11 @@ function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks
 
   // 相关文档
   md += `## 8. 相关文档\n\n`;
-  md += `- **主任务文档**：[../TASK.md](../TASK.md)\n`;
-  md += `- **PRD 文档**：[../PRD.md](../PRD.md)\n`;
-  md += `- **架构文档**：[../ARCH.md](../ARCH.md)\n\n`;
+  md += `- **主任务文档**：[../../TASK.md](../../TASK.md)\n`;
+  md += `- **主 PRD 文档**：[../../PRD.md](../../PRD.md)\n`;
+  md += `- **主架构文档**：[../../ARCH.md](../../ARCH.md)\n`;
+  md += `- **模块 PRD 文档**：[../../prd-modules/${moduleDir}/PRD.md](../../prd-modules/${moduleDir}/PRD.md)\n`;
+  md += `- **模块 ARCH 文档**：[../../arch-modules/${moduleDir}/ARCH.md](../../arch-modules/${moduleDir}/ARCH.md)\n\n`;
 
   md += `---\n\n`;
   md += `> **维护说明**：本文档由 TASK 专家自动生成。人工调整后，工具会尝试保留你的手工标注。\n`;
@@ -468,7 +480,8 @@ function updateTaskModulesReadme(modules, tasks, stories) {
   modules.forEach(module => {
     const moduleTasks = tasks.filter(t => t.module === module);
     const moduleStories = stories.filter(s => s.module === module);
-    const moduleFile = `${module.toLowerCase()}.md`;
+    const moduleDir = toDomainDirectory(module);
+    const moduleFile = `${moduleDir}/TASK.md`;
     md += `| ${module} | ${moduleTasks.length} | ${moduleStories.length} | [${moduleFile}](${moduleFile}) | 📝 待确认 |\n`;
   });
 
@@ -629,7 +642,8 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   const today = new Date().toISOString().split('T')[0];
   modules.forEach(module => {
     const moduleTasks = tasks.filter(t => t.module === module);
-    const moduleFile = `${module.toLowerCase()}.md`;
+    const moduleDir = toDomainDirectory(module);
+    const moduleFile = `${moduleDir}/TASK.md`;
     md += `| ${module} | ${moduleTasks.length} | TBD | [${moduleFile}](task-modules/${moduleFile}) | 📝 待确认 | ${today} |\n`;
   });
   md += `\n详见 [task-modules/module-list.md](task-modules/module-list.md)\n\n`;
@@ -762,7 +776,7 @@ function main() {
   if (needsSplit) {
     log(`\n📋 大型项目已完成模块化拆分：`, 'cyan');
     log(`   - 主文档：docs/TASK.md（总纲与索引）`, 'cyan');
-    log(`   - 模块文档：docs/task-modules/*.md`, 'cyan');
+    log(`   - 模块文档：docs/task-modules/{domain}/TASK.md`, 'cyan');
     log(`   - 模块索引：docs/task-modules/module-list.md`, 'cyan');
   }
 

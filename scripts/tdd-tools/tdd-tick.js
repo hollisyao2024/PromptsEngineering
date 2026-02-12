@@ -128,6 +128,9 @@ function collectTaskFiles(scope, taskIds) {
   }
 
   if (scope === 'project') {
+    if (fs.existsSync(moduleListFile)) {
+      files.push(moduleListFile);
+    }
     const stack = [taskModulesDir];
     while (stack.length) {
       const current = stack.pop();
@@ -136,7 +139,7 @@ function collectTaskFiles(scope, taskIds) {
         const entryPath = path.join(current, entry.name);
         if (entry.isDirectory()) {
           stack.push(entryPath);
-        } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        } else if (entry.isFile() && entry.name === 'TASK.md') {
           files.push(entryPath);
         }
       }
@@ -430,7 +433,7 @@ function main() {
 
   const taskFiles = collectTaskFiles(scope, taskIds);
   if (!taskFiles.length) {
-    console.error('❌ 未找到任务文档（docs/TASK.md 或 docs/task-modules/*.md）。请先运行 /task plan 生成任务计划。');
+    console.error('❌ 未找到任务文档（docs/TASK.md 或 docs/task-modules/{domain}/TASK.md）。请先运行 /task plan 生成任务计划。');
     process.exit(1);
   }
 

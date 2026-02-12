@@ -54,6 +54,13 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+function toDomainDirectory(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'general';
+}
+
 // ============================================================
 // 文件工具
 // ============================================================
@@ -406,8 +413,9 @@ function generateLargeProjectOverview(prdData, archData, taskData) {
 | 模块名称 | 负责团队 | 文档链接 | Story 数 | 状态 | 最后更新 |
 |---------|---------|---------|---------|------|---------|
 ${prdData.domains.map(domain => {
+  const domainDir = toDomainDirectory(domain);
   const domainStories = prdData.stories.filter(s => s.domain === domain);
-  return `| ${domain} | @team-${domain.toLowerCase()} | [qa-modules/${domain.toLowerCase()}.md](qa-modules/${domain.toLowerCase()}.md) | ${domainStories.length} | 📝 待测试 | ${today} |`;
+  return `| ${domain} | @team-${domainDir} | [qa-modules/${domainDir}/QA.md](qa-modules/${domainDir}/QA.md) | ${domainStories.length} | 📝 待测试 | ${today} |`;
 }).join('\n')}
 
 详见 [qa-modules/README.md](qa-modules/README.md)
@@ -465,10 +473,11 @@ ${prdData.domains.map(domain => {
  */
 function generateModuleQA(domain, domainStories) {
   const today = new Date().toISOString().split('T')[0];
+  const domainDir = toDomainDirectory(domain);
 
   return `# ${domain} - 测试计划
 
-> **所属主 QA**: [QA.md](../QA.md)
+> **所属主 QA**: [QA.md](../../QA.md)
 > **最后更新**: ${today}
 > **版本**: v0.1.0
 
@@ -484,9 +493,9 @@ function generateModuleQA(domain, domainStories) {
 - 需求覆盖率目标：100%
 
 **关联文档**：
-- **模块 PRD**: [prd-modules/${domain.toLowerCase()}.md](../prd-modules/${domain.toLowerCase()}.md)
-- **模块 ARCH**: [arch-modules/${domain.toLowerCase()}.md](../arch-modules/${domain.toLowerCase()}.md)
-- **模块 TASK**: [task-modules/${domain.toLowerCase()}.md](../task-modules/${domain.toLowerCase()}.md)
+- **模块 PRD**: [prd-modules/${domainDir}/PRD.md](../../prd-modules/${domainDir}/PRD.md)
+- **模块 ARCH**: [arch-modules/${domainDir}/ARCH.md](../../arch-modules/${domainDir}/ARCH.md)
+- **模块 TASK**: [task-modules/${domainDir}/TASK.md](../../task-modules/${domainDir}/TASK.md)
 
 ---
 
@@ -623,7 +632,8 @@ function main() {
     prdData.domains.forEach(domain => {
       const domainStories = prdData.stories.filter(s => s.domain === domain);
       const moduleQA = generateModuleQA(domain, domainStories);
-      const modulePath = path.join(CONFIG.paths.qaModulesDir, `${domain.toLowerCase()}.md`);
+      const domainDir = toDomainDirectory(domain);
+      const modulePath = path.join(CONFIG.paths.qaModulesDir, domainDir, 'QA.md');
       writeFile(modulePath, moduleQA);
       log(`   ✅ 已生成模块 QA: ${modulePath}`, 'green');
     });

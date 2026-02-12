@@ -97,12 +97,17 @@ function extractAPIDefinitions() {
     return;
   }
 
-  const moduleFiles = fs.readdirSync(ARCH_MODULES_DIR).filter(f => f.endsWith('.md') && f !== 'module-list.md');
+  const moduleDirs = fs.readdirSync(ARCH_MODULES_DIR, { withFileTypes: true })
+    .filter(entry => entry.isDirectory());
 
-  for (const file of moduleFiles) {
-    const modulePath = path.join(ARCH_MODULES_DIR, file);
+  for (const dir of moduleDirs) {
+    const modulePath = path.join(ARCH_MODULES_DIR, dir.name, 'ARCH.md');
+    if (!fs.existsSync(modulePath)) {
+      continue;
+    }
+
     const content = fs.readFileSync(modulePath, 'utf8');
-    const moduleName = path.basename(file, '.md');
+    const moduleName = dir.name;
 
     // 查找"接口视图"章节
     const sectionRegex = /##\s*\d*\.?\s*接口视图([\s\S]*?)(?=##|$)/i;
@@ -181,7 +186,7 @@ function validateAPIContracts() {
       console.log(`✅ Verified ${foundAPIs.length} API contract(s):\n`);
       foundAPIs.forEach(api => {
         console.log(`   - ${api.method} ${api.endpoint}`);
-        console.log(`     Defined in: arch-modules/${api.definedIn}.md`);
+        console.log(`     Defined in: arch-modules/${api.definedIn}/ARCH.md`);
         console.log(`     Referenced in: ${api.source}\n`);
       });
     }
