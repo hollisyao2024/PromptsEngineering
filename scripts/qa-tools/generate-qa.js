@@ -7,6 +7,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -111,6 +112,16 @@ function writeFile(filePath, content) {
 
 function fileExists(filePath) {
   return fs.existsSync(path.resolve(process.cwd(), filePath));
+}
+
+function writeJsonFile(filePath, payload) {
+  writeFile(filePath, JSON.stringify(payload, null, 2) + '\n');
+}
+
+function getQaPlanSessionStatePath() {
+  const customPath = process.env.QA_PLAN_SESSION_STATE_PATH;
+  if (customPath && customPath.trim()) return customPath.trim();
+  return path.join(os.tmpdir(), 'linghuiai-qa-plan-session.json');
 }
 
 function runGit(args, { allowFailure = false } = {}) {
@@ -605,6 +616,7 @@ ${generateTestCasesTable(prdData.stories, 'GEN')}
 function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
   log('🧭 作用域：session（仅当前会话相关模块）', 'cyan');
 
+  let targetSource = 'session-diff-inference';
   let matchedModules = [];
   if (explicitModules.length > 0) {
     const { resolved, unknown } = resolveExplicitModules(moduleEntries, explicitModules);
@@ -613,9 +625,10 @@ function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
     }
     if (resolved.length === 0) {
       log('ℹ️ 显式传入的模块均未命中现有模块目录，本次不改写 QA 文档（no-op）。', 'yellow');
-      return [];
+      return { touched: [], modules: [], targetSource: 'explicit-modules' };
     }
     matchedModules = resolved;
+    targetSource = 'explicit-modules';
     log(`🤖 使用显式传入模块：${matchedModules.map((entry) => entry.moduleDir).join(', ')}`, 'gray');
   } else {
     const branchName = runGit(['branch', '--show-current'], { allowFailure: true }).trim();
@@ -625,7 +638,7 @@ function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
 
   if (matchedModules.length === 0) {
     log('ℹ️ 未识别到当前会话关联模块，本次不改写 QA 文档（no-op）。', 'yellow');
-    return [];
+    return { touched: [], modules: [], targetSource };
   }
 
   log(`📌 识别到会话模块：${matchedModules.map((entry) => entry.moduleDir).join(', ')}`, 'gray');
@@ -639,7 +652,11 @@ function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
   }
 
   log('ℹ️ session 模式不会全量重写 docs/QA.md。', 'yellow');
-  return touched;
+  return {
+    touched,
+    modules: matchedModules.map((entry) => entry.moduleDir),
+    targetSource,
+  };
 }
 
 function runProjectPlan(moduleEntries, prdData, archData, taskData, dryRun) {
@@ -715,13 +732,33 @@ function main() {
   }
 
   let touched = [];
+  let sessionMeta = null;
   if (cli.scope === 'project') {
     if (cli.modules.length > 0) {
       log('ℹ️ --modules 仅在 session 模式生效；当前 project 模式将忽略该参数。', 'yellow');
     }
     touched = runProjectPlan(moduleEntries, prdData, archData, taskData, cli.dryRun);
   } else {
-    touched = runSessionPlan(moduleEntries, cli.dryRun, cli.modules);
+    const sessionResult = runSessionPlan(moduleEntries, cli.dryRun, cli.modules);
+    touched = sessionResult.touched;
+
+    sessionMeta = {
+      tool: 'qa:generate',
+      scope: 'session',
+      generatedAt: new Date().toISOString(),
+      branch: runGit(['branch', '--show-current'], { allowFailure: true }).trim(),
+      dryRun: cli.dryRun,
+      targetSource: sessionResult.targetSource,
+      modules: sessionResult.modules,
+      touchedFiles: sessionResult.touched,
+      explicitModules: cli.modules,
+    };
+
+    if (!cli.dryRun) {
+      const statePath = getQaPlanSessionStatePath();
+      writeJsonFile(statePath, sessionMeta);
+      log(`🧾 已记录会话计划上下文: ${statePath}`, 'gray');
+    }
   }
 
   log('');
@@ -760,4 +797,5 @@ module.exports = {
   buildModuleEntries,
   inferSessionModules,
   resolveExplicitModules,
+  getQaPlanSessionStatePath,
 };

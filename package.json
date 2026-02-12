@@ -44,6 +44,7 @@
     "qa:sync-prd-qa-ids": "node scripts/qa-tools/sync-prd-qa-ids.js",
     "qa:generate-test-report": "node scripts/qa-tools/generate-test-report.js",
     "qa:check-defect-blockers": "node scripts/qa-tools/check-defect-blockers.js",
+    "qa:verify": "node scripts/qa-tools/qa-verify.js",
     "qa:merge": "node scripts/qa-tools/qa-merge.js",
     "tdd:tick": "node scripts/tdd-tools/tdd-tick.js",
     "tdd:sync": "node scripts/tdd-tools/tdd-sync.js",

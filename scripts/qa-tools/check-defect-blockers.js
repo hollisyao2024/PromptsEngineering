@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
 const CONFIG = {
@@ -417,17 +418,20 @@ function generateReleaseGateReport(defects, analysisResult, nfrResult) {
     }
   }
 
-  // 保存报告
-  const reportDir = path.dirname(CONFIG.releaseGateReportPath);
-  if (!fs.existsSync(reportDir)) {
-    fs.mkdirSync(reportDir, { recursive: true });
-  }
-
+  // 可选保存报告（默认仅校验，不落盘）
   const reportPath = CONFIG.releaseGateReportPath.replace('{date}', date);
-  fs.writeFileSync(reportPath, reportContent, 'utf-8');
+  if (shouldWriteReports) {
+    const reportDir = path.dirname(CONFIG.releaseGateReportPath);
+    if (!fs.existsSync(reportDir)) {
+      fs.mkdirSync(reportDir, { recursive: true });
+    }
 
-  log(`\n📝 发布门禁报告已保存到:`, 'cyan');
-  log(`   ${reportPath}`);
+    fs.writeFileSync(reportPath, reportContent, 'utf-8');
+    log(`\n📝 发布门禁报告已保存到:`, 'cyan');
+    log(`   ${reportPath}`);
+  } else {
+    log('\nℹ️ 未写入发布门禁报告（只校验模式，设置 QA_WRITE_REPORTS=1 可写入）', 'yellow');
+  }
 
   return { canRelease, blockingIssues };
 }

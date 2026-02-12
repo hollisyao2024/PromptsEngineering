@@ -39,7 +39,29 @@ pnpm run qa:generate -- --project
 - `session` 模式可通过 `--modules`/`--module` 显式指定模块（如 `pro-create,quick-create`），脚本会优先使用该列表，不再依赖 Git 改动推断。
 - 也支持通过环境变量传入：`QA_SESSION_MODULES=pro-create,quick-create pnpm run qa:generate`。
 
-### 1. QA 文档完整性检查
+### 1. `/qa verify` 验收检查（推荐第二步）
+
+```bash
+# 默认 session（优先读取 /qa plan 的会话状态，仅验证本次会话 QA 目标）
+pnpm run qa:verify
+
+# session + 显式模块
+pnpm run qa:verify -- --modules pro-create,quick-create
+
+# project（全项目验收）
+pnpm run qa:verify -- --project
+
+# project + 写入报告（按需）
+pnpm run qa:verify -- --project --write-reports
+```
+
+说明：
+- `session` 模式优先读取 `/qa plan` 记录文件（默认在系统临时目录：`/tmp/linghuiai-qa-plan-session.json`，可通过 `QA_PLAN_SESSION_STATE_PATH` 覆盖）。
+- 若会话状态文件不存在，再回退到当前工作区 QA 改动 / 会话推断。
+- `project` 模式会复用 `qa:lint`、`qa:sync-prd-qa-ids`、`qa:coverage-report`、`qa:check-defect-blockers`。
+- `project` 默认只校验不写 `qa-reports`，显式传 `--write-reports` 才会输出报告文件。
+
+### 2. QA 文档完整性检查
 检查 QA 文档的章节完整性、Test Case ID 格式、缺陷 ID 规范、Given-When-Then 格式。
 
 ```bash
@@ -101,7 +123,7 @@ QA 文档完整性检查工具 v1.0
 
 ---
 
-### 2. 测试覆盖率分析
+### 3. 测试覆盖率分析
 基于追溯矩阵，分析需求覆盖率（Story → Test Case 映射完整性）。
 
 ```bash
@@ -187,7 +209,7 @@ pnpm run qa:coverage-report
 
 ---
 
-### 3. PRD ↔ QA ID 同步验证
+### 4. PRD ↔ QA ID 同步验证
 验证 QA 文档中引用的 Story ID 是否在 PRD 中存在，以及 PRD 中的 Story 是否都有对应测试用例。
 
 ```bash
@@ -271,7 +293,7 @@ PRD ↔ QA ID 同步验证工具 v1.0
 
 ---
 
-### 4. 测试报告生成
+### 5. 测试报告生成
 汇总所有模块的测试执行结果，生成全局测试报告。
 
 ```bash
@@ -396,7 +418,7 @@ pnpm run qa:generate-test-report
 
 ---
 
-### 5. 缺陷阻塞检查
+### 6. 缺陷阻塞检查
 扫描所有模块的缺陷列表，识别 P0/P1 阻塞性缺陷，生成发布门禁报告。
 
 ```bash

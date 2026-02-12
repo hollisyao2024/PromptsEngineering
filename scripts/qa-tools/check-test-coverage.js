@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
 const CONFIG = {
@@ -333,13 +334,14 @@ function generateCoverageReport(stories, moduleStats, priorityStats, uncoveredSt
     }
   }
 
-  // 保存报告
-  const reportDir = path.dirname(CONFIG.coverageSummaryPath);
-  if (!fs.existsSync(reportDir)) {
-    fs.mkdirSync(reportDir, { recursive: true });
+  // 可选保存报告（默认仅校验，不落盘）
+  if (shouldWriteReports) {
+    const reportDir = path.dirname(CONFIG.coverageSummaryPath);
+    if (!fs.existsSync(reportDir)) {
+      fs.mkdirSync(reportDir, { recursive: true });
+    }
+    fs.writeFileSync(CONFIG.coverageSummaryPath, reportContent, 'utf-8');
   }
-
-  fs.writeFileSync(CONFIG.coverageSummaryPath, reportContent, 'utf-8');
 
   return { totalCoverage, uncoveredStories, orphanTestCases };
 }
@@ -396,7 +398,11 @@ function main() {
     log(`⚠️  发现 ${orphans.length} 个孤儿测试用例`, 'yellow');
   }
 
-  log(`\n📝 报告已保存到: ${CONFIG.coverageSummaryPath}`, 'cyan');
+  if (shouldWriteReports) {
+    log(`\n📝 报告已保存到: ${CONFIG.coverageSummaryPath}`, 'cyan');
+  } else {
+    log('\nℹ️ 未写入覆盖率报告（只校验模式，设置 QA_WRITE_REPORTS=1 可写入）', 'yellow');
+  }
 
   process.exit(0);
 }
