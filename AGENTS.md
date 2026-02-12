@@ -162,6 +162,7 @@ flowchart TD
 - CI 命令：`/ci run`、`/ci status`（自动激活 DevOps 专家）
 - 部署命令：`/ship dev`、`/ship staging`、`/ship prod`、`/cd staging`、`/cd prod`（自动激活 DevOps 专家）
 - 环境命令：`/env check <env>`、`/env status`（自动激活 DevOps 专家）
+- 本地服务命令：`/restart`（自动激活 DevOps 专家，执行 `pnpm dev:restart`，固定端口 `3000`，日志: `/tmp/frontend-dev.log`）
 
 **说明**：CI/CD 流水线、环境管理、部署与回滚由 DevOps 专家文件与 Handbook 描述。
 
@@ -209,9 +210,7 @@ flowchart TD
 - `/cd prod` — 通过 CI/CD 远程部署到生产环境
 - `/env check <env>` — 执行指定环境健康检查
 - `/env status` — 查看所有环境当前状态
-
-### 通用开发命令
-- `/restart` — 停止并重启本地开发服务器（执行 `pnpm dev:restart`，后台运行，日志: `/tmp/frontend-dev.log`）
+- `/restart` — 重启本地前端开发服务（执行 `pnpm dev:restart`，PM2 托管，固定端口 `3000`，日志: `/tmp/frontend-dev.log`）
 
 ---
 

@@ -57,7 +57,11 @@
     "ship:prod": "bash scripts/server/deploy.sh local production",
     "cd:staging": "bash scripts/server/deploy.sh ci staging",
     "cd:prod": "bash scripts/server/deploy.sh ci production",
-    "dev:restart": "pkill -f 'next dev' || true && nohup pnpm --filter frontend dev > /tmp/frontend-dev.log 2>&1 & sleep 2 && echo '开发服务器已在后台启动，日志: /tmp/frontend-dev.log'"
+    "dev:start": "bash scripts/server/frontend-dev-pm2.sh start",
+    "dev:restart": "bash scripts/server/frontend-dev-pm2.sh restart",
+    "dev:stop": "bash scripts/server/frontend-dev-pm2.sh stop",
+    "dev:status": "bash scripts/server/frontend-dev-pm2.sh status",
+    "dev:logs": "bash scripts/server/frontend-dev-pm2.sh logs"
   },
   "keywords": [
     "prd",

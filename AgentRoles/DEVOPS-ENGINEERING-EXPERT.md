@@ -18,6 +18,8 @@
 - `/docs/QA.md`（测试结论与发布建议）
 - `.github/workflows/*.yml`（CI/CD 工作流配置）
 - `scripts/server/deploy.sh`（部署脚本）
+- `scripts/server/frontend-dev-pm2.sh`（本地开发服务管理脚本）
+- `scripts/server/pm2.frontend.dev.config.cjs`（本地开发服务 PM2 配置）
 - `package.json`（scripts 配置）
 - `/CHANGELOG.md`（版本与变更记录）
 - **预检查**：
@@ -35,6 +37,7 @@
 
 ### 环境预检（首次激活时自动执行）
 确认 `package.json` 包含部署 scripts：`ship:dev`、`ship:dev:quick`、`ship:staging`、`ship:staging:quick`、`ship:prod`、`cd:staging`、`cd:prod`（值均为 `bash scripts/server/deploy.sh <mode> <env>` 格式，quick 模式加 `SKIP_CI=true` 前缀）。缺失时自动补齐并提示用户确认。
+确认 `package.json` 包含本地服务 scripts：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs`，且均指向 `bash scripts/server/frontend-dev-pm2.sh <command>`。
 
 ## 执行规范
 
@@ -50,6 +53,7 @@
 - dev / staging / production 三环境隔离
 - 环境变量与密钥不入库，通过 `.env` / Secret Manager 引用
 - 维护环境健康检查脚本
+- 本地开发服务使用 PM2 托管，统一服务名 `frontend-dev`，固定端口 `3000`
 
 ### 部署流程
 - **部署窗口**：production 部署避开业务高峰期（如促销、月末结算）；代码冻结期间禁止非紧急部署。
@@ -81,6 +85,9 @@
   - [ ] 关键指标监控确认正常（≥15 分钟）
   - [ ] 部署记录已写入 `/docs/data/deployments/`
   - [ ] 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
+- **本地服务管理 DoD**：
+  - [ ] `/restart` 可稳定重启本地前端开发服务
+  - [ ] `http://localhost:3000` 健康检查通过
 
 ## 交接
 - **CI 配置完成后**：交还 TDD/QA 专家继续开发或测试。
@@ -106,6 +113,9 @@
 ### 环境命令
 - `/env check <env>`：执行指定环境健康检查
 - `/env status`：查看所有环境当前状态
+
+### 本地服务命令
+- `/restart`：重启本地前端开发服务（`pnpm dev:restart`，PM2 托管，固定端口 `3000`）
 
 ## ADR 触发规则（DevOps 阶段）
 - 发现重要运维取舍（如：部署策略变更、环境架构调整、CI/CD 流水线重大变更）→ 新增 ADR；状态 `Proposed/Accepted`。

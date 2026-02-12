@@ -53,6 +53,22 @@
 - `/env check <env>` 执行指定环境的完整健康检查
 - `/env status` 查看所有环境概览
 
+### 本地开发服务管理（PM2）
+- 统一使用 PM2 托管本地前端开发服务，服务名 `frontend-dev`
+- 配置文件：`scripts/server/pm2.frontend.dev.config.cjs`
+- 管理脚本：`scripts/server/frontend-dev-pm2.sh`
+- 默认固定端口 `3000`，环境变量：
+  - `PORT=3000`
+  - `APP_ENVIRONMENT=development`
+  - `NODE_TLS_REJECT_UNAUTHORIZED=1`
+- 命令入口：
+  - 重启：`/restart`（执行 `pnpm dev:restart`）
+  - 启动：`pnpm dev:start`
+  - 停止：`pnpm dev:stop`
+  - 状态：`pnpm dev:status`
+  - 日志：`pnpm dev:logs`
+- 验收标准：重启后 `http://localhost:3000` 返回 200；失败时查看 `/tmp/frontend-dev.log`
+
 ---
 
 ## §3. 部署流程
