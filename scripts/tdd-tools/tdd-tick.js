@@ -43,7 +43,9 @@ function getBranchName() {
 }
 
 function parseTaskIds(branchName) {
-  const matches = branchName.toUpperCase().match(/TASK-[A-Z0-9]+(?:-[A-Z0-9]+)*/g);
+  // 仅匹配标准 TASK ID（TASK-<DOMAIN>-<NUMBER>），避免吞掉分支描述后缀
+  // 例如：feature/TASK-USER-001-targeted-fix 应提取 TASK-USER-001
+  const matches = branchName.toUpperCase().match(/TASK-[A-Z0-9]+-[0-9]+/g);
   if (!matches) {
     return [];
   }
