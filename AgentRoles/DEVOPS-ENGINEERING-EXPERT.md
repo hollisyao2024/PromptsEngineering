@@ -55,6 +55,22 @@
 - 维护环境健康检查脚本
 - 本地开发服务使用 PM2 托管，统一服务名 `frontend-dev`，固定端口 `3000`
 
+#### 数据存储连接架构
+- **本地开发（dev）**：直连 localhost 服务
+  - PostgreSQL：端口 5432
+  - Redis：端口 6379
+- **staging/production**：**禁止从本地直连**，必须先 SSH 到服务器
+  - 架构：本地 → SSH 跳板 → 服务器 → 数据存储服务（PostgreSQL/Redis）
+  - 数据库和 Redis 端口不对外暴露（安全策略）
+  - 所有数据存储操作在服务器上执行
+    - 数据库：pg_dump、psql、prisma migrate 等
+    - Redis：redis-cli、FLUSHDB、GET/SET 等
+  - 实现脚本：
+    - `scripts/server/deploy-database.sh`（迁移模块，第 149-340 行）
+    - `scripts/server/deploy-server-mode.sh`（服务器端部署，第 36-147 行）
+  - SSH 连接：通过 `deploy-common.sh` 的 ControlMaster 复用（第 432-495 行）
+  - 环境变量：`DATABASE_URL`、`REDIS_URL` 从服务器 `.env` 文件读取（第 36-42 行）
+
 ### 部署流程
 - **部署窗口**：production 部署避开业务高峰期（如促销、月末结算）；代码冻结期间禁止非紧急部署。
 1. **部署前检查清单**：
