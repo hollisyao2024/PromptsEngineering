@@ -89,6 +89,116 @@ pnpm dev:restart
 # ⑧ 旧结构确认下线后，再走一轮 ①-⑥ 移除旧字段/表           ← Contract
 ```
 
+**B.2.1 开发环境 Schema 同步策略**
+
+> **环境一致性原则**：dev/staging/production 都使用 migration 管理 schema 变更，确保迁移历史的连续性与可追溯性。
+
+开发环境的特殊性：
+- ⚠️ 即使在 dev 环境，也应**优先保留数据**（验证迁移脚本的可靠性）
+- ⚠️ `prisma migrate reset` 仅作为**极端情况的最后手段**（数据损坏、迁移历史完全混乱）
+- ❌ **禁止使用 `prisma db push`**（会跳过迁移历史，导致 dev 与 staging/production 迁移状态不一致）
+
+---
+
+**场景 A：正常开发流程（推荐）**
+
+**适用条件**：schema 修改是增量的，数据库状态正常
+
+**步骤**：见 B.2（无需重复，直接引用）
+
+**说明**：这是标准流程，与 staging/production 的迁移历史完全一致。
+
+---
+
+**场景 B：Schema 漂移修复（问题诊断）**
+
+**适用条件**：
+- 数据库 schema 与 `schema.prisma` 不一致（例如手动修改了数据库）
+- 迁移历史损坏或丢失
+- 从其他分支切换导致 schema 不匹配
+
+**诊断命令**：
+```bash
+# 检查 schema 与数据库的差异
+pnpm prisma migrate status
+
+# 查看具体差异（不执行）
+pnpm prisma migrate diff \
+  --from-schema-datamodel prisma/schema.prisma \
+  --to-schema-datasource prisma/schema.prisma \
+  --script
+```
+
+**修复策略**：
+
+**策略 1：保留数据，生成修复迁移（优先）**
+```bash
+# ① 生成修复迁移（将数据库对齐到 schema.prisma）
+pnpm prisma migrate dev --create-only --name fix_schema_drift
+
+# ② 手动编辑迁移 SQL，确保幂等性
+
+# ③ 应用迁移
+pnpm prisma migrate dev
+
+# ④ 重启服务
+pnpm dev:restart
+```
+
+**策略 2：销毁数据，从头重建（⚠️ 不推荐）**
+```bash
+# ⚠️ 警告：会删除所有数据！仅在数据确实不重要时使用
+
+# ① 重置数据库并重放所有迁移
+pnpm prisma migrate reset
+
+# ② 重启服务
+pnpm dev:restart
+
+# ③（可选）运行 seed 脚本填充测试数据
+pnpm prisma db seed
+```
+
+**说明**：即使在开发环境，也应**优先使用策略 1**（保留数据），以验证迁移脚本的幂等性和可靠性。staging/production **必须**用策略 1。
+
+---
+
+**场景 C：完全重置（极端情况，最后手段）**
+
+**适用条件**（必须同时满足以下至少一项）：
+- 数据损坏无法修复，且无备份
+- 迁移历史完全混乱，无法通过修复迁移解决
+- 本地测试环境数据完全不重要，且急需快速恢复
+
+**命令**：
+```bash
+# ① 销毁数据库并重放所有迁移
+pnpm prisma migrate reset
+
+# ② 重启服务
+pnpm dev:restart
+
+# ③（可选）填充测试数据
+pnpm prisma db seed
+```
+
+> ⚠️ **警告**：最后手段！优先尝试场景 B 策略 1；staging/production 绝不允许；使用前确认数据可丢失。
+
+---
+
+> **常用命令速查**：正常开发 `pnpm prisma migrate dev`；检查状态 `pnpm prisma migrate status`；生成迁移 `migrate dev --create-only --name <name>`；漂移诊断 `migrate diff`；完整命令见 B.2/B.2.1 节代码块。
+
+---
+
+> 环境限制与命令对比详见 B.9 节。
+
+---
+
+**场景 B/C 核心原则**：
+> 详见 B.7 节（单一事实源）及 B.2.1 开头（环境一致性原则）。
+
+---
+
 **B.3 预发/生产环境部署流程**
 
 > TDD 负责编写迁移脚本并在 dev 环境验证；staging/production 环境的迁移执行由 DevOps 专家在部署流程中编排，具体见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md` 部署流程。以下命令为 DevOps 执行时的技术参考。
@@ -149,7 +259,7 @@ pnpm build && <重启命令>
 **B.7 单一事实源**
 
 - **`schema.prisma` 是数据库结构的唯一事实源**，禁止为迎合数据库现状反向修改 Schema
-- 发现不一致时：保持 Schema 不变，编写迁移将数据库对齐到 Schema（走 B.2 流程）
+- 发现不一致时：保持 Schema 不变，编写迁移将数据库对齐到 Schema（参考 B.2.1 场景 B 策略 1）
 
 **B.8 Baseline Migration（已有数据库引入 Prisma）**
 
@@ -168,13 +278,16 @@ pnpm prisma migrate resolve --applied 0_init
 ```
 完成后走标准 B.2 流程，不再允许 `db pull`。
 
-**B.9 严格禁止**
+**B.9 严格禁止与环境限制**
 
 - ❌ 禁止直接修改数据库架构（必须通过 Prisma 迁移）
-- ❌ 禁止 `prisma db push`（跳过迁移历史，无法回滚）
-- ❌ 禁止在 staging/production 使用 `prisma migrate dev`（可能重置数据库）
+- ❌ 禁止 `prisma db push`（跳过迁移历史，无法回滚；所有环境适用）
+- ❌ 禁止在 staging/production 使用 `prisma migrate dev`（可能重置数据库；dev 推荐）
+- ❌ 禁止在 staging/production 使用 `prisma migrate reset`（dev 不推荐，仅极端情况）
 - ❌ 禁止跳过幂等性检查
 - ❌ 禁止 `prisma db pull` 覆盖 Schema（Baseline 除外）
+
+> **环境适用性总结**：`migrate dev` 仅 dev 推荐；`migrate deploy` staging/prod 必须；`migrate reset` staging/prod 禁止、dev 不推荐；`db push` 所有环境禁止；`db pull` 除 Baseline 外所有环境禁止。
 
 **B.10 数据字典同步**
 
