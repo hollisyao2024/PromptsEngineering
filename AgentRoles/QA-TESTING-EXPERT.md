@@ -3,6 +3,36 @@
 ## 角色宗旨
 在 TDD 交付后的 QA 阶段，负责系统级验证、缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
 
+## 命令-脚本映射表(强制规范)
+
+QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映射关系**。执行快捷命令时,**必须首先调用对应的 npm 脚本**,禁止跳过脚本直接执行 git/shell 命令。
+
+| 快捷命令 | npm 脚本 | 脚本路径 | 说明 |
+|---------|---------|---------|------|
+| `/qa plan` | `pnpm run qa:generate` | `scripts/qa-tools/generate-qa.js` | 生成/刷新测试计划 |
+| `/qa verify` | `pnpm run qa:verify` | `scripts/qa-tools/qa-verify.js` | 执行验收检查 |
+| `/qa merge` | `pnpm run qa:merge` | `scripts/qa-tools/qa-merge.js` | 合并 PR 到 main(含15个关键步骤,详见下方) |
+
+**为什么必须调用脚本**:
+- ✅ 脚本包含完整的前置检查(工作区状态、PR 冲突、发布门禁等)
+- ✅ 脚本提供自动降级和防竞态机制
+- ✅ 脚本有完整的错误处理和回滚逻辑
+- ✅ 脚本生成规范的 commit message 和文档
+- ✅ 脚本确保项目约定(分支清理、PR 关闭等)一致执行
+
+**如果直接用 git 命令会导致**:
+- ❌ 跳过发布门禁检查(可能合并有阻塞缺陷的代码)
+- ❌ 没有 PR 冲突检测
+- ❌ 没有工作区干净检查
+- ❌ 缺少规范的 commit message 格式
+- ❌ PR 不会被关闭,分支不会被清理
+- ❌ 没有错误回滚机制
+
+**执行规范**:
+1. **首选**:调用对应的 npm 脚本(如 `pnpm run qa:merge`)
+2. **禁止**:跳过脚本直接使用 git/shell 命令
+3. **异常**:如果脚本不可用或执行失败,**必须向用户报告**具体错误,让用户决定下一步,禁止自行尝试手动操作
+
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
@@ -215,9 +245,63 @@ flowchart TD
 
 ## 快捷命令
 - **作用域规则**：`/qa plan`、`/qa verify`、`/qa merge` 裸命令默认 `session`（仅当前会话范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。
-- `/qa plan`：默认 `session`，仅生成/更新会话范围内的 QA 计划与条目；`/qa plan --project` 执行全量生成/刷新 `/docs/QA.md`（测试策略、测试用例、测试矩阵）并填充追溯矩阵。
-- `/qa verify`：默认 `session`，优先读取 `/qa plan` 临时状态文件（默认 `/tmp/linghuiai-qa-plan-session.json`，可由 `QA_PLAN_SESSION_STATE_PATH` 覆盖），仅验证当前会话 `/qa plan` 实际回写的目标；若状态文件不存在，再回退到当前工作区 QA 变更/会话推断。`/qa verify --project` 执行项目级验收建议（Go / Conditional / No-Go）。
-- `/qa merge`：默认 `session`，执行 `pnpm run qa:merge` 合并**当前分支对应 PR** 到 main（优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge + push），然后在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED` 并交接 DevOps；`/qa merge --project` 可显式进入项目模式。前置条件：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。支持 `--skip-checks`、`--dry-run`。
+- `/qa plan`：
+  - **执行方式**：**必须首先执行** `pnpm run qa:generate` **脚本**，禁止跳过脚本手动生成文档。
+  - **脚本功能**（`scripts/qa-tools/generate-qa.js` 包含关键步骤）：
+    1. 读取输入文件（PRD、ARCH、TASK、追溯矩阵）
+    2. 解析数据（Story、功能域、架构组件、追溯映射）
+    3. 检查模块目录（`docs/prd-modules/*/PRD.md`、`docs/qa-modules/*/QA.md`）
+    4. 根据作用域执行：
+       - `session`：仅更新当前会话关联模块的 QA 文档（基于显式指定或工作区推断）
+       - `project`：全项目刷新（主 `/docs/QA.md` + 所有模块 QA 文档）
+    5. 生成测试用例（基于 Story → AC 映射，使用 Given-When-Then 格式）
+    6. 生成测试策略矩阵（测试类型覆盖、优先级、工具链）
+    7. 更新追溯矩阵（Story → AC → Test Case 映射）
+    8. 记录会话计划上下文到状态文件（`/tmp/linghuiai-qa-plan-session.json`，供 `/qa verify` 精确验收）
+    9. 输出回写文件列表
+  - **作用域**：默认 `session`（会话模式）；`/qa plan --project` 全项目模式。
+  - **参数**：`--modules <list>`（指定模块，仅 session 模式）、`--dry-run`（预览操作，不写入文件）
+  - **完成动作**：生成/刷新 QA 文档，记录会话上下文（session 模式），输出回写文件清单。
+  - **重要**：如果 `pnpm run qa:generate` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动生成文档（手动生成会跳过数据解析、追溯更新等关键步骤）。
+- `/qa verify`：
+  - **执行方式**：**必须首先执行** `pnpm run qa:verify` **脚本**，禁止跳过脚本手动验证。
+  - **脚本功能**（`scripts/qa-tools/qa-verify.js` 包含关键步骤）：
+    1. 解析参数（作用域、模块列表）
+    2. 根据作用域确定验证目标：
+       - `session`：优先读取 `/qa plan` 会话状态文件（`/tmp/linghuiai-qa-plan-session.json`），仅验证当前会话实际回写的 QA 文档和模块
+       - `project`：全项目验证（主 QA + 所有模块 QA）
+    3. 若状态文件不存在（session 模式），回退到工作区 QA 变更推断
+    4. 验证 QA 文档完整性（测试策略、测试用例、追溯映射）
+    5. 检查测试覆盖率（Story → AC → Test Case）
+    6. 检查缺陷阻塞情况（P0 缺陷状态、NFR 达标情况）
+    7. 统计质量指标（通过率、覆盖率、缺陷密度）
+    8. 生成验收建议（Go / Conditional / No-Go）并列出前置条件或风险
+  - **作用域**：默认 `session`（会话模式）；`/qa verify --project` 全项目模式。
+  - **参数**：`--modules <list>`（指定模块，仅 session 模式）
+  - **输出**：验收检查报告、质量指标统计、发布建议（Go/Conditional/No-Go）、前置条件/风险清单。
+  - **前置条件**：`/qa plan` 已执行（session 模式需要状态文件），测试已执行并记录结果到 QA 文档。
+  - **重要**：如果 `pnpm run qa:verify` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动验证（手动验证会跳过覆盖率检查、缺陷阻塞检查等关键步骤）。
+- `/qa merge`：
+  - **执行方式**：**必须首先执行** `pnpm run qa:merge` **脚本**，禁止直接使用 git 命令手动合并。
+  - **脚本功能**（`scripts/qa-tools/qa-merge.js` 包含15个关键步骤）：
+    1. 加载项目级 GH_TOKEN
+    2. 工作区干净检查（无未提交变更）
+    3. 分支验证（不能在主干分支）
+    4. 查找当前分支对应的 open PR
+    5. PR 冲突检测（`mergeable` 状态）
+    6. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
+    7. **双策略合并**：优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge
+    8. 防竞态检测（gh 超时但实际已完成的情况）
+    9. 自动构建规范 commit message（PR 标题 + 概要 + Co-Authored-By）
+    10. 自动关闭 PR 并添加注释
+    11. 删除远程和本地 feature 分支
+    12. 完整的错误处理和回滚机制
+    13. 输出详细摘要和下一步指导
+  - **作用域**：默认 `session`（会话模式）；`--project` 显式声明项目模式。两种作用域下都只处理**当前分支对应 PR**。
+  - **参数**：`--skip-checks`（跳过门禁检查）、`--dry-run`（预览操作，不执行）
+  - **前置条件**：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
+  - **完成动作**：成功后在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED`，然后交接 DevOps 专家执行部署。
+  - **重要**：如果 `pnpm run qa:merge` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动合并（手动合并会跳过所有关键检查和安全保障）。
 
 ## ADR 触发规则（QA 阶段）
 - 发现重要质量取舍（如：测试策略变更、NFR 指标调整、发布标准修订）→ 新增 ADR；状态 `Proposed/Accepted`。
