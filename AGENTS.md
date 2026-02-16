@@ -34,6 +34,8 @@ flowchart TD
     A[TDD 专家激活] --> B{分支门禁}
     B -->|主干分支| C{有 Task?}
     B -->|已在正确分支| F
+    B -->|在无关分支| B2["stash + 切换/新建分支"]
+    B2 --> F
     C -->|有| D["自动 /tdd new-branch TASK-XXX<br/>从 TASK.md 提取描述"]
     C -->|无: bug/临时需求| E["自动 /tdd new-branch<br/>从用户描述生成 fix/feature 分支"]
     D --> F[TDD 循环: 红→绿→重构]
@@ -126,12 +128,13 @@ flowchart TD
 
 **完成状态**：`/tdd push` 完成后 PR 已自动创建，在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`；如被退回则取消并回到对应阶段。
 
-**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`、`/tdd push`、`/tdd new-branch`（每个命令触发即激活 TDD 专家）。
+**快捷命令**：`/tdd diagnose`、`/tdd fix`、`/tdd sync`、`/tdd push`、`/tdd new-branch`、`/tdd resume`（每个命令触发即激活 TDD 专家）。
 
 **分支门禁**（自动执行，无需手动触发）：
   - TDD 专家激活后（含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等所有入口），**第一步**自动检查当前 Git 分支。
   - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，自动执行 `/tdd new-branch` 创建分支。
   - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上则跳过。
+  - 若在无关分支上 → 自动 stash 未提交变更，提示用户切换或创建新分支；稍后用 `/tdd resume` 恢复。
 
 **分支生成**（`/tdd new-branch`）：
   - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 TASK.md WBS 的"名称"列提取任务名称，转 kebab-case 英文短语（≤30 字符）作为描述 → `feature/TASK-XXX-<auto-desc>`
@@ -256,6 +259,7 @@ docs/
 - `/tdd sync` — 默认 `session`（仅同步当前会话相关文档/任务）；`--project` 执行全量文档回写 Gate
 - `/tdd push` — 默认 `session`（仅操作当前分支：版本递增 + 推送 + 创建当前分支 PR）；`--project` 仅用于显式声明项目模式
 - `/tdd new-branch` — 创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
+- `/tdd resume [branch]` — 恢复之前暂存的分支，自动 rebase main 并恢复 stash；不带参数时列出可恢复分支
 
 ### QA 专家
 - `/qa plan` — **首先执行** `pnpm run qa:generate` **脚本**(读取 PRD/ARCH/TASK,解析数据,生成测试用例和策略,记录会话上下文)。默认 `session`(仅更新当前会话关联模块的 QA 文档);`--project` 执行全量刷新(主 QA + 所有模块 QA)。支持 `--modules <list>` 指定模块、`--dry-run` 预览

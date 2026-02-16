@@ -22,7 +22,10 @@
   2. **分支门禁**（所有 TDD 入口强制执行，含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等）：执行 `git branch --show-current` 检查当前分支：
      - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，自动执行 `/tdd new-branch` 创建分支后继续
      - 若在 `feature/TASK-*` 或 `fix/*` 分支上且匹配当前任务 → 通过，继续
-     - 若在无关分支上 → 提示用户确认后切换或创建新分支
+     - 若在无关分支上 → 执行**分支暂存切换**：
+       1. 检测 `git status`，有未提交变更则 `git stash push -m "WIP: <当前分支名>"`
+       2. 提示用户选择：从 main 创建新分支 / 切换到已有分支
+       3. 输出恢复提示："已暂存 <旧分支> 工作，稍后用 `/tdd resume <分支名>` 恢复"
      - 未通过分支门禁前，禁止执行任何代码操作
 
 ## 输出
@@ -359,6 +362,7 @@ flowchart TD
   - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述中提取关键词生成 kebab-case 描述（≤30 字符） → 分支名：`fix/<desc>`（bug 修复）或 `feature/<desc>`（新功能）
   - 两种模式下用户都可显式传入描述来覆盖自动生成。该命令通常由分支门禁自动调用，也可手动执行。
 - `pnpm run tdd:tick`：手动执行任务勾选，依据分支名 `TASK-*` ID 勾选 TASK 文档复选框并同步 module-list 状态。
+- `/tdd resume [branch]`：恢复暂存分支 → ① 当前分支有变更时先 stash ② `git checkout <branch>` ③ `git rebase main`（冲突时暂停，由用户解决后 `git rebase --continue`） ④ 按分支名匹配 stash（`git stash list | grep "WIP: <branch>"`），有则 `git stash pop stash@{N}` ⑤ 继续 TDD 流程。不带参数时列出所有含 `WIP:` 标记的 stash 及对应分支供用户选择。本命令跳过常规分支门禁（它本身即是分支切换机制）。
 - `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**。
 
 ## TDD Pull Request 最小模板（片段）
