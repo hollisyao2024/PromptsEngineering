@@ -138,7 +138,7 @@ describe('User Registration (US-USER-001)', () => {
 ```
 /docs/PRD.md（主 PRD）
   └─ 功能域索引 → /docs/prd-modules/{domain}/PRD.md（子 PRD）
-       └─ 需求追溯矩阵模板 → /docs/data/templates/prd/TRACEABILITY-MATRIX-TMPLATE.md
+       └─ 需求追溯矩阵模板 → /docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md
        └─ 实际需求追溯矩阵文件 → /docs/data/traceability-matrix.md
             └─ Test Case ID → 测试代码（如 tests/**/*.test.ts）
                  └─ 测试执行结果 → /docs/QA.md（测试报告）
