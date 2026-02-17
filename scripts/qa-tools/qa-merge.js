@@ -165,6 +165,72 @@ function findOpenPR(branch) {
 }
 
 /**
+ * 自动 rebase 当前 feature 分支到 origin/main
+ * @param {string} currentBranch - 当前 feature 分支名
+ * @param {boolean} dryRun - 是否为 dry-run 模式
+ * @returns {{ rebased: boolean, commitsBehind: number }}
+ */
+function autoRebaseOnMain(currentBranch, dryRun) {
+  console.log('\x1b[36m获取最新 origin/main...\x1b[0m');
+  runGit(['fetch', 'origin', 'main']);
+
+  const behindOutput = runGit(
+    ['rev-list', '--count', 'HEAD..origin/main'],
+    { capture: true }
+  );
+  const commitsBehind = parseInt(behindOutput.trim(), 10) || 0;
+
+  if (commitsBehind === 0) {
+    console.log('\x1b[32m分支已与 main 同步，无需 rebase\x1b[0m');
+    return { rebased: false, commitsBehind: 0 };
+  }
+
+  console.log(
+    `\x1b[33m当前分支落后 origin/main ${commitsBehind} 个提交，` +
+    `${dryRun ? '需要' : '正在执行'} rebase...\x1b[0m`
+  );
+
+  if (dryRun) {
+    return { rebased: false, commitsBehind };
+  }
+
+  const originalHead = runGit(['rev-parse', 'HEAD'], { capture: true }).trim();
+
+  try {
+    runGit(['rebase', 'origin/main']);
+  } catch {
+    console.error('\x1b[31mrebase 过程中发现冲突，正在中止...\x1b[0m');
+    try { runGit(['rebase', '--abort']); } catch { /* ignore */ }
+    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
+    throw new Error(
+      '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
+      '请手动解决冲突后重试：\n' +
+      '  git rebase origin/main\n' +
+      '  # 解决冲突后：git rebase --continue\n' +
+      '  git push --force-with-lease'
+    );
+  }
+
+  try {
+    console.log('\x1b[36m推送 rebase 后的分支 (force-with-lease)...\x1b[0m');
+    runGit(['push', '--force-with-lease', 'origin', currentBranch]);
+  } catch (pushError) {
+    console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
+    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
+    throw new Error(
+      `rebase 成功但 force-push 失败：${pushError.message}\n` +
+      '分支已恢复到 rebase 前的状态。\n' +
+      `请检查远程权限后手动执行：git push --force-with-lease origin ${currentBranch}`
+    );
+  }
+
+  console.log(
+    `\x1b[32m自动 rebase 完成：已将 ${commitsBehind} 个 main 提交合入分支基底并推送\x1b[0m`
+  );
+  return { rebased: true, commitsBehind };
+}
+
+/**
  * 查询 PR 当前状态（用于防竞态检测）
  * @returns {'MERGED' | 'OPEN' | 'CLOSED' | null}
  */
@@ -376,15 +442,35 @@ function main() {
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
 
-    // Step 6: 检查 PR 合并状态
-    if (pr.mergeable === 'CONFLICTING') {
+    // Step 6: 自动 rebase（确保 feature 分支基于最新 main）
+    const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun);
+
+    // Step 7: rebase 后重新检查 PR 合并状态
+    if (rebaseResult.rebased) {
+      console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
+      spawnSync('sleep', ['3'], { stdio: 'inherit' });
+
+      const updatedPr = findOpenPR(currentBranch);
+      if (!updatedPr) {
+        throw new Error(
+          `rebase 并 force-push 后找不到 PR。\n` +
+          `分支 ${currentBranch} 的 PR 可能已被关闭，请检查 GitHub。`
+        );
+      }
+      if (updatedPr.mergeable === 'CONFLICTING') {
+        throw new Error(
+          `PR #${pr.number} 在自动 rebase 后仍存在合并冲突，请手动检查并解决。`
+        );
+      }
+      Object.assign(pr, updatedPr);
+    } else if (!args.dryRun && pr.mergeable === 'CONFLICTING') {
       throw new Error(
-        `PR #${pr.number} 存在合并冲突，请先在 feature 分支上 rebase main 后重试：\n` +
-        '  git rebase origin/main && git push --force-with-lease'
+        `PR #${pr.number} 存在合并冲突且分支已与 main 同步。\n` +
+        '冲突可能来自 PR 自身的文件变更，请手动检查并解决。'
       );
     }
 
-    // Step 7: 运行发布门禁检查
+    // Step 8: 运行发布门禁检查
     if (!args.skipChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
@@ -401,10 +487,15 @@ function main() {
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
 
-    // Step 8: Dry run
+    // Step 9: Dry run
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');
+      if (rebaseResult.commitsBehind > 0) {
+        console.log(`  0. rebase 到 origin/main（落后 ${rebaseResult.commitsBehind} 个提交）+ force-push`);
+      } else {
+        console.log('  0. 分支已与 main 同步，无需 rebase');
+      }
       console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → main`);
       console.log(`  2. 删除分支 ${currentBranch}`);
       console.log(`  3. commit message: ${pr.title} (#${pr.number})`);
@@ -412,7 +503,7 @@ function main() {
       return;
     }
 
-    // Step 9-10: 执行合并（双策略 + 防竞态）
+    // Step 10-11: 执行合并（双策略 + 防竞态）
     let strategy;
     const ghMerged = tryGhMerge(pr.number);
 
@@ -434,7 +525,7 @@ function main() {
       }
     }
 
-    // Step 11: 清理本地 feature 分支（两种策略都需要）
+    // Step 12: 清理本地 feature 分支（两种策略都需要）
     try {
       runGit(['branch', '-d', currentBranch], { capture: true });
     } catch {
@@ -445,7 +536,7 @@ function main() {
       }
     }
 
-    // Step 12: 输出摘要
+    // Step 13: 输出摘要
     const commitHash = getLatestMainCommit();
     printSummary(pr, currentBranch, commitHash, strategy);
   } catch (error) {

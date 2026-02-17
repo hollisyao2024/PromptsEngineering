@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.4] - 2026-02-17
+
+### 更新
+- `/qa merge` 新增自动 rebase 功能：合并前主动将 feature 分支 rebase 到最新 main，避免合并时才发现冲突。含冲突自动中止、force-push 失败回退等边界处理。
+- 修正 `QA-TESTING-EXPERT.md` 步骤列表与"15个关键步骤"声明的偏差（原列 13 项，现补齐为 15 项）。
+
+---
+
 ## [v1.18.3] - 2025-11-13
 
 ### 更新

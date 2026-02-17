@@ -11,7 +11,7 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 |---------|---------|---------|------|
 | `/qa plan` | `pnpm run qa:generate` | `scripts/qa-tools/generate-qa.js` | 生成/刷新测试计划 |
 | `/qa verify` | `pnpm run qa:verify` | `scripts/qa-tools/qa-verify.js` | 执行验收检查 |
-| `/qa merge` | `pnpm run qa:merge` | `scripts/qa-tools/qa-merge.js` | 合并 PR 到 main(含15个关键步骤,详见下方) |
+| `/qa merge` | `pnpm run qa:merge` | `scripts/qa-tools/qa-merge.js` | 合并 PR 到 main(含自动 rebase 等15个关键步骤,详见下方) |
 
 **为什么必须调用脚本**:
 - ✅ 脚本包含完整的前置检查(工作区状态、PR 冲突、发布门禁等)
@@ -285,18 +285,20 @@ flowchart TD
   - **执行方式**：**必须首先执行** `pnpm run qa:merge` **脚本**，禁止直接使用 git 命令手动合并。
   - **脚本功能**（`scripts/qa-tools/qa-merge.js` 包含15个关键步骤）：
     1. 加载项目级 GH_TOKEN
-    2. 工作区干净检查（无未提交变更）
-    3. 分支验证（不能在主干分支）
-    4. 查找当前分支对应的 open PR
-    5. PR 冲突检测（`mergeable` 状态）
-    6. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
-    7. **双策略合并**：优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge
-    8. 防竞态检测（gh 超时但实际已完成的情况）
-    9. 自动构建规范 commit message（PR 标题 + 概要 + Co-Authored-By）
-    10. 自动关闭 PR 并添加注释
-    11. 删除远程和本地 feature 分支
-    12. 完整的错误处理和回滚机制
-    13. 输出详细摘要和下一步指导
+    2. 确保 gh CLI 可用
+    3. 工作区干净检查（无未提交变更）
+    4. 分支验证（不能在主干分支）
+    5. 查找当前分支对应的 open PR
+    6. **自动 rebase**（fetch origin/main → 检测落后提交 → rebase + force-push；冲突时中止并提示手动解决）
+    7. PR 合并状态复查（rebase 后重新检测 `mergeable`，确认无冲突）
+    8. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
+    9. **双策略合并**：优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge
+    10. 防竞态检测（gh 超时但实际已完成的情况）
+    11. 自动构建规范 commit message（PR 标题 + 概要 + Co-Authored-By）
+    12. 自动关闭 PR 并添加注释
+    13. 删除远程和本地 feature 分支
+    14. 完整的错误处理和回滚机制
+    15. 输出详细摘要和下一步指导
   - **作用域**：默认 `session`（会话模式）；`--project` 显式声明项目模式。两种作用域下都只处理**当前分支对应 PR**。
   - **参数**：`--skip-checks`（跳过门禁检查）、`--dry-run`（预览操作，不执行）
   - **前置条件**：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
