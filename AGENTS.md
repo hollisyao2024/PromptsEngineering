@@ -264,7 +264,7 @@ docs/
 ### QA 专家
 - `/qa plan` — **首先执行** `pnpm run qa:generate` **脚本**(读取 PRD/ARCH/TASK,解析数据,生成测试用例和策略,记录会话上下文)。默认 `session`(仅更新当前会话关联模块的 QA 文档);`--project` 执行全量刷新(主 QA + 所有模块 QA)。支持 `--modules <list>` 指定模块、`--dry-run` 预览
 - `/qa verify` — **首先执行** `pnpm run qa:verify` **脚本**(优先基于 `/qa plan` 会话状态文件验证,检查文档完整性,生成验收建议)。默认 `session`(仅验证当前会话范围);`--project` 执行全项目验证(Go/Conditional/No-Go)
-- `/qa merge` — **首先执行** `pnpm run qa:merge` **脚本**(包含自动 rebase、发布门禁检查、双策略合并、自动清理分支等15个关键步骤),合并**当前分支对应 PR** 到 main。默认 `session`(会话模式);`--project` 显式声明项目模式。两种作用域下都只处理当前分支 PR。支持 `--skip-checks`(跳过门禁)、`--dry-run`(预览)。成功后在 `/docs/AGENT_STATE.md` 勾选 `QA_VALIDATED` 并交接 DevOps
+- `/qa merge` — **首先执行** `pnpm run qa:merge` **脚本**(包含自动 rebase、发布门禁检查、双策略合并、自动清理分支等15个关键步骤),合并**当前分支对应 PR** 到 main。默认 `session`(会话模式);`--project` 显式声明项目模式。两种作用域下都只处理当前分支 PR。支持 `--skip-checks`(跳过门禁)、`--dry-run`(预览)。**脚本成功后必须立即**：① 更新 `/docs/AGENT_STATE.md` 标记 `QA_VALIDATED` → ② `git add docs/AGENT_STATE.md` → ③ `git commit` → ④ `git push origin main` → ⑤ 交接 DevOps（确保工作区干净后再部署）
 
 ### DevOps 专家
 - `/ci run` — 触发 CI 流水线
