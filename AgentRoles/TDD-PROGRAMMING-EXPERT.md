@@ -310,23 +310,62 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
    - 纯 SQL：`/db/migrations/` 或 `/supabase/migrations/` 含迁移与回滚脚本
    - Prisma：`prisma/migrations/` 含 `migration.sql` 及配套 `rollback.sql`
 
+## Pre-Push Gate：代码简化（强制）
+
+**触发时机**：`/tdd sync` 完成后，执行 `/tdd push` 之前
+**执行方式**：启动 `code-simplifier` subagent，输入为 `git diff HEAD --name-only` 的修改文件列表
+**职责**：简化与清理（风格、冗余、可读性），保留所有功能逻辑
+**完成后**：执行 `git add <修改文件> && git commit -m "refactor: simplify code"`，再执行 `/tdd push`
+**禁止跳过**：Pre-Push Gate 未完成前，禁止执行 `/tdd push`
+
 ## CHANGELOG 模块化与归档
 - **触发阈值**：当根 `CHANGELOG.md` 超过 ~500 行、覆盖 ≥3 个季度/迭代、或需归档上一季度时，即执行分卷；保持 `CHANGELOG.md` 只保留最近 1~2 个主版本条目。
 - **分割步骤**：归档条目移至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md`（或 `CHANGELOG-iter-{iteration}.md`），在根 `CHANGELOG.md` 顶部"历史记录索引"段更新链接；根文件可写，分卷只读，`pnpm run changelog:*` 仅作用于根文件。
 - **引用规范**：需求/架构/任务/QA 文档或 ADR 若需引用旧条目，必须链接到 `docs/changelogs/CHANGELOG-*.md` 中的具体分卷，避免模糊引用。
 - **同步提醒**：`/tdd push` 在推送前会校验 `CHANGELOG.md` 是否已更新；若执行分卷请务必在 PR “文档回写”段落列出新分卷编号与链接。
 
+## Post-Push Gate：代码审查（强制）
+
+**触发时机**：`/tdd push` 完成、PR 已创建后，TDD_DONE 标记之前
+**执行方式**：启动 `Explore` subagent
+
+**输入 context**：
+- `git diff main...HEAD`（完整 PR diff）
+- TASK.md 对应任务描述（理解业务意图）
+- ARCH.md 架构约束（检查边界合规）
+
+**审查范围**：
+- ✅ 安全漏洞（OWASP Top 10）
+- ✅ 架构边界违规（与 ARCH.md 对照）
+- ✅ 逻辑错误与边界情况
+- ❌ 代码风格（已由 code-simplifier 处理，不重复）
+
+**输出格式（结构化）**：
+- 结论：`Approved` | `Changes Requested`
+- 问题列表（仅 Changes Requested 时）：文件路径 + 行号 + 类型（security/arch-violation/logic-error）+ 描述 + 修改建议
+
+**自动修复循环**（无需用户介入）：
+1. `Changes Requested` → 自动执行 `/tdd fix`（以问题列表为输入）
+   - `/tdd fix` 此处**不重新触发 `/tdd sync`**（文档回写已完成）
+   - 质量门禁（lint/typecheck/单测）仍须全绿
+2. 对修复文件重新运行 `code-simplifier` subagent
+3. `git add + git commit + git push`（追加 commits 到已有 PR，**禁止重新执行 `/tdd push`**）
+4. 重新触发 code-review subagent，回到步骤 1
+5. **唯一中断条件**：连续两轮 review 问题列表无变化（无进展）→ 暂停并通知用户
+
+**强制门禁**：code-review 未返回 `Approved`，禁止标记 `TDD_DONE`，禁止移交 QA。
+
 ## CI/CD 协作
 - TDD 专家负责代码通过 CI 验证（lint/typecheck/test/build 全绿）。
 - CI/CD 流水线配置/执行与部署由 **DevOps 专家**管理（见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。
 
 ## 完成定义（DoD）
-- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR “文档回写”段粘贴）；需要的 ADR/变更记录齐全；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
+- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR "文档回写"段粘贴）；需要的 ADR/变更记录齐全；code-review（Post-Push Gate）返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
 - 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注“模块完成”以便 QA 能快速定位。
 
 ## 交接
 - `/tdd push` 完成后 PR 已自动创建，QA 专家可直接在 PR 上进行审查与验证。
-- CI 全绿后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
+- CI 全绿且 code-review（Post-Push Gate）返回 `Approved` 后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
 - 部署操作由 **DevOps 专家**在 QA 验证通过并合并 PR 到 main 后执行。
 
 ### TDD 开发全流程
@@ -341,8 +380,12 @@ flowchart TD
     D --> F
     E --> F
     F --> G["/tdd sync<br/>文档回写 Gate"]
-    G --> H["/tdd push<br/>版本递增 + push + 自动创建 PR"]
-    H --> I[标记 TDD_DONE]
+    G --> G2["Pre-Push Gate<br/>code-simplifier + commit"]
+    G2 --> H["/tdd push<br/>版本递增 + push + 自动创建 PR"]
+    H --> H2["Post-Push Gate<br/>code-review Explore subagent"]
+    H2 -->|Approved| I[标记 TDD_DONE]
+    H2 -->|Changes Requested| H3["自动 /tdd fix + code-simplifier<br/>git push 到已有 PR"]
+    H3 --> H2
     I --> J[移交 QA 专家]
     J --> K["/qa plan → 测试 → /qa verify"]
     K -->|Go| L["/qa merge<br/>合并当前分支 PR 到 main"]
