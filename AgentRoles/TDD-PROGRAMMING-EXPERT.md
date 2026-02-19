@@ -312,6 +312,8 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## Pre-Push Gate：代码简化（强制）
 
+> **运行环境**：本 Gate 依赖 Claude Code 专属能力（`code-simplifier` subagent）。其他 LLM CLI（Gemini、Copilot、Codex）均无等效 CLI 插件，可直接提示当前模型简化修改文件替代。
+
 **触发时机**：`/tdd sync` 完成后，执行 `/tdd push` 之前
 **执行方式**：启动 `code-simplifier` subagent，输入为 `git diff HEAD --name-only` 的修改文件列表
 **职责**：简化与清理（风格、冗余、可读性），保留所有功能逻辑
@@ -326,13 +328,11 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## Post-Push Gate：代码审查（强制）
 
-**触发时机**：`/tdd push` 完成、PR 已创建后，TDD_DONE 标记之前
-**执行方式**：启动 `Explore` subagent
+> **运行环境**：本 Gate 使用 Claude Code 官方 `/code-review` 插件（需 gh CLI）。其他平台等效替代：Gemini CLI 可安装官方 `code-review` 扩展（`gemini extensions install gemini-cli-extensions/code-review`）；Codex CLI 可使用内置 `/review` 命令（本地 diff 分析）；GitHub Copilot 无 CLI 等效，仅 Web/IDE 可用。
 
-**输入 context**：
-- `git diff main...HEAD`（完整 PR diff）
-- TASK.md 对应任务描述（理解业务意图）
-- ARCH.md 架构约束（检查边界合规）
+**触发时机**：`/tdd push` 完成、PR 已创建后，TDD_DONE 标记之前
+**执行方式**：在当前 PR 分支执行 `/code-review --comment`（官方 Code Review 插件，多代理并行审查，结果自动写入 PR 评论）
+**前置依赖**：`gh` CLI 已安装并登录
 
 **审查范围**：
 - ✅ 安全漏洞（OWASP Top 10）
@@ -348,9 +348,9 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 1. `Changes Requested` → 自动执行 `/tdd fix`（以问题列表为输入）
    - `/tdd fix` 此处**不重新触发 `/tdd sync`**（文档回写已完成）
    - 质量门禁（lint/typecheck/单测）仍须全绿
-2. 对修复文件重新运行 `code-simplifier` subagent
+2. 对修复文件重新运行 `code-simplifier`
 3. `git add + git commit + git push`（追加 commits 到已有 PR，**禁止重新执行 `/tdd push`**）
-4. 重新触发 code-review subagent，回到步骤 1
+4. 重新执行 `/code-review --comment`，回到步骤 1
 5. **唯一中断条件**：连续两轮 review 问题列表无变化（无进展）→ 暂停并通知用户
 
 **强制门禁**：code-review 未返回 `Approved`，禁止标记 `TDD_DONE`，禁止移交 QA。
@@ -382,7 +382,7 @@ flowchart TD
     F --> G["/tdd sync<br/>文档回写 Gate"]
     G --> G2["Pre-Push Gate<br/>code-simplifier + commit"]
     G2 --> H["/tdd push<br/>版本递增 + push + 自动创建 PR"]
-    H --> H2["Post-Push Gate<br/>code-review Explore subagent"]
+    H --> H2["Post-Push Gate<br/>/code-review --comment 插件"]
     H2 -->|Approved| I[标记 TDD_DONE]
     H2 -->|Changes Requested| H3["自动 /tdd fix + code-simplifier<br/>git push 到已有 PR"]
     H3 --> H2
