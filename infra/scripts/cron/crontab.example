@@ -1,0 +1,80 @@
+# LinghuiAI 定时任务配置示例
+#
+# 部署方式 1：使用系统 crontab（生产环境推荐）
+#   1. 复制此文件：cp crontab.example /etc/cron.d/linghuiai-cron
+#   2. 修改用户和路径
+#   3. 重启 cron 服务：sudo service cron reload
+#
+# 部署方式 2：使用 Docker Compose + Ofelia（容器化部署推荐）
+#   参见 docker-compose.cron.yml
+#
+# 部署方式 3：使用 Node.js node-cron（开发环境推荐）
+#   参见 infra/scripts/cron/scheduler.js
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+MAILTO=""
+
+# ============================================
+# 清理过期删除工单（每日凌晨 2:00）
+# ============================================
+# 删除冻结期已过的用户账户（免费 30 天，付费 90 天）
+# 参考：ADR-020 账户删除工单
+0 2 * * * cd /app/frontend && npx tsx infra/scripts/cron/cleanup-expired-deletion-tickets.ts >> /var/log/linghuiai/cleanup-deletion.log 2>&1
+
+# ============================================
+# 归档使用日志（每日凌晨 3:00）
+# ============================================
+# 归档 180 天前的使用日志到 CSV/OSS，释放数据库空间
+# 参考：ADR-021 使用日志表设计
+0 3 * * * cd /app/frontend && npx tsx infra/scripts/cron/archive-usage-logs.ts >> /var/log/linghuiai/archive-logs.log 2>&1
+
+# ============================================
+# 数据一致性检查（每日凌晨 4:00）
+# ============================================
+# 检查并自动修复 users.credits_remaining 与 credits.balance 的不一致
+0 4 * * * cd /app/frontend && node scripts/check-credit-consistency.js --fix >> /var/log/linghuiai/credit-consistency.log 2>&1
+
+# ============================================
+# 账号冻结清理（每日凌晨 5:00）
+# ============================================
+# 清理过期的账号注销申请（30天冻结期）
+0 5 * * * cd /app/frontend && node scripts/account-freeze-cleanup.js >> /var/log/linghuiai/account-cleanup.log 2>&1
+
+# ============================================
+# 过期 Token 清理（每日凌晨 5:00）
+# ============================================
+# 清理过期的 auth_tokens 记录
+# 0 5 * * * cd /app/frontend && node scripts/cleanup-expired-tokens.js >> /var/log/linghuiai/token-cleanup.log 2>&1
+
+# ============================================
+# 登录日志归档（每周日凌晨 2:00）
+# ============================================
+# 删除 90 天前的登录日志（合规要求）
+# 0 2 * * 0 cd /app/frontend && node scripts/archive-login-logs.js >> /var/log/linghuiai/login-logs-archive.log 2>&1
+
+# ============================================
+# 数据库备份（每日凌晨 2:00）
+# ============================================
+# 注：生产环境使用阿里云 RDS 自动备份，此任务仅用于本地开发
+# 0 2 * * * /usr/local/bin/pg_dump -U linghuiai linghuiai_dev | gzip > /backup/linghuiai-$(date +\%Y\%m\%d).sql.gz
+
+# ============================================
+# 后台任务处理器（每 10 秒执行一次）
+# ============================================
+# 处理大型作品序列化/反序列化等 CPU 密集型任务
+# 参考：docs/ops/background-jobs-design.md
+*/10 * * * * * cd /app/frontend && npx tsx infra/scripts/cron/process-background-jobs.ts >> /var/log/linghuiai/background-jobs.log 2>&1
+
+# ============================================
+# 清理旧的后台任务（每日凌晨 2:30）
+# ============================================
+# 删除 30 天前已完成或失败的任务
+# 参考：docs/ops/background-jobs-design.md § 性能优化
+0 2 * * * cd /app/frontend && npx tsx infra/scripts/cron/cleanup-old-jobs.ts >> /var/log/linghuiai/cleanup-jobs.log 2>&1
+
+# ============================================
+# 健康检查报告（每小时）
+# ============================================
+# 检查数据库连接、Redis 连接、外部服务状态
+# 0 * * * * cd /app/frontend && node scripts/health-check.js >> /var/log/linghuiai/health-check.log 2>&1

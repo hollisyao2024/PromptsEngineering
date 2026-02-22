@@ -148,7 +148,20 @@
 │   │   ├── tests/            # integration 测试
 │   │   └── package.json
 │   ├── desktop/              # 桌面客户端（Electron / Tauri）
-│   ├── mobile/               # 移动端（React Native / Flutter）
+│   │   ├── src/              # 共享 TS/JS 源代码（单测 colocate）
+│   │   ├── src-tauri/        # Tauri: Rust 后端 + 平台构建配置
+│   │   ├── resources/        # 平台特定资源（图标、安装器配置等）
+│   │   │   ├── macos/        #   .icns, entitlements.plist
+│   │   │   ├── windows/      #   .ico, NSIS/WiX 安装器配置
+│   │   │   └── linux/        #   .desktop, AppImage 配置
+│   │   ├── tests/            # integration 测试
+│   │   └── package.json
+│   ├── mobile/               # 移动端（React Native / Expo）
+│   │   ├── src/              # 共享 TS/JS 源代码（单测 colocate）
+│   │   ├── ios/              # Xcode 项目 + 原生模块
+│   │   ├── android/          # Gradle 项目 + 原生模块
+│   │   ├── tests/            # integration 测试
+│   │   └── package.json
 │   ├── server/               # 后端 API（Node / NestJS / Fastify）
 │   │   ├── src/              # 源代码（单测 colocate）
 │   │   ├── tests/            # integration 测试
@@ -165,8 +178,8 @@
 │   ├── billing/              # 计费逻辑
 │   ├── analytics/            # 数据分析
 │   ├── api-client/           # 前端统一 API 调用封装
-│   ├── database/             # 数据库层（Prisma schema + 迁移 + 数据访问）
-│   │   ├── prisma/           # ORM schema
+│   ├── database/             # 数据库层（Prisma / Drizzle + 迁移 + 数据访问）
+│   │   ├── prisma/           # ORM schema（Prisma；若用 Drizzle 则为 drizzle/）
 │   │   │   ├── schema.prisma
 │   │   │   ├── migrations/
 │   │   │   └── seed.ts
@@ -174,11 +187,22 @@
 │   │   │   ├── client.ts     # 统一 DB 连接实例（整个 Monorepo 唯一入口）
 │   │   │   ├── config.ts     # 连接配置
 │   │   │   ├── models/       # ORM 模型扩展（computed 字段、复杂 query builder）
-│   │   │   ├── repositories/ # 数据访问层（推荐：解耦 ORM，便于测试与替换）
-│   │   │   ├── services/     # 与 DB 强相关的数据服务（事务、分页等）
-│   │   │   ├── types.ts
-│   │   │   └── index.ts
-│   │   ├── scripts/          # 独立数据库脚本（migrate / reset / generate）
+│   │   │   │   ├── user.ts
+│   │   │   │   ├── organization.ts
+│   │   │   │   └── ...
+│   │   │   ├── repositories/ # 数据访问层（强烈推荐：解耦 ORM，便于测试与替换）
+│   │   │   │   ├── user.repo.ts
+│   │   │   │   ├── org.repo.ts
+│   │   │   │   └── ...
+│   │   │   ├── services/     # DB 数据服务（事务、分页等）
+│   │   │   │   ├── transaction.ts
+│   │   │   │   └── pagination.ts
+│   │   │   ├── types.ts      # 数据库相关类型定义
+│   │   │   └── index.ts      # 统一导出（re-export client、repositories、types 等）
+│   │   ├── scripts/          # 操作脚本（migrate / reset / generate 的封装）
+│   │   │   ├── migrate.ts
+│   │   │   ├── reset.ts
+│   │   │   └── generate.ts
 │   │   ├── .env.example
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -195,9 +219,13 @@
 │   └── scripts/              # 自动化脚本（全部从根 scripts/ 迁入）
 │       ├── server/           # 服务器部署脚本（deploy.sh、frontend-dev-pm2.sh 等）
 │       ├── qa-tools/         # QA 脚本（generate-qa.js、qa-verify.js、qa-merge.js）
-│       └── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
+│       ├── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
+│       ├── arch-tools/       # ARCH 工具脚本
+│       ├── prd-tools/        # PRD 工具脚本
+│       ├── task-tools/       # TASK 工具脚本
+│       └── cron/             # 定时任务脚本和列表
 │
-├── tooling/                  # 内部构建工具（不发布到 npm）
+├── tooling/                  # 内部构建工具（不发布到 registry）
 │   ├── eslint/
 │   ├── tsconfig/
 │   └── commitlint/
@@ -217,7 +245,18 @@
 - `packages/database`：整个 Monorepo 唯一 DB 入口，只有 `server` 引用；禁止在 `server` 中直接写 `prisma.user.findMany()`，必须通过 `repositories/` 访问
 - `packages/api-client`：web / mobile / desktop 共用，统一管理后端接口调用
 - `packages/core` 与 `packages/domain`：纯 TS，无框架依赖，可在全端复用
-- `infra/scripts/`：所有自动化脚本统一存放；`server/`（部署）、`qa-tools/`（QA）、`tdd-tools/`（TDD 工具）
+- `infra/scripts/`：所有自动化脚本统一存放；`server/`（部署）、`qa-tools/`（QA）、`tdd-tools/`（TDD 工具）、`arch-tools/`（ARCH 工具）、`prd-tools/`（PRD 工具）、`task-tools/`（TASK 工具）、`cron/`（定时任务）
 - **测试三层结构**：单测 colocate 在源码旁（`Button.tsx` + `Button.test.tsx`）；集成测试在 `apps/*/tests/`；端到端测试在根目录 `e2e/`
-- **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 npm 包）
+- **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 workspace 包）
 - **依赖管理**：应用运行依赖（react、next 等）写在各自 `apps/*/package.json`，禁止提升到根目录；全局工具类（eslint、turbo、typescript）写在根 `devDependencies`
+
+### Database 层级设计（`packages/database`）
+
+| 层 | 目录 | 职责 | 规则 |
+|---|------|------|------|
+| **Schema** | `prisma/`（或 `drizzle/`） | schema 定义、迁移文件、seed 数据 | 只放 schema 和 DDL，不放业务逻辑 |
+| **Client** | `src/client.ts` | 统一创建数据库实例 | 整个 Monorepo 唯一 DB 入口；所有 app 通过此文件获取 db 实例 |
+| **Repository** | `src/repositories/` | 数据访问抽象（DDD / Clean Architecture） | 禁止在 app 中直接调用 `prisma.user.findMany()`，必须通过 `userRepository.findByEmail(email)`；便于解耦 ORM、测试 mock、未来替换 |
+| **Model** | `src/models/` | ORM 模型扩展（可选） | computed 字段、复杂 query builder、domain 映射 |
+| **Service** | `src/services/` | DB 级数据服务 | 事务编排、分页封装等与 DB 强相关的通用逻辑 |
+| **Scripts** | `scripts/` | 操作脚本 | 对 `prisma migrate deploy`、`prisma db reset` 等 CLI 命令的封装（可加环境检查、日志、确认提示）；与 `prisma/migrations/`（自动生成的 DDL）不同 |
