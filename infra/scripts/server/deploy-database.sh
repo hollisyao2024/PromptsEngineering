@@ -156,7 +156,7 @@ _execute_remote_migration() {
         set -e
         cd $REMOTE_APP_DIR
 
-        PRISMA_VERSION="$prisma_version"
+        export PRISMA_VERSION="$prisma_version"
         PRISMA_SCHEMA="$REMOTE_DATABASE_DIR/prisma/schema.prisma"
         echo "[INFO] 项目 Prisma 版本: \$PRISMA_VERSION"
         echo "[INFO] Prisma Schema: \$PRISMA_SCHEMA"

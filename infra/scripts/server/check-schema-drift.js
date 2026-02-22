@@ -24,12 +24,22 @@ const envIndex = args.indexOf('--env');
 const targetEnv = envIndex >= 0 && args[envIndex + 1] ? args[envIndex + 1] : 'dev';
 
 // 配置（本地 monorepo 和远端部署使用相同的目录结构）
-// 脚本位置: infra/scripts/server/check-schema-drift.js
-// 相对路径: ../../../apps/web, ../../../packages/database
-const FRONTEND_DIR = path.join(__dirname, '../../../apps/web');
-const DATABASE_DIR = path.join(__dirname, '../../../packages/database');
+const ROOT_DIR = path.join(__dirname, '../../..');
+const FRONTEND_DIR = path.join(ROOT_DIR, 'apps/web');
+const DATABASE_DIR = path.join(ROOT_DIR, 'packages/database');
 const ORIGINAL_SCHEMA = path.join(DATABASE_DIR, 'prisma/schema.prisma');
 const TEMP_SCHEMA = path.join(DATABASE_DIR, 'prisma/schema.pulled.prisma');
+
+// Prisma 二进制路径：优先使用本地安装版本（跟随 pnpm-lock.yaml 锁定版本），
+// 避免 npx 无版本号时拉取 npm latest（可能引入破坏性变更）
+const PRISMA_BIN_CANDIDATES = [
+  path.join(DATABASE_DIR, 'node_modules/.bin/prisma'),
+  path.join(ROOT_DIR, 'node_modules/.bin/prisma'),
+];
+const LOCAL_PRISMA = PRISMA_BIN_CANDIDATES.find(p => fs.existsSync(p));
+// 回退策略：本地二进制 > PRISMA_VERSION 环境变量（由 deploy-database.sh 注入）> npx latest
+const PRISMA_CMD = LOCAL_PRISMA
+  ?? (process.env.PRISMA_VERSION ? `npx prisma@${process.env.PRISMA_VERSION}` : 'npx prisma');
 
 // 颜色输出
 const colors = {
@@ -289,7 +299,7 @@ async function main() {
   log('已复制 schema.prisma 到临时位置', 'blue');
 
   const pullResult = runCommand(
-    `npx prisma db pull --schema=${TEMP_SCHEMA} --force`,
+    `${PRISMA_CMD} db pull --schema=${TEMP_SCHEMA} --force`,
     { silent: false }
   );
 
