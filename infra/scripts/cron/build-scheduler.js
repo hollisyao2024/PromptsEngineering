@@ -14,7 +14,7 @@
 const esbuild = require('esbuild');
 const path = require('path');
 
-const srcDir = path.resolve(__dirname, '../../src');
+const srcDir = path.resolve(__dirname, '../../../apps/web/src');
 const outFile = path.resolve(__dirname, 'scheduler.bundle.js');
 
 async function build() {

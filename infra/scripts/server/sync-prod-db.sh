@@ -29,7 +29,7 @@ set -euo pipefail
 # 配置变量
 # ============================================
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 readonly FRONTEND_DIR="$PROJECT_ROOT/apps/web"
 readonly PRISMA_DIR="$PROJECT_ROOT/packages/database/prisma"
 

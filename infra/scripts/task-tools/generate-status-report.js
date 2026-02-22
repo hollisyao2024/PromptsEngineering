@@ -10,8 +10,8 @@ const fs = require('fs');
 const path = require('path');
 
 const CONFIG = {
-  taskPath: path.join(__dirname, '../../docs/TASK.md'),
-  outputDir: path.join(__dirname, '../../docs/data'),
+  taskPath: path.join(__dirname, '../../../docs/TASK.md'),
+  outputDir: path.join(__dirname, '../../../docs/data'),
 };
 
 const colors = {

@@ -15,15 +15,15 @@
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
-const { checkCreditConsistency } = require('../check-credit-consistency');
-const { cleanupExpiredAccounts } = require('../account-freeze-cleanup');
-const { warmupCreditCache } = require('../../src/services/credit-cache.ts');
+const { checkCreditConsistency } = require('../../../apps/web/scripts/check-credit-consistency');
+const { cleanupExpiredAccounts } = require('../../../apps/web/scripts/account-freeze-cleanup');
+const { warmupCreditCache } = require('../../../apps/web/src/services/credit-cache.ts');
 const {
   expireTimeoutOrders,
   findOrdersExpiringSoon,
-} = require('../../src/services/order-lifecycle.ts');
-const { sendOrderExpiryReminder } = require('../../src/lib/order-sms.ts');
-const { runReconciliation } = require('../../src/services/credit-reconciliation.ts');
+} = require('../../../apps/web/src/services/order-lifecycle.ts');
+const { sendOrderExpiryReminder } = require('../../../apps/web/src/lib/order-sms.ts');
+const { runReconciliation } = require('../../../apps/web/src/services/credit-reconciliation.ts');
 
 // ============================================
 // Prisma Client（可选，降级到 console）
@@ -197,7 +197,7 @@ const TASK_REGISTRY = [
     handler: async () => {
       const {
         runOssCleanupQueueProcessor,
-      } = require('../../src/services/oss-cleanup-queue.service.ts');
+      } = require('../../../apps/web/src/services/oss-cleanup-queue.service.ts');
       const result = await runOssCleanupQueueProcessor(200);
       if (result.scanned === 0) {
         return null;
@@ -212,7 +212,7 @@ const TASK_REGISTRY = [
     schedule: '每 5 分钟',
     silentWhenEmpty: true,
     handler: async () => {
-      const { runCreditAutoDeduct } = require('../../src/services/credit-auto-deduct.ts');
+      const { runCreditAutoDeduct } = require('../../../apps/web/src/services/credit-auto-deduct.ts');
       const result = await runCreditAutoDeduct(2);
       if (result.totalDeducted > 0 || result.totalFailed > 0) {
         return `扫描=${result.totalScanned}, 补扣=${result.totalDeducted}, 失败=${result.totalFailed}, 跳过=${result.totalSkipped}, 耗时=${result.executionTimeMs}ms`;
@@ -229,7 +229,7 @@ const TASK_REGISTRY = [
     handler: async () => {
       const {
         runScheduledOrphanScan,
-      } = require('../../src/services/oss-orphan-scanner.service.ts');
+      } = require('../../../apps/web/src/services/oss-orphan-scanner.service.ts');
       const result = await runScheduledOrphanScan();
       if (result.newOrphans === 0 && result.totalAccumulated === 0) {
         return null;

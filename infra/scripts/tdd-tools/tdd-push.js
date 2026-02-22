@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const repoRoot = path.resolve(__dirname, '..', '..');
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const packageJsonPath = path.join(repoRoot, 'package.json');
 const changelogPath = path.join(repoRoot, 'CHANGELOG.md');
 const envLocalPath = path.join(repoRoot, '.env.local');

@@ -20,10 +20,10 @@ const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
 const CONFIG = {
-  qaPath: path.join(__dirname, '../../docs/QA.md'),
-  qaModulesDir: path.join(__dirname, '../../docs/qa-modules'),
-  nfrTrackingPath: path.join(__dirname, '../../docs/data/nfr-tracking.md'),
-  releaseGateReportPath: path.join(__dirname, '../../docs/data/qa-reports/release-gate-{date}.md'),
+  qaPath: path.join(__dirname, '../../../docs/QA.md'),
+  qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  nfrTrackingPath: path.join(__dirname, '../../../docs/data/nfr-tracking.md'),
+  releaseGateReportPath: path.join(__dirname, '../../../docs/data/qa-reports/release-gate-{date}.md'),
 };
 
 // 颜色输出

@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 配置
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 
 // 命令行参数

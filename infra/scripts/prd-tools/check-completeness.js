@@ -16,11 +16,11 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  mainPrdPath: path.join(__dirname, '../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
-  traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
-  globalDependencyGraphPath: path.join(__dirname, '../../docs/data/global-dependency-graph.md'),
-  moduleTemplatePath: path.join(__dirname, '../../docs/prd-modules/MODULE-TEMPLATE.md'),
+  mainPrdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
+  traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
+  globalDependencyGraphPath: path.join(__dirname, '../../../docs/data/global-dependency-graph.md'),
+  moduleTemplatePath: path.join(__dirname, '../../../docs/prd-modules/MODULE-TEMPLATE.md'),
 };
 
 // 主 PRD 必需章节（与 docs/data/templates/prd/PRD-TEMPLATE-*.md 保持一致）

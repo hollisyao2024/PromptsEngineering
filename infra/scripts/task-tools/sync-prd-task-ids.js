@@ -16,11 +16,11 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
-  taskPath: path.join(__dirname, '../../docs/TASK.md'),
-  taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
-  storyTaskMappingPath: path.join(__dirname, '../../docs/data/story-task-mapping.md'),
+  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
+  taskPath: path.join(__dirname, '../../../docs/TASK.md'),
+  taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
+  storyTaskMappingPath: path.join(__dirname, '../../../docs/data/story-task-mapping.md'),
 };
 
 // 颜色输出

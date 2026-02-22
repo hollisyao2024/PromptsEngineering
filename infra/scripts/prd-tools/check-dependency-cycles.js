@@ -14,8 +14,8 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
+  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
 };
 
 // 颜色输出

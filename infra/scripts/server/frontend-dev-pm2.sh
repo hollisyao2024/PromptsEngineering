@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 APP_NAME="frontend-dev"
 CONFIG_FILE="${ROOT_DIR}/infra/scripts/server/pm2.frontend.dev.config.cjs"
 HEALTH_URL="http://127.0.0.1:3000"

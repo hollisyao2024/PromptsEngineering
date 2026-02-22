@@ -18,10 +18,10 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  mainTaskPath: path.join(__dirname, '../../docs/TASK.md'),
-  taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
-  storyTaskMappingPath: path.join(__dirname, '../../docs/data/story-task-mapping.md'),
-  taskDependencyMatrixPath: path.join(__dirname, '../../docs/data/task-dependency-matrix.md'),
+  mainTaskPath: path.join(__dirname, '../../../docs/TASK.md'),
+  taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
+  storyTaskMappingPath: path.join(__dirname, '../../../docs/data/story-task-mapping.md'),
+  taskDependencyMatrixPath: path.join(__dirname, '../../../docs/data/task-dependency-matrix.md'),
 };
 
 // 主 TASK 必需章节

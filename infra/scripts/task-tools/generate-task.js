@@ -18,11 +18,11 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  archPath: path.join(__dirname, '../../docs/ARCH.md'),
-  taskPath: path.join(__dirname, '../../docs/TASK.md'),
-  taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
-  stateFile: path.join(__dirname, '../../docs/AGENT_STATE.md'),
+  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  archPath: path.join(__dirname, '../../../docs/ARCH.md'),
+  taskPath: path.join(__dirname, '../../../docs/TASK.md'),
+  taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
+  stateFile: path.join(__dirname, '../../../docs/AGENT_STATE.md'),
 
   // 拆分条件
   splitThresholds: {

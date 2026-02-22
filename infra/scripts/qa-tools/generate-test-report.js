@@ -19,11 +19,11 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  qaPath: path.join(__dirname, '../../docs/QA.md'),
-  qaModulesDir: path.join(__dirname, '../../docs/qa-modules'),
-  traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
-  testExecutionSummaryPath: path.join(__dirname, '../../docs/data/qa-reports/test-execution-summary.md'),
-  testExecutionJsonPath: path.join(__dirname, '../../docs/data/qa-reports/test-execution-{date}.json'),
+  qaPath: path.join(__dirname, '../../../docs/QA.md'),
+  qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
+  testExecutionSummaryPath: path.join(__dirname, '../../../docs/data/qa-reports/test-execution-summary.md'),
+  testExecutionJsonPath: path.join(__dirname, '../../../docs/data/qa-reports/test-execution-{date}.json'),
 };
 
 // 颜色输出

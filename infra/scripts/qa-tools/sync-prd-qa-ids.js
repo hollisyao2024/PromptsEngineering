@@ -20,11 +20,11 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
-  qaPath: path.join(__dirname, '../../docs/QA.md'),
-  qaModulesDir: path.join(__dirname, '../../docs/qa-modules'),
-  traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
+  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
+  qaPath: path.join(__dirname, '../../../docs/QA.md'),
+  qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
 };
 
 // Story ID 格式正则（US-MODULE-NNN）

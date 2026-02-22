@@ -18,7 +18,7 @@ const {
   getQaPlanSessionStatePath,
 } = require('./generate-qa');
 
-const repoRoot = path.resolve(__dirname, '..', '..');
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 const CONFIG = {
   paths: {

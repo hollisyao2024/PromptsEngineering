@@ -15,9 +15,9 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  taskPath: path.join(__dirname, '../../docs/TASK.md'),
-  taskModulesDir: path.join(__dirname, '../../docs/task-modules'),
-  taskDependencyMatrixPath: path.join(__dirname, '../../docs/data/task-dependency-matrix.md'),
+  taskPath: path.join(__dirname, '../../../docs/TASK.md'),
+  taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
+  taskDependencyMatrixPath: path.join(__dirname, '../../../docs/data/task-dependency-matrix.md'),
 };
 
 // 颜色输出

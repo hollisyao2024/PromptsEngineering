@@ -19,10 +19,10 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  mainQAPath: path.join(__dirname, '../../docs/QA.md'),
-  qaModulesDir: path.join(__dirname, '../../docs/qa-modules'),
-  traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
-  qaReportsDir: path.join(__dirname, '../../docs/data/qa-reports'),
+  mainQAPath: path.join(__dirname, '../../../docs/QA.md'),
+  qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
+  qaReportsDir: path.join(__dirname, '../../../docs/data/qa-reports'),
 };
 
 // 主 QA 必需章节

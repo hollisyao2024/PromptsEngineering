@@ -23,7 +23,7 @@ _DEPLOY_COMMON_LOADED=true
 # 第一部分：静态常量（不会变化）
 # ============================================
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$COMMON_SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$COMMON_SCRIPT_DIR/../../.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/apps/web"
 DATABASE_DIR="$PROJECT_ROOT/packages/database"
 

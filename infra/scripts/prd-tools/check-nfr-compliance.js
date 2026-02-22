@@ -14,9 +14,9 @@ const path = require('path');
 
 // 配置
 const CONFIG = {
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
   // 兼容旧路径（如果存在）
-  legacyNfrTrackingPath: path.join(__dirname, '../../docs/data/nfr-tracking.md'),
+  legacyNfrTrackingPath: path.join(__dirname, '../../../docs/data/nfr-tracking.md'),
 };
 
 // 颜色输出

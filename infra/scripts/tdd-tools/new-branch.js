@@ -2,7 +2,7 @@
 const { execSync, spawnSync } = require('child_process');
 const path = require('path');
 
-const repoRoot = path.resolve(__dirname, '..', '..');
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 function slugify(input) {
   return input

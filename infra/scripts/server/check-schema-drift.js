@@ -24,8 +24,8 @@ const envIndex = args.indexOf('--env');
 const targetEnv = envIndex >= 0 && args[envIndex + 1] ? args[envIndex + 1] : 'dev';
 
 // 配置
-const FRONTEND_DIR = path.join(__dirname, '../../apps/web');
-const DATABASE_DIR = path.join(__dirname, '../../packages/database');
+const FRONTEND_DIR = path.join(__dirname, '../../../apps/web');
+const DATABASE_DIR = path.join(__dirname, '../../../packages/database');
 const ORIGINAL_SCHEMA = path.join(DATABASE_DIR, 'prisma/schema.prisma');
 const TEMP_SCHEMA = path.join(DATABASE_DIR, 'prisma/schema.pulled.prisma');
 

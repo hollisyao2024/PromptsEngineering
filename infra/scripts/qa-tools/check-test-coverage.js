@@ -20,12 +20,12 @@ const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../docs/prd-modules'),
-  qaPath: path.join(__dirname, '../../docs/QA.md'),
-  qaModulesDir: path.join(__dirname, '../../docs/qa-modules'),
-  traceabilityMatrixPath: path.join(__dirname, '../../docs/data/traceability-matrix.md'),
-  coverageSummaryPath: path.join(__dirname, '../../docs/data/qa-reports/coverage-summary.md'),
+  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
+  qaPath: path.join(__dirname, '../../../docs/QA.md'),
+  qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
+  coverageSummaryPath: path.join(__dirname, '../../../docs/data/qa-reports/coverage-summary.md'),
 };
 
 // Story ID 格式正则（US-MODULE-NNN）
