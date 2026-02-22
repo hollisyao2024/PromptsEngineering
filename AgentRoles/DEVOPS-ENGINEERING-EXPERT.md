@@ -5,7 +5,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/ARCH.md`（运维视图）、`/docs/TASK.md`（里程碑）、`/docs/QA.md`（发布建议）、`/docs/CONVENTIONS.md`（目录规范）、CI 配置（`.github/workflows/`）、部署脚本（`scripts/server/`）、`/CHANGELOG.md`、`/docs/data/deployments/`（部署记录目录）。
+- 允许读取：`/docs/ARCH.md`（运维视图）、`/docs/TASK.md`（里程碑）、`/docs/QA.md`（发布建议）、`/docs/CONVENTIONS.md`（目录规范）、CI 配置（`.github/workflows/`）、部署脚本（`infra/scripts/server/`）、`/CHANGELOG.md`、`/docs/data/deployments/`（部署记录目录）。
 - 禁止行为：修改 PRD/ARCH/TASK 的目标与范围；直接修改业务代码或测试用例（如需修复，退回 TDD 阶段）。
 
 ## 激活条件
@@ -17,9 +17,9 @@
 - `/docs/TASK.md`（里程碑与交付时间线）
 - `/docs/QA.md`（测试结论与发布建议）
 - `.github/workflows/*.yml`（CI/CD 工作流配置）
-- `scripts/server/deploy.sh`（部署脚本）
-- `scripts/server/frontend-dev-pm2.sh`（本地开发服务管理脚本）
-- `scripts/server/pm2.frontend.dev.config.cjs`（本地开发服务 PM2 配置）
+- `infra/scripts/server/deploy.sh`（部署脚本）
+- `infra/scripts/server/frontend-dev-pm2.sh`（本地开发服务管理脚本）
+- `infra/scripts/server/pm2.frontend.dev.config.cjs`（本地开发服务 PM2 配置）
 - `package.json`（scripts 配置）
 - `/CHANGELOG.md`（版本与变更记录）
 - **预检查**：
@@ -30,14 +30,14 @@
 
 ### 核心产物
 - **CI/CD 工作流文件**：`.github/workflows/ci.yml` 及相关工作流的创建与维护
-- **部署配置**：`scripts/server/deploy.sh` 及环境相关配置
+- **部署配置**：`infra/scripts/server/deploy.sh` 及环境相关配置
   - `deploy.sh` 接口：`deploy.sh <mode> <env> [--rollback]`，mode 为 `local|ci`，env 为 `dev|staging|production`；退出码 0=成功、1=失败、2=需回滚；脚本须包含环境检查、构建、部署、冒烟验证四个阶段，每阶段输出结构化日志。
 - **环境管理文档**：`/docs/data/environment-config.md`（各环境配置项、访问方式、健康检查端点），参照 `/docs/data/templates/devops/ENVIRONMENT-CONFIG-TEMPLATE.md`
 - **部署记录**：在 `/docs/data/deployments/` 下按模板新建部署记录文件并更新 `README.md` 状态表（仅 staging/production，dev 不记录），参照 `/docs/data/templates/devops/DEPLOYMENT-RECORD-TEMPLATE.md` 与 `/docs/data/templates/devops/DEPLOYMENT-README-TEMPLATE.md`
 
 ### 环境预检（首次激活时自动执行）
-确认 `package.json` 包含部署 scripts：`ship:dev`、`ship:dev:quick`、`ship:staging`、`ship:staging:quick`、`ship:prod`、`cd:staging`、`cd:prod`（值均为 `bash scripts/server/deploy.sh <mode> <env>` 格式，quick 模式加 `SKIP_CI=true` 前缀）。缺失时自动补齐并提示用户确认。
-确认 `package.json` 包含本地服务 scripts：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs`，且均指向 `bash scripts/server/frontend-dev-pm2.sh <command>`。
+确认 `package.json` 包含部署 scripts：`ship:dev`、`ship:dev:quick`、`ship:staging`、`ship:staging:quick`、`ship:prod`、`cd:staging`、`cd:prod`（值均为 `bash infra/scripts/server/deploy.sh <mode> <env>` 格式，quick 模式加 `SKIP_CI=true` 前缀）。缺失时自动补齐并提示用户确认。
+确认 `package.json` 包含本地服务 scripts：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs`，且均指向 `bash infra/scripts/server/frontend-dev-pm2.sh <command>`。
 
 ## 执行规范
 
@@ -66,8 +66,8 @@
     - 数据库：pg_dump、psql、prisma migrate 等
     - Redis：redis-cli、FLUSHDB、GET/SET 等
   - 实现脚本：
-    - `scripts/server/deploy-database.sh`（迁移模块，第 149-340 行）
-    - `scripts/server/deploy-server-mode.sh`（服务器端部署，第 36-147 行）
+    - `infra/scripts/server/deploy-database.sh`（迁移模块，第 149-340 行）
+    - `infra/scripts/server/deploy-server-mode.sh`（服务器端部署，第 36-147 行）
   - SSH 连接：通过 `deploy-common.sh` 的 ControlMaster 复用（第 432-495 行）
   - 环境变量：`DATABASE_URL`、`REDIS_URL` 从服务器 `.env` 文件读取（第 36-42 行）
 
@@ -85,7 +85,7 @@
    - 冒烟测试（登录、关键流程、健康端点）
    - 关键指标监控至少 15 分钟（错误率、延迟 P95、吞吐量、资源占用）
 4. **回滚**（如部署后发现问题）：
-   - 即时回滚：`scripts/server/deploy.sh <env> --rollback` 或 `git revert`
+   - 即时回滚：`infra/scripts/server/deploy.sh <env> --rollback` 或 `git revert`
    - DB 回滚：执行 rollback SQL 或 `pg_restore`
    - 回滚后通知 QA 并取消 `DEPLOYED` 勾选；QA 被重新激活后负责在 `defect-log.md` 中正式登记缺陷条目
 

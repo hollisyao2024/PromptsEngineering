@@ -4,11 +4,11 @@
 
 ## 工作环境与目录边界
 遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录速查：
-- `frontend/`：TypeScript + React/Vite；代码调整后运行 `pnpm run lint` 与无 watch 的单测；保留 `.env.production` 等部署配置不变
-- `backend/`：Python + FastAPI；使用 Black/PEP8；执行 `pytest`（必要时限定路径）验证
-- `shared/`：前后端共享类型与工具；变动需确保双向兼容
-- `tests/`：集成与端到端测试；前端以 Vitest + Playwright，后端以 pytest/pytest-asyncio/httpx
-- `db/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.md`、`dictionary.md`
+- `apps/web/`：TypeScript + React/Vite；代码调整后运行 `pnpm run lint` 与无 watch 的单测；保留 `.env.production` 等部署配置不变
+- `apps/server/`：Python + FastAPI；使用 Black/PEP8；执行 `pytest`（必要时限定路径）验证
+- `packages/`：前后端共享类型与工具；变动需确保双向兼容
+- 单测 colocate 在源码旁；集成测试在 `apps/*/tests/`；e2e 在根 `e2e/`
+- `packages/database/prisma/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.md`、`dictionary.md`
 
 ### 数据库迁移文件命名规范
 
@@ -54,15 +54,6 @@
 
 ## 常用命令与自动化
 
-### 命令作用域规则（新增）
-- `/tdd sync`、`/tdd push` 裸命令默认 `session` 作用域（仅处理当前会话内容）。
-- 传入描述/参数或显式 `--project` 时，进入 `project` 作用域（允许全项目级操作）。
-- 推荐：
-  - `pnpm run tdd:sync`（session）
-  - `pnpm run tdd:sync -- --project`（project）
-  - `pnpm run tdd:push`（session：发布当前分支并创建当前分支 PR）
-  - `pnpm run tdd:push -- --project bump "release note"`（project 发布）
-
 ### 前端
 ```bash
 cd frontend
@@ -78,7 +69,7 @@ pnpm vitest run --runInBand
 cd backend
 pip install -r requirements.txt
 pytest -q
-pytest tests/path/test_feature.py -k scenario
+pnpm test apps/web/tests/auth.integration.test.ts
 black .
 uvicorn app.main:app --reload  # 本地联调需手动停止
 ```
@@ -94,7 +85,7 @@ pnpm run build
 ---
 
 ## 数据库迁移检查清单（如有数据库变更）
-- [ ] 迁移脚本位置正确：`/db/migrations/YYYYMMDD_HHMMSS_*.sql|py`
+- [ ] 迁移脚本位置正确：`packages/database/prisma/migrations/YYYYMMDD_HHMMSS_*.sql|py`
 - [ ] 脚本遵循命名规范（描述清晰、易理解）
 - [ ] **EXPAND 阶段**：所有 DDL 使用条件判断（`IF NOT EXISTS` / `IF EXISTS`）
 - [ ] **BACKFILL 阶段**：数据迁移使用 WHERE 条件（`WHERE field IS NULL`），确保幂等

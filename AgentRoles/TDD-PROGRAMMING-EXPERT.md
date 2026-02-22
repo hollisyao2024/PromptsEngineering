@@ -47,13 +47,13 @@
 
 #### 路径 A — 纯 SQL 迁移（默认）
 
-- 迁移脚本位于 `/db/migrations/`（Supabase 使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
+- 迁移脚本位于 `packages/database/prisma/migrations/`（Supabase 使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
 - 为 Backfill 与双写/对账提供脚本或作业配置；
 - 详见 `/docs/CONVENTIONS.md` §数据库迁移文件规范。
 
 #### 路径 B — Prisma ORM 项目
 
-> 迁移目录以项目实际 `schema.prisma` 所在位置为准（如 `<项目根>/prisma/migrations/`）。
+> 迁移目录以项目实际 `schema.prisma` 所在位置为准（如 `<项目根>/packages/database/prisma/migrations/`）。
 
 **B.1 三阶段对齐**
 
@@ -127,8 +127,8 @@ pnpm prisma migrate status
 
 # 查看具体差异（不执行）
 pnpm prisma migrate diff \
-  --from-schema-datamodel prisma/schema.prisma \
-  --to-schema-datasource prisma/schema.prisma \
+  --from-schema-datamodel packages/database/prisma/schema.prisma \
+  --to-schema-datasource packages/database/prisma/schema.prisma \
   --script
 ```
 
@@ -273,8 +273,8 @@ pnpm prisma db pull
 # ② 审查并调整 schema.prisma（对齐 B.6 命名规范）
 
 # ③ 创建 baseline 迁移
-mkdir -p prisma/migrations/0_init
-pnpm prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0_init/migration.sql
+mkdir -p packages/database/prisma/migrations/0_init
+pnpm prisma migrate diff --from-empty --to-schema-datamodel packages/database/prisma/schema.prisma --script > packages/database/prisma/migrations/0_init/migration.sql
 
 # ④ 标记为已应用（数据库已有这些结构）
 pnpm prisma migrate resolve --applied 0_init
@@ -307,8 +307,8 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
   4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接。
   5. **Changelog**：追加根目录 `CHANGELOG.md` 条目；若需归档，参照 `docs/changelogs/README.md`。
  6. **迁移目录核查**：
-   - 纯 SQL：`/db/migrations/` 或 `/supabase/migrations/` 含迁移与回滚脚本
-   - Prisma：`prisma/migrations/` 含 `migration.sql` 及配套 `rollback.sql`
+   - 纯 SQL：`packages/database/prisma/migrations/` 或 `/supabase/migrations/` 含迁移与回滚脚本
+   - Prisma：`packages/database/prisma/migrations/` 含 `migration.sql` 及配套 `rollback.sql`
 
 ## Pre-Push Gate：代码简化（强制）
 

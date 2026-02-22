@@ -6,83 +6,64 @@
 - `AGENTS.md`：多专家路由与流程约束（必须存在）。
 - `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
 - `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
-- `db/`：数据库迁移模板与脚本。
-- `frontend/`、`backend/`：前端 / 后端源代码（可按技术栈命名，如 `apps/web`、`services/api`，但需在此文档说明）。
-- `shared/`：多端共享的库或工具，例如 API 契约、通用组件。
-- `scripts/`：自动化脚本（CI/CD、部署、诊断、数据工具），要求使用可执行命名并提供 Usage 注释。
-- `tests/`：端到端或跨模块测试套件；若各子项目自带测试目录，可在此放置集成级别脚本。
+- `apps/`：所有可独立运行的应用（web、mobile、desktop、server 等），详见「项目目录结构（Monorepo）」章节。
+- `packages/`：所有共享代码库（ui、core、api-client、database 等），详见「项目目录结构（Monorepo）」章节。
+- `infra/`：部署与基础设施配置（Docker、k8s、Terraform、部署脚本），详见「项目目录结构（Monorepo）」章节。
+- `tooling/`：内部构建工具（eslint、tsconfig 基础配置等）。
+- `e2e/`：跨端端到端测试（Playwright / Cypress），详见「项目目录结构（Monorepo）」章节。
 - `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
-- 其他目录：若新增（如 `infra/`、`notebooks/`），请在本文件补充说明。
 
-## `docs/` 子结构
+## `docs/` 子结构与文档目录职责
+
+### 核心产出文档（`docs/*-modules/`）
+
+各专家的主要工作成果，是项目的核心知识资产。频繁访问和更新，结构化、模块化，作为其他阶段的输入依据。
+
 - `docs/PRD.md`：产品需求文档（小项目时是单一 PRD.md，大项目时是主 PRD，作为总纲与索引）。
-- `docs/prd-modules/`：**大型项目 PRD 模块化目录**（按功能域拆分的详细 PRD），实际的模块清单、模块 PRD 由 PRD 专家根据 `docs/prd-modules/MODULE-INVENTORY.md`动态生成。
+- `docs/prd-modules/`：按功能域拆分的详细 PRD，由 PRD 专家根据 `docs/prd-modules/MODULE-INVENTORY.md` 动态生成。
 - `docs/ARCH.md`：架构文档（主架构文档，作为总纲与索引）。
-- `docs/arch-modules/`：**大型项目架构模块化目录**（按功能域拆分的详细架构），实际的设计清单、模块 ARCH 由 ARCH 专家根据 `docs/arch-modules/MODULE-INVENTORY.md`动态生成。
+- `docs/arch-modules/`：按功能域拆分的详细架构，由 ARCH 专家根据 `docs/arch-modules/MODULE-INVENTORY.md` 动态生成。
 - `docs/TASK.md`：任务计划（主任务文档，作为总纲与索引，含 WBS/依赖/里程碑/风险）。
-- `docs/task-modules/`：**大型项目任务模块化目录**（按功能域拆分的详细任务计划），实际的任务清单、任务 TASK 由 TASK 专家根据 `docs/task-modules/MODULE-INVENTORY.md`动态生成。
+- `docs/task-modules/`：按功能域拆分的详细任务计划，由 TASK 专家根据 `docs/task-modules/MODULE-INVENTORY.md` 动态生成。
 - `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
-- `docs/qa-modules/`：**大型项目 QA 模块化目录**（按功能域拆分的详细测试计划），实际的QA清单、测试 QA 由 QA 专家根据 `docs/qa-modules/MODULE-INVENTORY.md`动态生成。
+- `docs/qa-modules/`：按功能域拆分的详细测试计划，由 QA 专家根据 `docs/qa-modules/MODULE-INVENTORY.md` 动态生成。
 - `docs/AGENT_STATE.md`：阶段状态勾选清单。
 - `CHANGELOG.md`（项目根）：主变更记录，仅保存最近 1~2 个主版本条目。
 - `docs/changelogs/`：历史分卷目录，存放归档的旧 CHANGELOG 文件，并包含 `README.md` 记录分卷规则与索引。
-- `docs/adr/`：架构决策记录，命名格式为 `NNN-{stage}-{module}-{title}.md`，其中 `{stage}` 取值 `prd` 表示 PRD 阶段的决策、`arch` 表示 ARCH 阶段的技术/架构决策；若为全局级别可将 `{module}` 替换为 `global`（例如 `NNN-prd-global-product-scope.md`、`NNN-arch-global-api-gateway.md`）。
-- `docs/data/`：数据相关内容（ERD、字典、样本数据、指标定义、**追溯矩阵**）。
-- `docs/data/traceability-matrix.md`：**需求追溯矩阵**（Story → AC → Test Case ID 映射）。
+- `docs/adr/`：架构决策记录，命名格式为 `NNN-{stage}-{module}-{title}.md`。
 - `docs/CONVENTIONS.md`：本文档，描述目录与约定。
-- 可选扩展：
-  - `docs/security/`：威胁建模、安全评估。
-  - `docs/ops/`：运维手册、SLO、值班指南。
+- 可选扩展：`docs/security/`（威胁建模、安全评估）、`docs/ops/`（运维手册、SLO、值班指南）。
+
+### 辅助支撑数据（`docs/data/`）
+
+为核心文档提供支撑的辅助材料，低频访问或一次性生成，可删除或归档不影响核心知识。
+
+- 模板文件 → `docs/data/templates/{prd|arch|task|qa|devops}/`
+- QA 验证报告 → `docs/data/qa-reports/YYYY-MM-DD-<type>-<description>.md`
+- 部署记录 → `docs/data/deployment-records/YYYY-MM-DD-vX.Y.Z-<env>.md`
+- 追溯矩阵 → `docs/data/traceability-matrix.md`
+- 变更请求（CR/SCR） → `docs/data/change-requests/`
+
+### 决策规则
+
+| 问题 | `*-modules/` | `data/` |
+|------|-------------|---------|
+| 某专家的主要工作成果？ | ✅ | ❌ |
+| 被其他专家作为输入依据？ | ✅ | ❌ |
+| 会持续更新/演进？ | ✅ | ❌ |
+| 一次性生成的报告/记录？ | ❌ | ✅ |
+| 模板/参考资料？ | ❌ | ✅ |
+| 按时间序列归档？ | ❌ | ✅ |
+
+**一句话总结**：`*-modules/` = 按功能组织的核心产出；`data/` = 按时间/类型组织的辅助数据。
 
 ## 命名与引用规则
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
-- 若在 `AGENTS.md` 或角色卡片中引用新目录，需同步更新此文档。
-- 所有与交付相关的变更必须在以 `feature/TASK-<MODULE>-<编号>-<短描述>` 命名的分支上完成。`/tdd sync` 与 `pnpm run tdd:tick` 依赖分支名中包含的 `TASK-` ID 自动勾选 `/docs/TASK.md` 或模块任务中的复选框、更新 Traceability，以及让 `docs/task-modules/module-list.md` 反映状态；在没有 Task ID（例如 `main`）的分支上直接改动会被脚本拒绝（“未找到 TASK ID”），因此请先在规范命名的 feature 分支上编辑再合并。
 
 ## Mermaid 图形文件规范
 
-### 文件格式
-- **统一使用 `.md` 格式**存储所有 mermaid 图形文件
-- **禁止使用 `.mmd` 格式**（已于 2025-11-08 废弃）
-
-### 使用理由
-- GitHub/GitLab/VSCode 都支持 `.md` 文件中的 mermaid 代码块预览（与 `.mmd` 效果相同）
-- `.md` 格式允许添加说明文字、表格、更新日志等上下文信息，便于团队协作
-- 避免文件格式与后缀不匹配的混乱情况
-- 便于 CI 工具按统一的 markdown 格式解析
-
-### 文件结构模板
-
-所有 mermaid 图形文件应遵循以下结构：
-
-```markdown
-# {图形名称}
-
-> **用途**：{用途说明}
-> **维护者**：{专家角色（PRD/ARCH/TASK/QA）}
-> **最后更新**：{YYYY-MM-DD}
-
----
-
-## {图形标题}
-
-\`\`\`mermaid
-{mermaid 代码}
-\`\`\`
-
----
-
-## 说明
-
-{补充说明、表格、图例、维护指南等}
-
----
-
-## 参考
-
-- [关联文档链接]
-```
+- **统一使用 `.md` 格式**存储所有 mermaid 图形文件，**禁止使用 `.mmd` 格式**（已于 2025-11-08 废弃）。
 
 ### 文件位置约定
 
@@ -95,40 +76,18 @@
 | **任务依赖矩阵** | `/docs/data/task-dependency-matrix.md` | TASK 专家 | 跨模块任务依赖关系 |
 | **里程碑甘特图** | `/docs/data/milestone-gantt.md` | TASK 专家 | 项目时间线与里程碑 |
 
-### 更新时机
-
-- **PRD 阶段**：创建/更新 `global-dependency-graph.md`、`{domain}/dependency-graph.md`
-- **ARCH 阶段**：创建/更新 `ERD.md`、`dictionary.md`、`component-dependency-graph.md`（可基于 `/docs/data/templates/arch/COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` 生成实际图表）
-- **TASK 阶段**：创建/更新 `task-dependency-matrix.md`、`milestone-gantt.md`
-- **数据库迁移时**：同步更新 `ERD.md`、`dictionary.md`
-- **架构变更时**：同步更新 `component-dependency-graph.md`
-
-### 验证清单
-
-在提交 mermaid 图形文件前，请确认：
-- [ ] 文件后缀为 `.md`（非 `.mmd`）
-- [ ] 包含完整的说明区块（用途、维护者、更新时间）
-- [ ] Mermaid 代码被包裹在代码块中（\`\`\`mermaid ... \`\`\`）
-- [ ] 在 VSCode/GitHub 中预览正常显示
-- [ ] 相关文档中的引用链接已更新
-
-### 参考示例
-
-- [ERD.md](data/ERD.md) — 实体关系图示例
-- [global-dependency-graph.md](data/global-dependency-graph.md) — 全局依赖图示例
-- [component-dependency-graph.md](data/component-dependency-graph.md) — 组件依赖图示例
-
 ## Scripts 约定
-- 脚本按用途分类，如 `scripts/tdd-tools/tdd-push.js`、`scripts/server/deploy.sh`、`scripts/qa-tools/generate-qa.js`。
+- 脚本按用途分类，统一存放于 `infra/scripts/`：`infra/scripts/server/`（部署脚本）、`infra/scripts/qa-tools/`（QA 脚本）、`infra/scripts/tdd-tools/`（TDD 工具脚本）。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
 
 ## Tests 约定
-- 单元测试通常随源码存放（如 `src/__tests__/`）；跨服务、端到端测试置于根 `tests/`。
-- 测试命名遵循 `test_*` / `*_spec` 约定，与所用框架一致。
-- 测试数据或快照应放在 `tests/fixtures/` 或子目录，避免污染主数据目录。
+- **单元测试**：与源代码 colocate（如 `Button.tsx` + `Button.test.tsx`），放在同一目录下。
+- **集成测试**：放在各 app/package 的 `tests/` 目录下（如 `apps/web/tests/auth.integration.test.ts`）。
+- **端到端测试（e2e）**：统一放在根目录 `e2e/` 下，按应用维度命名（如 `web.e2e.spec.ts`、`mobile.e2e.spec.ts`）。
+- 测试文件命名：单测 `*.test.ts(x)`、集成 `*.integration.test.ts`、e2e `*.e2e.spec.ts`。
 
-## 数据库迁移文件规范 ⚠️ 强制要求（全局统一）
+## 数据库迁移文件规范
 
 ### 文件名格式
 - **格式：** `YYYYMMDDHHmmss_description.sql`
@@ -139,168 +98,126 @@
 ```
 20251028174629_add_subscription_billing_cycle.sql
 20251031222146_add_admin_role.sql
-20251101104841_create_admin_audit_logs.sql
 ```
 
-### 创建方法（按优先级）
+### 创建方法
+- 推荐使用项目脚本：`./infra/scripts/tdd-tools/create-migration.sh add_user_roles --dir packages/database/prisma/migrations --dialect postgres`
+- Supabase 项目：`supabase migration new add_user_roles`
+- 严禁手动输入日期
 
-#### 1. 使用项目脚本（最推荐）✅
-```bash
-# 通用数据库（PostgreSQL / MySQL / Oracle / SQLite 等）
-./scripts/tdd-tools/create-migration.sh add_user_roles --dir db/migrations --dialect postgres
-
-# Supabase 专用（输出到 supabase/migrations/）
-./scripts/tdd-tools/create-migration-supabase.sh add_user_roles
-```
-- 自动生成正确的时间戳
-- 包含标准化的文件模板及幂等性提示
-- 支持自定义目录 / 方言标签（通用脚本）
-
-#### 2. 使用 Supabase CLI（Supabase 数据库推荐）✅
-```bash
-supabase migration new add_user_roles
-```
-- 自动生成格式正确的文件名
-- 与 Supabase 生态集成良好
-
-#### 3. 手动创建（不推荐）⚠️
-```bash
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-touch "db/migrations/${TIMESTAMP}_add_feature_name.sql"
-```
-- 需要手动编写模板
-- 容易遗漏必要注释
-
-#### 4. 手动输入日期（严禁）❌
-```bash
-# ❌ 错误示例 - 日期不准确！
-touch "db/migrations/20251104093000_add_feature.sql"
-```
-
-### 数据库迁移幂等性原则 ✅
-- **幂等性定义**：迁移脚本可以安全地被执行多次，最终结果保持一致，不会重复创建表、列、索引或数据；这对 dry-run、失败恢复、测试环境重复部署与生产回滚都至关重要。
-- **保障机制**：
-  - 使用 `IF NOT EXISTS` / `IF EXISTS` 等条件判断，避免重复定义（详见 TDD Handbook §迁移脚本的幂等性保障）。
-  - 在数据迁移前增加状态检查（如 `WHERE field IS NULL`），仅处理未完成部分。
-  - 用事务包裹每一步，保证脚本要么完全成功，要么完全回滚。
-- **验证要求**：提交前需至少在本地执行 3 次验证：第一次正常执行、第二次重复执行、第三次回滚后再执行一次，确认幂等性。
-
-### 为什么必须使用实际时间戳？
-
-#### 问题 1：迁移顺序混乱
-- Supabase 按文件名**字典序**执行迁移
-- 不准确的日期会导致：
-  - 后创建的文件可能先执行（如果日期更早）
-  - 依赖关系被打破（新表还未创建就被引用）
-  - 回滚和重放迁移时出错
-
-**真实案例：**
-```
-❌ 错误场景：
-20251104093000_add_user_table.sql     (实际创建于 10-28)
-20251028174629_add_user_role.sql      (实际创建于 10-28)
-
-执行顺序：先创建 user_table，再添加 role
-实际创建时间：先写 role，再写 user_table
-结果：role 迁移失败，因为 user_table 还不存在！
-```
-
-#### 问题 2：问题追溯困难
-- 文件名日期与实际创建时间不一致
-- Git 历史显示的时间与文件名不匹配
-- 无法准确追溯问题发生的时间线
-
-#### 问题 3：团队协作冲突
-- 多人同时开发时，手动编造的日期可能冲突
-- 难以确定真实的开发顺序
-- 合并代码时容易产生迁移执行顺序问题
-
-### 文件内容模板
-
-使用 `./scripts/tdd-tools/create-migration.sh` 会自动生成以下模板（Supabase 版本同理，但输出目录不同）：
-
-```sql
--- ============================================================
--- description_here
--- 日期: YYYY-MM-DD
--- 数据库方言: postgres|mysql|oracle|sqlite|generic
--- 目标: [请描述此迁移的目的]
--- 幂等性提示:
---   1) 使用 IF EXISTS / IF NOT EXISTS / CREATE OR REPLACE 等条件语句
---   2) 数据变更前执行状态检查，避免重复写入
---   3) 始终遵循 Expand → Migrate/Backfill → Contract 流程
--- ============================================================
-
-BEGIN;
-
--- ============================================================
--- 在此处添加 SQL 语句（可保留/删除方言示例）
--- ============================================================
-
--- PostgreSQL 示例:
--- DO $$ BEGIN
---   IF NOT EXISTS (...) THEN
---     CREATE TABLE ...
---   END IF;
--- END $$;
-
--- MySQL 示例:
--- CREATE TABLE IF NOT EXISTS ...;
-
--- Oracle 示例:
--- BEGIN
---   EXECUTE IMMEDIATE 'CREATE TABLE ...';
--- EXCEPTION
---   WHEN OTHERS THEN
---     IF SQLCODE != -955 THEN RAISE; END IF;
--- END;
-
-COMMIT;
-
--- ============================================================
--- 回滚提示（Contract 阶段）
--- ============================================================
--- 如需回滚此迁移，请执行以下操作:
--- [描述如何安全回滚此迁移]
-```
-
-### 提交前验证清单
-
-- [ ] 文件名时间戳是否使用脚本或 `date` 命令生成？
-- [ ] 文件名是否符合格式 `YYYYMMDDHHmmss_description.sql`？
-- [ ] 文件内容是否包含必要的注释（日期、目标、回滚提示）？
-- [ ] 迁移是否可以安全回滚？
-- [ ] 是否满足幂等性要求（参见下方“数据库迁移幂等性原则”）？
-- [ ] 是否已测试迁移可以正确执行？
+### 数据库迁移幂等性原则
+- **幂等性定义**：迁移脚本可以安全地被执行多次，最终结果保持一致。
+- **保障机制**：使用 `IF NOT EXISTS` / `IF EXISTS` 条件判断；数据迁移前增加状态检查（`WHERE field IS NULL`）；用事务包裹每一步。
+- **验证要求**：提交前至少在本地执行 3 次验证（正常执行 → 重复执行 → 回滚后再执行）。
 
 ### 数据字典同步
+- 任何表结构变化必须触发数据视图生成流程，确保 `docs/data/ERD.md` 与 `docs/data/dictionary.md` 与模板保持一致。
 
-- 任何表结构变化必须触发数据视图生成流程，确保以下自动产出文件与模板保持一致；直接在模板 `docs/data/templates/arch/ERD-TEMPLATE.md` 与 `docs/data/templates/arch/dictionary-TEMPLATE.md` 中调整源数据，生成好的 `ERD.md` 与 `dictionary.md` 不应被人工引用或提交。
-  - `docs/data/ERD.md`：实体关系图（自动生成，参考 `docs/data/templates/arch/ERD-TEMPLATE.md`）
-  - `docs/data/dictionary.md`：数据字典（自动生成，参考 `docs/data/templates/arch/dictionary-TEMPLATE.md`）
+## 环境变量文件规范
 
-## Frontend / Backend / Shared
-- `frontend/` 与 `backend/` 可以进一步拆分子项目，如 `frontend/web`、`frontend/mobile`、`backend/api`。
-- 若使用 Monorepo 工具（例如 Turborepo、Nx），可在此说明 package/workspace 结构。
-- `shared/` 存放可复用模块（UI 组件、SDK、API 契约、设计系统等），保持 README 或注释说明归属。
+项目按三套环境管理配置，每套包含**模板文件**（可提交）和**实际文件**（含真实密钥，禁止提交）：
+
+| 文件名 | 环境 | 类型 | Git 状态 |
+|--------|------|------|----------|
+| `.env.example` | dev | 模板 | ✅ 可提交 |
+| `.env.local` | dev | 实际 | ❌ 禁止提交 |
+| `.env.staging.example` | staging | 模板 | ✅ 可提交 |
+| `.env.staging` | staging | 实际 | ❌ 禁止提交 |
+| `.env.production.example` | production | 模板 | ✅ 可提交 |
+| `.env.production` | production | 实际 | ❌ 禁止提交 |
+
+**操作规则：**
+- 本地开发：从 `.env.example` 复制为 `.env.local`，按需填写真实值
+- 新增环境变量时：必须同步更新对应的 `*.example` 文件（写占位值，不含真实密钥）
+- **禁止**将含真实密钥的 `.env.*`（非 `*.example`）文件写入 git
+- `.gitignore` 必须遮盖所有实际环境变量文件
 
 ## 其他约定
-- 配置文件（如 `.env.local、.env.staging`、`.env.production`、`.github/`、`Dockerfile`）应按技术栈默认放置；若自定义位置，在此说明理由。
 - 机密文件保持 `.gitignore` 遮盖；若需本地存放，创建 `secret/README.md` 引导操作。
 
-## QA 模块化规范
+## 项目目录结构（Monorepo）
 
-详细的 QA 模块拆分决策、结构与工作流已移至 `/AgentRoles/QA-TESTING-EXPERT.md`（结合 Playbook §9）；本节仅保留目录/命名级约定，需拆分时请点读该角色卡，以保持 Conventions 侧重于通用目录规则。
+本项目采用 pnpm workspaces + Turborepo 的 Monorepo 架构。
 
----
+```
+项目根目录/
+├── package.json              # 根 package.json（workspace 定义 + 全局 devDeps + CI 脚本）
+├── apps/                     # 可独立运行的应用（不互相 import，只依赖 packages）
+│   ├── web/                  # Web 前端（Next.js / React）
+│   │   ├── src/              # 源代码（单测 colocate：Button.tsx + Button.test.tsx）
+│   │   ├── tests/            # integration 测试
+│   │   └── package.json
+│   ├── desktop/              # 桌面客户端（Electron / Tauri）
+│   ├── mobile/               # 移动端（React Native / Flutter）
+│   ├── server/               # 后端 API（Node / NestJS / Fastify）
+│   │   ├── src/              # 源代码（单测 colocate）
+│   │   ├── tests/            # integration 测试
+│   │   └── package.json
+│   ├── worker/               # 后台任务 / queue consumer
+│   └── admin/                # 管理后台
+│
+├── packages/                 # 共享代码（被 apps 引用，不能反向依赖 apps）
+│   ├── core/                 # 核心业务逻辑（纯 TS，零框架依赖）
+│   ├── domain/               # 领域模型（数据结构、业务规则）
+│   ├── ui/                   # 跨端 UI 组件库
+│   ├── ai/                   # AI 相关封装
+│   ├── auth/                 # 鉴权逻辑
+│   ├── billing/              # 计费逻辑
+│   ├── analytics/            # 数据分析
+│   ├── api-client/           # 前端统一 API 调用封装
+│   ├── database/             # 数据库层（Prisma schema + 迁移 + 数据访问）
+│   │   ├── prisma/           # ORM schema
+│   │   │   ├── schema.prisma
+│   │   │   ├── migrations/
+│   │   │   └── seed.ts
+│   │   ├── src/
+│   │   │   ├── client.ts     # 统一 DB 连接实例（整个 Monorepo 唯一入口）
+│   │   │   ├── config.ts     # 连接配置
+│   │   │   ├── models/       # ORM 模型扩展（computed 字段、复杂 query builder）
+│   │   │   ├── repositories/ # 数据访问层（推荐：解耦 ORM，便于测试与替换）
+│   │   │   ├── services/     # 与 DB 强相关的数据服务（事务、分页等）
+│   │   │   ├── types.ts
+│   │   │   └── index.ts
+│   │   ├── scripts/          # 独立数据库脚本（migrate / reset / generate）
+│   │   ├── .env.example
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   ├── sdk/                  # 对外 SDK
+│   ├── hooks/                # 共享 React hooks
+│   ├── utils/                # 工具函数
+│   ├── types/                # 全局 TypeScript 类型
+│   └── config/               # 共享配置（ESLint / TS / Tailwind）
+│
+├── infra/                    # 部署与基础设施配置
+│   ├── docker/
+│   ├── k8s/
+│   ├── terraform/
+│   └── scripts/              # 自动化脚本（全部从根 scripts/ 迁入）
+│       ├── server/           # 服务器部署脚本（deploy.sh、frontend-dev-pm2.sh 等）
+│       ├── qa-tools/         # QA 脚本（generate-qa.js、qa-verify.js、qa-merge.js）
+│       └── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
+│
+├── tooling/                  # 内部构建工具（不发布到 npm）
+│   ├── eslint/
+│   ├── tsconfig/
+│   └── commitlint/
+│
+├── e2e/                      # 跨端端到端测试（Playwright / Cypress）
+│   ├── web.e2e.spec.ts
+│   ├── mobile.e2e.spec.ts
+│   └── playwright.config.ts
+│
+├── turbo.json                # Turborepo 构建管道配置
+└── pnpm-workspace.yaml       # 声明 apps/* packages/* tooling/* 为 workspace
+```
 
-## 维护说明
-- 当项目新增或调整目录结构时，请先更新本文件，再视需要调整 `AGENTS.md` 与角色卡片。
-- 建议在代码评审中检查目录是否符合本约定，确保团队协作一致性。
-
-## 版本记录
-| 版本 | 日期 | 说明 |
-| --- | --- | --- |
-| v1.3 | 2025-11-05 | 扩展模块化规范至 ARCH/TASK/QA 三个专家，支持全流程文档模块化 |
-| v1.2 | 2025-11-05 | 新增 PRD 模块化规范，支持大型项目按功能域拆分 PRD |
-| v1.1 | 2025-10-28 | 新增文档版本记录，便于追踪目录规范调整 |
+**核心原则：**
+- `apps/*`：独立可启动，不互相引用，只依赖 `packages/*`
+- `packages/*`：沉淀共享逻辑，不依赖任何 `apps/*`
+- `packages/database`：整个 Monorepo 唯一 DB 入口，只有 `server` 引用；禁止在 `server` 中直接写 `prisma.user.findMany()`，必须通过 `repositories/` 访问
+- `packages/api-client`：web / mobile / desktop 共用，统一管理后端接口调用
+- `packages/core` 与 `packages/domain`：纯 TS，无框架依赖，可在全端复用
+- `infra/scripts/`：所有自动化脚本统一存放；`server/`（部署）、`qa-tools/`（QA）、`tdd-tools/`（TDD 工具）
+- **测试三层结构**：单测 colocate 在源码旁（`Button.tsx` + `Button.test.tsx`）；集成测试在 `apps/*/tests/`；端到端测试在根目录 `e2e/`
+- **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 npm 包）
+- **依赖管理**：应用运行依赖（react、next 等）写在各自 `apps/*/package.json`，禁止提升到根目录；全局工具类（eslint、turbo、typescript）写在根 `devDependencies`

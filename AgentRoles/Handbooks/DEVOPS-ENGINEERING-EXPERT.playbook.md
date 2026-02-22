@@ -55,8 +55,8 @@
 
 ### 本地开发服务管理（PM2）
 - 统一使用 PM2 托管本地前端开发服务，服务名 `frontend-dev`
-- 配置文件：`scripts/server/pm2.frontend.dev.config.cjs`
-- 管理脚本：`scripts/server/frontend-dev-pm2.sh`
+- 配置文件：`infra/scripts/server/pm2.frontend.dev.config.cjs`
+- 管理脚本：`infra/scripts/server/frontend-dev-pm2.sh`
 - 默认固定端口 `3000`，环境变量：
   - `PORT=3000`
   - `APP_ENVIRONMENT=development`
@@ -74,7 +74,7 @@
 ## §3. 部署流程
 
 ### 部署时数据库迁移
-- 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f db/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
+- 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f packages/database/prisma/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
 - 迁移失败立即中止部署，执行 L2 回滚（见下方回滚流程），不启动新版本应用。
 - 迁移脚本的编写规范与幂等性要求见 TDD 专家 §B.2~B.5（`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）。
 
@@ -103,8 +103,8 @@
 
 ### 回滚流程
 当部署后发现严重问题时（回滚脚本规范见 TDD 专家 §B.4，`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）：
-1. **L1 即时回滚**（应用层）：`scripts/server/deploy.sh <env> --rollback` 或 `git revert <hash>`
-2. **L2 数据库回滚**（如涉及迁移）：`psql -f db/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
+1. **L1 即时回滚**（应用层）：`infra/scripts/server/deploy.sh <env> --rollback` 或 `git revert <hash>`
+2. **L2 数据库回滚**（如涉及迁移）：`psql -f packages/database/prisma/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
 3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 在部署记录中记录回滚原因 → QA 被重新激活后从回滚记录中提取信息，在 `defect-log.md` 正式登记缺陷条目 → 退回 TDD/QA 修复后重新部署
 4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到部署记录的事后回顾段及 ADR。
 
