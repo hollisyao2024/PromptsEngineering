@@ -150,8 +150,13 @@ load_deploy_config() {
             ;;
     esac
 
+    # 远端目录结构（与本地 monorepo 对齐）
+    REMOTE_APP_DIR="$DEPLOY_PATH/apps/web"
+    REMOTE_DATABASE_DIR="$DEPLOY_PATH/packages/database"
+    REMOTE_SCRIPTS_DIR="$DEPLOY_PATH/infra/scripts"
+
     # 派生路径（自动计算，无需手动配置）
-    REMOTE_STANDALONE_PATH="$DEPLOY_PATH/frontend/$REMOTE_BUILD_DIR/standalone"
+    REMOTE_STANDALONE_PATH="$REMOTE_APP_DIR/$REMOTE_BUILD_DIR/standalone"
     REMOTE_STANDALONE_FRONTEND="$REMOTE_STANDALONE_PATH/apps/web"
 
     # Hash 文件完整路径
@@ -510,7 +515,7 @@ run_remote_prisma_migration() {
 
     ssh $ssh_opts "$remote" << ENDSSH
         set -e
-        cd $deploy_path/frontend
+        cd $deploy_path/apps/web
 
         # 使用传递的 Prisma 版本
         PRISMA_VERSION="$prisma_version"

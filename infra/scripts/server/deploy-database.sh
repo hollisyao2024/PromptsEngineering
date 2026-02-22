@@ -60,17 +60,18 @@ verify_prisma_client() {
     local schema_hash=$2
 
     log_info "验证并生成 Prisma Client（standalone 目录）..."
-    ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "export REMOTE_STANDALONE_PATH='$REMOTE_STANDALONE_PATH' REMOTE_STANDALONE_FRONTEND='$REMOTE_STANDALONE_FRONTEND' PRISMA_VERSION='$prisma_version' PRISMA_SCHEMA_HASH='$schema_hash'; bash -s" << 'ENDSSH'
+    ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "export REMOTE_STANDALONE_PATH='$REMOTE_STANDALONE_PATH' REMOTE_STANDALONE_FRONTEND='$REMOTE_STANDALONE_FRONTEND' REMOTE_DATABASE_DIR='$REMOTE_DATABASE_DIR' PRISMA_VERSION='$prisma_version' PRISMA_SCHEMA_HASH='$schema_hash'; bash -s" << 'ENDSSH'
         set -e
         STANDALONE_DIR="$REMOTE_STANDALONE_FRONTEND"
         STANDALONE_ROOT="$REMOTE_STANDALONE_PATH"
         PRISMA_CLIENT_DIR="$STANDALONE_DIR/node_modules/.prisma/client"
         PRISMA_SCHEMA_HASH_FILE="$STANDALONE_DIR/.prisma-schema-hash"
+        PRISMA_SCHEMA="$REMOTE_DATABASE_DIR/prisma/schema.prisma"
 
         # 步骤 1: 确保 prisma 符号链接存在
         if [[ ! -L "$STANDALONE_DIR/prisma" ]] && [[ ! -d "$STANDALONE_DIR/prisma" ]]; then
             echo "[INFO] 创建 prisma 符号链接..."
-            ln -sf ../../../prisma "$STANDALONE_DIR/prisma"
+            ln -sf "$REMOTE_DATABASE_DIR/prisma" "$STANDALONE_DIR/prisma"
             echo "[SUCCESS] prisma 符号链接已创建"
         fi
 
@@ -153,10 +154,12 @@ _execute_remote_migration() {
 
     ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" << ENDSSH
         set -e
-        cd $DEPLOY_PATH/frontend
+        cd $REMOTE_APP_DIR
 
         PRISMA_VERSION="$prisma_version"
+        PRISMA_SCHEMA="$REMOTE_DATABASE_DIR/prisma/schema.prisma"
         echo "[INFO] 项目 Prisma 版本: \$PRISMA_VERSION"
+        echo "[INFO] Prisma Schema: \$PRISMA_SCHEMA"
 
         # 查找 standalone 内置的 Prisma CLI（避免 npx 使用全局缓存的旧版本）
         STANDALONE_DIR="$REMOTE_BUILD_DIR/standalone/apps/web"
@@ -196,7 +199,7 @@ _execute_remote_migration() {
         # 使用自定义脚本检测架构漂移
         # 退出码: 0=无漂移, 1=有漂移, 2=检测失败
         DRIFT_EXIT_CODE=0
-        node ../scripts/server/check-schema-drift.js --env "$env" || DRIFT_EXIT_CODE=\$?
+        node $REMOTE_SCRIPTS_DIR/server/check-schema-drift.js --env "$env" || DRIFT_EXIT_CODE=\$?
 
         if [[ \$DRIFT_EXIT_CODE -eq 0 ]]; then
             echo "[SUCCESS] 数据库架构与 schema.prisma 一致"
@@ -214,11 +217,11 @@ _execute_remote_migration() {
         echo "[INFO] ━━━━━ 步骤 2/4: 迁移状态检查 ━━━━━"
 
         # 统计本地迁移文件数量（排除非目录文件）
-        LOCAL_MIGRATION_COUNT=\$(find prisma/migrations -maxdepth 1 -type d ! -name migrations | wc -l | tr -d ' ')
+        LOCAL_MIGRATION_COUNT=\$(find $REMOTE_DATABASE_DIR/prisma/migrations -maxdepth 1 -type d ! -name migrations | wc -l | tr -d ' ')
         echo "[INFO] 本地迁移文件数量: \$LOCAL_MIGRATION_COUNT"
 
         # 查询数据库中已应用的迁移数量
-        DB_MIGRATION_COUNT=\$(\$PRISMA_CMD db execute --stdin <<SQL 2>/dev/null || echo "0"
+        DB_MIGRATION_COUNT=\$(\$PRISMA_CMD db execute --schema=\$PRISMA_SCHEMA --stdin <<SQL 2>/dev/null || echo "0"
 SELECT COUNT(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL;
 SQL
         )
@@ -235,7 +238,7 @@ SQL
         fi
 
         # 执行 prisma migrate status
-        MIGRATION_STATUS=\$(\$PRISMA_CMD migrate status 2>&1) || true
+        MIGRATION_STATUS=\$(\$PRISMA_CMD migrate status --schema=\$PRISMA_SCHEMA 2>&1) || true
         echo "\$MIGRATION_STATUS"
 
         # 判断是否需要执行迁移
@@ -332,7 +335,7 @@ SQL
             # 步骤 4/4: 执行数据库迁移
             echo ""
             echo "[INFO] ━━━━━ 步骤 4/4: 执行数据库迁移 ━━━━━"
-            if \$PRISMA_CMD migrate deploy 2>&1; then
+            if \$PRISMA_CMD migrate deploy --schema=\$PRISMA_SCHEMA 2>&1; then
                 echo "[SUCCESS] 数据库迁移执行成功"
 
                 # 重新生成 Prisma Client
@@ -340,13 +343,13 @@ SQL
                 STANDALONE_DIR="$REMOTE_STANDALONE_FRONTEND"
 
                 if [[ ! -L "\$STANDALONE_DIR/prisma" ]] && [[ ! -d "\$STANDALONE_DIR/prisma" ]]; then
-                    ln -sf ../../../prisma "\$STANDALONE_DIR/prisma"
+                    ln -sf $REMOTE_DATABASE_DIR/prisma "\$STANDALONE_DIR/prisma"
                 fi
 
                 cd "\$STANDALONE_DIR"
                 PRISMA_BIN=\$(find node_modules/.pnpm/prisma@*/node_modules/prisma/build -name "index.js" | head -1)
                 if [[ -n "\$PRISMA_BIN" ]]; then
-                    node "\$PRISMA_BIN" generate --schema=prisma/schema.prisma 2>&1 || echo "[WARN] Prisma Client 生成失败"
+                    node "\$PRISMA_BIN" generate --schema=\$PRISMA_SCHEMA 2>&1 || echo "[WARN] Prisma Client 生成失败"
                 fi
             else
                 echo "[ERROR] 数据库迁移失败！"

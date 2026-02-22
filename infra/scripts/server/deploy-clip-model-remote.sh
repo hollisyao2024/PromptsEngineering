@@ -11,7 +11,7 @@
 # 前置条件：
 #   1. 已配置 SSH 密钥可访问目标服务器
 #   2. 服务器上已安装 Node.js 和 pnpm
-#   3. 项目已部署在 /var/www/{env}/frontend
+#   3. 项目已部署在 /var/www/{env}/apps/web
 ###############################################################################
 
 set -e
@@ -85,8 +85,8 @@ deploy_to_env() {
 
     # 检查项目目录
     echo -e "${YELLOW}🔍 Step 2/5: 检查项目目录...${NC}"
-    if ! ssh ${SSH_USER}@${SERVER_HOST} "[ -d ${PROJECT_DIR}/frontend ]"; then
-        echo -e "${RED}❌ 项目目录不存在: ${PROJECT_DIR}/frontend${NC}"
+    if ! ssh ${SSH_USER}@${SERVER_HOST} "[ -d ${PROJECT_DIR}/apps/web ]"; then
+        echo -e "${RED}❌ 项目目录不存在: ${PROJECT_DIR}/apps/web${NC}"
         echo "   请先部署应用再运行此脚本"
         return 1
     fi
@@ -166,7 +166,7 @@ download();
 ENDSCRIPT
 
     # 上传脚本到服务器项目目录
-    scp -o StrictHostKeyChecking=no /tmp/download-clip-${ENV_NAME}.mjs ${SSH_USER}@${SERVER_HOST}:${PROJECT_DIR}/frontend/download-clip-temp.mjs
+    scp -o StrictHostKeyChecking=no /tmp/download-clip-${ENV_NAME}.mjs ${SSH_USER}@${SERVER_HOST}:${PROJECT_DIR}/apps/web/download-clip-temp.mjs
     rm -f /tmp/download-clip-${ENV_NAME}.mjs
 
     # 在服务器上执行下载
@@ -183,7 +183,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-cd ${PROJECT_DIR}/frontend
+cd ${PROJECT_DIR}/apps/web
 
 # 创建缓存目录
 mkdir -p ${CACHE_DIR}
@@ -288,7 +288,7 @@ ENDSSH
     echo "   ssh ${SSH_USER}@${SERVER_HOST} 'ls -lh ${CACHE_DIR}/Xenova/clip-vit-base-patch32/onnx/'"
     echo ""
     echo "2. 测试 CLIP 向量提取："
-    echo "   ssh ${SSH_USER}@${SERVER_HOST} 'cd ${PROJECT_DIR}/frontend && npx tsx scripts/backfill-character-embeddings.ts'"
+    echo "   ssh ${SSH_USER}@${SERVER_HOST} 'cd ${PROJECT_DIR}/apps/web && npx tsx scripts/backfill-character-embeddings.ts'"
     echo ""
 }
 

@@ -248,7 +248,7 @@ elif [ -n "$REPO_URL" ]; then
   git clone $REPO_URL .
 
   # Install dependencies
-  cd frontend
+  cd apps/web
   pnpm install
 
   echo -e "${GREEN}✅ Repository cloned and dependencies installed${NC}"

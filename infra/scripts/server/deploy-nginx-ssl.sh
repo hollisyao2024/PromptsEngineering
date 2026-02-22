@@ -475,7 +475,7 @@ _fix_prisma_symlinks() {
                 # 检查是否是 pnpm 符号链接结构
                 if [ -L "$FRONTEND_PRISMA_DIR" ]; then
                     # 父目录是 pnpm 符号链接，不能在这里创建符号链接
-                    echo "[INFO] Skipping Turbopack hash symlink at frontend/node_modules/@prisma (pnpm symlink)"
+                    echo "[INFO] Skipping Turbopack hash symlink at apps/web/node_modules/@prisma (pnpm symlink)"
 
                     # 验证 pnpm 符号链接指向的目录中是否有 client
                     PNPM_TARGET=$(readlink -f "$FRONTEND_PRISMA_DIR" 2>/dev/null || true)
@@ -492,7 +492,7 @@ _fix_prisma_symlinks() {
                     # 父目录是真实目录，可以创建符号链接
                     rm -f "$FRONTEND_PRISMA_DIR/$PRISMA_HASH" 2>/dev/null || true
                     ln -sfn client "$FRONTEND_PRISMA_DIR/$PRISMA_HASH"
-                    echo "[SUCCESS] Created Turbopack hash symlink (frontend): @prisma/$PRISMA_HASH -> client"
+                    echo "[SUCCESS] Created Turbopack hash symlink (apps/web): @prisma/$PRISMA_HASH -> client"
                 else
                     echo "[WARN] Cannot create hash symlink: @prisma/client does not exist"
                 fi

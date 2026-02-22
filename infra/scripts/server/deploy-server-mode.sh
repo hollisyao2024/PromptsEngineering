@@ -28,13 +28,13 @@ deploy_on_server() {
     fi
 
     # Load environment variables
-    if [ ! -f "$PROJECT_DIR/frontend/.env" ]; then
-        log_error ".env file not found at $PROJECT_DIR/frontend/.env"
+    if [ ! -f "$PROJECT_DIR/apps/web/.env" ]; then
+        log_error ".env file not found at $PROJECT_DIR/apps/web/.env"
         exit 1
     fi
 
     # Source .env to get DATABASE_URL
-    export $(grep -v '^#' $PROJECT_DIR/frontend/.env | xargs)
+    export $(grep -v '^#' $PROJECT_DIR/apps/web/.env | xargs)
 
     if [ -z "$DATABASE_URL" ]; then
         log_error "DATABASE_URL not set in .env file"
@@ -85,7 +85,7 @@ deploy_on_server() {
 
     # Step 2: Install dependencies
     log_info "📦 Step 2/6: Installing dependencies..."
-    cd frontend
+    cd apps/web
     pnpm install
     log_success "Dependencies installed"
     echo ""
@@ -123,7 +123,7 @@ deploy_on_server() {
         # Cleanup old backups
         cd $BACKUP_DIR
         ls -t backup_*.sql.gz 2>/dev/null | tail -n +$((BACKUP_RETENTION + 1)) | xargs -r rm -f
-        cd $PROJECT_DIR/frontend
+        cd $PROJECT_DIR/apps/web
     else
         log_error "Backup failed! Aborting deployment."
         exit 1
@@ -184,7 +184,7 @@ deploy_on_server() {
         pm2 restart $PM2_APP_NAME --update-env
     else
         echo "Starting new application instance..."
-        cd $PROJECT_DIR/frontend
+        cd $PROJECT_DIR/apps/web
         pm2 start pnpm --name $PM2_APP_NAME -- start
     fi
 

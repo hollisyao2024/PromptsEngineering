@@ -274,9 +274,9 @@ _deploy_remote() {
 
     log_info "远程部署模式（使用 SSH）"
 
-    # 计算派生路径
-    REMOTE_STANDALONE_PATH="$DEPLOY_PATH/frontend/$REMOTE_BUILD_DIR/standalone"
-    REMOTE_STANDALONE_FRONTEND="$REMOTE_STANDALONE_PATH/apps/web"
+    # 远端路径变量由 deploy-common.sh load_deploy_config() 统一定义：
+    # REMOTE_APP_DIR, REMOTE_DATABASE_DIR, REMOTE_SCRIPTS_DIR,
+    # REMOTE_STANDALONE_PATH, REMOTE_STANDALONE_FRONTEND
 
     # 文件同步
     run_file_sync "$env" || exit 1
@@ -331,7 +331,7 @@ _show_completion_message() {
         if lsof -i:$APP_PORT > /dev/null 2>&1; then
             log_success "本地 dev server 仍在运行 (http://localhost:$APP_PORT)"
         else
-            log_info "本地 dev server 未运行，如需启动请执行: cd frontend && pnpm dev"
+            log_info "本地 dev server 未运行，如需启动请执行: cd apps/web && pnpm dev"
         fi
     fi
 }

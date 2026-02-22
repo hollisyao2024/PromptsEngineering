@@ -23,7 +23,9 @@ const args = process.argv.slice(2);
 const envIndex = args.indexOf('--env');
 const targetEnv = envIndex >= 0 && args[envIndex + 1] ? args[envIndex + 1] : 'dev';
 
-// 配置
+// 配置（本地 monorepo 和远端部署使用相同的目录结构）
+// 脚本位置: infra/scripts/server/check-schema-drift.js
+// 相对路径: ../../../apps/web, ../../../packages/database
 const FRONTEND_DIR = path.join(__dirname, '../../../apps/web');
 const DATABASE_DIR = path.join(__dirname, '../../../packages/database');
 const ORIGINAL_SCHEMA = path.join(DATABASE_DIR, 'prisma/schema.prisma');

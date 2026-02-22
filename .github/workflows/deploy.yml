@@ -1,0 +1,254 @@
+name: Deploy
+run-name: Deploy to ${{ github.event.inputs.environment || 'production' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 部署目标环境
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.ref }}-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify Tests
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            chrome-extension/package-lock.json
+            frontend/package-lock.json
+            cloudflare-worker/package-lock.json
+
+      - name: Install dependencies (all workspaces)
+        run: |
+          npm config set fund false
+          npm config set update-notifier false
+          npm ci --workspaces --include-workspace-root --prefer-offline --no-audit
+
+      - name: Prepare node_modules artifact
+        run: |
+          tar -czf node_modules.tar.gz node_modules */node_modules
+
+      - name: Upload node_modules artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-modules-${{ github.run_id }}
+          path: node_modules.tar.gz
+          retention-days: 1
+
+      - name: Run tests (chrome-extension)
+        run: |
+          npm test --workspace chrome-extension &
+          npm test --workspace frontend &
+          npm test --workspace cloudflare-worker &
+          wait
+
+  deploy_worker:
+    name: Deploy Cloudflare Worker
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: true
+    defaults:
+      run:
+        working-directory: cloudflare-worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            cloudflare-worker/package-lock.json
+
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: node-modules-${{ github.run_id }}
+          path: ${{ github.workspace }}
+
+      - name: Extract node_modules
+        run: |
+          ARCHIVE_PATH="$GITHUB_WORKSPACE/node_modules.tar.gz"
+          if [ ! -f "${ARCHIVE_PATH}" ]; then
+            echo "node_modules.tar.gz not found at ${ARCHIVE_PATH}" >&2
+            ls -R "$GITHUB_WORKSPACE"
+            exit 1
+          fi
+          tar -xzf "${ARCHIVE_PATH}" -C "$GITHUB_WORKSPACE"
+          rm "${ARCHIVE_PATH}"
+
+      - name: Deploy Worker
+        run: |
+          if [ "${{ github.event.inputs.environment || 'production' }}" = "production" ]; then
+            npm run deploy
+          else
+            npm run deploy:staging
+          fi
+
+  deploy_frontend:
+    name: Deploy Frontend
+    needs: [verify, deploy_worker]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: true
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: node-modules-${{ github.run_id }}
+          path: ${{ github.workspace }}
+
+      - name: Extract node_modules
+        run: |
+          ARCHIVE_PATH="$GITHUB_WORKSPACE/node_modules.tar.gz"
+          if [ ! -f "${ARCHIVE_PATH}" ]; then
+            echo "node_modules.tar.gz not found at ${ARCHIVE_PATH}" >&2
+            ls -R "$GITHUB_WORKSPACE"
+            exit 1
+          fi
+          tar -xzf "${ARCHIVE_PATH}" -C "$GITHUB_WORKSPACE"
+          rm "${ARCHIVE_PATH}"
+
+      - name: Set site environment variables
+        run: |
+          if [ "${{ github.event.inputs.environment || 'production' }}" = "production" ]; then
+            echo "VITE_SITE_ORIGIN=https://translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "VITE_WORKER_ORIGIN=https://translator.bluebirds.cc" >> $GITHUB_ENV
+          else
+            echo "VITE_SITE_ORIGIN=https://staging-translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "VITE_WORKER_ORIGIN=https://staging-translator.bluebirds.cc" >> $GITHUB_ENV
+          fi
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Deploy Pages
+        run: |
+          if [ "${{ github.event.inputs.environment || 'production' }}" = "production" ]; then
+            npx wrangler pages deploy dist --project-name=bluebird-translator-frontend
+          else
+            npx wrangler pages deploy dist --project-name=bluebird-translator-frontend --branch staging
+          fi
+
+  package_extension:
+    name: Package Chrome Extension
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    defaults:
+      run:
+        working-directory: chrome-extension
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            chrome-extension/package-lock.json
+
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: node-modules-${{ github.run_id }}
+          path: ${{ github.workspace }}
+
+      - name: Extract node_modules
+        run: |
+          ARCHIVE_PATH="$GITHUB_WORKSPACE/node_modules.tar.gz"
+          if [ ! -f "${ARCHIVE_PATH}" ]; then
+            echo "node_modules.tar.gz not found at ${ARCHIVE_PATH}" >&2
+            ls -R "$GITHUB_WORKSPACE"
+            exit 1
+          fi
+          tar -xzf "${ARCHIVE_PATH}" -C "$GITHUB_WORKSPACE"
+          rm "${ARCHIVE_PATH}"
+
+      - name: Set extension environment variables
+        run: |
+          if [ "${{ github.event.inputs.environment || 'production' }}" = "production" ]; then
+            echo "SITE_ORIGIN=https://translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "WORKER_ORIGIN=https://translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "EXTENSION_ENV=production" >> $GITHUB_ENV
+            echo "EXTENSION_BUILD_SCRIPT=build:prod" >> $GITHUB_ENV
+          else
+            echo "SITE_ORIGIN=https://staging-translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "WORKER_ORIGIN=https://staging-translator.bluebirds.cc" >> $GITHUB_ENV
+            echo "EXTENSION_ENV=staging" >> $GITHUB_ENV
+            echo "EXTENSION_BUILD_SCRIPT=build:staging" >> $GITHUB_ENV
+          fi
+
+      - name: Build extension
+        run: npm run "${EXTENSION_BUILD_SCRIPT}"
+
+      - name: Archive build
+        env:
+          EXT_ENV: ${{ env.EXTENSION_ENV }}
+        run: |
+          cd dist
+          if [ "${EXT_ENV}" = "production" ]; then
+            ZIP_NAME=bluebird-translator-chrome-extension-production.zip
+          else
+            ZIP_NAME=bluebird-translator-chrome-extension-staging.zip
+          fi
+          zip -r "../${ZIP_NAME}" .
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension-${{ github.event.inputs.environment || 'production' }}
+          path: chrome-extension/${{ env.ZIP_NAME }}
+          retention-days: 7

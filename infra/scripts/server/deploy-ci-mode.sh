@@ -141,20 +141,25 @@ deploy_from_ci() {
         exit 1
     fi
 
+    # 远端目录结构（与本地 monorepo 对齐）
+    REMOTE_APP_DIR="$DEPLOY_PATH/apps/web"
+    REMOTE_STANDALONE_PATH="$REMOTE_APP_DIR/.next/standalone"
+    REMOTE_STANDALONE_FRONTEND="$REMOTE_STANDALONE_PATH/apps/web"
+
     # Create target directory
     log_info "创建目标目录..."
-    ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p $DEPLOY_PATH/frontend/.next"
+    ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p $REMOTE_APP_DIR/.next"
 
     # Sync files
     log_info "同步文件到服务器..."
     rsync -avz --delete \
         --exclude='*.map' \
         .next/standalone/ \
-        "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/"
+        "$SERVER_USER@$SERVER_HOST:$REMOTE_STANDALONE_PATH/"
 
     rsync -avz \
         .next/static/ \
-        "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/frontend/.next/standalone/apps/web/.next/static/"
+        "$SERVER_USER@$SERVER_HOST:$REMOTE_STANDALONE_FRONTEND/.next/static/"
 
     log_success "文件同步完成"
 
@@ -162,7 +167,7 @@ deploy_from_ci() {
     log_info "重启应用..."
     ssh "$SERVER_USER@$SERVER_HOST" << ENDSSH
         set -e
-        cd $DEPLOY_PATH/frontend/.next/standalone/apps/web
+        cd $REMOTE_STANDALONE_FRONTEND
 
         # Stop old process
         pm2 delete $APP_NAME 2>/dev/null || true

@@ -307,7 +307,7 @@ elif [ -n "$REPO_URL" ]; then
   git clone $REPO_URL .
 
   # Install dependencies
-  cd frontend
+  cd apps/web
   pnpm install
 
   echo -e "${GREEN}✅ Repository cloned and dependencies installed${NC}"
@@ -334,7 +334,7 @@ echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Add the SSH public key to GitHub (shown above)"
 echo ""
-echo "2. Create /var/www/production/frontend/.env file with production environment variables:"
+echo "2. Create /var/www/production/apps/web/.env file with production environment variables:"
 echo "   - DATABASE_URL"
 echo "   - NEXT_PUBLIC_API_URL"
 echo "   - APP_ENVIRONMENT=production (注意：不要设置 NODE_ENV，它由 Next.js 自动管理)"

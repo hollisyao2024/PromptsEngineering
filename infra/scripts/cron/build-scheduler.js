@@ -34,6 +34,8 @@ async function build() {
         '@alicloud/dysmsapi20170525',
         '@alicloud/openapi-client',
       ],
+      // 模块解析路径（从 apps/web/node_modules 解析依赖）
+      nodePaths: [path.resolve(__dirname, '../../../apps/web/node_modules')],
       // 路径别名解析
       alias: {
         '@': srcDir,

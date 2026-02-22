@@ -1,6 +1,9 @@
 /.DS_Store
 **/.DS_Store
-/.github
+
+# GitHub 配置（保留 workflows，忽略其他个人配置）
+/.github/*
+!/.github/workflows/
 
 # Claude Code 个人配置（不提交）
 .claude/settings.local.json
@@ -23,6 +26,10 @@
 .env.test.local
 .env.production.local
 .env.production
+.env.staging
+
+# 本地部署目录
+.next-dev-deploy/
 
 # ========================================
 # Node.js 依赖
@@ -34,21 +41,36 @@ yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
 
+# 锁文件策略：项目使用 pnpm，忽略其他包管理器的锁文件
+package-lock.json
+yarn.lock
+
 # ========================================
 # Next.js 构建产物
 # ========================================
 .next/
+.next-deploy/
+**/.swc/
 out/
 build/
 dist/
 .vercel/
 .turbo/
 
+# Cron 调度器 bundle（构建时生成）
+infra/scripts/cron/scheduler.bundle.js
+
+# Cron 调度器运行时状态文件
+apps/web/.scheduler/
+
 # ========================================
 # TypeScript 缓存
 # ========================================
 *.tsbuildinfo
 next-env.d.ts
+
+# ESLint 缓存
+apps/web/.eslintcache
 
 # ========================================
 # 测试覆盖率报告
@@ -91,7 +113,7 @@ Desktop.ini
 # ========================================
 # Prisma 生成文件（保留 migrations/）
 # ========================================
-prisma/generated/
+**/prisma/generated/
 
 # ========================================
 # Docker 持久化数据（本地开发）
@@ -106,6 +128,8 @@ redis_data/
 tmp/
 temp/
 *.tmp
+*.bak
+*.backup
 
 # ========================================
 # 密钥文件（支付、SSL 证书等）
@@ -115,9 +139,18 @@ temp/
 *.crt
 config/pingpp_public_key.pem
 config/ssl/
+apps/web/config/
 
 # ========================================
 # 用户上传文件（本地开发）
 # ========================================
 public/uploads/
-storage/
+/storage/
+
+# E2E export test assets (generated locally)
+docs/qa-modules/export-sharing/test-data/test-images/*.png
+apps/web/public/e2e/export-images/*.png
+
+# 允许源代码中的 storage 目录（OSS 客户端等工具）
+!apps/web/src/lib/storage/
+infra/scripts/cron/.scheduler/

@@ -77,7 +77,7 @@ _check_ssh_connection() {
 # 创建远程目录
 _create_remote_directories() {
     log_info "创建目标目录..."
-    ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "sudo mkdir -p $DEPLOY_PATH/frontend/$REMOTE_BUILD_DIR && sudo chown -R \$(whoami):\$(whoami) $DEPLOY_PATH"
+    ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "sudo mkdir -p $REMOTE_APP_DIR/$REMOTE_BUILD_DIR && sudo chown -R \$(whoami):\$(whoami) $DEPLOY_PATH"
 }
 
 # 创建远程备份
@@ -212,7 +212,7 @@ _sync_files_with_tar() {
         return 1
     fi
 
-    log_info "使用 tar 流式传输所有文件（排除 frontend/node_modules）..."
+    log_info "使用 tar 流式传输所有文件（排除 apps/web/node_modules）..."
     log_info "预计耗时 10-15s（跳过 rsync 文件扫描）⚡"
 
     local tar_start=$(date +%s)
@@ -238,8 +238,8 @@ _sync_files_with_tar() {
     log_info "清理目标目录中的旧文件..."
     ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "
         cd $REMOTE_STANDALONE_PATH 2>/dev/null || mkdir -p $REMOTE_STANDALONE_PATH
-        if [[ -d frontend ]]; then
-            find frontend -mindepth 1 -maxdepth 1 ! -name 'node_modules' -exec rm -rf {} \; 2>/dev/null || true
+        if [[ -d apps/web ]]; then
+            find apps/web -mindepth 1 -maxdepth 1 ! -name 'node_modules' -exec rm -rf {} \; 2>/dev/null || true
         fi
     "
 
@@ -258,15 +258,18 @@ _sync_files_with_tar() {
     local tar_stderr_file=$(mktemp)
     if tar --no-xattrs --no-mac-metadata -czf - \
         -C "$build_dir_path" standalone static \
-        -C "$FRONTEND_DIR" prisma \
-        -C "$PROJECT_ROOT" pnpm-lock.yaml infra/scripts 2>"$tar_stderr_file" | \
+        -C "$DATABASE_DIR" prisma \
+        -C "$PROJECT_ROOT" pnpm-lock.yaml \
+        -C "$PROJECT_ROOT/infra" scripts 2>"$tar_stderr_file" | \
     ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" \
-        "cd $DEPLOY_PATH/frontend/$REMOTE_BUILD_DIR && tar -xzf - && \
-         rm -rf $DEPLOY_PATH/frontend/prisma 2>/dev/null; \
-         mv prisma $DEPLOY_PATH/frontend/ 2>/dev/null || true && \
+        "cd $REMOTE_APP_DIR/$REMOTE_BUILD_DIR && tar -xzf - && \
+         rm -rf $REMOTE_DATABASE_DIR/prisma 2>/dev/null; \
+         mkdir -p $REMOTE_DATABASE_DIR && \
+         mv prisma $REMOTE_DATABASE_DIR/ 2>/dev/null || true && \
          mv pnpm-lock.yaml $DEPLOY_PATH/ 2>/dev/null || true && \
-         rm -rf $DEPLOY_PATH/scripts 2>/dev/null || true && \
-         mv scripts $DEPLOY_PATH/ 2>/dev/null || true"; then
+         rm -rf $REMOTE_SCRIPTS_DIR 2>/dev/null || true && \
+         mkdir -p \$(dirname $REMOTE_SCRIPTS_DIR) && \
+         mv scripts $REMOTE_SCRIPTS_DIR 2>/dev/null || true"; then
         local tar_end=$(date +%s)
         local tar_duration=$((tar_end - tar_start))
         log_success "tar 传输和解压成功（耗时: ${tar_duration}s）⚡"
@@ -323,7 +326,7 @@ _sync_files_with_tar() {
             PASS=false
         fi
 
-        [[ -e $REMOTE_STANDALONE_FRONTEND/node_modules/next ]] && echo '  frontend/node_modules/next: OK' || { echo '  frontend/node_modules/next: MISSING'; PASS=false; }
+        [[ -e $REMOTE_STANDALONE_FRONTEND/node_modules/next ]] && echo '  apps/web/node_modules/next: OK' || { echo '  apps/web/node_modules/next: MISSING'; PASS=false; }
 
         \$PASS && echo 'VERIFY_PASS' || echo 'VERIFY_FAIL'
     " 2>/dev/null)
@@ -372,14 +375,14 @@ _sync_files_with_tar() {
             return 1
         fi
 
-        # 恢复后重新验证 frontend/node_modules/next
+        # 恢复后重新验证 apps/web/node_modules/next
         if ! ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "[[ -e $REMOTE_STANDALONE_FRONTEND/node_modules/next ]]" 2>/dev/null; then
-            log_error "恢复后 frontend/node_modules/next 仍然缺失，中止部署"
+            log_error "恢复后 apps/web/node_modules/next 仍然缺失，中止部署"
             return 1
         fi
     fi
 
-    # 确保回到 frontend 目录
+    # 确保回到 apps/web 目录
     cd "$FRONTEND_DIR"
 
     # 标记 node_modules 已通过 tar 同步
@@ -408,10 +411,15 @@ _sync_env_and_cron() {
     log_success "环境变量文件已同步: .env.$ENV -> standalone/apps/web/.env"
 
     # 同步 Cron 调度器 bundle
-    log_info "同步 Cron 调度器 bundle..."
-    ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "mkdir -p $REMOTE_STANDALONE_FRONTEND/scripts/cron"
-    scp ${SCP_OPTS} scripts/cron/scheduler.bundle.js "$SERVER_USER@$SERVER_HOST:$REMOTE_STANDALONE_FRONTEND/scripts/cron/"
-    log_success "Cron 调度器 bundle 已同步"
+    local cron_bundle="$PROJECT_ROOT/infra/scripts/cron/scheduler.bundle.js"
+    if [[ -f "$cron_bundle" ]]; then
+        log_info "同步 Cron 调度器 bundle..."
+        ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "mkdir -p $REMOTE_STANDALONE_FRONTEND/scripts/cron"
+        scp ${SCP_OPTS} "$cron_bundle" "$SERVER_USER@$SERVER_HOST:$REMOTE_STANDALONE_FRONTEND/scripts/cron/"
+        log_success "Cron 调度器 bundle 已同步"
+    else
+        log_warn "Cron 调度器 bundle 不存在（已通过 tar 同步源文件），跳过"
+    fi
 
     log_success "文件同步完成"
 }
