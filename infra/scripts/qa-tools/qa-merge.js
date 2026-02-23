@@ -390,7 +390,43 @@ function getLatestMainCommit() {
   return runGit(['rev-parse', '--short', 'HEAD'], { capture: true }).trim();
 }
 
-function printSummary(pr, featureBranch, commitHash, strategy) {
+/**
+ * 自动更新 /docs/AGENT_STATE.md：标记 QA_VALIDATED，记录 PR 编号与提交号，并 push origin main
+ * 失败时仅打印警告，不中断主流程
+ */
+function updateAgentState(prNumber, commitHash) {
+  const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
+  try {
+    if (!fs.existsSync(agentStatePath)) {
+      console.log('\x1b[33m  警告：/docs/AGENT_STATE.md 不存在，跳过自动更新\x1b[0m');
+      return;
+    }
+
+    const content = fs.readFileSync(agentStatePath, 'utf8');
+    const date = new Date().toISOString().slice(0, 10);
+    const updated = content.replace(
+      /- \[ \] (5\. QA_VALIDATED[^\n]*)/,
+      `- [x] $1 — PR #${prNumber}, commit ${commitHash}, ${date}`
+    );
+
+    if (updated === content) {
+      console.log('\x1b[33m  警告：AGENT_STATE.md 中未找到待勾选的 QA_VALIDATED 条目（可能已勾选）\x1b[0m');
+      return;
+    }
+
+    fs.writeFileSync(agentStatePath, updated, 'utf8');
+
+    runGit(['add', 'docs/AGENT_STATE.md']);
+    runGit(['commit', '-m', `docs(qa): 标记 QA_VALIDATED — PR #${prNumber} merged as ${commitHash}`]);
+    runGit(['push', 'origin', 'main']);
+
+    console.log('\x1b[32m  AGENT_STATE.md 已更新并推送（QA_VALIDATED）\x1b[0m');
+  } catch (err) {
+    console.log(`\x1b[33m  警告：自动更新 AGENT_STATE.md 失败（${err.message}），请手动勾选\x1b[0m`);
+  }
+}
+
+function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log('\x1b[32m/qa merge 完成\x1b[0m');
@@ -401,10 +437,12 @@ function printSummary(pr, featureBranch, commitHash, strategy) {
     `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
   );
   console.log(`  提交:   ${commitHash}`);
+  console.log(
+    `  状态:   ${agentStateUpdated ? '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m' : '\x1b[33m⚠ AGENT_STATE.md 更新失败，请手动勾选 QA_VALIDATED\x1b[0m'}`
+  );
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
-  console.log('  1. 在 /docs/AGENT_STATE.md 中勾选 QA_VALIDATED');
-  console.log('  2. 激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
+  console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 }
 
@@ -499,6 +537,7 @@ function main() {
       console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → main`);
       console.log(`  2. 删除分支 ${currentBranch}`);
       console.log(`  3. commit message: ${pr.title} (#${pr.number})`);
+      console.log('  4. 更新 docs/AGENT_STATE.md（标记 QA_VALIDATED）并 push origin main');
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
       return;
     }
@@ -536,9 +575,16 @@ function main() {
       }
     }
 
-    // Step 13: 输出摘要
+    // Step 13: 自动更新 AGENT_STATE.md 并输出摘要
     const commitHash = getLatestMainCommit();
-    printSummary(pr, currentBranch, commitHash, strategy);
+    let agentStateUpdated = false;
+    try {
+      updateAgentState(pr.number, commitHash);
+      agentStateUpdated = true;
+    } catch {
+      // updateAgentState 内部已处理并打印警告
+    }
+    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);

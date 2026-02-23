@@ -324,11 +324,8 @@ flowchart TD
   - **参数**：`--skip-checks`（跳过门禁检查）、`--dry-run`（预览操作，不执行）
   - **前置条件**：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
   - **完成动作**（强制，脚本成功后必须在同一会话中依序执行，不得跳过）：
-    1. 更新 `/docs/AGENT_STATE.md`：在当前任务条目下标记 `QA_VALIDATED`，记录合并提交号、PR 编号、发布建议
-    2. `git add docs/AGENT_STATE.md`
-    3. `git commit -m "docs(state): 标记 <功能描述> 为 QA_VALIDATED"`
-    4. `git push origin main`
-    5. 交接 DevOps 专家执行部署（此时工作区必须为干净状态）
+    1. 执行 `pnpm run qa:merge`，脚本自动完成：合并 PR、更新并推送 `/docs/AGENT_STATE.md`（标记 `QA_VALIDATED`、记录 PR 编号与提交号）、清理分支
+    2. 交接 DevOps 专家执行部署（此时工作区必须为干净状态）
   - **重要**：如果 `pnpm run qa:merge` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动合并（手动合并会跳过所有关键检查和安全保障）。
 
 ## ADR 触发规则（QA 阶段）
