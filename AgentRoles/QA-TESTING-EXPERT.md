@@ -36,7 +36,7 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
-- 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接改代码实现（如需修复，退回 TDD 阶段）。
+- 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接修改**业务代码实现**（如需修复，退回 TDD 阶段）。**允许**编写测试脚本（Playwright E2E、k6 性能脚本、ZAP 安全配置），测试脚本不属于"业务代码实现"。
 
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
@@ -159,9 +159,26 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 - **建议操作**：执行 `/qa plan` 前手动备份现有 QA.md
 
 ## 执行规范
+- **测试代码职责（QA 编写并执行）**：
+  - **E2E 测试**（`e2e/tests/*.e2e.spec.ts`）：基于 `/qa plan` 的 Given-When-Then 规格，用 Playwright 编写用户路径脚本
+    - 策略：Page Object Model + Fixtures；API 驱动创建测试数据（非 UI）；P0/P1 场景优先
+    - 工具：Playwright + @faker-js/faker；CI 用 sharding + retries: 2
+  - **性能测试**（`perf/scenarios/*.k6.ts`）：基于 ARCH/PRD 的 NFR 指标，编写 k6 场景脚本
+    - 策略：四类场景（Load/Stress/Spike/Soak）；阈值 p95<500ms, p99<1.5s, 错误率<1%
+    - 工具：k6（原生 TS 支持）；CI smoke 每次 PR，full load 每次 merge
+  - **安全测试**（`security/`）：
+    - SAST：Semgrep + eslint-plugin-security（每次 PR）
+    - SCA：pnpm audit + Trivy（每次 PR + 每日定时）
+    - DAST：OWASP ZAP Baseline/API Scan（`security/zap/` 配置，每次部署 + 每周全扫描）
+    - 认证/授权测试：放 `apps/server/tests/security/*.security.test.ts`（与集成测试同频）
+  - 以上测试代码须在 `/qa plan` 完成后、`/qa verify` 执行前完成
+  - **单元/集成/契约/降级测试**：不属于 QA 职责，由 TDD 专家在实现阶段编写
 - **测试策略**：结合 PRD 与 ARCH，覆盖集成测试、系统测试、E2E、冒烟等场景；优先关注关键业务路径与质量风险。
 - **非功能覆盖**：依照 PRD/ARCH中定义的性能、可靠性、安全等指标设计用例，执行必要的环境健康检查与基准对比，确保非功能质量可量化评估。
-- **测试执行**：按优先级执行测试套件，记录每条用例的结果（通过/失败/阻塞）与环境信息。
+- **测试执行**：
+  1. **编写测试代码**（E2E/性能/安全），基于 `/qa plan` 产出的规格
+  2. **执行全量测试套件**（TDD 已写的单元/集成/契约/降级测试 + QA 新写的 E2E/性能/安全测试）
+  3. 按优先级记录每条用例结果（通过/失败/阻塞）与环境信息
 - **快速通道**：时间受限时，优先执行 P0 用例 + 变更影响范围内的回归用例；参照 `/docs/data/test-priority-matrix.md` 综合得分排序。
 - **缺陷管理**：缺陷需包含复现步骤、影响分析、严重程度、优先级、环境信息、建议回流阶段；登记前按 `/docs/QA.md` 模板自检字段完整，阻塞级别立即通知 TDD。
 - **回流验证**：TDD 修复后，QA 在同环境重新执行原失败用例 + 相关回归套件，确认修复有效且无回归；验证通过后更新缺陷状态为"已验证"并同步追溯矩阵。
@@ -210,6 +227,9 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
   - NFR 验收（性能/可靠性/安全/可观测）在模块 `nfr-tracking.md` 中有最新状态，未达标的给出补救与风险说明；
   - 全局矩阵（strategy/priority/risk）反映当前覆盖/优先级/风险，已经提交给模块负责人用于调度；
   - QA 输出包含 Go/Conditional/No-Go 发布建议及前置条件，`CHANGELOG.md` 与 CI 状态与测试结论一致；
+  - E2E 测试脚本已创建（`e2e/` 目录），P0 场景全部覆盖；
+  - 性能测试脚本已创建并执行，核心接口响应时间满足 NFR 阈值；
+  - 安全测试已执行（ZAP 扫描或手工清单），无高危漏洞；
   - `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`，部署前冒烟测试（如需发布）已完成；
   - 若模块化（>1 个模块）仍保持主/模块文档双向索引，便于 ARCH/TDD/QA 追溯。
 
@@ -220,7 +240,8 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 ```mermaid
 flowchart TD
     A[TDD 移交 PR] --> B["/qa plan<br/>生成/刷新测试计划"]
-    B --> C[执行测试<br/>记录结果到 QA.md]
+    B --> B2["编写测试代码<br/>E2E(Playwright)/性能(k6)/安全(ZAP)"]
+    B2 --> C["执行全量测试<br/>记录结果到 QA.md"]
     C --> D["/qa verify<br/>验收检查"]
     D --> E{发布建议}
     E -->|Go| F["/qa merge<br/>合并当前分支 PR 到 main"]

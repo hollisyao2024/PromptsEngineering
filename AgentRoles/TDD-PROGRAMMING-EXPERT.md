@@ -36,8 +36,20 @@
 ## 执行规范
 - **分支规范**：分支检查已作为预检查门禁自动执行（见"输入 → 预检查 → 分支门禁"），TDD 专家激活后会自动检测并创建分支，无需手动操作。分支命名规则见下方 `/tdd new-branch` 命令说明。
 - **TDD 流程**：先写失败用例 → 最小实现让用例通过 → 重构去重/提炼。
-- **质量门禁**：lint / typecheck / 单测 全绿；新增代码需有覆盖（示例阈值：行覆盖≥85%）。
-- **模块化交付**：围绕 `/docs/task-modules/module-list.md` 中列出的模块依次循环，每个模块在实现前明确失败用例、依赖契约（API、数据结构、事件）和测试目标；完成模块实现后立即运行模块级单元/集成/契约测试，并确保对应的 mock/fixture 清晰反映接口与数据流，验证本模块对上下游的影响后才算完成交付，这样可以让下一个模块在已知边界下展开。
+- **质量门禁**：lint / typecheck / 单测 + 集成测试 + 契约测试 全绿；新增代码需有覆盖（示例阈值：行覆盖≥85%）。
+- **测试类型职责（TDD 编写并运行）**：
+  - **单元测试**：colocate 在源码旁（`Button.tsx` + `Button.test.tsx`）
+  - **集成测试**：放 `apps/*/tests/*.integration.test.ts`，验证 API endpoint、DB 查询、服务间调用
+    - 策略：对 endpoint 黑盒测试（输入/输出），DB 用 Testcontainers 真实实例，不 mock Prisma
+    - 工具：Vitest + Supertest + @testcontainers/postgresql
+  - **契约测试**：Consumer 放 `packages/api-client/tests/contract/`，Provider 放 `apps/server/tests/contract/`
+    - 策略：Consumer-Driven（前端定义期望 → Pact 文件 → 后端验证），使用 Matchers 而非硬编码值
+    - 工具：@pact-foundation/pact V4；Pact JSON 输出到 `pacts/`（已 .gitignore）
+  - **降级测试**：放 `apps/*/tests/resilience/*.degradation.test.ts`
+    - 策略：模拟依赖故障（HTTP 层用 MSW/nock，网络层用 Toxiproxy），验证 Circuit Breaker/Retry/Fallback
+    - 工具：MSW v2 + cockatiel/opossum + Toxiproxy
+  - **E2E/性能/安全测试**：不属于 TDD 职责，由 QA 专家在 `/qa plan` 后编写
+- **模块化交付**：围绕 `/docs/task-modules/module-list.md` 中列出的模块依次循环，每个模块在实现前明确失败用例、依赖契约（API、数据结构、事件）和测试目标；完成模块实现后须**编写并运行**模块级单元/集成/契约/降级测试，并确保对应的 mock/fixture 清晰反映接口与数据流，验证本模块对上下游的影响后才算完成交付，这样可以让下一个模块在已知边界下展开。
 - **提交规范**：
   - 提交信息：`feat(scope): summary (#issue) [ADR-000X]`
   - PR 模板：包含变更摘要、关联任务ID、测试证据、风险与回滚方案。

@@ -82,10 +82,23 @@
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
 
 ## Tests 约定
-- **单元测试**：与源代码 colocate（如 `Button.tsx` + `Button.test.tsx`），放在同一目录下。
-- **集成测试**：放在各 app/package 的 `tests/` 目录下（如 `apps/web/tests/auth.integration.test.ts`）。
-- **端到端测试（e2e）**：统一放在根目录 `e2e/` 下，按应用维度命名（如 `web.e2e.spec.ts`、`mobile.e2e.spec.ts`）。
-- 测试文件命名：单测 `*.test.ts(x)`、集成 `*.integration.test.ts`、e2e `*.e2e.spec.ts`。
+
+### 职责归属
+- **TDD 专家编写并运行**：单元、集成、契约、降级测试
+- **QA 专家编写并执行**：E2E、性能、安全测试
+- **回归测试**：不单独编写代码，而是重新执行上述已有测试套件的子集（QA 在验收阶段执行）
+
+### 目录与命名
+
+| 测试类型 | 目录 | 命名规范 | 编写者 |
+|---------|------|---------|--------|
+| 单元测试 | 与源码 colocate | `*.test.ts(x)` | TDD |
+| 集成测试 | `apps/*/tests/` | `*.integration.test.ts` | TDD |
+| 契约测试 | `*/tests/contract/` | `*.consumer.pact.test.ts` / `*.provider.pact.test.ts` | TDD |
+| 降级测试 | `apps/*/tests/resilience/` | `*.degradation.test.ts` | TDD |
+| E2E 测试 | `e2e/tests/` | `*.e2e.spec.ts` | QA |
+| 性能测试 | `perf/scenarios/` | `*.k6.ts` | QA |
+| 安全测试 | `security/` + `apps/*/tests/security/` | `*.security.test.ts`（认证/授权） | QA |
 
 ## 数据库迁移文件规范
 
@@ -164,7 +177,11 @@
 │   │   └── package.json
 │   ├── server/               # 后端 API（Node / NestJS / Fastify）
 │   │   ├── src/              # 源代码（单测 colocate）
-│   │   ├── tests/            # integration 测试
+│   │   ├── tests/            # 集成/契约/降级/安全测试
+│   │   │   ├── *.integration.test.ts   # 集成测试（API endpoint + DB）
+│   │   │   ├── contract/               # 契约测试（Provider 验证）
+│   │   │   ├── resilience/             # 降级测试（Circuit Breaker/Retry/Fallback）
+│   │   │   └── security/               # 认证/授权安全测试
 │   │   └── package.json
 │   ├── worker/               # 后台任务 / queue consumer
 │   └── admin/                # 管理后台
@@ -178,6 +195,8 @@
 │   ├── billing/              # 计费逻辑
 │   ├── analytics/            # 数据分析
 │   ├── api-client/           # 前端统一 API 调用封装
+│   │   ├── tests/
+│   │   │   └── contract/     # 契约测试（Consumer 端）
 │   ├── database/             # 数据库层（Prisma / Drizzle + 迁移 + 数据访问）
 │   │   ├── prisma/           # ORM schema（Prisma；若用 Drizzle 则为 drizzle/）
 │   │   │   ├── schema.prisma
@@ -230,10 +249,28 @@
 │   ├── tsconfig/
 │   └── commitlint/
 │
-├── e2e/                      # 跨端端到端测试（Playwright / Cypress）
-│   ├── web.e2e.spec.ts
-│   ├── mobile.e2e.spec.ts
+├── e2e/                      # E2E 测试（Playwright），QA 专家编写
+│   ├── tests/                #   测试脚本（*.e2e.spec.ts）
+│   ├── pages/                #   Page Object Model
+│   ├── fixtures/             #   自定义 Fixtures
 │   └── playwright.config.ts
+│
+├── pacts/                    # 契约测试输出（Pact JSON，自动生成，已 .gitignore）
+│
+├── perf/                     # 性能测试（k6），QA 专家编写
+│   ├── scenarios/            #   按场景命名的 k6 脚本（*.k6.ts）
+│   ├── thresholds.ts         #   共享阈值配置
+│   └── k6.config.ts          #   k6 运行配置
+│
+├── security/                 # 安全测试，QA 专家维护
+│   ├── zap/                  #   OWASP ZAP DAST 扫描配置
+│   │   ├── zap-baseline.conf #     Baseline 扫描配置
+│   │   ├── zap-api-scan.conf #     API 扫描配置
+│   │   └── zap-rules.tsv     #     误报过滤规则
+│   ├── semgrep/              #   SAST 自定义规则
+│   │   └── .semgrep.yml
+│   └── checklists/           #   手工渗透测试清单
+│       └── owasp-top10.md
 │
 ├── turbo.json                # Turborepo 构建管道配置
 └── pnpm-workspace.yaml       # 声明 apps/* packages/* tooling/* 为 workspace
@@ -246,7 +283,7 @@
 - `packages/api-client`：web / mobile / desktop 共用，统一管理后端接口调用
 - `packages/core` 与 `packages/domain`：纯 TS，无框架依赖，可在全端复用
 - `infra/scripts/`：所有自动化脚本统一存放；`server/`（部署）、`qa-tools/`（QA）、`tdd-tools/`（TDD 工具）、`arch-tools/`（ARCH 工具）、`prd-tools/`（PRD 工具）、`task-tools/`（TASK 工具）、`cron/`（定时任务）
-- **测试三层结构**：单测 colocate 在源码旁（`Button.tsx` + `Button.test.tsx`）；集成测试在 `apps/*/tests/`；端到端测试在根目录 `e2e/`
+- **测试目录结构**：单测 colocate 在源码旁；集成/契约/降级测试在 `apps/*/tests/`（TDD 编写）；E2E 在 `e2e/`、性能在 `perf/`、安全在 `security/`（QA 编写）；`pacts/` 为契约测试自动输出（.gitignore）
 - **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 workspace 包）
 - **依赖管理**：应用运行依赖（react、next 等）写在各自 `apps/*/package.json`，禁止提升到根目录；全局工具类（eslint、turbo、typescript）写在根 `devDependencies`
 

@@ -30,9 +30,43 @@
 4. 更新追溯矩阵（`docs/data/traceability-matrix.md`）
 5. 记录会话上下文到 `/tmp/linghuiai-qa-plan-session.json`
 
+### 第 1.5 步：编写测试代码（/qa plan 之后）
+
+QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/降级测试由 TDD 专家在实现阶段编写。
+
+#### E2E 测试（Playwright）
+- **目录**：`e2e/tests/`（Page Object 在 `e2e/pages/`，Fixtures 在 `e2e/fixtures/`）
+- **策略**：Page Object Model + Fixtures；API 驱动创建前置数据（非 UI）；使用 web-first assertions（`await expect(locator).toBeVisible()`）
+- **优先级**：P0 核心用户旅程 → P1 关键业务场景 → P2 边界
+- **命名**：`{module}.e2e.spec.ts`（如 `auth.e2e.spec.ts`、`checkout.e2e.spec.ts`）
+- **工具**：Playwright + @faker-js/faker
+- **命令**：`pnpm playwright test`（headless）；调试用 `--ui` 或 `--trace on`
+- **CI 配置**：sharding `--shard=N/M` + `retries: 2` + headless 模式；失败时上传 Trace 文件
+
+#### 性能测试（k6）
+- **目录**：`perf/scenarios/`
+- **四类场景**：
+  - Load：渐增至目标 VU → 稳定 → 渐减（10-30min），验证正常负载
+  - Stress：阶梯递增直到崩溃，找系统极限
+  - Spike：瞬间从低到极高再回低，验证突发承受力
+  - Soak：中等负载长时间持续（2-8h），检测内存/连接泄漏
+- **阈值**：从 ARCH NFR 提取；默认 `p95<500ms, p99<1.5s, error_rate<1%`
+- **命名**：`{scenario}.k6.ts`（如 `load-test.k6.ts`、`checkout-flow.k6.ts`）
+- **工具**：k6（原生 TS 支持）
+- **命令**：`k6 run perf/scenarios/load-test.k6.ts`
+- **CI 配置**：smoke 每次 PR（10 VU / 30s）；full load 每次 merge 到 main
+
+#### 安全测试
+- **SAST**（每次 PR）：`semgrep --config=security/semgrep/.semgrep.yml`（diff-aware，只扫变更文件）
+- **SCA**（每次 PR + 每日定时）：`pnpm audit --audit-level=high` + `trivy fs .`
+- **DAST**（每次部署 + 每周全扫描）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf`
+- **认证/授权测试**：放 `apps/server/tests/security/*.security.test.ts`，与集成测试同频每次 PR
+- **阻断策略**：Critical/High → 阻断部署；Medium → 限期修复；Low → 记录跟踪
+- **配置文件**：`security/zap/`（ZAP 配置）、`security/semgrep/`（SAST 规则）、`security/checklists/`（手工清单）
+
 ### 第二步：测试执行
-1. 按优先级执行测试套件（P0 → P1 → P2）
-2. 记录每条用例的结果（通过/失败/阻塞）与环境信息
+1. **执行全量测试套件**：TDD 已写的单元/集成/契约/降级 + QA 新写的 E2E/性能/安全
+2. 按优先级执行（P0 → P1 → P2），记录每条用例结果（通过/失败/阻塞）与环境信息
 3. 发现缺陷时，完整填写复现步骤、影响分析、严重程度
 4. P0 阻塞缺陷立即通知 TDD 修复
 5. 更新追溯矩阵中的测试状态
@@ -96,17 +130,39 @@ pnpm run qa:lint                        # QA 文档质量检查
 pnpm run qa:sync-prd-qa-ids            # PRD ↔ QA ID 同步
 ```
 
-### 测试执行
+### 测试执行（TDD 已写的测试）
 ```bash
 cd apps/web
 CI=1 pnpm test -- --runInBand --watchAll=false        # 全量单测
 pnpm test tests/integration/ --runInBand               # 集成测试
-pnpm playwright test                                   # E2E 测试
+pnpm test tests/contract/ --runInBand                  # 契约测试（Provider 验证）
+pnpm test tests/resilience/ --runInBand                # 降级测试
 pnpm test -- --coverage                                # 带覆盖率
+```
+
+### 测试执行（QA 编写的测试）
+```bash
+# E2E 测试
+pnpm playwright test                                   # 全量 E2E（headless）
+pnpm playwright test --shard=1/4                       # 分片并行
+pnpm playwright test --ui                              # 调试模式
+pnpm playwright test --trace on                        # 带 Trace
+
+# 性能测试
+k6 run perf/scenarios/load-test.k6.ts                  # 标准负载测试
+k6 run perf/scenarios/smoke.k6.ts                      # 快速冒烟
+
+# 安全测试
+semgrep --config=security/semgrep/.semgrep.yml .       # SAST 扫描
+pnpm audit --audit-level=high                          # 依赖漏洞
+trivy fs .                                             # 深度依赖扫描
+docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-baseline.conf  # DAST
+
+# 清理
 pnpm run test:clean                                    # 清理测试产物
 ```
 
-> 测试结果目录（`test-results/`、`coverage/`、`playwright-report/`）已加入 `.gitignore`，严禁提交。
+> 测试结果目录（`test-results/`、`coverage/`、`playwright-report/`、`pacts/`、`perf/results/`、`security/reports/`）已加入 `.gitignore`，严禁提交。
 
 ---
 

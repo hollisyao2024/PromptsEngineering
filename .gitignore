@@ -84,6 +84,16 @@ coverage/
 **/playwright-report/
 **/.last-run.json
 
+# 契约测试输出（Pact JSON，自动生成）
+pacts/
+
+# 性能测试结果（k6 输出）
+perf/results/
+perf/summary.html
+
+# 安全测试扫描结果
+security/reports/
+
 # ========================================
 # 编辑器与 IDE
 # ========================================

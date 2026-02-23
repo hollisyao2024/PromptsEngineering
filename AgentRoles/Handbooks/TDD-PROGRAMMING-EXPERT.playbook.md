@@ -44,11 +44,42 @@
 ---
 
 ## 测试策略与覆盖
-- **优先级**：单测 > 组件/服务层集成 > 端到端；必要时补充性能/安全测试
-- **前端**：使用 Vitest/Jest 单测组件与 hooks；关键路径补 Playwright，无需 watch 模式
-- **后端**：使用 pytest/pytest-asyncio/httpx，隔离外部依赖（fixtures/mocks），必要时引入 faker 数据
+
+### TDD 测试职责总览
+TDD 负责编写并运行：单元、集成、契约、降级测试。E2E/性能/安全测试由 QA 专家在 `/qa plan` 后编写。
+
+- **优先级**：单测 > 集成 > 契约/降级；E2E/性能/安全由 QA 负责
+- **前端**：使用 Vitest/Jest 单测组件与 hooks，无需 watch 模式
+- **后端**：使用 Vitest/pytest，隔离外部依赖（fixtures/mocks），必要时引入 faker 数据
 - **共享模块**：通过双向测试验证类型/工具；更新后在前后端各运行一次冒烟测试
 - 避免长时间运行的全集测试，可在提交前执行增量测试 + 必要的回归组
+
+### 集成测试策略
+- **编写时机**：API endpoint / Repository 实现后立即编写
+- **隔离策略**：Testcontainers + 真实 PostgreSQL（CI）；事务回滚模式（本地快速迭代）。不 mock Prisma Client。
+- **测试内容**：endpoint CRUD + 边界（400/401/403/404）、Repository 复杂查询（JOIN/聚合/分页）、服务间错误传播
+- **文件位置**：`apps/*/tests/*.integration.test.ts`
+- **工具**：Vitest + Supertest + @testcontainers/postgresql
+- **命令**：`pnpm test apps/server/tests/ --runInBand`
+
+### 契约测试策略
+- **编写时机**：API 接口设计确定后，实现早期
+- **流程**：Consumer 编写期望 → 生成 Pact JSON（输出到 `pacts/`，已 .gitignore）→ Provider 读取并验证
+- **关键原则**：调用真实 api-client 代码（非裸 fetch）；使用 Pact Matchers（`like()`、`eachLike()`）而非硬编码值
+- **文件位置**：Consumer `packages/api-client/tests/contract/*.consumer.pact.test.ts`；Provider `apps/server/tests/contract/*.provider.pact.test.ts`
+- **工具**：@pact-foundation/pact V4
+- **命令**：Consumer `pnpm test packages/api-client/tests/contract/`；Provider `pnpm test apps/server/tests/contract/`
+
+### 降级测试策略
+- **编写时机**：引入外部依赖或实现弹性模式（Circuit Breaker/Retry/Fallback）时同步编写
+- **分层测试**：
+  - HTTP 层：MSW v2 或 nock 拦截请求，注入错误/延迟
+  - 应用层：直接测试 Circuit Breaker 状态机（Closed → Open → Half-Open → 恢复）
+  - 网络层（可选）：Toxiproxy 注入 TCP 故障（延迟、断连），需 Docker
+- **测试内容**：依赖返回 500/超时/不可达、连续失败后 breaker 是否 Open、Retry 指数退避、Fallback 数据结构是否符合契约
+- **文件位置**：`apps/*/tests/resilience/*.degradation.test.ts`
+- **工具**：MSW v2 + cockatiel/opossum + Toxiproxy（可选）
+- **命令**：`pnpm test apps/server/tests/resilience/`
 
 ---
 
