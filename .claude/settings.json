@@ -26,34 +26,36 @@
 
     // 禁止的操作（保护敏感文件和防止危险操作）
     "deny": [
-      // 敏感文件保护
-      "Edit(.env*)",
-      "Write(.env*)",
+      // 敏感文件保护（覆盖所有层级子目录）
+      "Edit(**/.env*)",
+      "Write(**/.env*)",
 
       // 数据库迁移保护（确保数据一致性）
-      "Edit(db/migrations/*)",
-      "Write(db/migrations/*)",
+      "Edit(packages/database/prisma/migrations/**)",
+      "Write(packages/database/prisma/migrations/**)",
 
       // 状态文件保护（由流程控制，禁止 AI 直接修改）
       "Edit(docs/AGENT_STATE.md)",
+      "Write(docs/AGENT_STATE.md)",
 
       // 危险命令保护
       "Bash(rm -rf*)",
+      "Bash(npm install*)",
       "Bash(git push --force*)",
+      "Bash(git push --force-with-lease*)",
       "Bash(git reset --hard*)"
     ],
 
     // 需要确认的操作（提高安全性）
     "ask": [
       // 依赖安装（防止供应链攻击）
-      "Bash(npm install*)",
       "Bash(pnpm install*)",
 
       // 推送代码（需要人工审核）
       "Bash(git push*)",
 
       // 网络访问（安全考虑）
-      "WebFetch(domain:*)"
+      "WebFetch"
     ]
   },
 

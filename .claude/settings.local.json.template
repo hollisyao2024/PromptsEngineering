@@ -6,15 +6,18 @@
   // 提交状态：不提交到 Git（已在 .gitignore 中忽略）
   // 注意：settings.local.json 本身不支持注释，此模板仅供参考
   // ============================================================================
+  //
+  // ⚠️  安全警告：此个人配置会完全覆盖团队 settings.json 中的所有 deny 规则。
+  //     使用后，rm -rf、git push --force、修改 .env 等操作均不再受限。
+  //     请确保你了解并接受这一风险后再使用。
+  //
+  // ============================================================================
 
   // --- 沙箱配置 ---
-  // 禁用沙箱并自动执行命令，启用沙箱只能写入项目目录下的位置，很多命令可能会在这之外，导致报错。
+  // 禁用沙箱模式。启用沙箱会限制写入只能在项目目录内，可能导致部分命令报错。
+  // 注意：沙箱禁用后不提供任何安全隔离，所有操作均在真实环境中执行。
   "sandbox": {
-    // 禁用沙箱模式（macOS/Linux）
-    "enabled": false,
-
-    // 在沙箱中自动执行 bash 命令，无需确认
-    "autoAllowBashIfSandboxed": true
+    "enabled": false
   },
 
   // --- MCP 服务器 ---
@@ -24,22 +27,21 @@
   // --- 权限配置（完全自动化）---
   "permissions": {
     // 允许所有操作类型，无需确认
-    // 注意：沙箱仍然提供安全保护（限制项目目录外的写入）
     "allow": [
-      "Bash",           // 所有 bash 命令（git、npm、ls 等）
+      "Bash",           // 所有 bash 命令（git、pnpm、ls 等）
       "Edit",           // 所有文件编辑操作
       "Write",          // 所有文件写入操作
       "WebFetch",       // 所有网络访问（API 调用等）
       "SlashCommand",   // 所有自定义 slash 命令
-      "NotebookEdit"    // 所有 Jupyter notebook 编辑
+      "NotebookEdit",   // 所有 Jupyter notebook 编辑
+      "Skill(code-review:code-review)",    // code-review skill 基础调用
+      "Skill(code-review:code-review:*)"  // code-review skill 带子命令调用
     ],
 
-    // 拒绝列表为空（沙箱已提供安全保护）
-    // 团队配置中的拒绝规则被此配置覆盖
+    // 拒绝列表为空（团队配置中的拒绝规则被此配置覆盖，见上方安全警告）
     "deny": [],
 
     // 询问列表为空（实现完全自动化）
-    // 团队配置中的确认规则被此配置覆盖
     "ask": []
   }
 }
@@ -62,8 +64,7 @@
 //
 // {
 //   "sandbox": {
-//     "enabled": false,
-//     "autoAllowBashIfSandboxed": true
+//     "enabled": false
 //   },
 //   "enableAllProjectMcpServers": true,
 //   "permissions": {
@@ -73,7 +74,9 @@
 //       "Write",
 //       "WebFetch",
 //       "SlashCommand",
-//       "NotebookEdit"
+//       "NotebookEdit",
+//       "Skill(code-review:code-review)",
+//       "Skill(code-review:code-review:*)"
 //     ],
 //     "deny": [],
 //     "ask": []
