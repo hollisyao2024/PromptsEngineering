@@ -192,9 +192,29 @@ function createTag(tagName, note) {
   runGit(['tag', '-a', tagName, '-m', note]);
 }
 
+function getAuthenticatedRemoteUrl() {
+  const token = process.env.GH_TOKEN;
+  if (!token) return null;
+  try {
+    let remoteUrl = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
+    // 剥离已嵌入的旧 token（形如 https://x-access-token:PAT@github.com/...）
+    remoteUrl = remoteUrl.replace(/^https:\/\/[^@]+@github\.com\//, 'https://github.com/');
+    if (!remoteUrl.startsWith('https://github.com/')) return null;
+    return remoteUrl.replace('https://github.com/', `https://x-access-token:${token}@github.com/`);
+  } catch {
+    return null;
+  }
+}
+
 function pushBranchAndTags(tagName) {
-  runGit(['push', 'origin', 'HEAD']);
-  runGit(['push', 'origin', tagName]);
+  const authUrl = getAuthenticatedRemoteUrl();
+  if (authUrl) {
+    runGit(['push', authUrl, 'HEAD']);
+    runGit(['push', authUrl, tagName]);
+  } else {
+    runGit(['push', 'origin', 'HEAD']);
+    runGit(['push', 'origin', tagName]);
+  }
 }
 
 // ==================== PR 自动创建 ====================
@@ -352,8 +372,8 @@ function createPullRequest(targetVersion, releaseNote) {
     `- CHANGELOG: v${targetVersion} 条目已追加`,
   ].join('\n');
 
-  // 创建 PR
-  const result = runGh(['pr', 'create', '--title', title, '--body', body]);
+  // 创建 PR（--head 显式指定分支，避免 upstream tracking 未设置时 gh 报错）
+  const result = runGh(['pr', 'create', '--title', title, '--body', body, '--head', branch]);
 
   if (result.status === 0) {
     const prUrl = (result.stdout || '').trim();
