@@ -86,9 +86,9 @@
 - **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`（仅当前会话/当前分支范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。`/tdd push` 在两种作用域下都只处理当前分支/当前 PR，不会操作其他分支。
 - `/tdd diagnose`：诊断当前代码/测试问题
 - `/tdd fix`：修复已识别问题
-- `/tdd sync`：默认 `session`（仅同步当前会话相关文档/任务）；`--project` 执行全量文档回写 Gate
-- `/tdd push`：默认 `session`（仅操作当前分支：版本递增 + 推送 + 创建当前分支 PR）；`--project` 仅用于显式声明项目模式
-- `/tdd new-branch`：创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
+- `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步当前会话涉及的 TASK/模块文档，自动勾选复选框、更新状态；`--project` 全量扫描）。完成后自动串联 Pre-Push Gate → `/tdd push`
+- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（版本递增 + CHANGELOG 条目 + commit/tag/push + 自动创建当前分支 PR）；`--project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成
+- `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
 - `/tdd resume [branch]`：恢复之前暂存的分支，自动 rebase main 并恢复 stash；不带参数时列出可恢复分支
 
 **分支门禁**（自动执行，无需手动触发）：
@@ -129,13 +129,13 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 **快捷命令**：
 - CI 命令：`/ci run`、`/ci status`（自动激活 DevOps 专家）
 - 部署命令：
-  - `/ship dev`：本地部署到开发环境（支持 `:quick` 快速模式）
-  - `/ship staging`：本地部署到预发环境（支持 `:quick` 快速模式）
-  - `/ship prod`：本地部署到生产环境（仅完整检查）
-  - `/cd staging`：通过 CI/CD 远程部署到预发环境
-  - `/cd prod`：通过 CI/CD 远程部署到生产环境
+  - `/ship dev`：**首先执行** `pnpm ship:dev` **脚本**（本地部署到开发环境，支持 `:quick` 快速模式）
+  - `/ship staging`：**首先执行** `pnpm ship:staging` **脚本**（本地部署到预发环境，支持 `:quick` 快速模式）
+  - `/ship prod`：**首先执行** `pnpm ship:prod` **脚本**（本地部署到生产环境，仅完整检查）
+  - `/cd staging`：**首先执行** `pnpm cd:staging` **脚本**，通过 CI/CD 远程部署到预发环境
+  - `/cd prod`：**首先执行** `pnpm cd:prod` **脚本**，通过 CI/CD 远程部署到生产环境
 - 环境命令：`/env check <env>`、`/env status`（自动激活 DevOps 专家）
-- 本地服务命令：`/restart`（自动激活 DevOps 专家，执行 `pnpm dev:restart`，固定端口 `3000`，日志: `/tmp/frontend-dev.log`）
+- 本地服务命令：`/restart`（自动激活 DevOps 专家，**首先执行** `pnpm dev:restart` **脚本** → `server-dev-pm2.sh restart`，PM2 服务名 `server-dev`，端口 `4000`，日志 `/tmp/server-dev.log`）
 
 ## 包管理器
 本项目使用 pnpm，禁止使用 npm 或 yarn。

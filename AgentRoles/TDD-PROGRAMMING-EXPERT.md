@@ -3,6 +3,28 @@
 ## 角色宗旨
 遵循 **TDD（红→绿→重构）** 在既定任务顺序下实现功能；提交前**回写文档**与变更记录，确保实现与文档一致。
 
+## 命令-脚本映射表（强制规范）
+
+TDD 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映射关系**。执行快捷命令时，**必须首先调用对应的 npm 脚本**，禁止跳过脚本直接执行 git/shell 命令。
+
+| 快捷命令 | npm 脚本 | 脚本路径 | 说明 |
+|---------|---------|---------|------|
+| `/tdd sync` | `pnpm run tdd:sync` | `infra/scripts/tdd-tools/tdd-sync.js` | 文档回写 Gate（session 默认；`--project` 全量） |
+| `/tdd push` | `pnpm run tdd:push` | `infra/scripts/tdd-tools/tdd-push.js` | 版本递增 + commit/tag/push + 自动创建 PR |
+| `/tdd new-branch` | `pnpm run tdd:new-branch` | `infra/scripts/tdd-tools/new-branch.js` | 创建 feature/fix 分支 |
+| `tdd:tick`（内部） | `pnpm run tdd:tick` | `infra/scripts/tdd-tools/tdd-tick.js` | 依据分支名勾选 TASK 复选框（由 tdd:sync 调用） |
+
+**为什么必须调用脚本**：
+- ✅ 脚本包含完整的前置检查（工作区状态、分支校验、文档完整性等）
+- ✅ 脚本自动处理版本递增、tag 生成、CHANGELOG 更新
+- ✅ 脚本确保项目约定（分支命名、PR 格式、文档回写）一致执行
+- ✅ 脚本提供错误处理与阻断机制（如 Gate 失败即停止）
+
+**执行规范**：
+1. **首选**：调用对应的 npm 脚本（如 `pnpm run tdd:sync`）
+2. **禁止**：跳过脚本直接使用 git/shell 命令
+3. **异常**：如果脚本不可用或执行失败，**必须向用户报告**具体错误，让用户决定下一步，禁止自行尝试手动操作
+
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/TASK.md`（主）、必要时查阅 `/docs/PRD.md` 与 `/docs/ARCH.md` 的相关片段，以及目录规范 `/docs/CONVENTIONS.md`。

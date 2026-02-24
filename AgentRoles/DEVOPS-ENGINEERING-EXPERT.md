@@ -3,6 +3,35 @@
 ## 角色宗旨
 负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证，确保代码从构建到上线的全链路自动化、可追溯与可回滚。
 
+## 命令-脚本映射表（强制规范）
+
+DevOps 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映射关系**。执行快捷命令时，**必须首先调用对应的 npm 脚本**，禁止跳过脚本直接执行 shell 命令。
+
+| 快捷命令 | npm 脚本 | 脚本路径 | 说明 |
+|---------|---------|---------|------|
+| `/ship dev` | `pnpm ship:dev` | `infra/scripts/server/deploy.sh local dev` | 本地部署到开发环境 |
+| `/ship dev:quick` | `pnpm ship:dev:quick` | `SKIP_CI=true infra/scripts/server/deploy.sh local dev` | 跳过 CI 快速部署到开发环境 |
+| `/ship staging` | `pnpm ship:staging` | `infra/scripts/server/deploy-api.sh staging` | 本地部署到预发环境 |
+| `/ship staging:quick` | `pnpm ship:staging:quick` | `SKIP_CI=true infra/scripts/server/deploy-api.sh staging` | 跳过 CI 快速部署到预发环境 |
+| `/ship prod` | `pnpm ship:prod` | `infra/scripts/server/deploy-api.sh production` | 本地部署到生产环境 |
+| `/cd staging` | `pnpm cd:staging` | `infra/scripts/server/deploy.sh ci staging` | CI/CD 远程部署到预发环境 |
+| `/cd prod` | `pnpm cd:prod` | `infra/scripts/server/deploy.sh ci production` | CI/CD 远程部署到生产环境 |
+| `/restart` | `pnpm dev:restart` | `infra/scripts/server/server-dev-pm2.sh restart` | 重启本地开发服务（PM2 托管） |
+| `dev:start` | `pnpm dev:start` | `infra/scripts/server/server-dev-pm2.sh start` | 启动本地开发服务 |
+| `dev:stop` | `pnpm dev:stop` | `infra/scripts/server/server-dev-pm2.sh stop` | 停止本地开发服务 |
+| `dev:status` | `pnpm dev:status` | `infra/scripts/server/server-dev-pm2.sh status` | 查看本地开发服务状态 |
+| `dev:logs` | `pnpm dev:logs` | `infra/scripts/server/server-dev-pm2.sh logs` | 查看本地开发服务日志 |
+
+**为什么必须调用脚本**：
+- ✅ 脚本包含完整的环境检查、构建、部署、冒烟验证四阶段结构化流程
+- ✅ 脚本提供统一的退出码（0=成功、1=失败、2=需回滚）和结构化日志
+- ✅ 脚本确保项目约定（部署记录、版本标签、通知）一致执行
+
+**执行规范**：
+1. **首选**：调用对应的 npm 脚本（如 `pnpm ship:dev`）
+2. **禁止**：跳过脚本直接调用 shell 命令
+3. **异常**：如果脚本不可用或执行失败，**必须向用户报告**具体错误，让用户决定下一步
+
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/ARCH.md`（运维视图）、`/docs/TASK.md`（里程碑）、`/docs/QA.md`（发布建议）、`/docs/CONVENTIONS.md`（目录规范）、CI 配置（`.github/workflows/`）、部署脚本（`infra/scripts/server/`）、`/CHANGELOG.md`、`/docs/data/deployments/`（部署记录目录）。
@@ -18,8 +47,8 @@
 - `/docs/QA.md`（测试结论与发布建议）
 - `.github/workflows/*.yml`（CI/CD 工作流配置）
 - `infra/scripts/server/deploy.sh`（部署脚本）
-- `infra/scripts/server/frontend-dev-pm2.sh`（本地开发服务管理脚本）
-- `infra/scripts/server/pm2.frontend.dev.config.cjs`（本地开发服务 PM2 配置）
+- `infra/scripts/server/server-dev-pm2.sh`（本地开发服务管理脚本）
+- `infra/scripts/server/pm2.server.dev.config.cjs`（本地开发服务 PM2 配置）
 - `package.json`（scripts 配置）
 - `/CHANGELOG.md`（版本与变更记录）
 - **预检查**：
@@ -37,7 +66,7 @@
 
 ### 环境预检（首次激活时自动执行）
 确认 `package.json` 包含部署 scripts：`ship:dev`、`ship:dev:quick`、`ship:staging`、`ship:staging:quick`、`ship:prod`、`cd:staging`、`cd:prod`（值均为 `bash infra/scripts/server/deploy.sh <mode> <env>` 格式，quick 模式加 `SKIP_CI=true` 前缀）。缺失时自动补齐并提示用户确认。
-确认 `package.json` 包含本地服务 scripts：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs`，且均指向 `bash infra/scripts/server/frontend-dev-pm2.sh <command>`。
+确认 `package.json` 包含本地服务 scripts：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs`，且均指向 `bash infra/scripts/server/server-dev-pm2.sh <command>`。
 
 ## 执行规范
 
@@ -53,7 +82,7 @@
 - dev / staging / production 三环境隔离
 - 环境变量与密钥不入库，通过 `.env` / Secret Manager 引用
 - 维护环境健康检查脚本
-- 本地开发服务使用 PM2 托管，统一服务名 `frontend-dev`，固定端口 `3000`
+- 本地开发服务使用 PM2 托管，统一服务名 `server-dev`，固定端口 `4000`，日志 `/tmp/server-dev.log`
 
 #### 数据存储连接架构
 - **本地开发（dev）**：直连 localhost 服务
@@ -103,7 +132,7 @@
   - [ ] 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
 - **本地服务管理 DoD**：
   - [ ] `/restart` 可稳定重启本地前端开发服务
-  - [ ] `http://localhost:3000` 健康检查通过
+  - [ ] `http://localhost:4000` 健康检查通过
 
 ## 交接
 - **CI 配置完成后**：交还 TDD/QA 专家继续开发或测试。
@@ -131,7 +160,7 @@
 - `/env status`：查看所有环境当前状态
 
 ### 本地服务命令
-- `/restart`：重启本地前端开发服务（`pnpm dev:restart`，PM2 托管，固定端口 `3000`）
+- `/restart`：重启本地开发服务（**首先执行** `pnpm dev:restart` → `infra/scripts/server/server-dev-pm2.sh restart`，PM2 服务名 `server-dev`，端口 `4000`，日志 `/tmp/server-dev.log`）
 
 ## ADR 触发规则（DevOps 阶段）
 - 发现重要运维取舍（如：部署策略变更、环境架构调整、CI/CD 流水线重大变更）→ 新增 ADR；状态 `Proposed/Accepted`。
