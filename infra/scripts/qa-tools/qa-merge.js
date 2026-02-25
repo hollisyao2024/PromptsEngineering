@@ -301,10 +301,10 @@ function tryGhMerge(prNumber) {
 
 function syncLocalMain(mainRepoRoot, isInWorktree) {
   if (isInWorktree) {
+    // worktree 模式：main 已在主仓库中 checkout，不能再执行 checkout main，直接 fetch + merge
     console.log('\x1b[36m同步主仓库 main（worktree 模式）...\x1b[0m');
-    runGit(['-C', mainRepoRoot, 'fetch', 'origin', 'main'], { cwd: mainRepoRoot });
-    runGit(['-C', mainRepoRoot, 'checkout', 'main'], { cwd: mainRepoRoot });
-    runGit(['-C', mainRepoRoot, 'pull', '--prune', 'origin', 'main'], { cwd: mainRepoRoot });
+    runGit(['-C', mainRepoRoot, 'fetch', '--prune', 'origin', 'main'], { cwd: mainRepoRoot });
+    runGit(['-C', mainRepoRoot, 'merge', '--ff-only', 'FETCH_HEAD'], { cwd: mainRepoRoot });
   } else {
     console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
     runGit(['checkout', 'main']);
