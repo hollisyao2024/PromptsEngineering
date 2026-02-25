@@ -70,16 +70,18 @@ function getBranchSuffix(argv, hasTask) {
 function parseArgs(argv) {
   let dryRun = false;
   let isFix = false;
+  let newWindow = false;
   const positional = [];
 
   for (const arg of argv) {
     if (arg === '--') continue; // pnpm 传递的分隔符
     if (arg === '--dry-run') { dryRun = true; continue; }
     if (arg === '--fix') { isFix = true; continue; }
+    if (arg === '--new-window' || arg === '-n') { newWindow = true; continue; }
     positional.push(arg);
   }
 
-  return { dryRun, isFix, positional };
+  return { dryRun, isFix, newWindow, positional };
 }
 
 // ==================== 分支与 Worktree ====================
@@ -178,7 +180,7 @@ function setupEnvSymlink(wtPath, mainRoot) {
 
 function main() {
   try {
-    const { dryRun, isFix, positional } = parseArgs(process.argv.slice(2));
+    const { dryRun, isFix, newWindow, positional } = parseArgs(process.argv.slice(2));
     const mainRoot = getMainRepoRoot();
 
     const taskId = getTaskId(positional);
@@ -199,7 +201,9 @@ function main() {
     // 检查重复
     if (worktreeAlreadyMounted(wtPath, mainRoot)) {
       console.log(`\x1b[33mWorktree 已存在：${wtPath}\x1b[0m`);
-      console.log(`  cd ${wtPath}`);
+      const codeArgs = newWindow ? [wtPath] : ['-r', wtPath];
+      spawnSync('code', codeArgs, { encoding: 'utf8', stdio: 'pipe' });
+      console.log(`\x1b[32m✓ 已在 VSCode ${newWindow ? '新窗口' : '当前窗口'}中打开已有 worktree 目录\x1b[0m`);
       return;
     }
 
@@ -230,12 +234,18 @@ function main() {
     console.log(`  路径:   ${wtPath}`);
     console.log('');
     console.log('\x1b[33m下一步:\x1b[0m');
-    console.log(`  cd ${wtPath}`);
     console.log('  pnpm install          # 如需安装依赖');
     console.log('  # 开始 TDD 开发...');
     console.log('  /tdd push             # 推代码 + 创建 PR（不含版本递增）');
     console.log('  /qa merge             # 合并到 main（自动版本递增 + 清理 worktree）');
     console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
+
+    // 自动在 VSCode 中打开 worktree 目录
+    const codeArgs = newWindow ? [wtPath] : ['-r', wtPath];
+    const openResult = spawnSync('code', codeArgs, { encoding: 'utf8', stdio: 'pipe' });
+    if (openResult.status === 0) {
+      console.log(`\x1b[32m✓ 已在 VSCode ${newWindow ? '新窗口' : '当前窗口'}中打开 worktree 目录\x1b[0m`);
+    }
   } catch (error) {
     console.error(`\x1b[31m/tdd new-worktree 失败: ${error.message}\x1b[0m`);
     process.exit(1);
