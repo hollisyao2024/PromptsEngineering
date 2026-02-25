@@ -46,7 +46,7 @@ TDD 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 - **预检查**：
   1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
   2. **分支门禁**（所有 TDD 入口强制执行，含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等）：执行 `git branch --show-current` 检查当前分支：
-     - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，默认执行 `/tdd new-worktree` 创建 worktree（显式指定 `--single-branch` 时走 `/tdd new-branch`）后继续
+     - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，默认执行 `/tdd new-branch` 创建单分支（显式指定 `--worktree` 时走 `/tdd new-worktree`）后继续
      - 若在 `feature/TASK-*` 或 `fix/*` 分支上且匹配当前任务，或已在对应 worktree 中工作 → 通过，继续
      - 若在无关分支上 → 执行**分支暂存切换**：
        1. 检测 `git status`，有未提交变更则 `git stash push -m "WIP: <当前分支名>"`
@@ -438,11 +438,11 @@ flowchart TD
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
 - `/tdd sync`：默认执行 `session` 回写（运行 `pnpm run tdd:sync`，仅同步当前会话涉及的 TASK/模块文档）；`/tdd sync --project` 执行全量文档回写 Gate（`pnpm run tdd:sync -- --project`，等价全项目 `tdd:tick` 扫描）。完成后自动串联执行：Pre-Push Gate（code-simplifier + commit）→ `/tdd push` → Post-Push Gate（`/code-review --comment`）。
 - `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；完成后自动触发 Post-Push Gate（`/code-review --comment`）。
-- `/tdd new-branch`：创建 feature/fix 分支并切换（单分支模式），支持两种模式：
+- `/tdd new-branch`：**（默认推荐）** 创建 feature/fix 分支并切换（单分支模式），支持两种模式：
   - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
   - **无 Task**（bug 修复/临时需求）：`/tdd new-branch "描述"` → `fix/<desc>`（加 `--fix`）或 `feature/<desc>`
-  - 两种模式下用户都可显式传入描述来覆盖自动生成。
-- `/tdd new-worktree`：在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐，分支门禁默认使用）。参数与 `/tdd new-branch` 相同，额外支持 `--dry-run`。Worktree 会自动 symlink 主目录的 `.env.local`。
+  - 两种模式下用户都可显式传入描述来覆盖自动生成。不切换 VSCode workspace，Claude Code 会话完整保留。
+- `/tdd new-worktree`：**（高级备选，会重启 Claude Code 会话）** 在 `.worktrees/` 下创建 Git Worktree。仅在需要同时保留两个分支文件系统快照的场景下使用（如长期并行任务且必须双向切换）。参数与 `/tdd new-branch` 相同，额外支持 `--dry-run`。Worktree 会自动 symlink 主目录的 `.env.local`，手动用 `code "<worktree-path>"` 在新窗口打开。
 - `/tdd worktree list`：列出当前所有活跃的 worktree（分支名 | 相对路径 | HEAD 缩写）。
 - `/tdd worktree remove <branch>`：安全移除指定 worktree，检查未提交变更后执行 `git worktree remove` + `git worktree prune`。
 - `pnpm run tdd:tick`：手动执行任务勾选，依据分支名 `TASK-*` ID 勾选 TASK 文档复选框并同步 module-list 状态。

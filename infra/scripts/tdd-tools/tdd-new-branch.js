@@ -83,7 +83,7 @@ function main() {
     process.exit(1);
   }
 
-  const result = spawnSync('git', ['checkout', '-b', branchName], {
+  const result = spawnSync('git', ['checkout', '-b', branchName, 'main'], {
     cwd: repoRoot,
     stdio: 'inherit',
   });

@@ -96,7 +96,7 @@
 
 **分支门禁**（自动执行，无需手动触发）：
   - TDD 专家激活后（含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等所有入口），**第一步**自动检查当前 Git 分支。
-  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，默认执行 `/tdd new-worktree` 创建 worktree（显式指定 `--single-branch` 时走 `/tdd new-branch`）。
+  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，默认执行 `/tdd new-branch`（单分支模式，Claude Code 会话完整保留）；显式指定 `--worktree` 时走 `/tdd new-worktree`（高级备选，会重启会话）。
   - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上，或已在对应 worktree 中工作则跳过。
   - 若在无关分支上 → 自动 stash 未提交变更，提示用户切换或创建新分支；稍后用 `/tdd resume` 恢复。
 

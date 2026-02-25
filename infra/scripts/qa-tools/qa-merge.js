@@ -25,7 +25,7 @@ const envLocalPath = path.join(repoRoot, '.env.local');
 
 function getMainRepoRoot() {
   const result = spawnSync('git', ['rev-parse', '--git-common-dir'], {
-    cwd: repoRoot,
+    cwd: process.cwd(),
     encoding: 'utf8',
     stdio: 'pipe',
   });
@@ -86,7 +86,7 @@ function runGh(args) {
 }
 
 function getCurrentBranch() {
-  return runGit(['branch', '--show-current'], { capture: true }).trim();
+  return runGit(['branch', '--show-current'], { capture: true, cwd: process.cwd() }).trim();
 }
 
 function isMainBranch(branch) {
@@ -504,7 +504,28 @@ function pushMainAndTag(mainRepoRoot, tagName) {
 
 // ==================== 摘要输出 ====================
 
-function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version) {
+function getResumableBranches(mergedBranch, mainRepoRoot) {
+  const branchResult = spawnSync(
+    'git', ['branch', '--list', 'feature/*', 'fix/*'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const branches = (branchResult.stdout || '')
+    .split('\n')
+    .map(b => b.trim().replace(/^\*\s*/, ''))
+    .filter(b => b && b !== mergedBranch);
+
+  const stashResult = spawnSync(
+    'git', ['stash', 'list', '--format=%gd: %s'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const stashes = (stashResult.stdout || '')
+    .split('\n')
+    .filter(s => s.trim());
+
+  return { branches, stashes };
+}
+
+function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log('\x1b[32m/qa merge 完成\x1b[0m');
@@ -525,6 +546,22 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   console.log('\x1b[33m下一步:\x1b[0m');
   console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
+
+  const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);
+  if (branches.length > 0 || stashes.length > 0) {
+    console.log('');
+    console.log('\x1b[33m未完成的开发任务:\x1b[0m');
+    branches.forEach(b => {
+      console.log(`  \x1b[36m${b}\x1b[0m  →  /tdd resume ${b}`);
+    });
+    stashes.forEach(s => {
+      console.log(`  \x1b[35m${s}\x1b[0m`);
+    });
+    if (branches.length === 1 && stashes.length === 0) {
+      console.log('');
+      console.log(`\x1b[32m建议继续: /tdd resume ${branches[0]}\x1b[0m`);
+    }
+  }
 }
 
 // ==================== 主流程 ====================
@@ -533,9 +570,13 @@ function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
 
-    // Step 1: 检测主仓库根路径
+    // Step 1: 检测主仓库根路径 + worktree 环境
     const mainRepoRoot = getMainRepoRoot();
-    const isInWorktree = (repoRoot !== mainRepoRoot);
+    const _gitCdResult = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe',
+    });
+    const isInWorktree = _gitCdResult.status === 0 &&
+      path.isAbsolute(_gitCdResult.stdout.trim());
     if (isInWorktree) {
       console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
     }
@@ -655,6 +696,11 @@ function main() {
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
 
+    // worktree 模式：切换 VSCode 窗口回主仓库
+    if (isInWorktree) {
+      spawnSync('code', ['-r', mainRepoRoot], { encoding: 'utf8', stdio: 'pipe' });
+    }
+
     // Step 14: 清理本地 feature 分支（两种策略都需要）
     try {
       runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot });
@@ -697,7 +743,7 @@ function main() {
     pushMainAndTag(mainRepoRoot, tagName);
     console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
 
-    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated, newVersion);
+    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated, newVersion, mainRepoRoot);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);
