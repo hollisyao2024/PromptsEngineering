@@ -21,12 +21,24 @@ const { spawnSync } = require('child_process');
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
 
+// ==================== 主仓库根路径检测 ====================
+
+function getMainRepoRoot() {
+  const result = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.status !== 0) return repoRoot;
+  const gitCommonDir = result.stdout.trim();
+  if (path.isAbsolute(gitCommonDir)) {
+    return path.dirname(gitCommonDir);
+  }
+  return repoRoot;
+}
+
 // ==================== 项目级 GH_TOKEN 加载 ====================
 
-/**
- * 从 .env.local 读取 GH_TOKEN 并注入 process.env
- * 覆盖 shell 中可能存在的其他仓库 token
- */
 function loadProjectGhToken() {
   try {
     if (!fs.existsSync(envLocalPath)) return;
@@ -36,7 +48,7 @@ function loadProjectGhToken() {
       process.env.GH_TOKEN = match[1].trim();
     }
   } catch {
-    // 静默忽略，GH_TOKEN 缺失会在 gh 命令中降级处理
+    // 静默忽略
   }
 }
 
@@ -44,7 +56,7 @@ function loadProjectGhToken() {
 
 function runGit(args, options = {}) {
   const result = spawnSync('git', args, {
-    cwd: repoRoot,
+    cwd: options.cwd || repoRoot,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
   });
@@ -63,9 +75,6 @@ function runGit(args, options = {}) {
   return result.stdout;
 }
 
-/**
- * 执行 gh CLI 命令（使用项目级 GH_TOKEN）
- */
 function runGh(args) {
   const result = spawnSync('gh', args, {
     cwd: repoRoot,
@@ -120,9 +129,6 @@ function parseArgs(argv) {
   };
 }
 
-/**
- * 确保 gh CLI 可用（findOpenPR 等核心功能依赖它）
- */
 function ensureGhAvailable() {
   const result = spawnSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
   if (result.status !== 0) {
@@ -144,10 +150,6 @@ function ensureCleanWorkingTree() {
   }
 }
 
-/**
- * 查找当前分支对应的 open PR
- * @returns {{ number: number, title: string, body: string, url: string, mergeable: string } | null}
- */
 function findOpenPR(branch) {
   const result = runGh([
     'pr', 'list',
@@ -164,12 +166,6 @@ function findOpenPR(branch) {
   }
 }
 
-/**
- * 自动 rebase 当前 feature 分支到 origin/main
- * @param {string} currentBranch - 当前 feature 分支名
- * @param {boolean} dryRun - 是否为 dry-run 模式
- * @returns {{ rebased: boolean, commitsBehind: number }}
- */
 function autoRebaseOnMain(currentBranch, dryRun) {
   console.log('\x1b[36m获取最新 origin/main...\x1b[0m');
   runGit(['fetch', 'origin', 'main']);
@@ -230,10 +226,6 @@ function autoRebaseOnMain(currentBranch, dryRun) {
   return { rebased: true, commitsBehind };
 }
 
-/**
- * 查询 PR 当前状态（用于防竞态检测）
- * @returns {'MERGED' | 'OPEN' | 'CLOSED' | null}
- */
 function checkPrState(prNumber) {
   const result = runGh(['pr', 'view', String(prNumber), '--json', 'state']);
   if (result.status !== 0) return null;
@@ -245,9 +237,6 @@ function checkPrState(prNumber) {
   }
 }
 
-/**
- * 运行发布前门禁检查（qa:check-defect-blockers）
- */
 function runPreMergeChecks() {
   console.log('\x1b[36m运行发布门禁检查 (qa:check-defect-blockers)...\x1b[0m');
   const result = spawnSync('pnpm', ['run', 'qa:check-defect-blockers'], {
@@ -258,13 +247,8 @@ function runPreMergeChecks() {
   return result.status === 0;
 }
 
-/**
- * 从 PR 信息构建 squash merge 的 commit message
- */
 function buildCommitMessage(pr) {
   const header = `${pr.title} (#${pr.number})`;
-
-  // 从 PR body 提取 ### 概要 段落
   let summary = '';
   if (pr.body) {
     const lines = pr.body.split('\n');
@@ -287,10 +271,6 @@ function buildCommitMessage(pr) {
   return parts.join('\n');
 }
 
-/**
- * 策略 A：使用 gh pr merge（需要 token 有 merge 权限）
- * @returns {boolean} true 表示成功
- */
 function tryGhMerge(prNumber) {
   console.log(`\x1b[36m尝试 gh pr merge #${prNumber} --squash...\x1b[0m`);
   const result = runGh([
@@ -317,56 +297,53 @@ function tryGhMerge(prNumber) {
   return false;
 }
 
-/**
- * 策略 B：本地 git merge --squash + git push + gh pr close
- * 核心步骤失败时回滚
- */
-function localSquashMerge(featureBranch, pr) {
+// ==================== 同步本地 main ====================
+
+function syncLocalMain(mainRepoRoot, isInWorktree) {
+  if (isInWorktree) {
+    console.log('\x1b[36m同步主仓库 main（worktree 模式）...\x1b[0m');
+    runGit(['-C', mainRepoRoot, 'fetch', 'origin', 'main'], { cwd: mainRepoRoot });
+    runGit(['-C', mainRepoRoot, 'checkout', 'main'], { cwd: mainRepoRoot });
+    runGit(['-C', mainRepoRoot, 'pull', '--prune', 'origin', 'main'], { cwd: mainRepoRoot });
+  } else {
+    console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
+    runGit(['checkout', 'main']);
+    runGit(['pull', '--prune', 'origin', 'main']);
+  }
+}
+
+function localSquashMerge(featureBranch, pr, mainRepoRoot, isInWorktree) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
-    console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
-    runGit(['checkout', 'main']);
-    runGit(['pull', 'origin', 'main']);
+    syncLocalMain(mainRepoRoot, isInWorktree);
 
     console.log(`\x1b[36m执行 git merge --squash ${featureBranch}...\x1b[0m`);
-    runGit(['merge', '--squash', featureBranch]);
+    runGit(['merge', '--squash', featureBranch], { cwd: mainRepoRoot });
 
     console.log('\x1b[36m提交 squash merge...\x1b[0m');
-    runGit(['commit', '-m', commitMsg]);
+    runGit(['commit', '-m', commitMsg], { cwd: mainRepoRoot });
 
     console.log('\x1b[36m推送到 origin main...\x1b[0m');
-    runGit(['push', 'origin', 'main']);
+    runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
   } catch (error) {
-    // 回滚：还原到 merge 前状态
     console.error('\x1b[31m合并过程中出错，尝试回滚...\x1b[0m');
     try {
-      runGit(['merge', '--abort'], { capture: true });
-    } catch {
-      /* 可能不在 merge 状态 */
-    }
+      runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot });
+    } catch { /* 可能不在 merge 状态 */ }
     try {
-      runGit(['reset', '--hard', 'origin/main']);
-    } catch {
-      /* 忽略 */
-    }
+      runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot });
+    } catch { /* 忽略 */ }
     try {
       runGit(['checkout', featureBranch]);
-    } catch {
-      /* 忽略 */
-    }
+    } catch { /* 忽略 */ }
     throw error;
   }
 
-  // 以下操作失败不回滚
   closeAndCleanup(featureBranch, pr, commitMsg);
 }
 
-/**
- * 关闭 PR + 删除远程分支（非致命操作）
- */
 function closeAndCleanup(featureBranch, pr, commitMsg) {
-  // 关闭 PR
   console.log(`\x1b[36m关闭 PR #${pr.number}...\x1b[0m`);
   const closeResult = runGh([
     'pr', 'close', String(pr.number),
@@ -377,7 +354,6 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
     console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
   }
 
-  // 删除远程分支
   console.log(`\x1b[36m删除远程分支 ${featureBranch}...\x1b[0m`);
   try {
     runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
@@ -386,20 +362,106 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
   }
 }
 
-function getLatestMainCommit() {
-  return runGit(['rev-parse', '--short', 'HEAD'], { capture: true }).trim();
+function getLatestMainCommit(mainRepoRoot) {
+  return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainRepoRoot }).trim();
 }
 
-/**
- * 自动更新 /docs/AGENT_STATE.md：标记 QA_VALIDATED，记录 PR 编号与提交号，并 push origin main
- * 失败时仅打印警告，不中断主流程
- */
-function updateAgentState(prNumber, commitHash) {
-  const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
+// ==================== Worktree 清理 ====================
+
+function cleanupWorktree(featureBranch, mainRepoRoot) {
+  try {
+    const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (result.status !== 0) return;
+
+    let currentPath = null;
+    let found = false;
+    for (const line of result.stdout.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        currentPath = line.slice(9).trim();
+      } else if (line.startsWith('branch ')) {
+        const branchName = line.slice(7).trim().replace('refs/heads/', '');
+        if (branchName === featureBranch && currentPath !== mainRepoRoot) {
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found || !currentPath) return;
+
+    console.log(`\x1b[36m清理 worktree: ${currentPath}\x1b[0m`);
+    spawnSync('git', ['worktree', 'remove', '--force', currentPath], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'inherit',
+    });
+    spawnSync('git', ['worktree', 'prune'], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    console.log('\x1b[32m  Worktree 已清理\x1b[0m');
+
+    const cwd = process.cwd();
+    if (cwd.startsWith(currentPath)) {
+      console.log('');
+      console.log(`\x1b[33m提示：当前目录已被移除，请切回主目录：\x1b[0m`);
+      console.log(`  cd ${mainRepoRoot}`);
+    }
+  } catch (err) {
+    console.log(`\x1b[33m  Worktree 清理跳过（${err.message}）\x1b[0m`);
+  }
+}
+
+// ==================== 版本管理（从 tdd-push.js 迁移） ====================
+
+function bumpPatchVersion(version) {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) {
+    throw new Error(`当前版本 "${version}" 不是三段数字格式，无法自动递增。`);
+  }
+  const [major, minor, patch] = match.slice(1).map(Number);
+  return `${major}.${minor}.${patch + 1}`;
+}
+
+function insertChangelogEntry(mainRepoRoot, targetVersion, note) {
+  const changelogPath = path.join(mainRepoRoot, 'CHANGELOG.md');
+  const raw = fs.readFileSync(changelogPath, 'utf8');
+  const today = new Date().toISOString().slice(0, 10);
+  const sanitizedNote = note || `发布版本 v${targetVersion}`;
+  const entry = `## [v${targetVersion}] - ${today}\n\n### 更新\n- ${sanitizedNote}\n\n---\n\n`;
+
+  const marker = raw.indexOf('\n## [');
+  if (marker === -1) {
+    const trimmed = raw.trimEnd();
+    fs.writeFileSync(changelogPath, `${trimmed}\n\n${entry}`, 'utf8');
+    return;
+  }
+
+  const prefix = raw.slice(0, marker).trimEnd();
+  const suffix = raw.slice(marker);
+  const payload = `${prefix}\n\n${entry}${suffix}`;
+  fs.writeFileSync(changelogPath, payload, 'utf8');
+}
+
+function getPrTitle(prNumber) {
+  const result = runGh(['pr', 'view', String(prNumber), '--json', 'title', '--jq', '.title']);
+  if (result.status === 0 && result.stdout.trim()) {
+    return result.stdout.trim();
+  }
+  return null;
+}
+
+function updateAgentState(mainRepoRoot, prNumber, commitHash) {
+  const agentStatePath = path.join(mainRepoRoot, 'docs', 'AGENT_STATE.md');
   try {
     if (!fs.existsSync(agentStatePath)) {
       console.log('\x1b[33m  警告：/docs/AGENT_STATE.md 不存在，跳过自动更新\x1b[0m');
-      return;
+      return false;
     }
 
     const content = fs.readFileSync(agentStatePath, 'utf8');
@@ -411,22 +473,38 @@ function updateAgentState(prNumber, commitHash) {
 
     if (updated === content) {
       console.log('\x1b[33m  警告：AGENT_STATE.md 中未找到待勾选的 QA_VALIDATED 条目（可能已勾选）\x1b[0m');
-      return;
+      return false;
     }
 
     fs.writeFileSync(agentStatePath, updated, 'utf8');
-
-    runGit(['add', 'docs/AGENT_STATE.md']);
-    runGit(['commit', '-m', `docs(qa): 标记 QA_VALIDATED — PR #${prNumber} merged as ${commitHash}`]);
-    runGit(['push', 'origin', 'main']);
-
-    console.log('\x1b[32m  AGENT_STATE.md 已更新并推送（QA_VALIDATED）\x1b[0m');
+    console.log('\x1b[32m  AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m');
+    return true;
   } catch (err) {
     console.log(`\x1b[33m  警告：自动更新 AGENT_STATE.md 失败（${err.message}），请手动勾选\x1b[0m`);
+    return false;
   }
 }
 
-function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated) {
+function commitReleaseAndTag(mainRepoRoot, version, note) {
+  runGit(['add', 'package.json', 'CHANGELOG.md', 'docs/AGENT_STATE.md'], {
+    cwd: mainRepoRoot,
+  });
+  runGit(['commit', '-m', `chore(release): v${version}`], {
+    cwd: mainRepoRoot,
+  });
+  runGit(['tag', '-a', `v${version}`, '-m', note || `Release v${version}`], {
+    cwd: mainRepoRoot,
+  });
+}
+
+function pushMainAndTag(mainRepoRoot, tagName) {
+  runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
+  runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
+}
+
+// ==================== 摘要输出 ====================
+
+function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log('\x1b[32m/qa merge 完成\x1b[0m');
@@ -437,6 +515,9 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
     `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
   );
   console.log(`  提交:   ${commitHash}`);
+  if (version) {
+    console.log(`  版本:   v${version}`);
+  }
   console.log(
     `  状态:   ${agentStateUpdated ? '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m' : '\x1b[33m⚠ AGENT_STATE.md 更新失败，请手动勾选 QA_VALIDATED\x1b[0m'}`
   );
@@ -452,16 +533,23 @@ function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
 
-    // Step 1: 加载 GH_TOKEN
+    // Step 1: 检测主仓库根路径
+    const mainRepoRoot = getMainRepoRoot();
+    const isInWorktree = (repoRoot !== mainRepoRoot);
+    if (isInWorktree) {
+      console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
+    }
+
+    // Step 2: 加载 GH_TOKEN
     loadProjectGhToken();
 
-    // Step 2: 确保 gh CLI 可用
+    // Step 3: 确保 gh CLI 可用
     ensureGhAvailable();
 
-    // Step 3: 确保工作区干净
+    // Step 4: 确保工作区干净
     ensureCleanWorkingTree();
 
-    // Step 4: 验证当前分支
+    // Step 5: 验证当前分支
     const currentBranch = getCurrentBranch();
     if (isMainBranch(currentBranch)) {
       throw new Error(
@@ -469,7 +557,7 @@ function main() {
       );
     }
 
-    // Step 5: 查找 open PR
+    // Step 6: 查找 open PR
     const pr = findOpenPR(currentBranch);
     if (!pr) {
       throw new Error(
@@ -480,10 +568,10 @@ function main() {
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
 
-    // Step 6: 自动 rebase（确保 feature 分支基于最新 main）
+    // Step 7: 自动 rebase（确保 feature 分支基于最新 main）
     const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun);
 
-    // Step 7: rebase 后重新检查 PR 合并状态
+    // Step 8: rebase 后重新检查 PR 合并状态
     if (rebaseResult.rebased) {
       console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
       spawnSync('sleep', ['3'], { stdio: 'inherit' });
@@ -508,7 +596,7 @@ function main() {
       );
     }
 
-    // Step 8: 运行发布门禁检查
+    // Step 9: 运行发布门禁检查
     if (!args.skipChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
@@ -525,7 +613,7 @@ function main() {
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
 
-    // Step 9: Dry run
+    // Step 10: Dry run
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');
@@ -535,56 +623,81 @@ function main() {
         console.log('  0. 分支已与 main 同步，无需 rebase');
       }
       console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → main`);
-      console.log(`  2. 删除分支 ${currentBranch}`);
-      console.log(`  3. commit message: ${pr.title} (#${pr.number})`);
-      console.log('  4. 更新 docs/AGENT_STATE.md（标记 QA_VALIDATED）并 push origin main');
+      console.log('  2. 同步本地 main');
+      console.log('  3. 清理 worktree（如有）');
+      console.log(`  4. 删除分支 ${currentBranch}`);
+      console.log('  5. 版本递增 + CHANGELOG + AGENT_STATE + tag');
+      console.log('  6. push main + tag');
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
       return;
     }
 
-    // Step 10-11: 执行合并（双策略 + 防竞态）
+    // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
     const ghMerged = tryGhMerge(pr.number);
 
     if (ghMerged) {
       strategy = 'gh';
-      runGit(['checkout', 'main']);
-      runGit(['pull', 'origin', 'main']);
+      syncLocalMain(mainRepoRoot, isInWorktree);
     } else {
       // 防竞态：gh 可能超时但实际已完成合并
       const prState = checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
         strategy = 'gh';
-        runGit(['checkout', 'main']);
-        runGit(['pull', 'origin', 'main']);
+        syncLocalMain(mainRepoRoot, isInWorktree);
       } else {
         strategy = 'local';
-        localSquashMerge(currentBranch, pr);
+        localSquashMerge(currentBranch, pr, mainRepoRoot, isInWorktree);
       }
     }
 
-    // Step 12: 清理本地 feature 分支（两种策略都需要）
+    // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
+    cleanupWorktree(currentBranch, mainRepoRoot);
+
+    // Step 14: 清理本地 feature 分支（两种策略都需要）
     try {
-      runGit(['branch', '-d', currentBranch], { capture: true });
+      runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot });
     } catch {
       try {
-        runGit(['branch', '-D', currentBranch], { capture: true });
+        runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainRepoRoot });
       } catch {
         console.log(`\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）\x1b[0m`);
       }
     }
 
-    // Step 13: 自动更新 AGENT_STATE.md 并输出摘要
-    const commitHash = getLatestMainCommit();
-    let agentStateUpdated = false;
-    try {
-      updateAgentState(pr.number, commitHash);
-      agentStateUpdated = true;
-    } catch {
-      // updateAgentState 内部已处理并打印警告
-    }
-    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated);
+    // Step 15: 版本递增 + CHANGELOG + AGENT_STATE + tag
+    const packageJsonPath = path.join(mainRepoRoot, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const currentVersion = pkg.version;
+    const newVersion = bumpPatchVersion(currentVersion);
+
+    // Release note 从 PR 标题提取
+    const releaseNote = getPrTitle(pr.number) || pr.title || `Release v${newVersion}`;
+
+    // 更新 package.json
+    pkg.version = newVersion;
+    fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+    console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+
+    // 更新 CHANGELOG
+    insertChangelogEntry(mainRepoRoot, newVersion, releaseNote);
+    console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
+
+    // 更新 AGENT_STATE
+    const commitHash = getLatestMainCommit(mainRepoRoot);
+    const agentStateUpdated = updateAgentState(mainRepoRoot, pr.number, commitHash);
+
+    // Step 16: commit + tag
+    commitReleaseAndTag(mainRepoRoot, newVersion, releaseNote);
+    console.log(`\x1b[32m  Release commit + tag v${newVersion} 已创建\x1b[0m`);
+
+    // Step 17: push main + tag
+    const tagName = `v${newVersion}`;
+    pushMainAndTag(mainRepoRoot, tagName);
+    console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
+
+    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated, newVersion);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);

@@ -10,13 +10,17 @@ TDD 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 | 快捷命令 | npm 脚本 | 脚本路径 | 说明 |
 |---------|---------|---------|------|
 | `/tdd sync` | `pnpm run tdd:sync` | `infra/scripts/tdd-tools/tdd-sync.js` | 文档回写 Gate（session 默认；`--project` 全量） |
-| `/tdd push` | `pnpm run tdd:push` | `infra/scripts/tdd-tools/tdd-push.js` | 版本递增 + commit/tag/push + 自动创建 PR |
-| `/tdd new-branch` | `pnpm run tdd:new-branch` | `infra/scripts/tdd-tools/new-branch.js` | 创建 feature/fix 分支 |
+| `/tdd push` | `pnpm run tdd:push` | `infra/scripts/tdd-tools/tdd-push.js` | 推代码 + 自动创建当前分支 PR |
+| `/tdd new-branch` | `pnpm run tdd:new-branch` | `infra/scripts/tdd-tools/tdd-new-branch.js` | 创建 feature/fix 分支（单分支模式） |
+| `/tdd new-worktree` | `pnpm run tdd:new-worktree` | `infra/scripts/tdd-tools/tdd-new-worktree.js` | 创建 Git Worktree 并行开发环境 |
+| `/tdd worktree list` | `pnpm run tdd:worktree-list` | `infra/scripts/tdd-tools/tdd-worktree-list.js` | 列出活跃 worktree |
+| `/tdd worktree remove` | `pnpm run tdd:worktree-remove` | `infra/scripts/tdd-tools/tdd-worktree-remove.js` | 安全移除指定 worktree |
+| `/tdd resume` | `pnpm run tdd:resume` | `infra/scripts/tdd-tools/tdd-resume.js` | worktree/stash 双模式恢复开发环境 |
 | `tdd:tick`（内部） | `pnpm run tdd:tick` | `infra/scripts/tdd-tools/tdd-tick.js` | 依据分支名勾选 TASK 复选框（由 tdd:sync 调用） |
 
 **为什么必须调用脚本**：
 - ✅ 脚本包含完整的前置检查（工作区状态、分支校验、文档完整性等）
-- ✅ 脚本自动处理版本递增、tag 生成、CHANGELOG 更新
+- ✅ 脚本自动处理 PR 创建、分支管理、worktree 操作
 - ✅ 脚本确保项目约定（分支命名、PR 格式、文档回写）一致执行
 - ✅ 脚本提供错误处理与阻断机制（如 Gate 失败即停止）
 
@@ -42,8 +46,8 @@ TDD 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 - **预检查**：
   1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
   2. **分支门禁**（所有 TDD 入口强制执行，含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等）：执行 `git branch --show-current` 检查当前分支：
-     - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，自动执行 `/tdd new-branch` 创建分支后继续
-     - 若在 `feature/TASK-*` 或 `fix/*` 分支上且匹配当前任务 → 通过，继续
+     - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，默认执行 `/tdd new-worktree` 创建 worktree（显式指定 `--single-branch` 时走 `/tdd new-branch`）后继续
+     - 若在 `feature/TASK-*` 或 `fix/*` 分支上且匹配当前任务，或已在对应 worktree 中工作 → 通过，继续
      - 若在无关分支上 → 执行**分支暂存切换**：
        1. 检测 `git status`，有未提交变更则 `git stash push -m "WIP: <当前分支名>"`
        2. 提示用户选择：从 main 创建新分支 / 切换到已有分支
@@ -339,7 +343,7 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
   2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCH.md` 及其模块文件。
   3. **同步 QA 记录**：若 QA 已拆分，依据缺陷影响范围更新 `/docs/qa-modules/{domain}/QA.md` 并在主 `/docs/QA.md` 补充结论。
   4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接。
-  5. **Changelog**：追加根目录 `CHANGELOG.md` 条目；若需归档，参照 `docs/changelogs/README.md`。
+  5. **Changelog**：CHANGELOG 由 `/qa merge` 自动生成，TDD 阶段无需手动更新。
  6. **迁移目录核查**：
    - 纯 SQL：`packages/database/prisma/migrations/` 或 `/supabase/migrations/` 含迁移与回滚脚本
    - Prisma：`packages/database/prisma/migrations/` 含 `migration.sql` 及配套 `rollback.sql`
@@ -358,7 +362,7 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 - **触发阈值**：当根 `CHANGELOG.md` 超过 ~500 行、覆盖 ≥3 个季度/迭代、或需归档上一季度时，即执行分卷；保持 `CHANGELOG.md` 只保留最近 1~2 个主版本条目。
 - **分割步骤**：归档条目移至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md`（或 `CHANGELOG-iter-{iteration}.md`），在根 `CHANGELOG.md` 顶部"历史记录索引"段更新链接；根文件可写，分卷只读，`pnpm run changelog:*` 仅作用于根文件。
 - **引用规范**：需求/架构/任务/QA 文档或 ADR 若需引用旧条目，必须链接到 `docs/changelogs/CHANGELOG-*.md` 中的具体分卷，避免模糊引用。
-- **同步提醒**：`/tdd push` 在推送前会校验 `CHANGELOG.md` 是否已更新；若执行分卷请务必在 PR “文档回写”段落列出新分卷编号与链接。
+- **同步提醒**：CHANGELOG 条目由 `/qa merge` 自动生成（版本递增 + CHANGELOG + tag），TDD 阶段无需手动维护；若执行分卷请务必在 PR “文档回写”段落列出新分卷编号与链接。
 
 ## Post-Push Gate：代码审查（强制）
 
@@ -409,13 +413,13 @@ flowchart TD
     A[TDD 专家激活] --> B{分支门禁检查}
     B -->|在主干分支上| C{有 Task ID?}
     B -->|已在正确分支| F[编码：TDD 循环]
-    C -->|有| D["/tdd new-branch TASK-XXX<br/>自动从 TASK.md 提取描述"]
-    C -->|无：bug/临时需求| E["/tdd new-branch<br/>从用户描述生成 fix/feature 分支"]
+    C -->|有| D["/tdd new-worktree TASK-XXX<br/>自动从 TASK.md 提取描述"]
+    C -->|无：bug/临时需求| E["/tdd new-worktree<br/>从用户描述生成 fix/feature 分支"]
     D --> F
     E --> F
     F --> G["/tdd sync<br/>文档回写 Gate"]
     G --> G2["Pre-Push Gate<br/>code-simplifier + commit"]
-    G2 --> H["/tdd push<br/>版本递增 + push + 自动创建 PR"]
+    G2 --> H["/tdd push<br/>push + 自动创建 PR"]
     H --> H2["Post-Push Gate<br/>/code-review --comment 插件"]
     H2 -->|Approved| I[标记 TDD_DONE]
     H2 -->|Changes Requested| H3["自动 /tdd fix + code-simplifier<br/>git push 到已有 PR"]
@@ -433,13 +437,16 @@ flowchart TD
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
 - `/tdd sync`：默认执行 `session` 回写（运行 `pnpm run tdd:sync`，仅同步当前会话涉及的 TASK/模块文档）；`/tdd sync --project` 执行全量文档回写 Gate（`pnpm run tdd:sync -- --project`，等价全项目 `tdd:tick` 扫描）。完成后自动串联执行：Pre-Push Gate（code-simplifier + commit）→ `/tdd push` → Post-Push Gate（`/code-review --comment`）。
-- `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：版本递增 + CHANGELOG 条目 + commit/tag/push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；完成后自动触发 Post-Push Gate（`/code-review --comment`）。
-- `/tdd new-branch`：创建 feature/fix 分支并切换，支持两种模式：
-  - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 `/docs/TASK.md`（或模块 TASK 文档）WBS 表格查找该 Task ID 的"名称"列，转为 kebab-case 英文短语（≤30 字符）作为分支描述 → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
-  - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述中提取关键词生成 kebab-case 描述（≤30 字符） → 分支名：`fix/<desc>`（bug 修复）或 `feature/<desc>`（新功能）
-  - 两种模式下用户都可显式传入描述来覆盖自动生成。该命令通常由分支门禁自动调用，也可手动执行。
+- `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；完成后自动触发 Post-Push Gate（`/code-review --comment`）。
+- `/tdd new-branch`：创建 feature/fix 分支并切换（单分支模式），支持两种模式：
+  - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
+  - **无 Task**（bug 修复/临时需求）：`/tdd new-branch "描述"` → `fix/<desc>`（加 `--fix`）或 `feature/<desc>`
+  - 两种模式下用户都可显式传入描述来覆盖自动生成。
+- `/tdd new-worktree`：在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐，分支门禁默认使用）。参数与 `/tdd new-branch` 相同，额外支持 `--dry-run`。Worktree 会自动 symlink 主目录的 `.env.local`。
+- `/tdd worktree list`：列出当前所有活跃的 worktree（分支名 | 相对路径 | HEAD 缩写）。
+- `/tdd worktree remove <branch>`：安全移除指定 worktree，检查未提交变更后执行 `git worktree remove` + `git worktree prune`。
 - `pnpm run tdd:tick`：手动执行任务勾选，依据分支名 `TASK-*` ID 勾选 TASK 文档复选框并同步 module-list 状态。
-- `/tdd resume [branch]`：恢复暂存分支 → ① 当前分支有变更时先 stash ② `git checkout <branch>` ③ `git rebase main`（冲突时暂停，由用户解决后 `git rebase --continue`） ④ 按分支名匹配 stash（`git stash list | grep "WIP: <branch>"`），有则 `git stash pop stash@{N}` ⑤ 继续 TDD 流程。不带参数时列出所有含 `WIP:` 标记的 stash 及对应分支供用户选择。本命令跳过常规分支门禁（它本身即是分支切换机制）。
+- `/tdd resume [branch]`：自动感知 worktree/stash 双模式恢复开发环境：① worktree 模式：检测目标分支是否有对应 worktree → 有则输出 worktree 路径供导航 ② stash 模式：checkout + rebase main + stash pop。不带参数时列出所有可恢复目标（worktree + stash）。本命令跳过常规分支门禁。
 - `/ci run`、`/ci status` — 已迁移至 **DevOps 专家**。
 
 ## TDD Pull Request 最小模板（片段）

@@ -87,14 +87,17 @@
 - `/tdd diagnose`：诊断当前代码/测试问题
 - `/tdd fix`：修复已识别问题
 - `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步当前会话涉及的 TASK/模块文档，自动勾选复选框、更新状态；`--project` 全量扫描）。完成后自动串联 Pre-Push Gate → `/tdd push`
-- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（版本递增 + CHANGELOG 条目 + commit/tag/push + 自动创建当前分支 PR）；`--project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成
-- `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（通常由分支门禁自动调用，也可手动执行）
-- `/tdd resume [branch]`：恢复之前暂存的分支，自动 rebase main 并恢复 stash；不带参数时列出可恢复分支
+- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（推代码 + 自动创建当前分支 PR）；`--project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成
+- `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（单分支模式，通常由分支门禁自动调用，也可手动执行）
+- `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐用于多任务并行开发）
+- `/tdd worktree list`：**首先执行** `pnpm run tdd:worktree-list` **脚本**，列出当前所有活跃的 worktree
+- `/tdd worktree remove`：**首先执行** `pnpm run tdd:worktree-remove` **脚本**，清理指定 worktree（检查未提交变更后安全移除）
+- `/tdd resume [branch]`：**首先执行** `pnpm run tdd:resume` **脚本**，自动感知 worktree/stash 双模式恢复之前的开发环境；不带参数时列出所有可恢复目标
 
 **分支门禁**（自动执行，无需手动触发）：
   - TDD 专家激活后（含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等所有入口），**第一步**自动检查当前 Git 分支。
-  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，自动执行 `/tdd new-branch` 创建分支。
-  - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上则跳过。
+  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，默认执行 `/tdd new-worktree` 创建 worktree（显式指定 `--single-branch` 时走 `/tdd new-branch`）。
+  - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上，或已在对应 worktree 中工作则跳过。
   - 若在无关分支上 → 自动 stash 未提交变更，提示用户切换或创建新分支；稍后用 `/tdd resume` 恢复。
 
 **分支生成**（`/tdd new-branch`）：
@@ -115,7 +118,7 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 - **作用域规则**：`/qa plan`、`/qa verify`、`/qa merge` 裸命令默认 `session`（仅当前会话范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。`/qa merge` 在两种作用域下都只处理当前分支 PR，不会操作其他分支。
 - `/qa plan`：**首先执行** `pnpm run qa:generate` **脚本**（读取 PRD/ARCH/TASK，解析数据，生成测试用例和策略，记录会话上下文）。默认 `session`；`--project` 执行全量刷新。支持 `--modules <list>` 指定模块、`--dry-run` 预览
 - `/qa verify`：**首先执行** `pnpm run qa:verify` **脚本**（优先基于 `/qa plan` 会话状态文件验证，检查文档完整性，生成验收建议）。默认 `session`；`--project` 执行全项目验证（Go/Conditional/No-Go）
-- `/qa merge`：**首先执行** `pnpm run qa:merge` **脚本**（包含自动 rebase、发布门禁检查、双策略合并、自动清理分支等15个关键步骤），合并**当前分支对应 PR** 到 main。支持 `--skip-checks`（跳过门禁）、`--dry-run`（预览）。**脚本成功后必须立即**：① 更新 `/docs/AGENT_STATE.md` 标记 `QA_VALIDATED` → ② `git add docs/AGENT_STATE.md` → ③ `git commit` → ④ `git push origin main` → ⑤ 交接 DevOps（确保工作区干净后再部署）
+- `/qa merge`：**首先执行** `pnpm run qa:merge` **脚本**（包含自动 rebase、发布门禁检查、双策略合并、版本递增 + CHANGELOG + tag、AGENT_STATE 更新、worktree 清理等 17 个关键步骤），合并**当前分支对应 PR** 到 main。支持 `--skip-checks`（跳过门禁）、`--dry-run`（预览）。脚本自动完成全部操作（含版本递增 + tag + AGENT_STATE + worktree 清理 + push），完成后交接 DevOps（确保工作区干净后再部署）
 
 部署命令（`/ship`、`/cd`）已迁移至 DevOps 专家。
 

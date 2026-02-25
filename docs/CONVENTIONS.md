@@ -12,6 +12,7 @@
 - `tooling/`：内部构建工具（eslint、tsconfig 基础配置等）。
 - `e2e/`：跨端端到端测试（Playwright / Cypress），详见「项目目录结构（Monorepo）」章节。
 - `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
+- `.worktrees/`：TDD 并行开发用 Git Worktree 临时目录（已 .gitignore），详见 AGENTS.md Phase 4。
 
 ## `docs/` 子结构与文档目录职责
 

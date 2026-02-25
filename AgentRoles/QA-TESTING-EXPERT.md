@@ -11,7 +11,7 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 |---------|---------|---------|------|
 | `/qa plan` | `pnpm run qa:generate` | `infra/scripts/qa-tools/generate-qa.js` | 生成/刷新测试计划 |
 | `/qa verify` | `pnpm run qa:verify` | `infra/scripts/qa-tools/qa-verify.js` | 执行验收检查 |
-| `/qa merge` | `pnpm run qa:merge` | `infra/scripts/qa-tools/qa-merge.js` | 合并 PR 到 main（含自动 rebase 等 15 个关键步骤，详见下方） |
+| `/qa merge` | `pnpm run qa:merge` | `infra/scripts/qa-tools/qa-merge.js` | 合并 PR 到 main（含自动 rebase、版本递增、CHANGELOG、tag、worktree 清理等 17 个关键步骤，详见下方） |
 
 **为什么必须调用脚本**：
 - ✅ 脚本包含完整的前置检查（工作区状态、PR 冲突、发布门禁等）
@@ -304,7 +304,7 @@ flowchart TD
   - **重要**：如果 `pnpm run qa:verify` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动验证（手动验证会跳过覆盖率检查、缺陷阻塞检查等关键步骤）。
 - `/qa merge`：
   - **执行方式**：**必须首先执行** `pnpm run qa:merge` **脚本**，禁止直接使用 git 命令手动合并。
-  - **脚本功能**（`infra/scripts/qa-tools/qa-merge.js` 包含15个关键步骤）：
+  - **脚本功能**（`infra/scripts/qa-tools/qa-merge.js` 包含 17 个关键步骤）：
     1. 加载项目级 GH_TOKEN
     2. 确保 gh CLI 可用
     3. 工作区干净检查（无未提交变更）
@@ -315,17 +315,17 @@ flowchart TD
     8. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
     9. **双策略合并**：优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge
     10. 防竞态检测（gh 超时但实际已完成的情况）
-    11. 自动构建规范 commit message（PR 标题 + 概要 + Co-Authored-By）
-    12. 自动关闭 PR 并添加注释
+    11. **同步本地 main**（worktree 模式用 `git -C`，传统模式用 checkout + pull）
+    12. **清理 worktree**（检测并安全移除对应 worktree，无 worktree 则跳过）
     13. 删除远程和本地 feature 分支
-    14. 完整的错误处理和回滚机制
-    15. 输出详细摘要和下一步指导
+    14. **版本递增 + CHANGELOG 条目**（自动 patch bump + 生成 CHANGELOG 条目）
+    15. **更新 AGENT_STATE**（标记 QA_VALIDATED）
+    16. **Release commit + tag + push**（统一提交版本、CHANGELOG、AGENT_STATE 变更并打 tag）
+    17. 输出详细摘要和下一步指导
   - **作用域**：默认 `session`（会话模式）；`--project` 显式声明项目模式。两种作用域下都只处理**当前分支对应 PR**。
   - **参数**：`--skip-checks`（跳过门禁检查）、`--dry-run`（预览操作，不执行）
   - **前置条件**：`/qa verify` 已通过且发布建议为 Go；若为 Conditional 或 No-Go 则拒绝执行并提示原因。
-  - **完成动作**（强制，脚本成功后必须在同一会话中依序执行，不得跳过）：
-    1. 执行 `pnpm run qa:merge`，脚本自动完成：合并 PR、更新并推送 `/docs/AGENT_STATE.md`（标记 `QA_VALIDATED`、记录 PR 编号与提交号）、清理分支
-    2. 交接 DevOps 专家执行部署（此时工作区必须为干净状态）
+  - **完成动作**：脚本自动完成全部操作（含版本递增 + CHANGELOG + tag + AGENT_STATE 更新 + worktree 清理 + push），完成后交接 DevOps 专家执行部署（此时工作区必须为干净状态）
   - **重要**：如果 `pnpm run qa:merge` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动合并（手动合并会跳过所有关键检查和安全保障）。
 
 ## ADR 触发规则（QA 阶段）

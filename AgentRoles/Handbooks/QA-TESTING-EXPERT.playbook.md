@@ -79,11 +79,8 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 
 ### 第四步：合并发布（/qa merge）
 1. **必须首先执行** `pnpm run qa:merge` 脚本（不得手动合并）
-2. 脚本包含 15 个关键步骤：工作区检查 → rebase → 门禁 → 合并 → 分支清理
-3. **脚本成功后**立即依序执行：
-   - 更新 `/docs/AGENT_STATE.md` 标记 `QA_VALIDATED`
-   - `git add docs/AGENT_STATE.md && git commit && git push origin main`
-   - 交接 DevOps 执行部署
+2. 脚本包含 17 个关键步骤：工作区检查 → rebase → 门禁 → 合并 → 同步 main → worktree 清理 → 删分支 → 版本递增 + CHANGELOG + tag → AGENT_STATE → release commit + push
+3. 脚本自动完成全部操作（含版本递增 + tag + AGENT_STATE + worktree 清理），完成后交接 DevOps 执行部署
 
 ### 回退触发
 - 发布建议为 No-Go → 退回 TDD 修复，取消 `TDD_DONE`

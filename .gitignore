@@ -164,3 +164,6 @@ apps/web/public/e2e/export-images/*.png
 # 允许源代码中的 storage 目录（OSS 客户端等工具）
 !apps/web/src/lib/storage/
 infra/scripts/cron/.scheduler/
+
+# TDD 并行开发 worktree 临时目录
+.worktrees/
