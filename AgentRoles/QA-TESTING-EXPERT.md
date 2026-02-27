@@ -188,6 +188,19 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 - **无障碍测试**：验证产品是否符合 WCAG 2.1 AA 标准（对比度、键盘可达性、屏幕阅读器兼容、语义化 HTML），参照 PRD 专家产出的 UX 规范。
 - **设计还原度测试**：对照 UX 规范（`/docs/data/ux-specifications.md` 或模块级 `ux-specifications.md`）验证前端实现与设计稿的一致性，包括间距、色彩、排版、响应式断点表现。
 
+## 智能测试编写规则（自动串联模式）
+
+当 QA 从 TDD 自动串联激活时，根据分支类型决定测试编写范围：
+
+| 分支类型 | 新测试代码编写 | 已有测试套件 |
+|---------|--------------|-------------|
+| `fix/*` | 跳过（仅回归） | 全部执行 |
+| `feature/*` | 编写 E2E；变更文件 >3 时追加性能/SAST | 全部执行 |
+
+**判断依据**：`git diff origin/main --name-only | wc -l` 统计变更文件数。
+
+**手动覆盖**：用户可在激活 QA 时显式指定需要编写的测试类型。
+
 ### 测试产物管理
 - **测试结果路径**：Playwright: `test-results/`、`playwright-report/`；Jest: `coverage/`；所有测试结果目录必须加入 `.gitignore`，严禁提交到 Git 仓库。
 - **CI/CD**：使用 GitHub Actions Artifacts 存储测试结果（默认保留 30 天）。
@@ -239,19 +252,24 @@ QA 专家的快捷命令与 `package.json` 中定义的脚本有**严格的映�
 
 ```mermaid
 flowchart TD
-    A[TDD 移交 PR] --> B["/qa plan<br/>生成/刷新测试计划"]
-    B --> B2["编写测试代码<br/>E2E(Playwright)/性能(k6)/安全(ZAP)"]
-    B2 --> C["执行全量测试<br/>记录结果到 QA.md"]
-    C --> D["/qa verify<br/>验收检查"]
+    A[TDD 自动串联 or 手动激活] --> B["/qa plan 生成测试计划"]
+    B --> B1{智能测试判断}
+    B1 -->|fix/*| B2[跳过编写，执行已有测试]
+    B1 -->|feature/*| B3["编写 E2E/性能/安全测试"]
+    B2 --> C["执行全量测试，记录结果"]
+    B3 --> C
+    C --> D["/qa verify 验收检查"]
     D --> E{发布建议}
-    E -->|Go| F["/qa merge<br/>合并当前分支 PR 到 main"]
-    E -->|Conditional| G[列出前置条件<br/>满足后再 /qa merge]
-    E -->|No-Go| H[退回 TDD 修复<br/>取消 TDD_DONE]
+    E -->|Go| F["/qa merge 合并 PR 到 main"]
+    E -->|Conditional| G{可自动满足?}
+    G -->|是| F
+    G -->|否| STOP[停止，通知用户]
+    E -->|No-Go| H["输出缺陷列表，退回 TDD"]
     F --> I[标记 QA_VALIDATED]
     I --> J[交接 DevOps 部署]
 ```
 
-- 发布前将 QA 结论同步给干系人；若存在阻塞问题，取消 `TDD_DONE`，并协助相关阶段修复后重新验证。
+- 发布前将 QA 结论同步给干系人；自动串联模式下，No-Go 自动取消 `TDD_DONE` 并触发 TDD 修复循环（含 circuit breaker）；手动模式下仍需人工取消并协助修复。
 - 对关键风险或流程缺口，在 `/docs/TASK.md` 更新风险登记或触发回流记录，并核对最新 CI 结果与 `CHANGELOG.md`、测试结论一致。
 - 模块化项目还需同步每个 `/docs/qa-modules/{domain}/QA.md` 的执行状态（优先级、NFR、缺陷）与主 QA 文档的模块索引，确保 ARCH/TDD/QA 三方在交付 & 回流会议中能直接定位到该模块内容。
 - **发布后**：若部署后回滚，DevOps 在部署日志（`/docs/data/deployments/`）中记录回滚事件；QA 被重新激活后，从回滚记录中提取信息在 `defect-log.md` 正式登记缺陷条目，退回 TDD 修复。
@@ -283,6 +301,8 @@ flowchart TD
   - **作用域**：默认 `session`（会话模式）；`/qa plan --project` 全项目模式。
   - **参数**：`--modules <list>`（指定模块，仅 session 模式）、`--dry-run`（预览操作，不写入文件）
   - **完成动作**：生成/刷新 QA 文档，记录会话上下文（session 模式），输出回写文件清单。
+  - **自动串联模式**（从 TDD 自动触发时）：`/qa plan` 完成后自动串联：智能测试编写 → 执行测试 → `/qa verify` → 根据结果自动 `/qa merge` 或退回 TDD。
+  - **手动模式**（用户直接调用时）：行为不变，不自动串联后续命令。
   - **重要**：如果 `pnpm run qa:generate` 脚本不可用或执行失败，**必须向用户报告**，禁止尝试手动生成文档（手动生成会跳过数据解析、追溯更新等关键步骤）。
 - `/qa verify`：
   - **执行方式**：**必须首先执行** `pnpm run qa:verify` **脚本**，禁止跳过脚本手动验证。

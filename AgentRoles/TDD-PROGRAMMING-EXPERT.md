@@ -393,18 +393,49 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 **强制门禁**：code-review 未返回 `Approved`，禁止标记 `TDD_DONE`，禁止移交 QA。
 
+## 自动串联 QA（Post-Push Gate 完成后默认执行）
+
+Post-Push Gate（code-review）返回 `Approved` 后，TDD 专家**自动执行**以下步骤，无需用户手动激活 QA：
+
+1. 在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`
+2. **自动切换至 QA 专家**：读取 `/AgentRoles/QA-TESTING-EXPERT.md`
+3. 自动执行 `/qa plan`（session 模式）
+4. **智能测试编写**（见 QA 专家文件 §智能测试编写规则）：
+   - `fix/*` 分支：跳过编写新测试代码，仅执行已有测试套件
+   - `feature/*` 分支：编写 E2E 测试代码 + 执行全量测试
+5. 自动执行 `/qa verify`（session 模式）
+6. 根据验收结果自动处理：
+   - **Go** → 自动执行 `/qa merge`
+   - **Conditional** → 尝试满足前置条件后执行 `/qa merge`；无法自动满足则停止并通知用户
+   - **No-Go** → 触发自动修复循环（见下方）
+
+### No-Go 自动修复循环
+
+1. QA 专家输出缺陷列表（defect list）
+2. **自动切换回 TDD 专家**：读取 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`
+3. 以缺陷列表为输入执行 `/tdd fix`
+4. `/tdd fix` 完成后走正常 TDD push 流程（追加 commits 到已有 PR，禁止重新 `/tdd push`）→ Post-Push Gate
+5. Post-Push Gate 通过后再次自动串联 QA 流程（步骤 2-6）
+6. **Circuit Breaker**：连续 2 轮 No-Go 且缺陷列表无变化 → 停止并通知用户
+
+### 跳过自动串联
+
+- `/tdd sync --no-qa` 或 `/tdd push --no-qa`：完成 TDD 全流程但不自动串联 QA（手动模式）
+- 适用场景：需要人工审查 PR、等待外部依赖、多分支协调合并
+
 ## CI/CD 协作
 - TDD 专家负责代码通过 CI 验证（lint/typecheck/test/build 全绿）。
 - CI/CD 流水线配置/执行与部署由 **DevOps 专家**管理（见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`）。
 
 ## 完成定义（DoD）
-- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR "文档回写"段粘贴）；需要的 ADR/变更记录齐全；code-review（Post-Push Gate）返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
-- 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注“模块完成”以便 QA 能快速定位。
+- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR “文档回写”段粘贴）；需要的 ADR/变更记录齐全；code-review（Post-Push Gate）返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
+- 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注”模块完成”以便 QA 能快速定位。
+- 自动串联模式下，TDD_DONE 标记后自动进入 QA 流程；QA_VALIDATED 由 `/qa merge` 脚本自动勾选。
 
 ## 交接
-- `/tdd push` 完成后 PR 已自动创建，QA 专家可直接在 PR 上进行审查与验证。
-- CI 全绿且 code-review（Post-Push Gate）返回 `Approved` 后移交 QA 专家验证；若被退回，按状态文件回退到对应阶段修正。
-- 部署操作由 **DevOps 专家**在 QA 验证通过并合并 PR 到 main 后执行。
+- `/tdd push` 完成后 PR 已自动创建；Post-Push Gate（code-review）通过后**自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`），无需手动激活 QA。
+- 使用 `--no-qa` 跳过自动串联时，QA 专家可手动在 PR 上进行审查与验证。
+- 若 QA 退回（No-Go），按自动修复循环重试（含 Circuit Breaker）；最终由 **DevOps 专家**在 QA_VALIDATED 后执行部署。
 
 ### TDD 开发全流程
 
@@ -413,31 +444,41 @@ flowchart TD
     A[TDD 专家激活] --> B{分支门禁检查}
     B -->|在主干分支上| C{有 Task ID?}
     B -->|已在正确分支| F[编码：TDD 循环]
-    C -->|有| D["/tdd new-worktree TASK-XXX<br/>自动从 TASK.md 提取描述"]
-    C -->|无：bug/临时需求| E["/tdd new-worktree<br/>从用户描述生成 fix/feature 分支"]
+    C -->|有| D["/tdd new-branch TASK-XXX"]
+    C -->|无：bug/临时需求| E["/tdd new-branch fix/..."]
     D --> F
     E --> F
-    F --> G["/tdd sync<br/>文档回写 Gate"]
-    G --> G2["Pre-Push Gate<br/>code-simplifier + commit"]
-    G2 --> H["/tdd push<br/>push + 自动创建 PR"]
-    H --> H2["Post-Push Gate<br/>/code-review --comment 插件"]
+    F --> G["/tdd sync 文档回写 Gate"]
+    G --> G2["Pre-Push Gate: code-simplifier"]
+    G2 --> H["/tdd push: push + 创建 PR"]
+    H --> H2["Post-Push Gate: /code-review"]
     H2 -->|Approved| I[标记 TDD_DONE]
-    H2 -->|Changes Requested| H3["自动 /tdd fix + code-simplifier<br/>git push 到已有 PR"]
+    H2 -->|Changes Requested| H3["自动 /tdd fix + push"]
     H3 --> H2
-    I --> J[移交 QA 专家]
-    J --> K["/qa plan → 测试 → /qa verify"]
-    K -->|Go| L["/qa merge<br/>合并当前分支 PR 到 main"]
-    K -->|No-Go| M[退回 TDD 修复]
-    L --> N[标记 QA_VALIDATED]
-    N --> O[DevOps 从 main 部署]
+    I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
+    QA1 --> QA2{智能测试判断}
+    QA2 -->|fix/* 分支| QA3[跳过编写，执行已有测试]
+    QA2 -->|feature/* 分支| QA4[编写 E2E + 执行全量测试]
+    QA3 --> QA5["/qa verify 验收检查"]
+    QA4 --> QA5
+    QA5 -->|Go| QA6["/qa merge 合并到 main"]
+    QA5 -->|Conditional| QA7{可自动满足?}
+    QA7 -->|是| QA6
+    QA7 -->|否| STOP[停止，通知用户]
+    QA5 -->|No-Go| QA8{Circuit Breaker ≤2 轮?}
+    QA8 -->|是| FIX["切换 TDD → /tdd fix"]
+    QA8 -->|否| STOP
+    FIX --> G
+    QA6 --> QA9[标记 QA_VALIDATED]
+    QA9 --> DEPLOY[交接 DevOps 部署]
 ```
 
 ## 快捷命令
 - **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`（仅当前会话/当前分支范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更；
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`；
-- `/tdd sync`：默认执行 `session` 回写（运行 `pnpm run tdd:sync`，仅同步当前会话涉及的 TASK/模块文档）；`/tdd sync --project` 执行全量文档回写 Gate（`pnpm run tdd:sync -- --project`，等价全项目 `tdd:tick` 扫描）。完成后自动串联执行：Pre-Push Gate（code-simplifier + commit）→ `/tdd push` → Post-Push Gate（`/code-review --comment`）。
-- `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；完成后自动触发 Post-Push Gate（`/code-review --comment`）。
+- `/tdd sync`：默认执行 `session` 回写（运行 `pnpm run tdd:sync`，仅同步当前会话涉及的 TASK/模块文档）；`/tdd sync --project` 执行全量文档回写 Gate（`pnpm run tdd:sync -- --project`，等价全项目 `tdd:tick` 扫描）。完成后自动串联执行：Pre-Push Gate（code-simplifier + commit）→ `/tdd push` → Post-Push Gate（`/code-review --comment`）→ **自动 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过 QA 串联。
+- `/tdd push`：默认执行 `session` 发布（运行 `pnpm run tdd:push`，仅操作当前分支：push + **自动创建当前分支 PR**）；`/tdd push --project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；完成后自动触发 Post-Push Gate（`/code-review --comment`）→ Post-Push Gate 通过后**自动串联 QA 流程**（同 `/tdd sync` 串联逻辑）。使用 `--no-qa` 跳过 QA 串联。
 - `/tdd new-branch`：**（默认推荐）** 创建 feature/fix 分支并切换（单分支模式），支持两种模式：
   - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 分支名：`feature/TASK-<DOMAIN>-<编号>-<auto-desc>`
   - **无 Task**（bug 修复/临时需求）：`/tdd new-branch "描述"` → `fix/<desc>`（加 `--fix`）或 `feature/<desc>`
