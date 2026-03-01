@@ -598,7 +598,9 @@ function main() {
     const currentBranch = getCurrentBranch();
     if (isMainBranch(currentBranch)) {
       throw new Error(
-        `当前在主干分支 (${currentBranch})，请先切换到 feature/fix 分支。`
+        `当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n` +
+        `  如需推送文档 / 配置等小改动：git push origin ${currentBranch}\n` +
+        `  如需推送代码变更：请先 git stash，再 /tdd new-branch 创建 feature 分支，走正常 PR 流程。`
       );
     }
 
