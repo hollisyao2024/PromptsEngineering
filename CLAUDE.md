@@ -21,20 +21,14 @@
 2. 发出 `[[ACTIVATE: X]]` 并立即读取 `AgentRoles/<X>-EXPERT.md`
 3. 专家文件读取完成后，**必须立即继续执行 plan 文件中的所有后续步骤（Step 1、Step 2……），不得在专家激活后停止**
 
-同时，写 plan 文件时必须将专家激活作为 **Step 0** 写入：
+同时，写 plan 文件时必须将专家激活作为 **Step 0** 写入。
 
-```markdown
-## Step 0：激活专家
-[[ACTIVATE: TDD]]  <!-- 替换为实际专家 -->
-
-<!-- TDD 任务的标准后续步骤（非 TDD 任务按实际需求列出后续步骤）：
-## Step 1：执行 /tdd sync（文档回写 + Pre-Push Gate）
-## Step 2：执行 /tdd push（推送代码 + 创建 PR + Post-Push Gate）
-## Step 3：执行 /qa plan（生成 QA 测试计划）
-## Step 4：执行 /qa verify（验收验证）
-## Step 5：执行 /qa merge（合并 PR + 更新状态）
--->
-```
+**TDD 任务 plan 文件的 ExitPlanMode 前置检查（强制）**：调用 ExitPlanMode **之前**，检查 plan 文件是否已在编码步骤之后包含以下 5 个独立 Step，**缺少则补全后再退出**（`--no-qa` 跳过后 3 步）：
+1. 执行 `/tdd sync`（文档回写 + Pre-Push Gate）
+2. 执行 `/tdd push`（推送代码 + 创建 PR + Post-Push Gate）
+3. 执行 `/qa plan`（生成 QA 测试计划）
+4. 执行 `/qa verify`（验收验证）
+5. 执行 `/qa merge`（合并 PR + 更新状态）
 
 <!-- ⚠️ 以上为模板核心区域，禁止修改。定制内容在分隔线后追加，变更仅在模板源项目（PromptsEngineering）中进行后同步。 -->
 
