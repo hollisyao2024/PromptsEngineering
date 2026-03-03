@@ -30,6 +30,8 @@
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
+**TDD 任务执行追踪（强制）**：所有编码步骤完成后，**立即**用 TodoWrite 将上述 5 个收尾步骤写入待办列表（status: pending），执行每步后立即标记 completed。TodoWrite 列表在每个 turn 持续可见，确保收尾流水线不会中断。
+
 <!-- ⚠️ 以上为模板核心区域，禁止修改。定制内容在分隔线后追加，变更仅在模板源项目（PromptsEngineering）中进行后同步。 -->
 
 ---
