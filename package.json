@@ -64,11 +64,11 @@
     "ship:prod": "bash infra/scripts/server/deploy.sh local production",
     "cd:staging": "bash infra/scripts/server/deploy.sh ci staging",
     "cd:prod": "bash infra/scripts/server/deploy.sh ci production",
-    "dev:start": "bash infra/scripts/server/frontend-dev-pm2.sh start",
-    "dev:restart": "bash infra/scripts/server/frontend-dev-pm2.sh restart",
-    "dev:stop": "bash infra/scripts/server/frontend-dev-pm2.sh stop",
-    "dev:status": "bash infra/scripts/server/frontend-dev-pm2.sh status",
-    "dev:logs": "bash infra/scripts/server/frontend-dev-pm2.sh logs"
+    "dev:start": "bash infra/scripts/server/server-dev.sh start",
+    "dev:restart": "bash infra/scripts/server/server-dev.sh restart",
+    "dev:stop": "bash infra/scripts/server/server-dev.sh stop",
+    "dev:status": "bash infra/scripts/server/server-dev.sh status",
+    "dev:logs": "bash infra/scripts/server/server-dev.sh logs"
   },
   "keywords": [
     "prd",

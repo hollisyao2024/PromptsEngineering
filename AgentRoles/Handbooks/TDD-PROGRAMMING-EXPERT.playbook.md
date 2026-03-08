@@ -17,7 +17,7 @@
 命名格式、脚本使用方法、模板示例与提交前验证清单已统一收录在 Conventions。TDD 专家需确保：
 - **创建与验证**：严格按 Conventions 中的优先顺序执行 `create-migration.sh` / Supabase CLI 等命令，禁止手填时间戳；若发现模板缺失或命名不符，立即回写该章节。
 - **传递信息**：在 PR / 交付说明中引用对应迁移文件名，并注明已按 Conventions 运行本地多次验证；若规范更新，应同步通知团队并在本 Playbook 记录参考日期。
-- **数据库迁移脚本幂等性**：迁移脚本必须确保幂等性，即使被执行多次，最终结果应保持一致，不产生重复的表、列、索引或数据。
+- **数据库迁移脚本幂等性**：详见 Expert §B.5 及 `docs/CONVENTIONS.md` §数据库迁移幂等性原则。
 
 ---
 
@@ -186,6 +186,83 @@ pnpm run build
   - [ ] `/docs/data/dictionary.md` 已更新（新增字段说明）
   - [ ] `/docs/ARCH.md` 的数据视图已同步
 - [ ] **回滚方案**：文档中清晰说明回滚步骤与可能的数据风险
+
+---
+
+## TDD 开发全流程图
+
+```mermaid
+flowchart TD
+    A[TDD 专家激活] --> B{分支门禁检查}
+    B -->|在主干分支上| C{有 Task ID?}
+    B -->|已在正确分支| F[编码：TDD 循环]
+    C -->|有| D["/tdd new-branch TASK-XXX"]
+    C -->|无：bug/临时需求| E["/tdd new-branch fix/..."]
+    D --> F
+    E --> F
+    F --> G["/tdd sync 文档回写 Gate"]
+    G --> G2["Pre-Push Gate: code-simplifier"]
+    G2 --> H["/tdd push: push + 创建 PR"]
+    H --> H2["Post-Push Gate: /code-review"]
+    H2 -->|Approved| I[标记 TDD_DONE]
+    H2 -->|Changes Requested| H3["自动 /tdd fix + push"]
+    H3 --> H2
+    I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
+    QA1 --> QA2{智能测试判断}
+    QA2 -->|fix/* 分支| QA3[跳过编写，执行已有测试]
+    QA2 -->|feature/* 分支| QA4[编写 E2E + 执行全量测试]
+    QA3 --> QA5["/qa verify 验收检查"]
+    QA4 --> QA5
+    QA5 -->|Go| QA6["/qa merge 合并到 main"]
+    QA5 -->|Conditional| QA7{可自动满足?}
+    QA7 -->|是| QA6
+    QA7 -->|否| STOP[停止，通知用户]
+    QA5 -->|No-Go| QA8{Circuit Breaker ≤2 轮?}
+    QA8 -->|是| FIX["切换 TDD → /tdd fix"]
+    QA8 -->|否| STOP
+    FIX --> G
+    QA6 --> QA9[标记 QA_VALIDATED]
+    QA9 --> DEPLOY[交接 DevOps 部署]
+```
+
+---
+
+## TDD PR 模板
+
+```markdown
+### 概要
+- 这次变更解决了…（链接 Task/Issue）
+
+### 变更内容
+- …
+
+### 测试
+- 新增/修改用例：…（附运行截图/日志要点）
+
+### 文档回写
+- PRD：链接/段落号；ARCH：图/小节；TASK：任务勾选/依赖调整；ADR：#NNN
+
+### 风险与回滚
+- 风险：…；回滚方案：…
+```
+
+---
+
+## CHANGELOG 模块化与归档
+
+- **触发阈值**：根 `CHANGELOG.md` 超过 ~500 行、覆盖 ≥3 个季度/迭代、或需归档上一季度时执行分卷；保持 `CHANGELOG.md` 只保留最近 1~2 个主版本条目。
+- **分割步骤**：归档条目移至 `docs/changelogs/CHANGELOG-{year}Q{quarter}.md`，在根文件顶部"历史记录索引"段更新链接；根文件可写，分卷只读。
+- **引用规范**：文档若需引用旧条目，必须链接到具体分卷，避免模糊引用。
+- **同步提醒**：CHANGELOG 条目由 `/qa merge` 自动生成，TDD 阶段无需手动维护。
+
+---
+
+## Gate 跨平台替代方案
+
+| Gate | Claude Code | Gemini CLI | Codex CLI | GitHub Copilot |
+|------|-------------|------------|-----------|---------------|
+| Pre-Push（代码简化） | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
+| Post-Push（代码审查） | `/code-review --comment` 插件（需 gh CLI） | `gemini extensions install gemini-cli-extensions/code-review` | 内置 `/review` 命令（本地 diff 分析） | 无 CLI 等效，仅 Web/IDE 可用 |
 
 ---
 

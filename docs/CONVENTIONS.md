@@ -237,7 +237,7 @@
 │   ├── k8s/
 │   ├── terraform/
 │   └── scripts/              # 自动化脚本
-│       ├── server/           # 服务器部署脚本（deploy.sh、frontend-dev-pm2.sh 等）
+│       ├── server/           # 服务器部署脚本（deploy.sh、server-dev.sh 等）
 │       ├── qa-tools/         # QA 脚本（generate-qa.js、qa-verify.js、qa-merge.js）
 │       ├── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
 │       ├── arch-tools/       # ARCH 工具脚本

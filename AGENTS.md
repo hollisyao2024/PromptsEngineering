@@ -91,27 +91,18 @@
 **完成状态**：Post-Push Gate（code-review）通过后自动勾选 `TDD_DONE`，并**默认自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过串联。
 
 **快捷命令**：
-- **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`（仅当前会话/当前分支范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。`/tdd push` 在两种作用域下都只处理当前分支/当前 PR，不会操作其他分支。
+- **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入 `project` 模式。
 - `/tdd diagnose`：诊断当前代码/测试问题
 - `/tdd fix`：修复已识别问题
-- `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步当前会话涉及的 TASK/模块文档，自动勾选复选框、更新状态；`--project` 全量扫描）。完成后自动串联 Pre-Push Gate → `/tdd push` → Post-Push Gate → **自动 QA 流程**；使用 `--no-qa` 跳过 QA 串联
-- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（推代码 + 自动创建当前分支 PR）；`--project` 可显式进入项目模式。两种模式都不触发 Gate，执行前须确认 Pre-Push Gate 已完成；Post-Push Gate 通过后自动串联 QA 流程，`--no-qa` 可跳过
+- `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步 TASK/模块文档，自动勾选复选框、更新状态）。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
+- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（推代码 + 自动创建当前分支 PR）。不触发 Gate；Post-Push 通过后串联 QA（`--no-qa` 跳过）
 - `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（单分支模式，通常由分支门禁自动调用，也可手动执行）
 - `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐用于多任务并行开发）
 - `/tdd worktree list`：**首先执行** `pnpm run tdd:worktree-list` **脚本**，列出当前所有活跃的 worktree
 - `/tdd worktree remove`：**首先执行** `pnpm run tdd:worktree-remove` **脚本**，清理指定 worktree（检查未提交变更后安全移除）
 - `/tdd resume [branch]`：**首先执行** `pnpm run tdd:resume` **脚本**，自动感知 worktree/stash 双模式恢复之前的开发环境；不带参数时列出所有可恢复目标
 
-**分支门禁**（自动执行，无需手动触发）：
-  - TDD 专家激活后（含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等所有入口），**第一步**自动检查当前 Git 分支。
-  - 若在 `main`/`master`/`develop` 等主干分支上 → 禁止执行任何代码操作，默认执行 `/tdd new-branch`（单分支模式，Claude Code 会话完整保留）；显式指定 `--worktree` 时走 `/tdd new-worktree`（高级备选，会重启会话）。
-  - 已在正确的 `feature/TASK-*` 或 `fix/*` 分支上，或已在对应 worktree 中工作则跳过。
-  - 若在无关分支上 → 自动 stash 未提交变更，提示用户切换或创建新分支；稍后用 `/tdd resume` 恢复。
-
-**分支生成**（`/tdd new-branch`）：
-  - **有 Task**：`/tdd new-branch TASK-<DOMAIN>-<编号>` → 自动从 TASK.md WBS 的"名称"列提取任务名称，转 kebab-case 英文短语（≤30 字符）作为描述 → `feature/TASK-XXX-<auto-desc>`
-  - **无 Task**（bug 修复/临时需求）：`/tdd new-branch` 不带 Task ID → 从用户描述提取关键词 → `fix/<desc>` 或 `feature/<desc>`
-  - 两种模式下用户可显式传入描述来覆盖自动生成。该命令通常由分支门禁自动调用，也可手动执行。
+分支门禁与分支生成规则详见 Expert 文件 §输入→预检查 和 §命令说明。
 
 CI/CD 流水线配置与部署由 DevOps 专家负责。
 
@@ -123,10 +114,10 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 **完成状态**：`/qa merge` 合并当前分支对应 PR 到 main 后勾选 `QA_VALIDATED`；如发现阻塞问题，可退回前一阶段重新处理。
 
 **快捷命令**：
-- **作用域规则**：`/qa plan`、`/qa verify`、`/qa merge` 裸命令默认 `session`（仅当前会话范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。`/qa merge` 在两种作用域下都只处理当前分支 PR，不会操作其他分支。
-- `/qa plan`：**首先执行** `pnpm run qa:generate` **脚本**（读取 PRD/ARCH/TASK，解析数据，生成测试用例和策略，记录会话上下文）。默认 `session`；`--project` 执行全量刷新。支持 `--modules <list>` 指定模块、`--dry-run` 预览
-- `/qa verify`：**首先执行** `pnpm run qa:verify` **脚本**（优先基于 `/qa plan` 会话状态文件验证，检查文档完整性，生成验收建议）。默认 `session`；`--project` 执行全项目验证（Go/Conditional/No-Go）
-- `/qa merge`：**首先执行** `pnpm run qa:merge` **脚本**（包含自动 rebase、发布门禁检查、双策略合并、版本递增 + CHANGELOG + tag、AGENT_STATE 更新、worktree 清理等 17 个关键步骤），合并**当前分支对应 PR** 到 main。支持 `--skip-checks`（跳过门禁）、`--dry-run`（预览）。脚本自动完成全部操作（含版本递增 + tag + AGENT_STATE + worktree 清理 + push），完成后交接 DevOps（确保工作区干净后再部署）
+- **作用域规则**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
+- `/qa plan`：**首先执行** `pnpm run qa:generate` **脚本**（生成测试用例和策略）。支持 `--modules <list>`、`--dry-run`
+- `/qa verify`：**首先执行** `pnpm run qa:verify` **脚本**（验证文档完整性，输出 Go/Conditional/No-Go）
+- `/qa merge`：**首先执行** `pnpm run qa:merge` **脚本**（含 rebase/门禁/合并/版本递增等 17 步），合并当前分支 PR 到 main。支持 `--skip-checks`、`--dry-run`
 
 部署命令（`/ship`、`/cd`）已迁移至 DevOps 专家。
 
@@ -146,7 +137,7 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
   - `/cd staging`：**首先执行** `pnpm cd:staging` **脚本**，通过 CI/CD 远程部署到预发环境
   - `/cd prod`：**首先执行** `pnpm cd:prod` **脚本**，通过 CI/CD 远程部署到生产环境
 - 环境命令：`/env check <env>`、`/env status`（自动激活 DevOps 专家）
-- 本地服务命令：`/restart`（自动激活 DevOps 专家，**首先执行** `pnpm dev:restart` **脚本** → `server-dev-pm2.sh restart`，PM2 服务名 `server-dev`，端口 `4000`，日志 `/tmp/server-dev.log`）
+- 本地服务命令：`/restart`（自动激活 DevOps 专家，**首先执行** `pnpm dev:restart` **脚本**，重启本地开发服务）
 
 ## 包管理器
 本项目使用 pnpm，禁止使用 npm 或 yarn。

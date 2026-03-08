@@ -2,12 +2,32 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-APP_NAME="frontend-dev"
-CONFIG_FILE="${ROOT_DIR}/infra/scripts/server/pm2.frontend.dev.config.cjs"
-HEALTH_URL="http://127.0.0.1:3000"
-LOG_FILE="/tmp/frontend-dev.log"
-
 cd "$ROOT_DIR"
+
+# 加载 .env.local（若存在）
+ENV_FILE="${ROOT_DIR}/.env.local"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
+# 脚本内部使用（无需 export）
+APP_NAME="${DEV_SERVER_NAME:-frontend-dev}"
+LOG_FILE="${DEV_SERVER_LOG_FILE:-/tmp/frontend-dev.log}"
+MAX_MEMORY="${DEV_SERVER_MAX_MEMORY:-1500M}"
+MAX_RESTARTS="${DEV_SERVER_MAX_RESTARTS:-10}"
+HEALTH_RETRIES="${DEV_SERVER_HEALTH_RETRIES:-20}"
+HEALTH_INTERVAL="${DEV_SERVER_HEALTH_INTERVAL:-1}"
+CACHE_DIR="${DEV_SERVER_NEXT_CACHE_DIR:-apps/web/.next}"
+
+# 需传递给 PM2 子进程（必须 export）
+export PORT="${DEV_SERVER_PORT:-3000}"
+export APP_ENVIRONMENT="${APP_ENVIRONMENT:-development}"
+export NODE_TLS_REJECT_UNAUTHORIZED="${NODE_TLS_REJECT_UNAUTHORIZED:-1}"
+
+HEALTH_URL="http://127.0.0.1:${PORT}"
 
 run_pm2() {
   pnpm exec pm2 "$@"
@@ -22,12 +42,12 @@ ensure_pm2() {
 
 healthcheck() {
   local attempt
-  for attempt in $(seq 1 20); do
+  for attempt in $(seq 1 "$HEALTH_RETRIES"); do
     if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
-      echo "frontend-dev is healthy on ${HEALTH_URL}"
+      echo "${APP_NAME} is healthy on ${HEALTH_URL}"
       return 0
     fi
-    sleep 1
+    sleep "$HEALTH_INTERVAL"
   done
 
   return 1
@@ -43,17 +63,31 @@ has_turbopack_cache_corruption() {
 }
 
 cleanup_next_cache() {
-  echo "Detected Turbopack cache corruption. Cleaning apps/web/.next ..."
-  node -e "const fs=require('fs');fs.rmSync('apps/web/.next',{recursive:true,force:true,maxRetries:5,retryDelay:200});console.log('Cleaned apps/web/.next');"
+  echo "Detected Turbopack cache corruption. Cleaning ${CACHE_DIR} ..."
+  node -e "const fs=require('fs');fs.rmSync('${CACHE_DIR}',{recursive:true,force:true,maxRetries:5,retryDelay:200});console.log('Cleaned ${CACHE_DIR}');"
+}
+
+start_app() {
+  run_pm2 start pnpm \
+    --name "$APP_NAME" \
+    --interpreter none \
+    --output "$LOG_FILE" \
+    --error "$LOG_FILE" \
+    --merge-logs \
+    --time \
+    --max-memory-restart "$MAX_MEMORY" \
+    --max-restarts "$MAX_RESTARTS" \
+    --exp-backoff-restart-delay 200 \
+    -- --filter frontend dev
 }
 
 start_with_auto_heal() {
   local attempt
 
   for attempt in 1 2; do
-    free_port_3000
+    free_port
     run_pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-    run_pm2 start "$CONFIG_FILE" --only "$APP_NAME" --update-env
+    start_app
 
     if healthcheck; then
       return 0
@@ -67,27 +101,27 @@ start_with_auto_heal() {
       continue
     fi
 
-    echo "frontend-dev failed health check. Recent logs:"
+    echo "${APP_NAME} failed health check. Recent logs:"
     tail -n 120 "$LOG_FILE" || true
     return 1
   done
 
-  echo "frontend-dev failed after auto-heal retry. Recent logs:"
+  echo "${APP_NAME} failed after auto-heal retry. Recent logs:"
   tail -n 120 "$LOG_FILE" || true
   return 1
 }
 
-free_port_3000() {
+free_port() {
   local pids=""
 
   if [ -x /usr/sbin/lsof ]; then
-    pids=$(/usr/sbin/lsof -nP -iTCP:3000 -sTCP:LISTEN -t 2>/dev/null || true)
+    pids=$(/usr/sbin/lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t 2>/dev/null || true)
   elif command -v lsof >/dev/null 2>&1; then
-    pids=$(lsof -nP -iTCP:3000 -sTCP:LISTEN -t 2>/dev/null || true)
+    pids=$(lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN -t 2>/dev/null || true)
   fi
 
   if [ -n "$pids" ]; then
-    echo "Releasing port 3000 from PID(s): $pids"
+    echo "Releasing port ${PORT} from PID(s): $pids"
     kill $pids 2>/dev/null || true
     sleep 1
   fi

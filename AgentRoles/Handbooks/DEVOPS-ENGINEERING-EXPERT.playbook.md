@@ -53,21 +53,16 @@
 - `/env check <env>` 执行指定环境的完整健康检查
 - `/env status` 查看所有环境概览
 
-### 本地开发服务管理（PM2）
-- 统一使用 PM2 托管本地前端开发服务，服务名 `frontend-dev`
-- 配置文件：`infra/scripts/server/pm2.frontend.dev.config.cjs`
-- 管理脚本：`infra/scripts/server/frontend-dev-pm2.sh`
-- 默认固定端口 `3000`，环境变量：
-  - `PORT=3000`
-  - `APP_ENVIRONMENT=development`
-  - `NODE_TLS_REJECT_UNAUTHORIZED=1`
-- 命令入口：
-  - 重启：`/restart`（执行 `pnpm dev:restart`）
-  - 启动：`pnpm dev:start`
-  - 停止：`pnpm dev:stop`
-  - 状态：`pnpm dev:status`
-  - 日志：`pnpm dev:logs`
-- 验收标准：重启后 `http://localhost:3000` 返回 200；失败时查看 `/tmp/frontend-dev.log`
+### 本地开发服务管理
+- 管理脚本：`infra/scripts/server/server-dev.sh`
+- 命令接口：`server-dev.sh <start|restart|stop|status|logs>`
+- npm 入口：`pnpm dev:start`、`pnpm dev:restart`、`pnpm dev:stop`、`pnpm dev:status`、`pnpm dev:logs`
+- **环境变量约定**：脚本从 `.env.local` 或系统环境变量读取以下配置，不同项目可自定义：
+  - `DEV_PORT`：开发服务端口（如 `3000`、`4000`）
+  - `DEV_APP_NAME`：进程管理器服务名（如 `frontend-dev`、`server-dev`）
+  - `DEV_LOG_FILE`：日志文件路径（如 `/tmp/server-dev.log`）
+  - `APP_ENVIRONMENT`：环境标识（默认 `development`）
+- 验收标准：重启后健康检查端点返回 200；失败时查看日志文件排查
 
 ---
 
@@ -77,6 +72,15 @@
 - 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f packages/database/prisma/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
 - 迁移失败立即中止部署，执行 L2 回滚（见下方回滚流程），不启动新版本应用。
 - 迁移脚本的编写规范与幂等性要求见 TDD 专家 §B.2~B.5（`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）。
+
+### 部署前检查清单
+- [ ] QA 发布建议为 "Go" 或 "Conditional"
+- [ ] CI 全绿
+- [ ] `CHANGELOG.md` 与交付内容一致
+- [ ] DB 迁移已验证（如适用）
+- [ ] 回滚方案已准备
+- [ ] 必要审批已完成（production）
+- **部署窗口**：production 部署避开业务高峰期；代码冻结期间禁止非紧急部署。
 
 ### 部署后验证
 1. **冒烟测试**（部署后立即执行）：
@@ -88,9 +92,9 @@
    - 延迟（Latency P50/P95/P99）— 符合 ARCH 定义的 SLO
    - 吞吐量（Requests/s）— 在预期范围内
    - 资源占用（CPU/Memory）— 无异常飙升
-   - ARCH 运维视图对照：验证部署拓扑、SLO 指标（响应时间、可用性）与 `/docs/ARCH.md` 运维视图定义一致
+   - ARCH 运维视图对照：验证部署拓扑、SLO 指标与 `/docs/ARCH.md` 定义一致
 3. **确认与记录**：
-   - 在 `/docs/data/deployments/` 新建本次部署记录文件（`DEPLOY-{YYYYMMDD}-{SEQ}-{env}.md`）并更新 `README.md` 状态表
+   - 在 `/docs/data/deployments/` 新建本次部署记录文件并更新 `README.md` 状态表
    - 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
 
 ### 灰度/金丝雀部署验证
@@ -99,7 +103,7 @@
 
 ### Staging→Production 升级
 - staging 验证通过后，使用相同构建产物（tag/commit hash）部署 production：`/ship prod` 或 `/cd prod vX.Y.Z`，禁止重新构建以避免不一致。
-- production 部署前须完成 Expert §部署前检查清单 全部项目，staging 冒烟通过不免除 production 检查。
+- production 部署前须完成部署前检查清单全部项目，staging 冒烟通过不免除 production 检查。
 
 ### 回滚流程
 当部署后发现严重问题时（回滚脚本规范见 TDD 专家 §B.4，`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）：
@@ -107,6 +111,42 @@
 2. **L2 数据库回滚**（如涉及迁移）：`psql -f packages/database/prisma/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
 3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 在部署记录中记录回滚原因 → QA 被重新激活后从回滚记录中提取信息，在 `defect-log.md` 正式登记缺陷条目 → 退回 TDD/QA 修复后重新部署
 4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到部署记录的事后回顾段及 ADR。
+
+---
+
+## §4. 数据存储连接架构
+
+- **本地开发（dev）**：直连 localhost 服务
+  - PostgreSQL：端口 5432
+  - Redis：端口 6379
+- **staging/production**：**禁止从本地直连**，必须先 SSH 到服务器
+  - 架构：本地 → SSH 跳板 → 服务器 → 数据存储服务（PostgreSQL/Redis）
+  - 数据库和 Redis 端口不对外暴露（安全策略）
+  - 所有数据存储操作在服务器上执行
+    - 数据库：pg_dump、psql、prisma migrate 等
+    - Redis：redis-cli、FLUSHDB、GET/SET 等
+  - 实现脚本：
+    - `infra/scripts/server/deploy-database.sh`（迁移模块）
+    - `infra/scripts/server/deploy-server-mode.sh`（服务器端部署）
+  - SSH 连接：通过 `deploy-common.sh` 的 ControlMaster 复用
+  - 环境变量：`DATABASE_URL`、`REDIS_URL` 从服务器 `.env` 文件读取
+
+---
+
+## §5. 脚本路径参考
+
+| npm 脚本 | 实际脚本路径 | 备注 |
+|---------|------------|------|
+| `ship:dev` | `infra/scripts/server/deploy.sh local dev` | |
+| `ship:dev:quick` | `SKIP_CI=true infra/scripts/server/deploy.sh local dev` | 跳过 CI |
+| `ship:staging` | `infra/scripts/server/deploy-api.sh staging` | 注意：staging/prod 用 `deploy-api.sh` |
+| `ship:staging:quick` | `SKIP_CI=true infra/scripts/server/deploy-api.sh staging` | |
+| `ship:prod` | `infra/scripts/server/deploy-api.sh production` | |
+| `cd:staging` | `infra/scripts/server/deploy.sh ci staging` | |
+| `cd:prod` | `infra/scripts/server/deploy.sh ci production` | |
+| `dev:restart` | `infra/scripts/server/server-dev.sh restart` | |
+
+`deploy.sh` 接口：`deploy.sh <mode> <env> [--rollback]`，mode 为 `local|ci`，env 为 `dev|staging|production`；退出码 0=成功、1=失败、2=需回滚；脚本须包含环境检查、构建、部署、冒烟验证四个阶段，每阶段输出结构化日志。
 
 ---
 
