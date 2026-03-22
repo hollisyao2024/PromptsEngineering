@@ -44,6 +44,7 @@
 - 部署记录 → `docs/data/deployment-records/YYYY-MM-DD-vX.Y.Z-<env>.md`
 - 追溯矩阵 → `docs/data/traceability-matrix.md`
 - 变更请求（CR/SCR） → `docs/data/change-requests/`
+- 代码地图 → `docs/data/CODEBASE_MAP.md`（自动生成，每个文件一行，标注职责与关键 exports；运行 `pnpm run codemap` 更新）
 
 ### 决策规则
 
@@ -56,11 +57,25 @@
 | 模板/参考资料？ | ❌ | ✅ |
 | 按时间序列归档？ | ❌ | ✅ |
 
-**一句话总结**：`*-modules/` = 按功能组织的核心产出；`data/` = 按时间/类型组织的辅助数据。
+**一句话总结**：`*-modules/` = 按功能组织的核心产出；`data/` = 按时间/类型组织的辅助数据（含自动生成的索引文件，如 CODEBASE_MAP）。
 
 ## 命名与引用规则
 - 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
 - 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
+
+### 源码文件命名（自描述原则）
+文件名应清晰表达职责，减少需要打开文件才能了解用途的情况。推荐采用 `<entity>.<role>.ts` 格式：
+
+| 场景 | 推荐 | 避免 |
+|------|------|------|
+| 数据访问 | `user.repo.ts`, `order.repo.ts` | `repository.ts`, `db.ts` |
+| 中间件 | `auth.middleware.ts`, `cors.middleware.ts` | `middleware.ts`, `handlers.ts` |
+| 服务层 | `billing.service.ts`, `email.service.ts` | `service.ts`, `helpers.ts` |
+| 工具函数 | `date.utils.ts`, `string.utils.ts` | `utils.ts`, `helpers.ts` |
+| 配置 | `database.config.ts`, `redis.config.ts` | `config.ts`, `settings.ts` |
+| 类型 | `user.types.ts`, `api.types.ts` | `types.ts`, `interfaces.ts` |
+
+原则：同目录下不应出现需要打开才能区分的同质文件名（如同时存在 `utils.ts` 和 `helpers.ts`）。
 
 ## Mermaid 图形文件规范
 

@@ -54,6 +54,8 @@
     "tdd:new-worktree": "node infra/scripts/tdd-tools/tdd-new-worktree.js",
     "tdd:worktree-list": "node infra/scripts/tdd-tools/tdd-worktree-list.js",
     "tdd:worktree-remove": "node infra/scripts/tdd-tools/tdd-worktree-remove.js",
+    "codemap": "node infra/scripts/tdd-tools/generate-codemap.js",
+    "codemap:session": "node infra/scripts/tdd-tools/generate-codemap.js --scope=session",
     "type-check": "cd apps/web && pnpm exec tsc --noEmit --incremental",
     "lint": "cd apps/web && pnpm exec eslint . --ext .js,.jsx,.ts,.tsx --cache --cache-location .eslintcache --max-warnings 1000",
     "precommit": "pnpm type-check && pnpm lint",

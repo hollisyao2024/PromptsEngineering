@@ -34,6 +34,19 @@ function main() {
     console.error(`❌ /tdd sync 失败: ${result.error.message}`);
     process.exit(1);
   }
+
+  // tdd-tick 成功后自动生成 Codebase Map（非阻塞）
+  if (result.status === 0) {
+    const codemapScript = path.join(__dirname, 'generate-codemap.js');
+    const codemapResult = spawnSync('node', [codemapScript, `--scope=${scope}`], {
+      encoding: 'utf8',
+      stdio: 'inherit'
+    });
+    if (codemapResult.status !== 0) {
+      console.warn('⚠️  Codebase Map 生成失败（不影响 sync 结果）');
+    }
+  }
+
   process.exit(result.status || 0);
 }
 

@@ -22,6 +22,11 @@
   - 编写/执行 E2E、性能、安全测试 → QA
   - 配置/执行 CI/CD、部署或管理环境 → DEVOPS
   - 仍不确定时，读取 `/docs/AGENT_STATE.md` 判断当前所处阶段
+- **搜索节约**：搜索代码前，先检查 memory 和本文件中是否已有目标文件路径。优先用文件名匹配搜索（Claude Code: `Glob` / Gemini CLI: `glob` / Codex CLI: shell `find`/`fd`）定位文件，再精确读取目标行范围（Claude Code: `Read` / Gemini CLI: `read_file` / Codex CLI: shell `cat`/`head`），避免全项目内容搜索（Claude Code: `Grep` / Gemini CLI: `grep_search` / Codex CLI: shell `rg`/`grep`）。具体优先级：
+  1. 已知路径 → 直接读取文件（零搜索成本）
+  2. 知道文件名模式 → 文件名匹配搜索（仅返回路径，token 极低）
+  3. 必须搜内容 → 先用文件名匹配缩小目录范围，再对目标目录做内容搜索（避免全项目扫描）
+  4. 项目有 `docs/data/CODEBASE_MAP.md` 时，搜索前优先读取该文件定位目标
 
 ## 角色工作流
 1. **PRD 专家**：根据用户信息产出需求文档，确保后续架构/任务/实现有清晰、可验收的依据。
