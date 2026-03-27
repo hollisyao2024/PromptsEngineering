@@ -85,6 +85,30 @@ function runGh(args) {
   return result;
 }
 
+function getAuthenticatedRemoteUrl() {
+  const token = process.env.GH_TOKEN;
+  if (!token) return null;
+  try {
+    let remoteUrl = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
+    remoteUrl = remoteUrl.replace(/^https:\/\/[^@]+@github\.com\//, 'https://github.com/');
+    if (!remoteUrl.startsWith('https://github.com/')) return null;
+    return remoteUrl.replace(
+      'https://github.com/',
+      `https://x-access-token:${token}@github.com/`
+    );
+  } catch {
+    return null;
+  }
+}
+
+function pushWithProjectToken(args, options = {}) {
+  const authUrl = getAuthenticatedRemoteUrl();
+  if (authUrl) {
+    return runGit(['push', authUrl, ...args], options);
+  }
+  return runGit(['push', 'origin', ...args], options);
+}
+
 function getCurrentBranch() {
   return runGit(['branch', '--show-current'], { capture: true, cwd: process.cwd() }).trim();
 }
@@ -209,7 +233,7 @@ function autoRebaseOnMain(currentBranch, dryRun) {
 
   try {
     console.log('\x1b[36m推送 rebase 后的分支 (force-with-lease)...\x1b[0m');
-    runGit(['push', '--force-with-lease', 'origin', currentBranch]);
+    pushWithProjectToken(['--force-with-lease', currentBranch]);
   } catch (pushError) {
     console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
     try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
@@ -301,16 +325,12 @@ function tryGhMerge(prNumber) {
 
 function syncLocalMain(mainRepoRoot, isInWorktree) {
   if (isInWorktree) {
-    // worktree 模式：main 已在主仓库中 checkout，不能再执行 checkout main，直接 fetch + merge
-    // 用 `fetch --prune origin`（不加 refspec）才能清理所有过期 remote tracking ref（包括已删除的 feature 分支）
     console.log('\x1b[36m同步主仓库 main（worktree 模式）...\x1b[0m');
     runGit(['-C', mainRepoRoot, 'fetch', '--prune', 'origin'], { cwd: mainRepoRoot });
     runGit(['-C', mainRepoRoot, 'merge', '--ff-only', 'origin/main'], { cwd: mainRepoRoot });
   } else {
     console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
     runGit(['checkout', 'main']);
-    // 用 `fetch --prune` + `merge` 替代 `pull --prune origin main`：
-    // `pull --prune origin main` 只 prune main refspec 范围内的引用，不清理其他已删除的 feature 分支
     runGit(['fetch', '--prune', 'origin']);
     runGit(['merge', '--ff-only', 'origin/main']);
   }
@@ -329,18 +349,12 @@ function localSquashMerge(featureBranch, pr, mainRepoRoot, isInWorktree) {
     runGit(['commit', '-m', commitMsg], { cwd: mainRepoRoot });
 
     console.log('\x1b[36m推送到 origin main...\x1b[0m');
-    runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
+    pushWithProjectToken(['main'], { cwd: mainRepoRoot });
   } catch (error) {
     console.error('\x1b[31m合并过程中出错，尝试回滚...\x1b[0m');
-    try {
-      runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot });
-    } catch { /* 可能不在 merge 状态 */ }
-    try {
-      runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot });
-    } catch { /* 忽略 */ }
-    try {
-      runGit(['checkout', featureBranch]);
-    } catch { /* 忽略 */ }
+    try { runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot }); } catch { /* 可能不在 merge 状态 */ }
+    try { runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot }); } catch { /* 忽略 */ }
+    try { runGit(['checkout', featureBranch]); } catch { /* 忽略 */ }
     throw error;
   }
 
@@ -360,7 +374,7 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
 
   console.log(`\x1b[36m删除远程分支 ${featureBranch}...\x1b[0m`);
   try {
-    runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
+    pushWithProjectToken(['--delete', featureBranch], { capture: true });
   } catch {
     console.log('\x1b[33m  远程分支删除失败（可能已删除）\x1b[0m');
   }
@@ -369,8 +383,6 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
 function getLatestMainCommit(mainRepoRoot) {
   return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainRepoRoot }).trim();
 }
-
-// ==================== Worktree 清理 ====================
 
 function cleanupWorktree(featureBranch, mainRepoRoot) {
   try {
@@ -420,8 +432,6 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
     console.log(`\x1b[33m  Worktree 清理跳过（${err.message}）\x1b[0m`);
   }
 }
-
-// ==================== 版本管理（从 tdd-push.js 迁移） ====================
 
 function bumpPatchVersion(version) {
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
@@ -502,11 +512,9 @@ function commitReleaseAndTag(mainRepoRoot, version, note) {
 }
 
 function pushMainAndTag(mainRepoRoot, tagName) {
-  runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
-  runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
+  pushWithProjectToken(['main'], { cwd: mainRepoRoot });
+  pushWithProjectToken([tagName], { cwd: mainRepoRoot });
 }
-
-// ==================== 摘要输出 ====================
 
 function getResumableBranches(mergedBranch, mainRepoRoot) {
   const branchResult = spawnSync(
@@ -568,13 +576,9 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   }
 }
 
-// ==================== 主流程 ====================
-
 function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
-
-    // Step 1: 检测主仓库根路径 + worktree 环境
     const mainRepoRoot = getMainRepoRoot();
     const _gitCdResult = spawnSync('git', ['rev-parse', '--git-common-dir'], {
       cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe',
@@ -585,16 +589,10 @@ function main() {
       console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
     }
 
-    // Step 2: 加载 GH_TOKEN
     loadProjectGhToken();
-
-    // Step 3: 确保 gh CLI 可用
     ensureGhAvailable();
-
-    // Step 4: 确保工作区干净
     ensureCleanWorkingTree();
 
-    // Step 5: 验证当前分支
     const currentBranch = getCurrentBranch();
     if (isMainBranch(currentBranch)) {
       throw new Error(
@@ -604,7 +602,6 @@ function main() {
       );
     }
 
-    // Step 6: 查找 open PR
     const pr = findOpenPR(currentBranch);
     if (!pr) {
       throw new Error(
@@ -615,10 +612,8 @@ function main() {
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
 
-    // Step 7: 自动 rebase（确保 feature 分支基于最新 main）
     const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun);
 
-    // Step 8: rebase 后重新检查 PR 合并状态
     if (rebaseResult.rebased) {
       console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
       spawnSync('sleep', ['3'], { stdio: 'inherit' });
@@ -643,7 +638,6 @@ function main() {
       );
     }
 
-    // Step 9: 运行发布门禁检查
     if (!args.skipChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
@@ -660,7 +654,6 @@ function main() {
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
 
-    // Step 10: Dry run
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');
@@ -679,7 +672,6 @@ function main() {
       return;
     }
 
-    // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
     const ghMerged = tryGhMerge(pr.number);
 
@@ -687,7 +679,6 @@ function main() {
       strategy = 'gh';
       syncLocalMain(mainRepoRoot, isInWorktree);
     } else {
-      // 防竞态：gh 可能超时但实际已完成合并
       const prState = checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
@@ -699,15 +690,12 @@ function main() {
       }
     }
 
-    // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
 
-    // worktree 模式：切换 VSCode 窗口回主仓库
     if (isInWorktree) {
       spawnSync('code', ['-r', mainRepoRoot], { encoding: 'utf8', stdio: 'pipe' });
     }
 
-    // Step 14: 清理本地 feature 分支（两种策略都需要）
     try {
       runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot });
     } catch {
@@ -718,33 +706,25 @@ function main() {
       }
     }
 
-    // Step 15: 版本递增 + CHANGELOG + AGENT_STATE + tag
     const packageJsonPath = path.join(mainRepoRoot, 'package.json');
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const currentVersion = pkg.version;
     const newVersion = bumpPatchVersion(currentVersion);
-
-    // Release note 从 PR 标题提取
     const releaseNote = getPrTitle(pr.number) || pr.title || `Release v${newVersion}`;
 
-    // 更新 package.json
     pkg.version = newVersion;
     fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
     console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
 
-    // 更新 CHANGELOG
     insertChangelogEntry(mainRepoRoot, newVersion, releaseNote);
     console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
 
-    // 更新 AGENT_STATE
     const commitHash = getLatestMainCommit(mainRepoRoot);
     const agentStateUpdated = updateAgentState(mainRepoRoot, pr.number, commitHash);
 
-    // Step 16: commit + tag
     commitReleaseAndTag(mainRepoRoot, newVersion, releaseNote);
     console.log(`\x1b[32m  Release commit + tag v${newVersion} 已创建\x1b[0m`);
 
-    // Step 17: push main + tag
     const tagName = `v${newVersion}`;
     pushMainAndTag(mainRepoRoot, tagName);
     console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
