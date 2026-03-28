@@ -21,6 +21,8 @@ const { spawnSync } = require('child_process');
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
 
+// ==================== 主仓库根路径检测 ====================
+
 function getMainRepoRoot() {
   const result = spawnSync('git', ['rev-parse', '--git-common-dir'], {
     cwd: process.cwd(),
@@ -35,6 +37,8 @@ function getMainRepoRoot() {
   return repoRoot;
 }
 
+// ==================== 项目级 GH_TOKEN 加载 ====================
+
 function loadProjectGhToken() {
   try {
     if (!fs.existsSync(envLocalPath)) return;
@@ -44,8 +48,11 @@ function loadProjectGhToken() {
       process.env.GH_TOKEN = match[1].trim();
     }
   } catch {
+    // 静默忽略
   }
 }
+
+// ==================== Git 工具 ====================
 
 function runGit(args, options = {}) {
   const result = spawnSync('git', args, {
@@ -78,28 +85,11 @@ function runGh(args) {
   return result;
 }
 
-function getAuthenticatedRemoteUrl() {
-  const token = process.env.GH_TOKEN;
-  if (!token) return null;
-  try {
-    let remoteUrl = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
-    remoteUrl = remoteUrl.replace(/^https:\/\/[^@]+@github\.com\//, 'https://github.com/');
-    if (!remoteUrl.startsWith('https://github.com/')) return null;
-    return remoteUrl.replace(
-      'https://github.com/',
-      `https://x-access-token:${token}@github.com/`
-    );
-  } catch {
-    return null;
-  }
-}
-
-function pushWithProjectToken(args, options = {}) {
-  const authUrl = getAuthenticatedRemoteUrl();
-  if (authUrl) {
-    return runGit(['push', authUrl, ...args], options);
-  }
-  return runGit(['push', 'origin', ...args], options);
+function formatGhError(result, args) {
+  const stderr = (result.stderr || '').trim();
+  const stdout = (result.stdout || '').trim();
+  const details = stderr || stdout || `exit ${result.status ?? 'unknown'}`;
+  return `gh ${args.join(' ')} failed: ${details}`;
 }
 
 function getCurrentBranch() {
@@ -118,6 +108,8 @@ function getRemoteUrl() {
     return '';
   }
 }
+
+// ==================== qa-merge 专用函数 ====================
 
 function parseArgs(argv) {
   let scope = 'session';
@@ -166,18 +158,26 @@ function ensureCleanWorkingTree() {
 }
 
 function findOpenPR(branch) {
-  const result = runGh([
+  const args = [
     'pr', 'list',
     '--head', branch,
     '--json', 'number,title,body,url,mergeable',
     '--state', 'open',
-  ]);
-  if (result.status !== 0) return null;
+  ];
+  const result = runGh(args);
+  if (result.status !== 0) {
+    throw new Error(
+      `查询当前分支的 PR 失败。\n${formatGhError(result, args)}`
+    );
+  }
   try {
     const prs = JSON.parse(result.stdout);
     return prs.length > 0 ? prs[0] : null;
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(
+      `解析当前分支的 PR 列表失败。\n` +
+      `gh 返回了不可解析的 JSON：${error.message}`
+    );
   }
 }
 
@@ -211,8 +211,8 @@ function autoRebaseOnMain(currentBranch, dryRun) {
     runGit(['rebase', 'origin/main']);
   } catch {
     console.error('\x1b[31mrebase 过程中发现冲突，正在中止...\x1b[0m');
-    try { runGit(['rebase', '--abort']); } catch {}
-    try { runGit(['reset', '--hard', originalHead]); } catch {}
+    try { runGit(['rebase', '--abort']); } catch { /* ignore */ }
+    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
       '请手动解决冲突后重试：\n' +
@@ -224,10 +224,10 @@ function autoRebaseOnMain(currentBranch, dryRun) {
 
   try {
     console.log('\x1b[36m推送 rebase 后的分支 (force-with-lease)...\x1b[0m');
-    pushWithProjectToken(['--force-with-lease', currentBranch]);
+    runGit(['push', '--force-with-lease', 'origin', currentBranch]);
   } catch (pushError) {
     console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
-    try { runGit(['reset', '--hard', originalHead]); } catch {}
+    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       `rebase 成功但 force-push 失败：${pushError.message}\n` +
       '分支已恢复到 rebase 前的状态。\n' +
@@ -235,7 +235,9 @@ function autoRebaseOnMain(currentBranch, dryRun) {
     );
   }
 
-  console.log(`\x1b[32m自动 rebase 完成：已将 ${commitsBehind} 个 main 提交合入分支基底并推送\x1b[0m`);
+  console.log(
+    `\x1b[32m自动 rebase 完成：已将 ${commitsBehind} 个 main 提交合入分支基底并推送\x1b[0m`
+  );
   return { rebased: true, commitsBehind };
 }
 
@@ -270,19 +272,27 @@ function buildCommitMessage(pr) {
       const rest = lines.slice(summaryStart + 1);
       const nextSection = rest.findIndex((l) => /^###?\s/.test(l));
       const summaryLines = nextSection !== -1 ? rest.slice(0, nextSection) : rest.slice(0, 5);
-      summary = summaryLines.map((l) => l.trim()).filter(Boolean).join('\n');
+      summary = summaryLines
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .join('\n');
     }
   }
 
   const parts = [header];
   if (summary) parts.push('', summary);
   parts.push('', 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>');
+
   return parts.join('\n');
 }
 
 function tryGhMerge(prNumber) {
   console.log(`\x1b[36m尝试 gh pr merge #${prNumber} --squash...\x1b[0m`);
-  const result = runGh(['pr', 'merge', String(prNumber), '--squash', '--delete-branch']);
+  const result = runGh([
+    'pr', 'merge', String(prNumber),
+    '--squash',
+    '--delete-branch',
+  ]);
 
   if (result.status === 0) {
     console.log('\x1b[32m  gh pr merge 成功\x1b[0m');
@@ -290,7 +300,11 @@ function tryGhMerge(prNumber) {
   }
 
   const stderr = (result.stderr || '').trim();
-  if (stderr.includes('Resource not accessible') || stderr.includes('mergePullRequest') || stderr.includes('403')) {
+  if (
+    stderr.includes('Resource not accessible') ||
+    stderr.includes('mergePullRequest') ||
+    stderr.includes('403')
+  ) {
     console.log('\x1b[33m  gh pr merge 权限不足，切换到本地合并策略...\x1b[0m');
   } else {
     console.log(`\x1b[33m  gh pr merge 失败 (${stderr})，切换到本地合并策略...\x1b[0m`);
@@ -298,14 +312,20 @@ function tryGhMerge(prNumber) {
   return false;
 }
 
+// ==================== 同步本地 main ====================
+
 function syncLocalMain(mainRepoRoot, isInWorktree) {
   if (isInWorktree) {
+    // worktree 模式：main 已在主仓库中 checkout，不能再执行 checkout main，直接 fetch + merge
+    // 用 `fetch --prune origin`（不加 refspec）才能清理所有过期 remote tracking ref（包括已删除的 feature 分支）
     console.log('\x1b[36m同步主仓库 main（worktree 模式）...\x1b[0m');
     runGit(['-C', mainRepoRoot, 'fetch', '--prune', 'origin'], { cwd: mainRepoRoot });
     runGit(['-C', mainRepoRoot, 'merge', '--ff-only', 'origin/main'], { cwd: mainRepoRoot });
   } else {
     console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
     runGit(['checkout', 'main']);
+    // 用 `fetch --prune` + `merge` 替代 `pull --prune origin main`：
+    // `pull --prune origin main` 只 prune main refspec 范围内的引用，不清理其他已删除的 feature 分支
     runGit(['fetch', '--prune', 'origin']);
     runGit(['merge', '--ff-only', 'origin/main']);
   }
@@ -316,17 +336,26 @@ function localSquashMerge(featureBranch, pr, mainRepoRoot, isInWorktree) {
 
   try {
     syncLocalMain(mainRepoRoot, isInWorktree);
+
     console.log(`\x1b[36m执行 git merge --squash ${featureBranch}...\x1b[0m`);
     runGit(['merge', '--squash', featureBranch], { cwd: mainRepoRoot });
+
     console.log('\x1b[36m提交 squash merge...\x1b[0m');
     runGit(['commit', '-m', commitMsg], { cwd: mainRepoRoot });
+
     console.log('\x1b[36m推送到 origin main...\x1b[0m');
-    pushWithProjectToken(['main'], { cwd: mainRepoRoot });
+    runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
   } catch (error) {
     console.error('\x1b[31m合并过程中出错，尝试回滚...\x1b[0m');
-    try { runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot }); } catch {}
-    try { runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot }); } catch {}
-    try { runGit(['checkout', featureBranch]); } catch {}
+    try {
+      runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot });
+    } catch { /* 可能不在 merge 状态 */ }
+    try {
+      runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot });
+    } catch { /* 忽略 */ }
+    try {
+      runGit(['checkout', featureBranch]);
+    } catch { /* 忽略 */ }
     throw error;
   }
 
@@ -336,7 +365,8 @@ function localSquashMerge(featureBranch, pr, mainRepoRoot, isInWorktree) {
 function closeAndCleanup(featureBranch, pr, commitMsg) {
   console.log(`\x1b[36m关闭 PR #${pr.number}...\x1b[0m`);
   const closeResult = runGh([
-    'pr', 'close', String(pr.number), '--comment',
+    'pr', 'close', String(pr.number),
+    '--comment',
     `Squash merged locally to main.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
   ]);
   if (closeResult.status !== 0) {
@@ -345,7 +375,7 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
 
   console.log(`\x1b[36m删除远程分支 ${featureBranch}...\x1b[0m`);
   try {
-    pushWithProjectToken(['--delete', featureBranch], { capture: true });
+    runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
   } catch {
     console.log('\x1b[33m  远程分支删除失败（可能已删除）\x1b[0m');
   }
@@ -355,6 +385,8 @@ function getLatestMainCommit(mainRepoRoot) {
   return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainRepoRoot }).trim();
 }
 
+// ==================== Worktree 清理 ====================
+
 function cleanupWorktree(featureBranch, mainRepoRoot) {
   try {
     const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
@@ -363,6 +395,7 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
       stdio: 'pipe',
     });
     if (result.status !== 0) return;
+
     let currentPath = null;
     let found = false;
     for (const line of result.stdout.split('\n')) {
@@ -376,11 +409,22 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
         }
       }
     }
+
     if (!found || !currentPath) return;
+
     console.log(`\x1b[36m清理 worktree: ${currentPath}\x1b[0m`);
-    spawnSync('git', ['worktree', 'remove', '--force', currentPath], { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'inherit' });
-    spawnSync('git', ['worktree', 'prune'], { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' });
+    spawnSync('git', ['worktree', 'remove', '--force', currentPath], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'inherit',
+    });
+    spawnSync('git', ['worktree', 'prune'], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
     console.log('\x1b[32m  Worktree 已清理\x1b[0m');
+
     const cwd = process.cwd();
     if (cwd.startsWith(currentPath)) {
       console.log('');
@@ -391,6 +435,8 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
     console.log(`\x1b[33m  Worktree 清理跳过（${err.message}）\x1b[0m`);
   }
 }
+
+// ==================== 版本管理（从 tdd-push.js 迁移） ====================
 
 function bumpPatchVersion(version) {
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
@@ -407,12 +453,14 @@ function insertChangelogEntry(mainRepoRoot, targetVersion, note) {
   const today = new Date().toISOString().slice(0, 10);
   const sanitizedNote = note || `发布版本 v${targetVersion}`;
   const entry = `## [v${targetVersion}] - ${today}\n\n### 更新\n- ${sanitizedNote}\n\n---\n\n`;
+
   const marker = raw.indexOf('\n## [');
   if (marker === -1) {
     const trimmed = raw.trimEnd();
     fs.writeFileSync(changelogPath, `${trimmed}\n\n${entry}`, 'utf8');
     return;
   }
+
   const prefix = raw.slice(0, marker).trimEnd();
   const suffix = raw.slice(marker);
   const payload = `${prefix}\n\n${entry}${suffix}`;
@@ -427,6 +475,24 @@ function getPrTitle(prNumber) {
   return null;
 }
 
+function formatAgentStateQaValidatedEntry(prNumber, commitHash, date) {
+  return `- [x] QA_VALIDATED — Go (0 blockers) qa:verify ${date}; PR #${prNumber}, commit ${commitHash}`;
+}
+
+function upsertQaValidatedEntry(content, prNumber, commitHash, date) {
+  const uncheckedPattern = /- \[ \] (5\. QA_VALIDATED[^\n]*)/;
+  if (uncheckedPattern.test(content)) {
+    return content.replace(
+      uncheckedPattern,
+      `- [x] $1 — PR #${prNumber}, commit ${commitHash}, ${date}`
+    );
+  }
+
+  const trimmed = content.trimEnd();
+  const separator = trimmed ? '\n\n' : '';
+  return `${trimmed}${separator}${formatAgentStateQaValidatedEntry(prNumber, commitHash, date)}\n`;
+}
+
 function updateAgentState(mainRepoRoot, prNumber, commitHash) {
   const agentStatePath = path.join(mainRepoRoot, 'docs', 'AGENT_STATE.md');
   try {
@@ -434,13 +500,16 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
       console.log('\x1b[33m  警告：/docs/AGENT_STATE.md 不存在，跳过自动更新\x1b[0m');
       return false;
     }
+
     const content = fs.readFileSync(agentStatePath, 'utf8');
     const date = new Date().toISOString().slice(0, 10);
-    const updated = content.replace(/- \[ \] (5\. QA_VALIDATED[^\n]*)/, `- [x] $1 — PR #${prNumber}, commit ${commitHash}, ${date}`);
+    const updated = upsertQaValidatedEntry(content, prNumber, commitHash, date);
+
     if (updated === content) {
       console.log('\x1b[33m  警告：AGENT_STATE.md 中未找到待勾选的 QA_VALIDATED 条目（可能已勾选）\x1b[0m');
       return false;
     }
+
     fs.writeFileSync(agentStatePath, updated, 'utf8');
     console.log('\x1b[32m  AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m');
     return true;
@@ -451,21 +520,42 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
 }
 
 function commitReleaseAndTag(mainRepoRoot, version, note) {
-  runGit(['add', 'package.json', 'CHANGELOG.md', 'docs/AGENT_STATE.md'], { cwd: mainRepoRoot });
-  runGit(['commit', '-m', `chore(release): v${version}`], { cwd: mainRepoRoot });
-  runGit(['tag', '-a', `v${version}`, '-m', note || `Release v${version}`], { cwd: mainRepoRoot });
+  runGit(['add', 'package.json', 'CHANGELOG.md', 'docs/AGENT_STATE.md'], {
+    cwd: mainRepoRoot,
+  });
+  runGit(['commit', '-m', `chore(release): v${version}`], {
+    cwd: mainRepoRoot,
+  });
+  runGit(['tag', '-a', `v${version}`, '-m', note || `Release v${version}`], {
+    cwd: mainRepoRoot,
+  });
 }
 
 function pushMainAndTag(mainRepoRoot, tagName) {
-  pushWithProjectToken(['main'], { cwd: mainRepoRoot });
-  pushWithProjectToken([tagName], { cwd: mainRepoRoot });
+  runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
+  runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
 }
 
+// ==================== 摘要输出 ====================
+
 function getResumableBranches(mergedBranch, mainRepoRoot) {
-  const branchResult = spawnSync('git', ['branch', '--list', 'feature/*', 'fix/*'], { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' });
-  const branches = (branchResult.stdout || '').split('\n').map(b => b.trim().replace(/^\*\s*/, '')).filter(b => b && b !== mergedBranch);
-  const stashResult = spawnSync('git', ['stash', 'list', '--format=%gd: %s'], { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' });
-  const stashes = (stashResult.stdout || '').split('\n').filter(s => s.trim());
+  const branchResult = spawnSync(
+    'git', ['branch', '--list', 'feature/*', 'fix/*'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const branches = (branchResult.stdout || '')
+    .split('\n')
+    .map(b => b.trim().replace(/^\*\s*/, ''))
+    .filter(b => b && b !== mergedBranch);
+
+  const stashResult = spawnSync(
+    'git', ['stash', 'list', '--format=%gd: %s'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const stashes = (stashResult.stdout || '')
+    .split('\n')
+    .filter(s => s.trim());
+
   return { branches, stashes };
 }
 
@@ -476,22 +566,31 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
   console.log(`  分支:   ${featureBranch} → main`);
-  console.log(`  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`);
+  console.log(
+    `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
+  );
   console.log(`  提交:   ${commitHash}`);
   if (version) {
     console.log(`  版本:   v${version}`);
   }
-  console.log(`  状态:   ${agentStateUpdated ? '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m' : '\x1b[33m⚠ AGENT_STATE.md 更新失败，请手动勾选 QA_VALIDATED\x1b[0m'}`);
+  console.log(
+    `  状态:   ${agentStateUpdated ? '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m' : '\x1b[33m⚠ AGENT_STATE.md 更新失败，请手动勾选 QA_VALIDATED\x1b[0m'}`
+  );
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
   console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
+
   const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);
   if (branches.length > 0 || stashes.length > 0) {
     console.log('');
     console.log('\x1b[33m未完成的开发任务:\x1b[0m');
-    branches.forEach(b => console.log(`  \x1b[36m${b}\x1b[0m  →  /tdd resume ${b}`));
-    stashes.forEach(s => console.log(`  \x1b[35m${s}\x1b[0m`));
+    branches.forEach(b => {
+      console.log(`  \x1b[36m${b}\x1b[0m  →  /tdd resume ${b}`);
+    });
+    stashes.forEach(s => {
+      console.log(`  \x1b[35m${s}\x1b[0m`);
+    });
     if (branches.length === 1 && stashes.length === 0) {
       console.log('');
       console.log(`\x1b[32m建议继续: /tdd resume ${branches[0]}\x1b[0m`);
@@ -499,54 +598,99 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   }
 }
 
+// ==================== 主流程 ====================
+
 function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
+
+    // Step 1: 检测主仓库根路径 + worktree 环境
     const mainRepoRoot = getMainRepoRoot();
-    const _gitCdResult = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe' });
-    const isInWorktree = _gitCdResult.status === 0 && path.isAbsolute(_gitCdResult.stdout.trim());
+    const _gitCdResult = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe',
+    });
+    const isInWorktree = _gitCdResult.status === 0 &&
+      path.isAbsolute(_gitCdResult.stdout.trim());
     if (isInWorktree) {
       console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
     }
+
+    // Step 2: 加载 GH_TOKEN
     loadProjectGhToken();
+
+    // Step 3: 确保 gh CLI 可用
     ensureGhAvailable();
+
+    // Step 4: 确保工作区干净
     ensureCleanWorkingTree();
+
+    // Step 5: 验证当前分支
     const currentBranch = getCurrentBranch();
     if (isMainBranch(currentBranch)) {
-      throw new Error(`当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n  如需推送文档 / 配置等小改动：git push origin ${currentBranch}\n  如需推送代码变更：请先 git stash，再 /tdd new-branch 创建 feature 分支，走正常 PR 流程。`);
+      throw new Error(
+        `当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n` +
+        `  如需推送文档 / 配置等小改动：git push origin ${currentBranch}\n` +
+        `  如需推送代码变更：请先 git stash，再 /tdd new-branch 创建 feature 分支，走正常 PR 流程。`
+      );
     }
+
+    // Step 6: 查找 open PR
     const pr = findOpenPR(currentBranch);
     if (!pr) {
-      throw new Error(`当前分支 (${currentBranch}) 没有 open PR。\n请先执行 /tdd push 创建 PR，或检查 PR 是否已被合并/关闭。`);
+      throw new Error(
+        `当前分支 (${currentBranch}) 没有 open PR。\n` +
+        '请先执行 /tdd push 创建 PR，或检查 PR 是否已被合并/关闭。'
+      );
     }
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
+
+    // Step 7: 自动 rebase（确保 feature 分支基于最新 main）
     const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun);
+
+    // Step 8: rebase 后重新检查 PR 合并状态
     if (rebaseResult.rebased) {
       console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
       spawnSync('sleep', ['3'], { stdio: 'inherit' });
+
       const updatedPr = findOpenPR(currentBranch);
       if (!updatedPr) {
-        throw new Error(`rebase 并 force-push 后找不到 PR。\n分支 ${currentBranch} 的 PR 可能已被关闭，请检查 GitHub。`);
+        throw new Error(
+          `rebase 并 force-push 后找不到 PR。\n` +
+          `分支 ${currentBranch} 的 PR 可能已被关闭，请检查 GitHub。`
+        );
       }
       if (updatedPr.mergeable === 'CONFLICTING') {
-        throw new Error(`PR #${pr.number} 在自动 rebase 后仍存在合并冲突，请手动检查并解决。`);
+        throw new Error(
+          `PR #${pr.number} 在自动 rebase 后仍存在合并冲突，请手动检查并解决。`
+        );
       }
       Object.assign(pr, updatedPr);
     } else if (!args.dryRun && pr.mergeable === 'CONFLICTING') {
-      throw new Error(`PR #${pr.number} 存在合并冲突且分支已与 main 同步。\n冲突可能来自 PR 自身的文件变更，请手动检查并解决。`);
+      throw new Error(
+        `PR #${pr.number} 存在合并冲突且分支已与 main 同步。\n` +
+        '冲突可能来自 PR 自身的文件变更，请手动检查并解决。'
+      );
     }
+
+    // Step 9: 运行发布门禁检查
     if (!args.skipChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
-        throw new Error('发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n请先修复阻塞问题后重试，或使用 --skip-checks 跳过检查。');
+        throw new Error(
+          '发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n' +
+          '请先修复阻塞问题后重试，或使用 --skip-checks 跳过检查。'
+        );
       }
       console.log('\x1b[32m发布门禁检查通过\x1b[0m');
     } else {
       console.log('\x1b[33m跳过发布门禁检查 (--skip-checks)\x1b[0m');
     }
+
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
+
+    // Step 10: Dry run
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');
@@ -564,12 +708,16 @@ function main() {
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
       return;
     }
+
+    // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
     const ghMerged = tryGhMerge(pr.number);
+
     if (ghMerged) {
       strategy = 'gh';
       syncLocalMain(mainRepoRoot, isInWorktree);
     } else {
+      // 防竞态：gh 可能超时但实际已完成合并
       const prState = checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
@@ -580,32 +728,57 @@ function main() {
         localSquashMerge(currentBranch, pr, mainRepoRoot, isInWorktree);
       }
     }
+
+    // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
+
+    // worktree 模式：切换 VSCode 窗口回主仓库
     if (isInWorktree) {
       spawnSync('code', ['-r', mainRepoRoot], { encoding: 'utf8', stdio: 'pipe' });
     }
-    try { runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot }); } catch {
-      try { runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainRepoRoot }); } catch {
+
+    // Step 14: 清理本地 feature 分支（两种策略都需要）
+    try {
+      runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot });
+    } catch {
+      try {
+        runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainRepoRoot });
+      } catch {
         console.log(`\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）\x1b[0m`);
       }
     }
+
+    // Step 15: 版本递增 + CHANGELOG + AGENT_STATE + tag
     const packageJsonPath = path.join(mainRepoRoot, 'package.json');
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const currentVersion = pkg.version;
     const newVersion = bumpPatchVersion(currentVersion);
+
+    // Release note 从 PR 标题提取
     const releaseNote = getPrTitle(pr.number) || pr.title || `Release v${newVersion}`;
+
+    // 更新 package.json
     pkg.version = newVersion;
     fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
     console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+
+    // 更新 CHANGELOG
     insertChangelogEntry(mainRepoRoot, newVersion, releaseNote);
     console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
+
+    // 更新 AGENT_STATE
     const commitHash = getLatestMainCommit(mainRepoRoot);
     const agentStateUpdated = updateAgentState(mainRepoRoot, pr.number, commitHash);
+
+    // Step 16: commit + tag
     commitReleaseAndTag(mainRepoRoot, newVersion, releaseNote);
     console.log(`\x1b[32m  Release commit + tag v${newVersion} 已创建\x1b[0m`);
+
+    // Step 17: push main + tag
     const tagName = `v${newVersion}`;
     pushMainAndTag(mainRepoRoot, tagName);
     console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
+
     printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated, newVersion, mainRepoRoot);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
@@ -613,4 +786,13 @@ function main() {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  findOpenPR,
+  formatGhError,
+  formatAgentStateQaValidatedEntry,
+  upsertQaValidatedEntry,
+};
