@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.6] - 2026-03-28
+
+### 更新
+- fix: qa merge auth token
+
+---
+
+
 ## [v1.18.5] - 2026-03-27
 
 ### 更新
@@ -46,30 +54,5 @@
 
 ### 更新
 - 将包版本提升到 `v1.18.1`，保持发布元数据与当前代码一致。
-
----
-
-## [v1.18.0] - 2025-11-12
-
-### 更新
-- 增加 `docs/data/templates/arch/ERD-TEMPLATE.md` 与 `docs/data/templates/arch/dictionary-TEMPLATE.md`，为 ARCH 数据视图提供标准化的 ER 图与数据字段条目模板，并在 `/docs/data/README.md` 与 `AgentRoles/ARCHITECTURE-WRITER-EXPERT.md` 中明确引用。
-- 说明 `docs/data/ERD.md` 与 `docs/data/dictionary.md` 由数据视图流程动态生成，并移除仓库中的静态副本，只保留模板作为源文件；同时在 `docs/CONVENTIONS.md`、`docs/data/README.md` 中补充同步/生成提示。
-- 将包版本升至 `v1.18.0`，保持发布元数据与新的文档整理一致。
-
----
-
-## [v1.17.0] - 2025-11-11
-
-### 更新
-- 将包版本提升到 `v1.17.0`，确保发布元数据与当前代码一致。
-- 仅同步版本记录与变更日志，暂无额外功能或规范调整。
-
----
-
-## [v1.16.0] - 2025-11-11
-
-### 更新
-- 同步 `AGENT` 路由文档、`docs` 模块与 `scripts/arch-tools` 的最新改动，确保 PRD/ARCH/QA/Task 的上下文一致。
-- 将包版本提升到 `v1.16.0`，作为当前代码状态的正式里程碑。
 
 ---
