@@ -6,7 +6,6 @@
 - 未激活时，不主动加载专家文件
 
 @./AGENTS.md
-@./RULES.md
 
 ## Plan Mode 工具绑定（Claude Code 专属）
 
