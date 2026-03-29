@@ -6,34 +6,15 @@
 - 未激活时，不主动加载专家文件
 
 @./AGENTS.md
+@./RULES.md
 
-## Plan Mode 执行衔接规则
+## Plan Mode 工具绑定（Claude Code 专属）
 
-接受计划（plan mode 批准）后开始执行时，**第一步必须**：
-1. 识别对应专家：若 plan 文件 Step 0 已声明专家，直接使用；否则按用户意图判断：
-   - 定义/变更需求、功能规格、UI 设计规格、验收标准 → PRD
-   - 设计/变更系统架构、技术选型、模块划分 → ARCH
-   - 拆解/调整任务、优先级、里程碑 → TASK
-   - 编写/修改代码实现功能、修复 bug、编写单元/集成测试 → TDD
-   - 编写/执行 E2E、性能、安全测试 → QA
-   - 配置/执行 CI/CD、部署或管理环境 → DEVOPS
-   - 仍不确定时，读取 `/docs/AGENT_STATE.md` 判断当前阶段
-2. 发出 `[[ACTIVATE: X]]` 并立即读取 `AgentRoles/<X>-EXPERT.md`
-3. 专家文件读取完成后，**必须立即继续执行 plan 文件中的所有后续步骤（Step 1、Step 2……），不得在专家激活后停止**
+通用的计划执行衔接规则和 TDD 收尾流水线已定义在 AGENTS.md「TDD 开发全流程」章节，以下为 Claude Code 特有的工具绑定：
 
-同时，写 plan 文件时必须将专家激活作为 **Step 0** 写入。
+**ExitPlanMode 前置检查**：调用 ExitPlanMode **之前**，检查 plan 文件是否已在编码步骤之后包含 AGENTS.md 定义的 5 个收尾步骤，**缺少则补全后再退出**（`--no-qa` 跳过步骤 3-4，保留步骤 5）。
 
-**TDD 任务 plan 文件的 ExitPlanMode 前置检查（强制）**：调用 ExitPlanMode **之前**，检查 plan 文件是否已在编码步骤之后包含以下 5 个独立 Step，**缺少则补全后再退出**（`--no-qa` 跳过步骤 3-4，保留步骤 5）：
-1. 执行 `/tdd sync`（文档回写 + Pre-Push Gate）
-2. 执行 `/tdd push`（推送代码 + 创建 PR + Post-Push Gate）
-3. 执行 `/qa plan`（生成 QA 测试计划）
-4. 执行 `/qa verify`（验收验证）
-5. 执行 `/qa merge`（合并 PR + 更新状态）
-
-**TDD 任务执行追踪（强制）**：所有编码步骤完成后，**立即**用 TodoWrite 将上述 5 个收尾步骤写入待办列表（status: pending），执行每步后立即标记 completed。TodoWrite 列表在每个 turn 持续可见，确保收尾流水线不会中断。
-
-> **自动执行，禁止询问**：收尾流水线的每一步都必须直接执行，不得向用户询问"是否继续"。
-> **智能跳过**：对于简单改动（如 bug 修复、配置调整、文档修正、单文件小幅变更），可自动跳过 code-review 和 QA 验证阶段（步骤 3-4），但**必须保留步骤 5（`/qa merge`）**以合并已创建的 PR。判断标准：改动 ≤ 2 个文件且无架构影响。
+**TodoWrite 执行追踪**：所有编码步骤完成后，**立即**用 TodoWrite 将 5 个收尾步骤写入待办列表（status: pending），执行每步后立即标记 completed。TodoWrite 列表在每个 turn 持续可见，确保收尾流水线不会中断。
 
 <!-- ⚠️ 以上为模板核心区域，禁止修改。定制内容在分隔线后追加，变更仅在模板源项目（PromptsEngineering）中进行后同步。 -->
 
