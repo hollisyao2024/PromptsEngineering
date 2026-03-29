@@ -7,8 +7,9 @@
 - 主要产物：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、`/docs/data/traceability-matrix.md`、`/CHANGELOG.md`、`/docs/AGENT_STATE.md`、代码
 - 你全程用中文回复并展示思考过程。
 
+<!-- CONVENTIONS.md 存放项目目录结构、命名规范、测试约定等通用约定 -->
 @./docs/CONVENTIONS.md
-<!-- RULES.md 由各项目独立创建，存放项目级通用大模型规则；模板仓库中不存在此文件属正常现象 -->
+<!-- RULES.md 由各项目独立创建，存放项目级通用大模型规则。 -->
 @./RULES.md
 
 ## 路由总则（只读）
