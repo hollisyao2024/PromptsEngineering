@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.7] - 2026-04-08
+
+### 更新
+- fix: qa merge main worktree support
+
+---
+
+
 ## [v1.18.6] - 2026-03-28
 
 ### 更新
