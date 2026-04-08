@@ -2,6 +2,9 @@
 
 /**
  * /tdd new-worktree — 创建 Git Worktree 用于 TDD 并行开发
+ * 说明：
+ *   - 默认开发流程优先使用 /tdd new-branch
+ *   - 只有在明确需要并行隔离多个任务时，才使用 /tdd new-worktree
  *
  * 用法：
  *   pnpm run tdd:new-worktree -- TASK-USER-001 add-login        # 有 TASK ID
@@ -181,6 +184,8 @@ function main() {
     const { dryRun, isFix, positional } = parseArgs(process.argv.slice(2));
     const mainRoot = getMainRepoRoot();
 
+    console.log('\x1b[33m提示：默认开发流程优先使用 /tdd new-branch；仅在需要并行隔离任务时使用 /tdd new-worktree。\x1b[0m');
+
     const taskId = getTaskId(positional);
     const suffix = getBranchSuffix(positional, !!taskId);
 
@@ -248,3 +253,4 @@ function main() {
 }
 
 main();
+
