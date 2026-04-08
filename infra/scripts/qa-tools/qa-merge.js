@@ -157,6 +157,16 @@ function ensureCleanWorkingTree() {
   }
 }
 
+function ensureCleanWorkingTreeAt(targetPath, label = targetPath) {
+  const status = runGit(['status', '--porcelain'], { capture: true, cwd: targetPath });
+  if (status.trim()) {
+    throw new Error(
+      `${label} 存在未提交的变动，请先清理后重试。\n` +
+      `  目标路径: ${targetPath}`
+    );
+  }
+}
+
 function findOpenPR(branch) {
   const args = [
     'pr', 'list',
@@ -312,15 +322,74 @@ function tryGhMerge(prNumber) {
   return false;
 }
 
+function findWorktreePathByBranch(branchName, mainRepoRoot) {
+  const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: mainRepoRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.status !== 0) return null;
+
+  let currentPath = null;
+  for (const line of result.stdout.split('\n')) {
+    if (line.startsWith('worktree ')) {
+      currentPath = line.slice(9).trim();
+      continue;
+    }
+
+    if (line.startsWith('branch ')) {
+      const currentBranch = line.slice(7).trim().replace('refs/heads/', '');
+      if (currentBranch === branchName) {
+        return currentPath;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveMainWorkspacePath(mainRepoRoot) {
+  return findWorktreePathByBranch('main', mainRepoRoot) || mainRepoRoot;
+}
+
+function hasWorkspaceDependencies(workspacePath) {
+  return (
+    fs.existsSync(path.join(workspacePath, 'node_modules')) &&
+    fs.existsSync(path.join(workspacePath, 'apps', 'web', 'node_modules'))
+  );
+}
+
+function ensureWorkspaceDependencies(workspacePath, label = workspacePath) {
+  if (hasWorkspaceDependencies(workspacePath)) {
+    return;
+  }
+
+  console.log(`\x1b[33m${label} 缺少依赖目录，正在执行 pnpm install --frozen-lockfile...\x1b[0m`);
+  const result = spawnSync('pnpm', ['install', '--frozen-lockfile'], {
+    cwd: workspacePath,
+    encoding: 'utf8',
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `${label} 依赖安装失败（exit ${result.status}）。\n` +
+      `  目标路径: ${workspacePath}\n` +
+      '请检查网络、registry 或 lockfile 后重试。'
+    );
+  }
+}
+
 // ==================== 同步本地 main ====================
 
-function syncLocalMain(mainRepoRoot, isInWorktree) {
-  if (isInWorktree) {
-    // worktree 模式：main 已在主仓库中 checkout，不能再执行 checkout main，直接 fetch + merge
+function syncLocalMain(mainWorkspacePath) {
+  if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
+    // main 已在其他 worktree 中 checkout，不能在当前 feature 工作区执行 checkout main
     // 用 `fetch --prune origin`（不加 refspec）才能清理所有过期 remote tracking ref（包括已删除的 feature 分支）
-    console.log('\x1b[36m同步主仓库 main（worktree 模式）...\x1b[0m');
-    runGit(['-C', mainRepoRoot, 'fetch', '--prune', 'origin'], { cwd: mainRepoRoot });
-    runGit(['-C', mainRepoRoot, 'merge', '--ff-only', 'origin/main'], { cwd: mainRepoRoot });
+    console.log(`\x1b[36m同步 main 工作区：${mainWorkspacePath}\x1b[0m`);
+    runGit(['fetch', '--prune', 'origin'], { cwd: mainWorkspacePath });
+    runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
   } else {
     console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
     runGit(['checkout', 'main']);
@@ -331,27 +400,27 @@ function syncLocalMain(mainRepoRoot, isInWorktree) {
   }
 }
 
-function localSquashMerge(featureBranch, pr, mainRepoRoot, isInWorktree) {
+function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
-    syncLocalMain(mainRepoRoot, isInWorktree);
+    syncLocalMain(mainWorkspacePath);
 
     console.log(`\x1b[36m执行 git merge --squash ${featureBranch}...\x1b[0m`);
-    runGit(['merge', '--squash', featureBranch], { cwd: mainRepoRoot });
+    runGit(['merge', '--squash', featureBranch], { cwd: mainWorkspacePath });
 
     console.log('\x1b[36m提交 squash merge...\x1b[0m');
-    runGit(['commit', '-m', commitMsg], { cwd: mainRepoRoot });
+    runGit(['commit', '-m', commitMsg], { cwd: mainWorkspacePath });
 
     console.log('\x1b[36m推送到 origin main...\x1b[0m');
-    runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
+    runGit(['push', 'origin', 'main'], { cwd: mainWorkspacePath });
   } catch (error) {
     console.error('\x1b[31m合并过程中出错，尝试回滚...\x1b[0m');
     try {
-      runGit(['merge', '--abort'], { capture: true, cwd: mainRepoRoot });
+      runGit(['merge', '--abort'], { capture: true, cwd: mainWorkspacePath });
     } catch { /* 可能不在 merge 状态 */ }
     try {
-      runGit(['reset', '--hard', 'origin/main'], { cwd: mainRepoRoot });
+      runGit(['reset', '--hard', 'origin/main'], { cwd: mainWorkspacePath });
     } catch { /* 忽略 */ }
     try {
       runGit(['checkout', featureBranch]);
@@ -381,8 +450,8 @@ function closeAndCleanup(featureBranch, pr, commitMsg) {
   }
 }
 
-function getLatestMainCommit(mainRepoRoot) {
-  return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainRepoRoot }).trim();
+function getLatestMainCommit(mainWorkspacePath) {
+  return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainWorkspacePath }).trim();
 }
 
 // ==================== Worktree 清理 ====================
@@ -412,6 +481,15 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
 
     if (!found || !currentPath) return;
 
+    if (process.cwd().startsWith(currentPath)) {
+      try {
+        console.log(`\x1b[36m释放当前 worktree 对分支 ${featureBranch} 的占用...\x1b[0m`);
+        runGit(['switch', '--detach', 'origin/main'], { cwd: currentPath });
+      } catch (err) {
+        console.log(`\x1b[33m  切换为 detached HEAD 失败（${err.message}），继续尝试清理\x1b[0m`);
+      }
+    }
+
     console.log(`\x1b[36m清理 worktree: ${currentPath}\x1b[0m`);
     spawnSync('git', ['worktree', 'remove', '--force', currentPath], {
       cwd: mainRepoRoot,
@@ -428,12 +506,114 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
     const cwd = process.cwd();
     if (cwd.startsWith(currentPath)) {
       console.log('');
-      console.log(`\x1b[33m提示：当前目录已被移除，请切回主目录：\x1b[0m`);
+      console.log(`\x1b[33m提示：当前目录对应的 worktree 已被清理，请切回主目录：\x1b[0m`);
       console.log(`  cd ${mainRepoRoot}`);
     }
   } catch (err) {
     console.log(`\x1b[33m  Worktree 清理跳过（${err.message}）\x1b[0m`);
   }
+}
+
+function cleanupOrphanWorktreeDirs(mainRepoRoot) {
+  const worktreesDir = path.join(mainRepoRoot, '.worktrees');
+  if (!fs.existsSync(worktreesDir)) return [];
+
+  const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: mainRepoRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+
+  const validPaths = new Set();
+  if (result.status === 0) {
+    for (const line of result.stdout.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        validPaths.add(path.resolve(line.slice(9).trim()));
+      }
+    }
+  }
+
+  const removed = [];
+  for (const entry of fs.readdirSync(worktreesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const candidate = path.join(worktreesDir, entry.name);
+    if (validPaths.has(path.resolve(candidate))) continue;
+
+    try {
+      fs.rmSync(candidate, { recursive: true, force: true });
+      removed.push(candidate);
+    } catch (err) {
+      console.log(`\x1b[33m  孤儿 worktree 目录清理失败（${candidate}: ${err.message}）\x1b[0m`);
+    }
+  }
+
+  try {
+    if (fs.existsSync(worktreesDir) && fs.readdirSync(worktreesDir).length === 0) {
+      fs.rmdirSync(worktreesDir);
+    }
+  } catch {
+    // ignore
+  }
+
+  if (removed.length > 0) {
+    console.log('\x1b[32m  已清理孤儿 worktree 目录:\x1b[0m');
+    removed.forEach((item) => console.log(`    - ${item}`));
+  }
+
+  return removed;
+}
+
+function ensurePrimaryWorkspaceOnMain(mainWorkspacePath) {
+  try {
+    const current = runGit(['branch', '--show-current'], {
+      capture: true,
+      cwd: mainWorkspacePath,
+    }).trim();
+    if (current !== 'main') {
+      runGit(['switch', 'main'], { cwd: mainWorkspacePath });
+    }
+  } catch (err) {
+    console.log(`\x1b[33m  回到 main 失败（${err.message}）\x1b[0m`);
+  }
+}
+
+function printCleanupSummary(mainRepoRoot) {
+  const branchResult = spawnSync(
+    'git',
+    ['branch', '--list', 'feature/*', 'fix/*'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const branches = (branchResult.stdout || '')
+    .split('\n')
+    .map((item) => item.trim().replace(/^\*\s*/, ''))
+    .filter(Boolean);
+
+  const worktreeResult = spawnSync(
+    'git',
+    ['worktree', 'list', '--porcelain'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const worktreeCount = (worktreeResult.stdout || '')
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .length;
+
+  const stashResult = spawnSync(
+    'git',
+    ['stash', 'list'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  );
+  const stashCount = (stashResult.stdout || '')
+    .split('\n')
+    .filter(Boolean)
+    .length;
+
+  console.log('');
+  console.log('\x1b[36m仓库清理摘要:\x1b[0m');
+  console.log(`  当前主分支: main`);
+  console.log(`  剩余本地 feature/fix 分支: ${branches.length}`);
+  console.log(`  剩余 worktree 数量: ${worktreeCount}`);
+  console.log(`  stash 数量: ${stashCount}`);
 }
 
 // ==================== 版本管理（从 tdd-push.js 迁移） ====================
@@ -614,6 +794,10 @@ function main() {
     if (isInWorktree) {
       console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
     }
+    const mainWorkspacePath = resolveMainWorkspacePath(mainRepoRoot);
+    if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
+      console.log(`\x1b[36mmain 当前位于独立 worktree：${mainWorkspacePath}\x1b[0m`);
+    }
 
     // Step 2: 加载 GH_TOKEN
     loadProjectGhToken();
@@ -623,6 +807,10 @@ function main() {
 
     // Step 4: 确保工作区干净
     ensureCleanWorkingTree();
+    if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
+      ensureCleanWorkingTreeAt(mainWorkspacePath, 'main 工作区');
+      ensureWorkspaceDependencies(mainWorkspacePath, 'main 工作区');
+    }
 
     // Step 5: 验证当前分支
     const currentBranch = getCurrentBranch();
@@ -715,22 +903,23 @@ function main() {
 
     if (ghMerged) {
       strategy = 'gh';
-      syncLocalMain(mainRepoRoot, isInWorktree);
+      syncLocalMain(mainWorkspacePath);
     } else {
       // 防竞态：gh 可能超时但实际已完成合并
       const prState = checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
         strategy = 'gh';
-        syncLocalMain(mainRepoRoot, isInWorktree);
+        syncLocalMain(mainWorkspacePath);
       } else {
         strategy = 'local';
-        localSquashMerge(currentBranch, pr, mainRepoRoot, isInWorktree);
+        localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
       }
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
+    cleanupOrphanWorktreeDirs(mainRepoRoot);
 
     // worktree 模式：切换 VSCode 窗口回主仓库
     if (isInWorktree) {
@@ -739,17 +928,20 @@ function main() {
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
     try {
-      runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainRepoRoot });
+      runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainWorkspacePath });
     } catch {
       try {
-        runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainRepoRoot });
+        runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainWorkspacePath });
       } catch {
         console.log(`\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）\x1b[0m`);
       }
     }
 
+    ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
+    cleanupOrphanWorktreeDirs(mainRepoRoot);
+
     // Step 15: 版本递增 + CHANGELOG + AGENT_STATE + tag
-    const packageJsonPath = path.join(mainRepoRoot, 'package.json');
+    const packageJsonPath = path.join(mainWorkspacePath, 'package.json');
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const currentVersion = pkg.version;
     const newVersion = bumpPatchVersion(currentVersion);
@@ -763,23 +955,32 @@ function main() {
     console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
 
     // 更新 CHANGELOG
-    insertChangelogEntry(mainRepoRoot, newVersion, releaseNote);
+    insertChangelogEntry(mainWorkspacePath, newVersion, releaseNote);
     console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
 
     // 更新 AGENT_STATE
-    const commitHash = getLatestMainCommit(mainRepoRoot);
-    const agentStateUpdated = updateAgentState(mainRepoRoot, pr.number, commitHash);
+    const commitHash = getLatestMainCommit(mainWorkspacePath);
+    const agentStateUpdated = updateAgentState(mainWorkspacePath, pr.number, commitHash);
 
     // Step 16: commit + tag
-    commitReleaseAndTag(mainRepoRoot, newVersion, releaseNote);
+    commitReleaseAndTag(mainWorkspacePath, newVersion, releaseNote);
     console.log(`\x1b[32m  Release commit + tag v${newVersion} 已创建\x1b[0m`);
 
     // Step 17: push main + tag
     const tagName = `v${newVersion}`;
-    pushMainAndTag(mainRepoRoot, tagName);
+    pushMainAndTag(mainWorkspacePath, tagName);
     console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
 
-    printSummary(pr, currentBranch, commitHash, strategy, agentStateUpdated, newVersion, mainRepoRoot);
+    printSummary(
+      pr,
+      currentBranch,
+      commitHash,
+      strategy,
+      agentStateUpdated,
+      newVersion,
+      mainWorkspacePath
+    );
+    printCleanupSummary(mainRepoRoot);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);
@@ -792,6 +993,8 @@ if (require.main === module) {
 
 module.exports = {
   findOpenPR,
+  findWorktreePathByBranch,
+  resolveMainWorkspacePath,
   formatGhError,
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
