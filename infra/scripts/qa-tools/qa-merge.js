@@ -454,6 +454,50 @@ function getLatestMainCommit(mainWorkspacePath) {
   return runGit(['rev-parse', '--short', 'HEAD'], { capture: true, cwd: mainWorkspacePath }).trim();
 }
 
+function localBranchExists(branchName, cwd = repoRoot) {
+  const result = spawnSync('git', ['show-ref', '--verify', `refs/heads/${branchName}`], {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  return result.status === 0;
+}
+
+function deleteLocalBranch(branchName, cwd = repoRoot) {
+  if (!localBranchExists(branchName, cwd)) {
+    return { deleted: false, reason: 'already_deleted' };
+  }
+
+  try {
+    runGit(['branch', '-d', branchName], { capture: true, cwd });
+    return { deleted: true, forced: false };
+  } catch (safeDeleteError) {
+    if (!localBranchExists(branchName, cwd)) {
+      return { deleted: false, reason: 'already_deleted' };
+    }
+
+    try {
+      runGit(['branch', '-D', branchName], { capture: true, cwd });
+      return { deleted: true, forced: true };
+    } catch (forceDeleteError) {
+      if (!localBranchExists(branchName, cwd)) {
+        return { deleted: false, reason: 'already_deleted' };
+      }
+
+      return {
+        deleted: false,
+        reason: 'failed',
+        error:
+          forceDeleteError instanceof Error
+            ? forceDeleteError.message
+            : safeDeleteError instanceof Error
+              ? safeDeleteError.message
+              : 'unknown error',
+      };
+    }
+  }
+}
+
 // ==================== Worktree 清理 ====================
 
 function cleanupWorktree(featureBranch, mainRepoRoot) {
@@ -927,14 +971,11 @@ function main() {
     }
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
-    try {
-      runGit(['branch', '-d', currentBranch], { capture: true, cwd: mainWorkspacePath });
-    } catch {
-      try {
-        runGit(['branch', '-D', currentBranch], { capture: true, cwd: mainWorkspacePath });
-      } catch {
-        console.log(`\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）\x1b[0m`);
-      }
+    const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
+    if (branchDeleteResult.reason === 'failed') {
+      console.log(
+        `\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）: ${branchDeleteResult.error}\x1b[0m`
+      );
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
@@ -999,3 +1040,4 @@ module.exports = {
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
 };
+
