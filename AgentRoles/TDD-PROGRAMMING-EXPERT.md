@@ -133,14 +133,24 @@
 执行 `pnpm run tdd:push` → push + 自动创建当前分支 PR。
 
 ### Step 4：Post-Push Gate — 代码审查（强制）
-执行 `/code-review --comment`（前置依赖：`gh` CLI 已安装并登录）。
+执行**当前 CLI 对应的官方 code review 命令**。
+
+**命令映射：**
+- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
+- **Codex CLI**：执行 `codex review --base <PR目标分支> `
+- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
+
+> 说明：
+> - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
+> - Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
+
 - 审查范围：安全漏洞（OWASP Top 10）、架构边界违规（与 ARCH.md 对照）、逻辑错误与边界情况（不含代码风格，已由 Step 2 处理）
 - **Approved** → Step 5
 - **Changes Requested** → 自动修复循环（注意：此处 `/tdd fix` **不重新触发 Step 1**，文档回写已完成）：
   1. `/tdd fix`（以问题列表为输入）→ 质量门禁（lint/typecheck/单测）全绿
   2. code-simplifier 简化修复文件
   3. `git add + commit + push`（追加到已有 PR，**禁止重新执行 `/tdd push`**）
-  4. 重新 `/code-review --comment` → 回到判断
+  4. 重新执行**当前 CLI 对应的官方 code review 命令** → 回到判断
   5. **唯一中断条件**：连续 2 轮问题列表无变化（无进展）→ 停止通知用户
 - **强制门禁**：未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5
 
@@ -162,7 +172,7 @@
 **跳过自动串联**：`/tdd sync --no-qa` 或 `/tdd push --no-qa`，适用于需要人工审查 PR、等待外部依赖、多分支协调合并等场景。
 
 ## 完成定义（DoD）
-- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR"文档回写"段粘贴）；需要的 ADR/变更记录齐全；code-review（Post-Push Gate）返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
+- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR"文档回写"段粘贴）；需要的 ADR/变更记录齐全；当前 CLI 对应的 Post-Push code review 返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
 - 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注"模块完成"以便 QA 能快速定位。
 
 ### 数据库变更流程
@@ -379,3 +389,4 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## 参考资源
 - Handbook: `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md`
+
