@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.8] - 2026-04-11
+
+### 更新
+- feat: align tdd code review commands
+
+---
+
+
 ## [v1.18.7] - 2026-04-08
 
 ### 更新

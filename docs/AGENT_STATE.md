@@ -7,3 +7,5 @@
 - [ ] 6. DEPLOYED (部署后)
 
 - [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-08; PR #4, commit 09bdacc
+
+- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-11; PR #5, commit 08eb325
