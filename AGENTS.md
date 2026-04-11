@@ -52,10 +52,19 @@
 ### TDD 收尾流水线（强制）
 所有编码步骤完成后，**必须依次执行**以下 5 个独立步骤（`--no-qa` 跳过步骤 3-4，保留步骤 5）：
 1. 执行 `/tdd sync`（文档回写 + Pre-Push Gate）
-2. 执行 `/tdd push`（推送代码 + 创建 PR + Post-Push Gate）
+2. 执行 `/tdd push`（推送代码 + 创建 PR + Post-Push Gate：按当前 CLI 执行对应的 code review 命令）
 3. 执行 `/qa plan`（生成 QA 测试计划）
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
+
+#### Post-Push Gate 命令映射（按当前 CLI 自动选择）
+- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
+- **Codex CLI**：执行 `codex review --base <PR目标分支> "重点审查安全漏洞、架构边界违规、逻辑错误与边界情况；忽略代码风格问题"`
+- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
+
+> 说明：
+> - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
+> - Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
 
 > **自动执行，禁止询问**：收尾流水线的每一步都必须直接执行，不得向用户询问"是否继续"。
 > **智能跳过**：对于简单改动（如 bug 修复、配置调整、文档修正、单文件小幅变更），可自动跳过 code-review 和 QA 验证阶段（步骤 3-4），但**必须保留步骤 5（`/qa merge`）**以合并已创建的 PR。判断标准：改动 ≤ 2 个文件且无架构影响。
@@ -115,7 +124,7 @@
 
 **加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`，未读取前禁止执行任何操作。
 
-**完成状态**：Post-Push Gate（code-review）通过后自动勾选 `TDD_DONE`，并**默认自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过串联。
+**完成状态**：Post-Push Gate（按当前 CLI 执行对应的 code review）通过后自动勾选 `TDD_DONE`，并**默认自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过串联。
 
 **快捷命令**：
 - **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入 `project` 模式。
@@ -175,3 +184,4 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
+

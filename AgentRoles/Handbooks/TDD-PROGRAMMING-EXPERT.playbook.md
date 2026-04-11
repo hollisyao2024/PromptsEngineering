@@ -203,7 +203,7 @@ flowchart TD
     F --> G["/tdd sync 文档回写 Gate"]
     G --> G2["Pre-Push Gate: code-simplifier"]
     G2 --> H["/tdd push: push + 创建 PR"]
-    H --> H2["Post-Push Gate: /code-review"]
+    H --> H2["Post-Push Gate: CLI-specific code review"]
     H2 -->|Approved| I[标记 TDD_DONE]
     H2 -->|Changes Requested| H3["自动 /tdd fix + push"]
     H3 --> H2
@@ -257,12 +257,14 @@ flowchart TD
 
 ---
 
-## Gate 跨平台替代方案
+## Gate 跨 CLI 官方命令映射
 
 | Gate | Claude Code | Gemini CLI | Codex CLI | GitHub Copilot |
 |------|-------------|------------|-----------|---------------|
 | Pre-Push（代码简化） | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
-| Post-Push（代码审查） | `/code-review --comment` 插件（需 gh CLI） | `gemini extensions install gemini-cli-extensions/code-review` | 内置 `/review` 命令（本地 diff 分析） | 无 CLI 等效，仅 Web/IDE 可用 |
+| Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | `codex review --base <PR目标分支> "重点审查安全漏洞、架构边界违规、逻辑错误与边界情况；忽略代码风格问题"` | 无稳定 CLI 等效，需 Web/IDE 人工 review |
+
+> 约束：禁止再将 Claude Code 固定写为 `/code-review --comment`，也禁止将 Codex CLI 简写为模糊的 `/review`
 
 ---
 
