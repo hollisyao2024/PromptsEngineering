@@ -59,7 +59,7 @@
 
 #### Post-Push Gate 命令映射（按当前 CLI 自动选择）
 - **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
-- **Codex CLI**：执行 `codex review --base <PR目标分支> "重点审查安全漏洞、架构边界违规、逻辑错误与边界情况；忽略代码风格问题"`
+- **Codex CLI**：执行 `codex review --base <PR目标分支>`
 - **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
 
 > 说明：

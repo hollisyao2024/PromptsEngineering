@@ -262,9 +262,7 @@ flowchart TD
 | Gate | Claude Code | Gemini CLI | Codex CLI | GitHub Copilot |
 |------|-------------|------------|-----------|---------------|
 | Pre-Push（代码简化） | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
-| Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | `codex review --base <PR目标分支> "重点审查安全漏洞、架构边界违规、逻辑错误与边界情况；忽略代码风格问题"` | 无稳定 CLI 等效，需 Web/IDE 人工 review |
-
-> 约束：禁止再将 Claude Code 固定写为 `/code-review --comment`，也禁止将 Codex CLI 简写为模糊的 `/review`
+| Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | `codex review --base <PR目标分支> ` | 无稳定 CLI 等效，需 Web/IDE 人工 review |
 
 ---
 
