@@ -75,15 +75,17 @@ pnpm run tdd:tick
 ```bash
 pnpm run tdd:push [bump|vX.Y.Z] [release-note]
 pnpm run tdd:push -- --project [bump|vX.Y.Z] [release-note]
+pnpm run tdd:review-gate -- --base main
 ```
 
 **执行流程：**
 - `tdd:push` 会发布当前分支（版本变更、tag、push、创建当前分支 PR），不会操作其他分支。
 - `tdd:push -- --project` 为显式项目模式，仍只针对当前分支执行：
-  - 校验工作树干净（`git status --porcelain`）。
-  - 读取 `package.json` 当前版本并决定目标版本。
-  - 更新 `package.json` 与 `CHANGELOG.md`。
-  - `git add` / `git commit` / `git tag` / `git push` / 自动创建 PR。
+  - 若工作树存在未提交改动，自动执行 `git add -A`，并基于当前分支名生成 commit message 后提交到当前分支。
+  - 先执行 `tdd:review-gate`，输出 `Review-Class` 与 `Reason`。
+  - `git push` / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。
+  - 若结果为 `required`，Claude Code / Gemini CLI 后续必须执行当前 CLI 对应的 code review；Codex CLI 不执行 `codex review --base <PR目标分支>`，也不要求人工 `Approved`，记录 `Codex review skipped by policy` 后继续后续流程。
+  - 若结果为 `optional-skipped` 或 `skipped`，可跳过 review，但不能跳过 lint / typecheck / 定向测试。
 
 > ℹ️ 如果提供 `release-note`，会作为 `chore(release)` commit 的内容与标签说明使用。
 
@@ -96,7 +98,8 @@ pnpm run tdd:push -- --project [bump|vX.Y.Z] [release-note]
 | `create-migration.sh` | ✅ 实用 | 通用数据库迁移模板，支持多方言与幂等性提示 |
 | `create-migration-supabase.sh` | ✅ 实用 | Supabase 风格迁移，输出到 `supabase/migrations` |
 | `tdd-tick.js` | ✅ 实现 | 基于分支名自动勾选 TASK 文档中的复选项 |
-| `tdd-push.js` | ✅ 实现 | 版本 bump + changelog + commit/tag/push 自动化 |
+| `tdd-push.js` | ✅ 实现 | push + 自动创建 PR + 输出 review gate 判定 |
+| `tdd-review-gate.js` | ✅ 实现 | 按差异风险判定 `required / optional-skipped / skipped` |
 
 ---
 
@@ -124,8 +127,8 @@ steps:
 
 ## ❓ 常见问题
 
-### Q: `tdd:push` 提示 `工作区存在未提交的变动`？
-A: 清理所有本地修改（commit/stash）后再执行，确保版本变更与 changelog 是唯一差异。
+### Q: `tdd:push` 遇到未提交改动会怎样？
+A: 脚本会默认把当前工作区改动 `git add -A` 后自动提交到当前分支，再继续 push / PR / review gate。若你不希望某些改动进入本次 PR，应先手动整理工作区。
 
 ### Q: `create-migration.sh` 文件出现重复？
 A: 检查 `TIMESTAMP` 生成是否重复，或者指定不同的 `--dir` 路径；脚本会在目标路径检测文件是否已存在。

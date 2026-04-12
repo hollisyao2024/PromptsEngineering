@@ -49,6 +49,7 @@
     "tdd:tick": "node infra/scripts/tdd-tools/tdd-tick.js",
     "tdd:sync": "node infra/scripts/tdd-tools/tdd-sync.js",
     "tdd:push": "node infra/scripts/tdd-tools/tdd-push.js",
+    "tdd:review-gate": "node infra/scripts/tdd-tools/tdd-review-gate.js",
     "tdd:new-branch": "node infra/scripts/tdd-tools/tdd-new-branch.js",
     "tdd:resume": "node infra/scripts/tdd-tools/tdd-resume.js",
     "tdd:new-worktree": "node infra/scripts/tdd-tools/tdd-new-worktree.js",
@@ -56,8 +57,6 @@
     "tdd:worktree-remove": "node infra/scripts/tdd-tools/tdd-worktree-remove.js",
     "codemap": "node infra/scripts/tdd-tools/generate-codemap.js",
     "codemap:session": "node infra/scripts/tdd-tools/generate-codemap.js --scope=session",
-    "type-check": "cd apps/web && pnpm exec tsc --noEmit --incremental",
-    "lint": "cd apps/web && pnpm exec eslint . --ext .js,.jsx,.ts,.tsx --cache --cache-location .eslintcache --max-warnings 1000",
     "precommit": "pnpm type-check && pnpm lint",
     "ship:dev": "bash infra/scripts/server/deploy.sh local dev",
     "ship:dev:quick": "SKIP_CI=true bash infra/scripts/server/deploy.sh local dev",
@@ -70,7 +69,9 @@
     "dev:restart": "bash infra/scripts/server/server-dev.sh restart",
     "dev:stop": "bash infra/scripts/server/server-dev.sh stop",
     "dev:status": "bash infra/scripts/server/server-dev.sh status",
-    "dev:logs": "bash infra/scripts/server/server-dev.sh logs"
+    "dev:logs": "bash infra/scripts/server/server-dev.sh logs",
+    "type-check": "if [ -d apps/web ]; then cd apps/web && pnpm exec tsc --noEmit --incremental; else echo 'skip type-check: apps/web not found (template repo)'; fi",
+    "lint": "if [ -d apps/web ]; then cd apps/web && pnpm exec eslint . --ext .js,.jsx,.ts,.tsx --cache --cache-location .eslintcache --max-warnings 1000; else echo 'skip lint: apps/web not found (template repo)'; fi"
   },
   "keywords": [
     "prd",

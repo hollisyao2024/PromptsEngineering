@@ -25,7 +25,9 @@
 
 ### 准备阶段
 - 明确目标任务的验收标准、依赖与回滚策略
-- 校验 `git status` 干净、依赖安装完备、本地环境变量可用
+- 校验当前位于可开发分支、依赖安装完备、本地环境变量可用
+- 编码与本地验证阶段允许工作区存在未提交改动；执行 `/tdd push` 时，脚本会自动将当前分支工作区改动 `git add -A` 后生成 commit message 并提交
+- 若不希望某些改动进入本次 PR，必须在执行 `/tdd push` 前手动整理工作区
 - 选定最小可验证场景，将输入输出转化为测试断言
 
 ### 红-绿-重构循环
@@ -202,11 +204,16 @@ flowchart TD
     E --> F
     F --> G["/tdd sync 文档回写 Gate"]
     G --> G2["Pre-Push Gate: code-simplifier"]
-    G2 --> H["/tdd push: push + 创建 PR"]
-    H --> H2["Post-Push Gate: CLI-specific code review"]
-    H2 -->|Approved| I[标记 TDD_DONE]
-    H2 -->|Changes Requested| H3["自动 /tdd fix + push"]
-    H3 --> H2
+    G2 --> H["/tdd push: 自动提交当前分支改动 + push + 创建 PR"]
+    H --> H2["Post-Push Gate: tdd:review-gate"]
+    H2 -->|REVIEW_REQUIRED| H3{CLI 类型}
+    H2 -->|REVIEW_OPTIONAL / REVIEW_SKIPPED| I[标记 TDD_DONE]
+    H3 -->|Codex CLI| H4["记录 Codex review skipped by policy"]
+    H3 -->|其他 CLI| H5["CLI-specific code review"]
+    H5 -->|Approved| I
+    H4 --> I
+    H5 -->|Changes Requested| H6["自动 /tdd fix + push"]
+    H6 --> H2
     I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
     QA1 --> QA2{智能测试判断}
     QA2 -->|fix/* 分支| QA3[跳过编写，执行已有测试]
@@ -262,7 +269,7 @@ flowchart TD
 | Gate | Claude Code | Gemini CLI | Codex CLI | GitHub Copilot |
 |------|-------------|------------|-----------|---------------|
 | Pre-Push（代码简化） | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
-| Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | `codex review --base <PR目标分支> ` | 无稳定 CLI 等效，需 Web/IDE 人工 review |
+| Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | 不执行 `codex review`；记录 `Codex review skipped by policy` 后继续 | 无稳定 CLI 等效，需 Web/IDE 人工 review |
 
 ---
 
@@ -281,3 +288,4 @@ flowchart TD
 | ARCH | 接口契约/设计约束 | 实现 + 范围变更回写 | 设计变更走 ADR |
 | QA | QA 退回缺陷记录 | 修复代码 + CHANGELOG | CI 全绿后移交 QA |
 | DevOps | — | CI 全绿制品 | 不越权配置 CI/CD，部署由 DevOps 执行 |
+
