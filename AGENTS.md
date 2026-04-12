@@ -31,6 +31,21 @@
   3. 必须搜内容 → 先用文件名匹配缩小目录范围，再对目标目录做内容搜索（避免全项目扫描）
   4. 项目有 `docs/data/CODEBASE_MAP.md` 时，搜索前优先读取该文件定位目标
 
+## 全仓扫描与批量重构规则（只读）
+适用于：全项目扫描、查找所有匹配项、全量路由排查、跨目录批量重构。凡任务要求跨多个目录或入口进行全量发现，且完整性会影响正确性时，自动触发本规则。
+
+- Discovery 与 Editing 必须分离，禁止边扫边改。
+- 完整候选清单落盘前，禁止开始编辑。
+- manifest 必须写入 `tmp/scan-manifests/`；每个任务独立一个文件。
+- manifest 命名格式：`{task}__{scope}__{phase}__{run}.manifest.md`；`phase` 仅允许 `discovery` 或 `edit`。
+- 同一任务跨阶段应保持相同的 `task` 与 `scope`；范围或规则变化时必须新建 manifest。
+- 完成前必须覆盖所有相关目录、路由入口、聚合导出、别名引用和动态注册源，不得只处理首批明显匹配项。
+- 如存在 `docs/data/CODEBASE_MAP.md`、路由注册表、导航配置或模块索引文件，必须一并核查。
+- 上下文不足时，必须将中间结果持续写入 manifest 或临时文件，禁止静默缩小范围。
+- 结果必须报告：`scanned_count`、`matched_count`、`modified_count`、`skipped_count`。
+- `matched_count` 必须等于 `modified_count + skipped_count`；否则任务不得视为完成。
+- 多个任务可并行执行 Discovery；若待修改文件集合重叠，Editing 必须串行。
+
 ## 角色工作流
 1. **PRD 专家**：根据用户信息产出需求文档，确保后续架构/任务/实现有清晰、可验收的依据。
 2. **ARCH 专家**：根据需求文档输出架构视图，确立实现边界与质量特性。
@@ -196,3 +211,4 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
+
