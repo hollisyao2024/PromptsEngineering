@@ -203,10 +203,12 @@ flowchart TD
     F --> G["/tdd sync 文档回写 Gate"]
     G --> G2["Pre-Push Gate: code-simplifier"]
     G2 --> H["/tdd push: push + 创建 PR"]
-    H --> H2["Post-Push Gate: CLI-specific code review"]
-    H2 -->|Approved| I[标记 TDD_DONE]
-    H2 -->|Changes Requested| H3["自动 /tdd fix + push"]
-    H3 --> H2
+    H --> H2["Post-Push Gate: tdd:review-gate"]
+    H2 -->|REVIEW_REQUIRED| H3["CLI-specific code review"]
+    H2 -->|REVIEW_OPTIONAL / REVIEW_SKIPPED| I[标记 TDD_DONE]
+    H3 -->|Approved| I
+    H3 -->|Changes Requested| H4["自动 /tdd fix + push"]
+    H4 --> H2
     I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
     QA1 --> QA2{智能测试判断}
     QA2 -->|fix/* 分支| QA3[跳过编写，执行已有测试]

@@ -49,7 +49,7 @@
 - `/tdd diagnose`：复现并定位问题 → 产出**失败用例**（Red）+ 怀疑点与验证步骤 + 最小修复方案；不做需求/架构变更
 - `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`
 - `/tdd sync`：文档回写 Gate，完成后自动串联后续管线步骤（详见 §编码→交付管线）；`--no-qa` 跳过 QA 串联
-- `/tdd push`：push + 自动创建 PR，不触发 Gate（须先完成 Pre-Push Gate）；完成后触发 Post-Push Gate（详见 §编码→交付管线）；`--no-qa` 跳过 QA 串联
+- `/tdd push`：push + 自动创建 PR + review necessity check（须先完成 Pre-Push Gate）；若判定为 `REVIEW_REQUIRED`，再进入 Post-Push Gate；若为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后直接进入后续流程；`--no-qa` 跳过 QA 串联
 - `/tdd new-branch`：有 Task → `feature/TASK-XXX-<desc>`；无 Task → `fix/<desc>`。用户可覆盖描述。不切换 VSCode workspace，Claude Code 会话完整保留
 - `/tdd new-worktree`：高级备选（会重启 Claude Code 会话），在 `.worktrees/` 创建 Worktree。参数同 new-branch，额外支持 `--dry-run`
 - `/tdd worktree list`：列出活跃 worktree（分支名 | 相对路径 | HEAD 缩写）
@@ -132,8 +132,46 @@
 ### Step 3：推送（/tdd push）
 执行 `pnpm run tdd:push` → push + 自动创建当前分支 PR。
 
-### Step 4：Post-Push Gate — 代码审查（强制）
-执行**当前 CLI 对应的官方 code review 命令**。
+### Step 4：Post-Push Gate — Review Necessity Check + 代码审查
+先执行 `pnpm run tdd:review-gate`，按以下顺序判定：
+1. 是否命中 `REVIEW_SKIPPED`
+2. 否则是否命中 `REVIEW_REQUIRED`
+3. 否则检查是否满足 `REVIEW_OPTIONAL` 的全部豁免条件
+4. 不满足则回退到 `REVIEW_REQUIRED`
+
+#### 判定等级
+
+**A. `REVIEW_REQUIRED`：必须 code review**
+
+满足任一条件即必须 review：
+- 改动运行时业务逻辑，且不属于低风险豁免范围
+- 涉及认证、授权、权限、支付、计费、隐私、加密、密钥、风控、安全校验
+- 涉及数据库 schema、迁移、回填、删除/重命名字段、事务、并发一致性
+- 涉及公共接口变化：API、事件、消息格式、共享 types、SDK、组件 props 契约
+- 涉及架构边界变化：跨 package/app 调用关系、模块职责调整、引入新基础设施依赖
+- 涉及配置影响生产行为：CI/CD、构建产物、环境变量模板、发布流程、监控告警、feature flag 默认值
+- 改动跨越 2 个以上业务文件，或跨模块/跨层
+- 单文件改动虽少，但包含条件分支、状态机、缓存、重试、降级、异步竞态、错误处理调整
+- 缺少充分自动化验证，或测试结果对风险覆盖不足
+- 属于 hotfix / rollback / 紧急修复
+
+**B. `REVIEW_OPTIONAL`：允许跳过 review，但必须记录依据**
+
+仅当同时满足以下条件时可跳过：
+- 仅影响单一局部行为
+- 业务文件 ≤ 2 个，且生产代码变更 ≤ 30 行
+- 不涉及数据库、权限、安全、公共接口、架构边界、部署配置
+- 不改变默认配置、对外返回结构、持久化数据含义
+- lint / typecheck / targeted tests 全绿
+
+**C. `REVIEW_SKIPPED`：明确不需要 review**
+
+满足以下场景之一可直接跳过：
+- 仅文档改动：`*.md`、README、PRD/ARCH/TASK/QA 文档回写
+- 仅非运行时资源改动：示例数据、mock、fixture、截图、演示文案
+- 仅测试改动，且不修改生产代码
+- 仅开发辅助文件改动：本地脚本说明、编辑器配置、拼写修正
+- 锁文件更新但无依赖定义文件变化，例如纯 install 归一化
 
 **命令映射：**
 - **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
@@ -144,15 +182,20 @@
 > - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
 > - Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
 
+- `tdd:review-gate` 输出必须同步记录到 PR 描述或执行日志：
+  - `Review-Class: required | optional-skipped | skipped`
+  - `Reason: <命中规则>`
+- `REVIEW_REQUIRED`：执行当前 CLI 对应的官方 code review 命令
 - 审查范围：安全漏洞（OWASP Top 10）、架构边界违规（与 ARCH.md 对照）、逻辑错误与边界情况（不含代码风格，已由 Step 2 处理）
 - **Approved** → Step 5
 - **Changes Requested** → 自动修复循环（注意：此处 `/tdd fix` **不重新触发 Step 1**，文档回写已完成）：
   1. `/tdd fix`（以问题列表为输入）→ 质量门禁（lint/typecheck/单测）全绿
   2. code-simplifier 简化修复文件
   3. `git add + commit + push`（追加到已有 PR，**禁止重新执行 `/tdd push`**）
-  4. 重新执行**当前 CLI 对应的官方 code review 命令** → 回到判断
+  4. 重新执行 `pnpm run tdd:review-gate`；若仍为 `REVIEW_REQUIRED`，再执行当前 CLI 对应的官方 code review 命令 → 回到判断
   5. **唯一中断条件**：连续 2 轮问题列表无变化（无进展）→ 停止通知用户
-- **强制门禁**：未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5
+- `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`：跳过 code review，直接进入 Step 5，但必须保留日志或 PR 中的分类记录
+- **强制门禁**：`REVIEW_REQUIRED` 未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5
 
 ### Step 5：标记 TDD_DONE
 在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
@@ -172,7 +215,7 @@
 **跳过自动串联**：`/tdd sync --no-qa` 或 `/tdd push --no-qa`，适用于需要人工审查 PR、等待外部依赖、多分支协调合并等场景。
 
 ## 完成定义（DoD）
-- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR"文档回写"段粘贴）；需要的 ADR/变更记录齐全；当前 CLI 对应的 Post-Push code review 返回 `Approved`；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
+- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR"文档回写"段粘贴）；需要的 ADR/变更记录齐全；若 `Review-Class=required`，则当前 CLI 对应的 Post-Push code review 返回 `Approved`；若 `Review-Class=optional-skipped|skipped`，则 PR 或日志中已记录跳过依据；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
 - 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注"模块完成"以便 QA 能快速定位。
 
 ### 数据库变更流程
@@ -389,4 +432,3 @@ Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`
 
 ## 参考资源
 - Handbook: `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md`
-
