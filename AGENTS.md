@@ -52,23 +52,22 @@
 ### TDD 收尾流水线（强制）
 所有编码步骤完成后，**必须依次执行**以下 5 个独立步骤（`--no-qa` 跳过步骤 3-4，保留步骤 5）：
 1. 执行 `/tdd sync`（文档回写 + Pre-Push Gate）
-2. 执行 `/tdd push`（推送代码 + 创建 PR + Review Necessity Check；仅 `REVIEW_REQUIRED` 进入 Post-Push code review）
+2. 执行 `/tdd push`（推送代码 + 创建 PR + Review Necessity Check；`REVIEW_REQUIRED` 进入 Post-Push Gate。除 Codex CLI 外，`REVIEW_REQUIRED` 进入 Post-Push code review）
 3. 执行 `/qa plan`（生成 QA 测试计划）
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
 #### Post-Push Gate 命令映射（按当前 CLI 自动选择）
 - **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
-- **Codex CLI**：执行 `codex review --base <PR目标分支>`
+- **Codex CLI**：不执行 `codex review --base <PR目标分支>`。若 `Review-Class=required`，记录 `Codex review skipped by policy` 后继续后续流水线。
 - **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
 
 #### Review Mode Exception
 
-执行 `codex review --base <PR目标分支>` 时：
-- 仅审查当前 diff 及必要上下文
-- 不激活专家角色，不执行阶段流转
-- 只输出高置信 findings；无问题则输出 `no findings`
-- 未收敛则停止自动 review，转人工 review
+Codex CLI 默认不执行自动 code review：
+- `Review-Class=required` 时不阻断流水线
+- 必须在 PR 描述或执行日志中记录 `Codex review skipped by policy`
+- 记录完成后可继续 `TDD_DONE` 与 QA 流程
 
 > 说明：
 > - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
@@ -134,14 +133,17 @@
 
 **加载（门禁）**：激活后**必须立即读取**专家文件 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`，未读取前禁止执行任何操作。
 
-**完成状态**：Post-Push Gate 中若判定为 `REVIEW_REQUIRED`，则需在 code review `Approved` 后自动勾选 `TDD_DONE`；若判定为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，则在记录跳过依据且验证通过后可勾选 `TDD_DONE`。随后**默认自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过串联。
+**完成状态**：Post-Push Gate 中若判定为 `REVIEW_REQUIRED`：
+- Claude Code / Gemini CLI / GitHub Copilot：需在 code review `Approved` 后自动勾选 `TDD_DONE`
+- Codex CLI：记录 `Codex review skipped by policy` 且验证通过后可勾选 `TDD_DONE`
+随后**默认自动串联 QA 流程**（`/qa plan` → 智能测试编写 → `/qa verify` → `/qa merge`）。使用 `--no-qa` 跳过串联。
 
 **快捷命令**：
 - **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入 `project` 模式。
 - `/tdd diagnose`：诊断当前代码/测试问题
 - `/tdd fix`：修复已识别问题
 - `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步 TASK/模块文档，自动勾选复选框、更新状态）。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
-- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**（推代码 + 自动创建当前分支 PR + review necessity check）。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
+- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
 - `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（单分支模式，通常由分支门禁自动调用，也可手动执行）
 - `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐用于多任务并行开发）
 - `/tdd worktree list`：**首先执行** `pnpm run tdd:worktree-list` **脚本**，列出当前所有活跃的 worktree
@@ -194,4 +196,3 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
-

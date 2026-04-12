@@ -32,7 +32,7 @@ function runGit(args, options = {}) {
   const result = spawnSync('git', args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    stdio: options.capture ? 'pipe' : 'inherit'
+    stdio: options.capture ? 'pipe' : 'inherit',
   });
 
   if (result.error) {
@@ -46,11 +46,9 @@ function runGit(args, options = {}) {
   return result.stdout;
 }
 
-function ensureCleanWorkingTree() {
-  const status = runGit(['status', '--porcelain'], { capture: true });
-  if (status.trim()) {
-    throw new Error('工作区存在未提交的变动，请在运行 /tdd push 前清理（commit 或 stash）。');
-  }
+function getWorkingTreeStatusLines() {
+  const status = runGit(['status', '--porcelain'], { capture: true }).trim();
+  return status ? status.split('\n').filter(Boolean) : [];
 }
 
 function parseCliArgs(argv) {
@@ -141,6 +139,66 @@ function getCurrentBranch() {
 
 function isMainBranch(branch) {
   return ['main', 'master', 'develop'].includes(branch);
+}
+
+function buildAutoCommitMessage(branch) {
+  const branchName = branch.trim();
+  const taskMatch = branchName.match(/^feature\/(TASK-[A-Z]+-\d+)(?:[-_](.+))?$/i);
+  if (taskMatch) {
+    const taskId = taskMatch[1].toUpperCase();
+    const desc = taskMatch[2]
+      ? taskMatch[2].replace(/[-_]/g, ' ').trim()
+      : 'auto commit before /tdd push';
+    return `feat: ${desc} (${taskId})`;
+  }
+
+  const featureMatch = branchName.match(/^feature\/(.+)$/);
+  if (featureMatch) {
+    const desc = featureMatch[1].replace(/[-_]/g, ' ').trim();
+    return `feat: ${desc}`;
+  }
+
+  const fixMatch = branchName.match(/^fix\/(.+)$/);
+  if (fixMatch) {
+    const desc = fixMatch[1].replace(/[-_]/g, ' ').trim();
+    return `fix: ${desc}`;
+  }
+
+  return `chore: auto-commit before /tdd push (${branchName || 'detached-head'})`;
+}
+
+function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
+  const statusLines = getWorkingTreeStatusLines();
+  if (!statusLines.length) {
+    return {
+      committed: false,
+      commitMessage: '',
+      changedFiles: 0,
+    };
+  }
+
+  const commitMessage = buildAutoCommitMessage(branch);
+  if (options.dryRun) {
+    console.log('\x1b[33m[DRY RUN] 检测到未提交改动，正式执行时将自动 git add -A 并创建提交。\x1b[0m');
+    console.log(`\x1b[33m[DRY RUN] Auto-Commit-Message: ${commitMessage}\x1b[0m`);
+    console.log(`\x1b[33m[DRY RUN] Changed-Files-In-Working-Tree: ${statusLines.length}\x1b[0m`);
+    return {
+      committed: false,
+      commitMessage,
+      changedFiles: statusLines.length,
+    };
+  }
+
+  console.log(`\x1b[33m检测到工作区存在 ${statusLines.length} 个未提交改动，开始自动提交到当前分支。\x1b[0m`);
+  runGit(['add', '-A']);
+  runGit(['commit', '-m', commitMessage]);
+  console.log(`\x1b[32m✓ 已自动提交当前工作区改动：${commitMessage}\x1b[0m`);
+
+  return {
+    committed: true,
+    commitMessage,
+    changedFiles: statusLines.length,
+  };
 }
 
 /**
@@ -291,8 +349,14 @@ function createPullRequest(reviewDecision) {
   // 检查是否已有 PR
   const existingPr = prAlreadyExists(branch);
   if (existingPr) {
-    updatePrReviewSection(existingPr.number, reviewDecision);
+    const reviewSectionUpdated = updatePrReviewSection(existingPr.number, reviewDecision);
     console.log(`\u001b[32m✓ PR 已存在：${existingPr.url}\u001b[0m`);
+    if (!reviewSectionUpdated) {
+      console.log('\u001b[33m⚠ 未能更新现有 PR 的 Review Gate 记录，请手动同步以下信息到 PR 描述：\u001b[0m');
+      console.log(`\u001b[33m  Review-Class: ${reviewDecision.reviewClass}\u001b[0m`);
+      console.log(`\u001b[33m  Reason: ${reviewDecision.reason}\u001b[0m`);
+      console.log(`\u001b[33m  Base-Ref: ${reviewDecision.baseRef}\u001b[0m`);
+    }
     return;
   }
 
@@ -334,15 +398,26 @@ function main() {
   try {
     loadProjectGhToken();
     const cliArgs = parseCliArgs(process.argv.slice(2));
+    const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
+    const branch = getCurrentBranch();
+    console.log(`\x1b[36m/tdd push 作用域：${scopeLabel}。本次仅操作当前分支与对应 PR。\x1b[0m`);
+    if (isMainBranch(branch)) {
+      throw new Error(`当前位于主干分支 ${branch}，禁止执行 /tdd push。请先切换到 feature/* 或 fix/* 分支。`);
+    }
+
+    const autoCommitResult = autoCommitWorkingTreeIfNeeded(branch, {
+      dryRun: cliArgs.dryRun,
+    });
     const reviewDecision = analyzeReviewGate({
       baseBranch: cliArgs.baseBranch,
+      branchName: branch,
     });
-    const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
-    console.log(`\x1b[36m/tdd push 作用域：${scopeLabel}。本次仅操作当前分支与对应 PR。\x1b[0m`);
-    ensureCleanWorkingTree();
 
     if (cliArgs.dryRun) {
       console.log('\x1b[33m[DRY RUN] /tdd push 预览：\x1b[0m');
+      if (!autoCommitResult.changedFiles) {
+        console.log('- 工作区干净：不会创建自动提交');
+      }
       console.log('- 将执行: push 当前分支 → 创建 PR');
       printReviewDecision(reviewDecision);
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
@@ -363,3 +438,4 @@ function main() {
 }
 
 main();
+

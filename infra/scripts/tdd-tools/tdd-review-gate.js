@@ -14,8 +14,9 @@ const DOC_FILE_RE = /(^docs\/|^README(\.[^.]+)?$|\.mdx?$)/i;
 const TEST_FILE_RE = /(^e2e\/|^perf\/|^security\/|(^|\/)(__tests__|tests)(\/|$)|\.(test|spec)\.[^.]+$|\.integration\.test\.[^.]+$|\.consumer\.pact\.test\.[^.]+$|\.provider\.pact\.test\.[^.]+$|\.degradation\.test\.[^.]+$)/i;
 const FIXTURE_FILE_RE = /(^|\/)(fixtures?|mocks?|__snapshots__|snapshots?|demo|examples?)(\/|$)/i;
 const DEV_ASSIST_FILE_RE = /(^\.vscode\/|^\.idea\/|(^|\/)\.editorconfig$|(^|\/)\.prettierignore$|(^|\/)\.prettierrc(\..+)?$|(^|\/)\.eslintignore$|(^|\/)\.gitignore$|(^|\/)\.gitattributes$|(^|\/)spellcheck|(^|\/)cspell(\.|$))/i;
+const WORKFLOW_AUTOMATION_RE = /^infra\/scripts\/(tdd-tools|qa-tools|task-tools|prd-tools|arch-tools)\//i;
 const LOCKFILE_RE = /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$/i;
-const PROD_CONFIG_RE = /(^\.github\/workflows\/|^infra\/|(^|\/)(Dockerfile|docker-compose(\.[^.]+)?\.ya?ml)$|(^|\/)\.env(\.[^.]+)?\.example$|(^|\/)package\.json$|(^|\/)pnpm-workspace\.yaml$|(^|\/)turbo\.json$|(^|\/)tsconfig(\..+)?\.json$|(^|\/)vite\.config\.[^.]+$|(^|\/)next\.config\.[^.]+$|(^|\/)playwright\.config\.[^.]+$)/i;
+const PROD_CONFIG_RE = /(^\.github\/workflows\/|^infra\/scripts\/(server|cron)\/|(^|\/)(Dockerfile|docker-compose(\.[^.]+)?\.ya?ml)$|(^|\/)\.env(\.[^.]+)?\.example$|(^|\/)package\.json$|(^|\/)pnpm-workspace\.yaml$|(^|\/)turbo\.json$|(^|\/)tsconfig(\..+)?\.json$|(^|\/)vite\.config\.[^.]+$|(^|\/)next\.config\.[^.]+$|(^|\/)playwright\.config\.[^.]+$)/i;
 const DB_RE = /(^|\/)(prisma\/migrations\/|supabase\/migrations\/|schema\.prisma$|migration\.sql$|rollback\.sql$|seed\.[^.]+$|migrations?\/)/i;
 const PUBLIC_INTERFACE_RE = /(^packages\/api-client\/|(^|\/)(openapi|contracts?)\/|(^|\/).*\.(types|dto)\.[^.]+$|(^|\/)(events?|messages?|schemas?)\.[^.]+$)/i;
 const SECURITY_RE = /(^|\/)(auth|permission|permissions|rbac|acl|security|token|secret|secrets|key|keys|crypto|billing|payment|privacy|risk|oauth)(\/|[-_.])/i;
@@ -43,13 +44,6 @@ function runGit(args, options = {}) {
 
 function normalizeFilePath(filePath) {
   return filePath.replace(/\\/g, '/');
-}
-
-function splitNonEmptyLines(content) {
-  return content
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 function getCommentPrefixes(filePath) {
@@ -87,14 +81,16 @@ function isCommentOnlyDiff(filePath, patchText) {
   return changedLines.every((line) => commentPrefixes.some((prefix) => line.startsWith(prefix)));
 }
 
-function getAddedLines(patchText) {
+function getChangedLines(patchText) {
   if (!patchText) {
     return [];
   }
 
   return patchText
     .split('\n')
-    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .filter((line) => (line.startsWith('+') || line.startsWith('-'))
+      && !line.startsWith('+++')
+      && !line.startsWith('---'))
     .map((line) => line.slice(1))
     .filter((line) => line.trim().length > 0);
 }
@@ -126,6 +122,7 @@ function detectSignals(context) {
     touchesDatabase: false,
     touchesPublicInterface: false,
     touchesSecurityDomain: false,
+    touchesWorkflowAutomation: false,
     touchesRiskyBehavior: false,
     hotfixBranch: HOTFIX_BRANCH_RE.test(context.branchName || ''),
     tooManyBusinessFiles: false,
@@ -143,6 +140,7 @@ function detectSignals(context) {
     const isDevAssist = DEV_ASSIST_FILE_RE.test(normalized);
     const isLockfile = LOCKFILE_RE.test(normalized);
     const isProdConfig = PROD_CONFIG_RE.test(normalized);
+    const isWorkflowAutomation = WORKFLOW_AUTOMATION_RE.test(normalized);
     const isDb = DB_RE.test(normalized);
     const isPublicInterface = PUBLIC_INTERFACE_RE.test(normalized);
     const isSecurity = SECURITY_RE.test(normalized);
@@ -156,6 +154,7 @@ function detectSignals(context) {
     signals.lockfileOnly &&= isLockfile;
     signals.commentOnly &&= isCommentOnly;
     signals.touchesProdConfig ||= isProdConfig;
+    signals.touchesWorkflowAutomation ||= isWorkflowAutomation;
     signals.touchesDatabase ||= isDb;
     signals.touchesPublicInterface ||= isPublicInterface;
     signals.touchesSecurityDomain ||= isSecurity;
@@ -164,8 +163,8 @@ function detectSignals(context) {
       businessFiles.push(normalized);
       runtimeAreas.add(buildAreaTag(normalized));
       prodCodeChangedLines += Number(numstat.added || 0) + Number(numstat.removed || 0);
-      const addedLinesText = getAddedLines(patchText).join('\n');
-      if (COMPLEX_BEHAVIOR_RE.test(addedLinesText) || ERROR_HANDLING_RE.test(addedLinesText)) {
+      const changedLinesText = getChangedLines(patchText).join('\n');
+      if (COMPLEX_BEHAVIOR_RE.test(changedLinesText) || ERROR_HANDLING_RE.test(changedLinesText)) {
         signals.touchesRiskyBehavior = true;
       }
     }
@@ -256,6 +255,7 @@ function classifyChanges(context) {
     [signals.touchesSecurityDomain, '变更触及认证、权限、支付或其他安全敏感域'],
     [signals.touchesDatabase, '变更涉及数据库 schema、迁移、回填或一致性逻辑'],
     [signals.touchesPublicInterface, '变更涉及公共接口、共享类型或契约定义'],
+    [signals.touchesWorkflowAutomation, '变更涉及 TDD/QA/任务/PRD/架构工具链脚本，会影响多模型共享门禁或自动化流程'],
     [signals.touchesProdConfig, '变更涉及会影响生产行为的配置、构建或发布文件'],
     [signals.touchesRiskyBehavior, '变更包含条件分支、错误处理、重试/降级或异步复杂行为'],
     [signals.tooManyBusinessFiles, '业务代码变更超过 2 个文件，已超出低风险豁免阈值'],
@@ -446,4 +446,3 @@ module.exports = {
   detectSignals,
   isCommentOnlyDiff,
 };
-
