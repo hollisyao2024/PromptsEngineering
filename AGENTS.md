@@ -73,7 +73,7 @@
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
 #### Post-Push Gate 命令映射（按当前 CLI 自动选择）
-- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
+- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review:code-review`
 - **Codex CLI**：不执行 `codex review --base <PR目标分支>`。若 `Review-Class=required`，记录 `Codex review skipped by policy` 后继续后续流水线。
 - **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
 
@@ -211,4 +211,3 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
-
