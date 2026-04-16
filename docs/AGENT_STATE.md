@@ -14,5 +14,4 @@
 
 ## IN_PROGRESS
 <!-- 脚本维护，勿手动编辑 -->
-branch: 
-started_at: 
+branch: feature/fix-in-progress-commit-after-push
