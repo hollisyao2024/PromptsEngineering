@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { analyzeReviewGate, REVIEW_CLASS } = require('./tdd-review-gate');
+const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
@@ -218,7 +218,7 @@ function prAlreadyExists(branch) {
 function getReviewSection(reviewDecision) {
   return [
     '### Review Gate',
-    `- Review-Class: ${reviewDecision.reviewClass}`,
+    `- Gate-Result: ${reviewDecision.gateResult}`,
     `- Reason: ${reviewDecision.reason}`,
     `- Base-Ref: ${reviewDecision.baseRef}`,
   ].join('\n');
@@ -258,19 +258,21 @@ function updatePrReviewSection(prNumber, reviewDecision) {
 
 function printReviewDecision(reviewDecision) {
   const label = {
-    [REVIEW_CLASS.REQUIRED]: 'REVIEW_REQUIRED',
-    [REVIEW_CLASS.OPTIONAL_SKIPPED]: 'REVIEW_OPTIONAL',
-    [REVIEW_CLASS.SKIPPED]: 'REVIEW_SKIPPED',
-  }[reviewDecision.reviewClass];
+    [GATE_RESULT.REQUIRED]:      'REVIEW_REQUIRED',
+    [GATE_RESULT.PENDING_MODEL]: 'PENDING_MODEL_REVIEW',
+    [GATE_RESULT.SKIPPED]:       'REVIEW_SKIPPED',
+  }[reviewDecision.gateResult] || reviewDecision.gateResult;
 
-  console.log(`\u001b[36mReview-Class: ${reviewDecision.reviewClass}\u001b[0m`);
+  console.log(`\u001b[36mGate-Result: ${reviewDecision.gateResult}\u001b[0m`);
   console.log(`\u001b[36mReason: ${reviewDecision.reason}\u001b[0m`);
   console.log(`\u001b[36mDecision: ${label}\u001b[0m`);
 
-  if (reviewDecision.reviewClass === REVIEW_CLASS.REQUIRED) {
-    console.log('\u001b[33m下一步：执行当前 CLI 对应的 code review 命令，Approved 后才能标记 TDD_DONE。\u001b[0m');
+  if (reviewDecision.gateResult === GATE_RESULT.REQUIRED) {
+    console.log('\u001b[33m下一步：hotfix 分支，执行当前 CLI 对应的 code review 命令，Approved 后才能标记 TDD_DONE。\u001b[0m');
+  } else if (reviewDecision.gateResult === GATE_RESULT.PENDING_MODEL) {
+    console.log('\u001b[33m下一步：模型语义判断——读取 git diff，对照 10 类高风险域决定 REQUIRED 或 OPTIONAL。\u001b[0m');
   } else {
-    console.log('\u001b[33m下一步：可跳过 code review，但仍需保证 lint / typecheck / 定向测试已通过。\u001b[0m');
+    console.log('\u001b[33m下一步：明确跳过 code review，仍需保证 lint / typecheck / 定向测试已通过。\u001b[0m');
   }
 }
 
@@ -353,7 +355,7 @@ function createPullRequest(reviewDecision) {
     console.log(`\u001b[32m✓ PR 已存在：${existingPr.url}\u001b[0m`);
     if (!reviewSectionUpdated) {
       console.log('\u001b[33m⚠ 未能更新现有 PR 的 Review Gate 记录，请手动同步以下信息到 PR 描述：\u001b[0m');
-      console.log(`\u001b[33m  Review-Class: ${reviewDecision.reviewClass}\u001b[0m`);
+      console.log(`\u001b[33m  Gate-Result: ${reviewDecision.gateResult}\u001b[0m`);
       console.log(`\u001b[33m  Reason: ${reviewDecision.reason}\u001b[0m`);
       console.log(`\u001b[33m  Base-Ref: ${reviewDecision.baseRef}\u001b[0m`);
     }
