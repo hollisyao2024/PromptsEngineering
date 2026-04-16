@@ -136,71 +136,75 @@
 3. 自动创建或更新当前分支对应 PR
 
 ### Step 4：Post-Push Gate — Review Necessity Check + 代码审查
-先执行 `pnpm run tdd:review-gate`，按以下顺序判定：
-1. 是否命中 `REVIEW_SKIPPED`
-2. 否则是否命中 `REVIEW_REQUIRED`
-3. 否则检查是否满足 `REVIEW_OPTIONAL` 的全部豁免条件
-4. 不满足则回退到 `REVIEW_REQUIRED`
 
-#### 判定等级
+两层判定机制：**脚本层**快速过滤明确 SKIP；**模型层**对其余改动做语义判断。
 
-**A. `REVIEW_REQUIRED`：必须 code review**
+#### Step 4a：执行脚本层过滤
 
-满足任一条件即必须 review：
-- 改动运行时业务逻辑，且不属于低风险豁免范围
-- 涉及认证、授权、权限、支付、计费、隐私、加密、密钥、风控、安全校验
-- 涉及数据库 schema、迁移、回填、删除/重命名字段、事务、并发一致性
-- 涉及公共接口变化：API、事件、消息格式、共享 types、SDK、组件 props 契约
-- 涉及架构边界变化：跨 package/app 调用关系、模块职责调整、引入新基础设施依赖
-- 涉及配置影响生产行为：CI/CD、构建产物、环境变量模板、发布流程、监控告警、feature flag 默认值
-- 改动跨越 2 个以上业务文件，或跨模块/跨层
-- 单文件改动虽少，但包含条件分支、状态机、缓存、重试、降级、异步竞态、错误处理调整
-- 缺少充分自动化验证，或测试结果对风险覆盖不足
-- 属于 hotfix / rollback / 紧急修复
+```
+pnpm run tdd:review-gate
+```
 
-**B. `REVIEW_OPTIONAL`：允许跳过 review，但必须记录依据**
+输出 `Gate-Result`，三种值：
 
-仅当同时满足以下条件时可跳过：
-- 仅影响单一局部行为
-- 业务文件 ≤ 2 个，且生产代码变更 ≤ 30 行
-- 不涉及数据库、权限、安全、公共接口、架构边界、部署配置
-- 不改变默认配置、对外返回结构、持久化数据含义
-- lint / typecheck / targeted tests 全绿
+| Gate-Result | 含义 | 下一步 |
+|-------------|------|--------|
+| `skipped` | 明确跳过（文档/测试/generated/rename/lockfile/注释） | 跳至 Step 5，记录 Review-Class: SKIPPED |
+| `required` | 直接必须（仅 hotfix/rollback/emergency 分支） | 跳至 Step 4c，执行 code review |
+| `pending-model-review` | 包含业务代码，需语义判断 | 进入 Step 4b |
 
-**C. `REVIEW_SKIPPED`：明确不需要 review**
+#### Step 4b：模型语义判断（仅当 Gate-Result=pending-model-review）
 
-满足以下场景之一可直接跳过：
-- 仅文档改动：`*.md`、README、PRD/ARCH/TASK/QA 文档回写
-- 仅非运行时资源改动：示例数据、mock、fixture、截图、演示文案
-- 仅测试改动，且不修改生产代码
-- 仅开发辅助文件改动：本地脚本说明、编辑器配置、拼写修正
-- 锁文件更新但无依赖定义文件变化，例如纯 install 归一化
+1. 执行 `git diff HEAD...{base}` 获取完整 diff
+2. 逐文件阅读 changed lines，对照以下 **10 类高风险域**判断是否命中：
+
+| # | 高风险域 | 判断依据（示例，不限于此） |
+|---|---------|--------------------------|
+| 1 | 认证/鉴权/权限 | auth/rbac/acl/oauth 逻辑、token 生成/校验、密钥处理、权限检查函数 |
+| 2 | 数据写入删除 | `DELETE FROM`/`DROP`/`TRUNCATE` SQL，`prisma.*.delete/deleteMany/update/upsert`，批量数据变更 |
+| 3 | 事务一致性 | `$transaction`、`beginTransaction`、`commit`/`rollback`、跨表原子操作 |
+| 4 | 缓存一致性 | cache invalidation、`clearCache`/`evict`、TTL 修改、缓存键变更逻辑 |
+| 5 | 并发控制 | `Promise.race`、mutex/semaphore、死锁风险、竞态条件、原子操作 |
+| 6 | 外部 API 合约 | openapi/swagger spec、`.types.ts`/`.dto.ts` 变更、消息/事件 schema、`packages/api-client` |
+| 7 | 数据库 schema | 迁移文件、`schema.prisma`、字段增删改、索引变更 |
+| 8 | 共享基础库 | `packages/core`、`packages/domain`、`packages/ui` 等被多 app 依赖的包 |
+| 9 | 跨文件业务联动 | 改动跨越多个模块/层次，且改动间存在依赖或业务调用关系（非仅目录不同） |
+| 10 | hotfix 分支 | 已由脚本层处理，此处不重复判断 |
+
+3. 输出结论，**必须记录至 PR 描述或执行日志**：
+
+```
+Review-Class: REQUIRED | OPTIONAL
+Domain-Hit:   <命中的域名称，如"事务一致性"；无命中写 none>
+Reason:       <具体说明哪行代码/哪个文件触发，或为何无域信号>
+```
+
+- **命中任一域** → `Review-Class: REQUIRED`，进入 Step 4c
+- **无域命中** → `Review-Class: OPTIONAL`，跳至 Step 5，记录 `Domain-Hit: none + Reason`
+
+#### Step 4c：执行 code review（仅当 Review-Class=REQUIRED）
+
+- **审查文件范围**：严格限于 `git diff --name-only HEAD...{base}` 所列文件，**禁止扩展扫描无关文件**
+- **审查重点**：安全漏洞（OWASP Top 10）、架构边界违规（与 ARCH.md 对照）、逻辑错误与边界情况（不含代码风格，已由 Step 2 处理）
+- **Findings 置信度阈值（90）**：
+  - 置信度 ≥ 90%（直接可验证的逻辑错误、安全漏洞）→ Changes Requested，触发修复循环
+  - 置信度 < 90%（主观建议、风格偏好、假设性问题）→ 仅记录于 PR 注释，**不构成阻塞**，不触发修复循环
 
 **命令映射：**
-- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review`
-- **Codex CLI**：默认不执行 `codex review --base <PR目标分支>`；若 `Review-Class=required`，在 PR 描述或执行日志中记录 `Codex review skipped by policy` 后继续。
-- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
+- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review:code-review`
+- **Codex CLI**：不执行 code review；记录 `Codex review skipped by policy` 后继续
+- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`，执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>`
 
-> 说明：
-> - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
-> - Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
+> Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
 
-- `tdd:review-gate` 输出必须同步记录到 PR 描述或执行日志：
-  - `Review-Class: required | optional-skipped | skipped`
-  - `Reason: <命中规则>`
-- `REVIEW_REQUIRED`：
-  - Claude Code / Gemini CLI：执行当前 CLI 对应的官方 code review 命令
-  - Codex CLI：跳过 code review 执行，但必须记录 `Codex review skipped by policy`
-- 审查范围：安全漏洞（OWASP Top 10）、架构边界违规（与 ARCH.md 对照）、逻辑错误与边界情况（不含代码风格，已由 Step 2 处理）
 - **Approved** → Step 5
-- **Changes Requested** → 自动修复循环（注意：此处 `/tdd fix` **不重新触发 Step 1**，文档回写已完成）：
+- **Changes Requested** → 自动修复循环（`/tdd fix` **不重新触发 Step 1**，文档回写已完成）：
   1. `/tdd fix`（以问题列表为输入）→ 质量门禁（lint/typecheck/单测）全绿
   2. code-simplifier 简化修复文件
   3. `git add + commit + push`（追加到已有 PR，**禁止重新执行 `/tdd push`**）
-  4. 重新执行 `pnpm run tdd:review-gate`；若仍为 `REVIEW_REQUIRED`，再执行当前 CLI 对应的官方 code review 命令 → 回到判断
+  4. 重新执行 Step 4b 模型语义判断；若仍为 REQUIRED，执行当前 CLI code review → 回到判断
   5. **唯一中断条件**：连续 2 轮问题列表无变化（无进展）→ 停止通知用户
-- `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`：跳过 code review，直接进入 Step 5，但必须保留日志或 PR 中的分类记录
-- **强制门禁**：除 Codex CLI 外，`REVIEW_REQUIRED` 未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5；Codex CLI 依据项目策略记录 `Codex review skipped by policy` 后可继续
+- **强制门禁**：除 Codex CLI 外，`REVIEW_REQUIRED` 未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5；Codex CLI 记录 `skipped by policy` 后可继续
 
 ### Step 5：标记 TDD_DONE
 在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。

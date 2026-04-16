@@ -4,25 +4,22 @@ const { spawnSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
-const REVIEW_CLASS = {
-  REQUIRED: 'required',
-  OPTIONAL_SKIPPED: 'optional-skipped',
-  SKIPPED: 'skipped',
+const GATE_RESULT = {
+  SKIPPED:       'skipped',
+  REQUIRED:      'required',
+  PENDING_MODEL: 'pending-model-review',
 };
 
-const DOC_FILE_RE = /(^docs\/|^README(\.[^.]+)?$|\.mdx?$)/i;
-const TEST_FILE_RE = /(^e2e\/|^perf\/|^security\/|(^|\/)(__tests__|tests)(\/|$)|\.(test|spec)\.[^.]+$|\.integration\.test\.[^.]+$|\.consumer\.pact\.test\.[^.]+$|\.provider\.pact\.test\.[^.]+$|\.degradation\.test\.[^.]+$)/i;
-const FIXTURE_FILE_RE = /(^|\/)(fixtures?|mocks?|__snapshots__|snapshots?|demo|examples?)(\/|$)/i;
+// ── SKIP 类正则（零歧义场景，无需模型判断）──────────────────────────────
+const DOC_FILE_RE        = /(^docs\/|^README(\.[^.]+)?$|\.mdx?$)/i;
+const TEST_FILE_RE       = /(^e2e\/|^perf\/|^security\/|(^|\/)(__tests__|tests)(\/|$)|\.(test|spec)\.[^.]+$|\.integration\.test\.[^.]+$|\.consumer\.pact\.test\.[^.]+$|\.provider\.pact\.test\.[^.]+$|\.degradation\.test\.[^.]+$)/i;
+const FIXTURE_FILE_RE    = /(^|\/)(fixtures?|mocks?|__snapshots__|snapshots?|demo|examples?)(\/|$)/i;
 const DEV_ASSIST_FILE_RE = /(^\.vscode\/|^\.idea\/|(^|\/)\.editorconfig$|(^|\/)\.prettierignore$|(^|\/)\.prettierrc(\..+)?$|(^|\/)\.eslintignore$|(^|\/)\.gitignore$|(^|\/)\.gitattributes$|(^|\/)spellcheck|(^|\/)cspell(\.|$))/i;
-const WORKFLOW_AUTOMATION_RE = /^infra\/scripts\/(tdd-tools|qa-tools|task-tools|prd-tools|arch-tools)\//i;
-const LOCKFILE_RE = /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$/i;
-const PROD_CONFIG_RE = /(^\.github\/workflows\/|^infra\/scripts\/(server|cron)\/|(^|\/)(Dockerfile|docker-compose(\.[^.]+)?\.ya?ml)$|(^|\/)\.env(\.[^.]+)?\.example$|(^|\/)package\.json$|(^|\/)pnpm-workspace\.yaml$|(^|\/)turbo\.json$|(^|\/)tsconfig(\..+)?\.json$|(^|\/)vite\.config\.[^.]+$|(^|\/)next\.config\.[^.]+$|(^|\/)playwright\.config\.[^.]+$)/i;
-const DB_RE = /(^|\/)(prisma\/migrations\/|supabase\/migrations\/|schema\.prisma$|migration\.sql$|rollback\.sql$|seed\.[^.]+$|migrations?\/)/i;
-const PUBLIC_INTERFACE_RE = /(^packages\/api-client\/|(^|\/)(openapi|contracts?)\/|(^|\/).*\.(types|dto)\.[^.]+$|(^|\/)(events?|messages?|schemas?)\.[^.]+$)/i;
-const SECURITY_RE = /(^|\/)(auth|permission|permissions|rbac|acl|security|token|secret|secrets|key|keys|crypto|billing|payment|privacy|risk|oauth)(\/|[-_.])/i;
-const HOTFIX_BRANCH_RE = /(^|\/)(hotfix|rollback|emergency|urgent)(\/|[-_])/i;
-const COMPLEX_BEHAVIOR_RE = /\b(else if|switch|catch|retry|fallback|circuit|timeout|Promise\.(all|race)|setTimeout|setInterval)\b|(\?\s*[^:]+\s*:)|\b(Open|Half-Open|Closed)\b/;
-const ERROR_HANDLING_RE = /\b(throw|Error\(|try\s*\{|catch\s*\(|console\.error|logger\.error|reject\(|res\.status\((4|5)\d\d\))\b/;
+const LOCKFILE_RE        = /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$/i;
+const GENERATED_FILE_RE  = /(\.generated\.|\.gen\.|@generated|__generated__|\/generated\/|\/dist\/|\/build\/|\/vendor\/|\.snap$)/i;
+
+// ── 直接 REQUIRED（脚本可确定，无需模型）───────────────────────────────
+const HOTFIX_BRANCH_RE   = /(^|\/)(hotfix|rollback|emergency|urgent)(\/|[-_])/i;
 
 function runGit(args, options = {}) {
   const result = spawnSync('git', args, {
@@ -81,20 +78,6 @@ function isCommentOnlyDiff(filePath, patchText) {
   return changedLines.every((line) => commentPrefixes.some((prefix) => line.startsWith(prefix)));
 }
 
-function getChangedLines(patchText) {
-  if (!patchText) {
-    return [];
-  }
-
-  return patchText
-    .split('\n')
-    .filter((line) => (line.startsWith('+') || line.startsWith('-'))
-      && !line.startsWith('+++')
-      && !line.startsWith('---'))
-    .map((line) => line.slice(1))
-    .filter((line) => line.trim().length > 0);
-}
-
 function buildAreaTag(filePath) {
   const normalized = normalizeFilePath(filePath);
   const parts = normalized.split('/');
@@ -109,181 +92,117 @@ function detectSignals(context) {
   const diffByFile = context.diffByFile || {};
   const businessFiles = [];
   const runtimeAreas = new Set();
-  let prodCodeChangedLines = 0;
+  let totalChangedLines = 0;
 
   const signals = {
-    allDocsOnly: changedFiles.length > 0,
-    allTestsOnly: changedFiles.length > 0,
-    allFixturesOnly: changedFiles.length > 0,
+    allDocsOnly:      changedFiles.length > 0,
+    allTestsOnly:     changedFiles.length > 0,
+    allFixturesOnly:  changedFiles.length > 0,
     allDevAssistOnly: changedFiles.length > 0,
-    lockfileOnly: changedFiles.length > 0,
-    commentOnly: changedFiles.length > 0,
-    touchesProdConfig: false,
-    touchesDatabase: false,
-    touchesPublicInterface: false,
-    touchesSecurityDomain: false,
-    touchesWorkflowAutomation: false,
-    touchesRiskyBehavior: false,
-    hotfixBranch: HOTFIX_BRANCH_RE.test(context.branchName || ''),
-    tooManyBusinessFiles: false,
-    tooManyProdLines: false,
-    crossAreaChange: false,
+    lockfileOnly:     changedFiles.length > 0,
+    commentOnly:      changedFiles.length > 0,
+    allGeneratedOnly: changedFiles.length > 0,
+    hotfixBranch:     HOTFIX_BRANCH_RE.test(context.branchName || ''),
   };
 
   for (const filePath of changedFiles) {
     const normalized = normalizeFilePath(filePath);
-    const numstat = context.numstatByFile?.[normalized] || { added: 0, removed: 0 };
-    const patchText = diffByFile[normalized] || '';
-    const isDoc = DOC_FILE_RE.test(normalized);
-    const isTest = TEST_FILE_RE.test(normalized);
-    const isFixture = FIXTURE_FILE_RE.test(normalized);
-    const isDevAssist = DEV_ASSIST_FILE_RE.test(normalized);
-    const isLockfile = LOCKFILE_RE.test(normalized);
-    const isProdConfig = PROD_CONFIG_RE.test(normalized);
-    const isWorkflowAutomation = WORKFLOW_AUTOMATION_RE.test(normalized);
-    const isDb = DB_RE.test(normalized);
-    const isPublicInterface = PUBLIC_INTERFACE_RE.test(normalized);
-    const isSecurity = SECURITY_RE.test(normalized);
+    const numstat    = context.numstatByFile?.[normalized] || { added: 0, removed: 0 };
+    const patchText  = diffByFile[normalized] || '';
+    const isDoc        = DOC_FILE_RE.test(normalized);
+    const isTest       = TEST_FILE_RE.test(normalized);
+    const isFixture    = FIXTURE_FILE_RE.test(normalized);
+    const isDevAssist  = DEV_ASSIST_FILE_RE.test(normalized);
+    const isLockfile   = LOCKFILE_RE.test(normalized);
+    const isGenerated  = GENERATED_FILE_RE.test(normalized);
     const isCommentOnly = isCommentOnlyDiff(normalized, patchText);
-    const businessFile = !(isDoc || isTest || isFixture || isDevAssist || isLockfile);
+    const isNonBusiness = isDoc || isTest || isFixture || isDevAssist || isLockfile || isGenerated;
 
-    signals.allDocsOnly &&= isDoc;
-    signals.allTestsOnly &&= isTest;
-    signals.allFixturesOnly &&= isFixture;
+    signals.allDocsOnly      &&= isDoc;
+    signals.allTestsOnly     &&= isTest;
+    signals.allFixturesOnly  &&= isFixture;
     signals.allDevAssistOnly &&= isDevAssist;
-    signals.lockfileOnly &&= isLockfile;
-    signals.commentOnly &&= isCommentOnly;
-    signals.touchesProdConfig ||= isProdConfig;
-    signals.touchesWorkflowAutomation ||= isWorkflowAutomation;
-    signals.touchesDatabase ||= isDb;
-    signals.touchesPublicInterface ||= isPublicInterface;
-    signals.touchesSecurityDomain ||= isSecurity;
+    signals.lockfileOnly     &&= isLockfile;
+    signals.commentOnly      &&= isCommentOnly;
+    signals.allGeneratedOnly &&= isGenerated;
 
-    if (businessFile) {
+    if (!isNonBusiness) {
       businessFiles.push(normalized);
       runtimeAreas.add(buildAreaTag(normalized));
-      prodCodeChangedLines += Number(numstat.added || 0) + Number(numstat.removed || 0);
-      const changedLinesText = getChangedLines(patchText).join('\n');
-      if (COMPLEX_BEHAVIOR_RE.test(changedLinesText) || ERROR_HANDLING_RE.test(changedLinesText)) {
-        signals.touchesRiskyBehavior = true;
-      }
+      totalChangedLines += Number(numstat.added || 0) + Number(numstat.removed || 0);
     }
   }
 
-  signals.businessFiles = businessFiles;
-  signals.runtimeAreas = Array.from(runtimeAreas);
-  signals.prodCodeChangedLines = prodCodeChangedLines;
-  signals.tooManyBusinessFiles = businessFiles.length > 2;
-  signals.tooManyProdLines = prodCodeChangedLines > 30;
-  signals.crossAreaChange = runtimeAreas.size > 1;
+  signals.businessFiles    = businessFiles;
+  signals.runtimeAreas     = Array.from(runtimeAreas);
+  signals.totalChangedLines = totalChangedLines;
 
   return signals;
 }
 
+function isRenamedOnly(baseRef) {
+  // 检测是否仅有 rename/move（无内容变更）
+  const output = runGit(
+    ['diff', '--diff-filter=R', '--name-only', `${baseRef}...HEAD`],
+    { capture: true },
+  ).trim();
+  const renamed = output ? output.split('\n').filter(Boolean) : [];
+
+  const all = runGit(
+    ['diff', '--name-only', `${baseRef}...HEAD`],
+    { capture: true },
+  ).trim();
+  const allFiles = all ? all.split('\n').filter(Boolean) : [];
+
+  return renamed.length > 0 && renamed.length === allFiles.length;
+}
+
 function classifyChanges(context) {
   const changedFiles = (context.changedFiles || []).map(normalizeFilePath);
-  const signals = detectSignals({
-    ...context,
-    changedFiles,
-  });
+  const signals = detectSignals({ ...context, changedFiles });
 
+  // 1. 无变更
   if (!changedFiles.length) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '未检测到与基线分支的差异',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '未检测到与基线分支的差异', signals };
   }
 
+  // 2. hotfix 分支 → 直接 REQUIRED（脚本唯一直接输出 REQUIRED 的情况）
   if (signals.hotfixBranch) {
-    return {
-      reviewClass: REVIEW_CLASS.REQUIRED,
-      reason: '当前分支属于 hotfix/rollback/emergency 类型，按规则必须执行 code review',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.REQUIRED, reason: '当前分支属于 hotfix/rollback/emergency 类型，按规则必须执行 code review', signals };
   }
 
+  // 3-8. 明确 SKIP 场景
   if (signals.allDocsOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅包含文档回写或 Markdown 文档变更',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含文档回写或 Markdown 文档变更', signals };
   }
-
   if (signals.allTestsOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅包含测试文件变更，未修改生产代码',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含测试文件变更，未修改生产代码', signals };
   }
-
   if (signals.allFixturesOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅包含非运行时资源变更（fixture/mock/截图等）',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含非运行时资源变更（fixture/mock/截图等）', signals };
   }
-
   if (signals.allDevAssistOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅包含开发辅助文件改动（编辑器配置/拼写/忽略规则等）',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含开发辅助文件改动（编辑器配置/拼写/忽略规则等）', signals };
   }
-
   if (signals.lockfileOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅检测到锁文件归一化变更，未发现依赖定义文件改动',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅检测到锁文件归一化变更，未发现依赖定义文件改动', signals };
   }
-
   if (signals.commentOnly) {
-    return {
-      reviewClass: REVIEW_CLASS.SKIPPED,
-      reason: '仅包含注释改动，未发现运行时代码变化',
-      signals,
-    };
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含注释改动，未发现运行时代码变化', signals };
+  }
+  if (signals.allGeneratedOnly) {
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含 generated/dist/vendor/build 产物文件变更', signals };
   }
 
-  const requiredReason = [
-    [signals.touchesSecurityDomain, '变更触及认证、权限、支付或其他安全敏感域'],
-    [signals.touchesDatabase, '变更涉及数据库 schema、迁移、回填或一致性逻辑'],
-    [signals.touchesPublicInterface, '变更涉及公共接口、共享类型或契约定义'],
-    [signals.touchesWorkflowAutomation, '变更涉及 TDD/QA/任务/PRD/架构工具链脚本，会影响多模型共享门禁或自动化流程'],
-    [signals.touchesProdConfig, '变更涉及会影响生产行为的配置、构建或发布文件'],
-    [signals.touchesRiskyBehavior, '变更包含条件分支、错误处理、重试/降级或异步复杂行为'],
-    [signals.tooManyBusinessFiles, '业务代码变更超过 2 个文件，已超出低风险豁免阈值'],
-    [signals.crossAreaChange, '改动跨越多个模块/层次，存在架构边界或联动风险'],
-    [signals.tooManyProdLines, '生产代码变更行数超过 30 行，已超出低风险豁免阈值'],
-  ].find(([matched]) => matched);
-
-  if (requiredReason) {
-    return {
-      reviewClass: REVIEW_CLASS.REQUIRED,
-      reason: requiredReason[1],
-      signals,
-    };
+  // 9. 纯 rename/move（无内容变更）
+  if (context.renamedOnly) {
+    return { gateResult: GATE_RESULT.SKIPPED, reason: '仅包含文件 rename/move，无实质内容变更', signals };
   }
 
-  if (signals.businessFiles.length >= 1
-    && signals.businessFiles.length <= 2
-    && signals.prodCodeChangedLines <= 30) {
-    return {
-      reviewClass: REVIEW_CLASS.OPTIONAL_SKIPPED,
-      reason: '单一局部低风险改动：业务文件 ≤ 2 且生产代码变更 ≤ 30 行，可在验证通过后跳过 review',
-      signals,
-    };
-  }
-
+  // 10. 其余所有情况 → 交由模型语义判断
   return {
-    reviewClass: REVIEW_CLASS.REQUIRED,
-    reason: '未命中文档/测试跳过规则，且不满足低风险豁免条件，默认要求 code review',
+    gateResult: GATE_RESULT.PENDING_MODEL,
+    reason:     '包含业务代码变更，需模型对照 10 类高风险域做语义判断',
     signals,
   };
 }
@@ -319,15 +238,13 @@ function getChangedFiles(baseRef) {
 function getNumstatByFile(baseRef) {
   const output = runGit(['diff', '--numstat', `${baseRef}...HEAD`], { capture: true }).trim();
   const map = {};
-  if (!output) {
-    return map;
-  }
+  if (!output) return map;
 
   for (const line of output.split('\n')) {
     const [added, removed, ...fileParts] = line.split('\t');
     const filePath = normalizeFilePath(fileParts.join('\t'));
     map[filePath] = {
-      added: Number(added === '-' ? 0 : added),
+      added:   Number(added   === '-' ? 0 : added),
       removed: Number(removed === '-' ? 0 : removed),
     };
   }
@@ -363,27 +280,22 @@ function getDiffByFile(baseRef) {
 }
 
 function analyzeReviewGate(options = {}) {
-  const baseRef = resolveBaseRef(options.baseBranch);
+  const baseRef      = resolveBaseRef(options.baseBranch);
   const changedFiles = getChangedFiles(baseRef);
-  const result = classifyChanges({
-    branchName: options.branchName || runGit(['branch', '--show-current'], { capture: true }).trim(),
+  const renamedOnly  = isRenamedOnly(baseRef);
+  const result       = classifyChanges({
+    branchName:    options.branchName || runGit(['branch', '--show-current'], { capture: true }).trim(),
     changedFiles,
     numstatByFile: getNumstatByFile(baseRef),
-    diffByFile: getDiffByFile(baseRef),
+    diffByFile:    getDiffByFile(baseRef),
+    renamedOnly,
   });
 
-  return {
-    ...result,
-    baseRef,
-    changedFiles,
-  };
+  return { ...result, baseRef, changedFiles };
 }
 
 function parseCliArgs(argv) {
-  const options = {
-    baseBranch: '',
-    json: false,
-  };
+  const options = { baseBranch: '', json: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -406,24 +318,27 @@ function parseCliArgs(argv) {
 
 function printHumanReadable(result) {
   const labelMap = {
-    [REVIEW_CLASS.REQUIRED]: 'REVIEW_REQUIRED',
-    [REVIEW_CLASS.OPTIONAL_SKIPPED]: 'REVIEW_OPTIONAL',
-    [REVIEW_CLASS.SKIPPED]: 'REVIEW_SKIPPED',
+    [GATE_RESULT.SKIPPED]:       'REVIEW_SKIPPED',
+    [GATE_RESULT.REQUIRED]:      'REVIEW_REQUIRED',
+    [GATE_RESULT.PENDING_MODEL]: 'PENDING_MODEL_REVIEW',
   };
 
-  console.log(`Review-Class: ${result.reviewClass}`);
+  console.log(`Gate-Result: ${result.gateResult}`);
   console.log(`Reason: ${result.reason}`);
   console.log(`Base-Ref: ${result.baseRef}`);
   console.log(`Changed-Files: ${result.changedFiles.length}`);
   console.log(`Business-Files: ${result.signals.businessFiles.length}`);
-  console.log(`Prod-Code-Lines: ${result.signals.prodCodeChangedLines}`);
-  console.log(`Decision: ${labelMap[result.reviewClass]}`);
+  console.log(`Total-Changed-Lines: ${result.signals.totalChangedLines}`);
+  if (result.signals.businessFiles.length) {
+    console.log(`Business-File-List: ${result.signals.businessFiles.join(', ')}`);
+  }
+  console.log(`Decision: ${labelMap[result.gateResult]}`);
 }
 
 function main() {
   try {
     const options = parseCliArgs(process.argv.slice(2));
-    const result = analyzeReviewGate(options);
+    const result  = analyzeReviewGate(options);
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
       return;
@@ -440,7 +355,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  REVIEW_CLASS,
+  GATE_RESULT,
   analyzeReviewGate,
   classifyChanges,
   detectSignals,
