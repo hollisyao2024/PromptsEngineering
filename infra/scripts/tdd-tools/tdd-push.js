@@ -433,7 +433,7 @@ function main() {
     createPullRequest(reviewDecision);
     printReviewDecision(reviewDecision);
 
-    // 更新 IN_PROGRESS：写入 pr 号和当前 step
+    // 更新 IN_PROGRESS：写入 pr 号和当前 step，并单独提交推送（避免残留未提交变更）
     const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
     const currentPr = prAlreadyExists(branch);
     if (currentPr) {
@@ -441,6 +441,13 @@ function main() {
         pr: `#${currentPr.number}`,
         step: '/tdd push 完成，等待 /qa plan',
       });
+      try {
+        runGit(['add', agentStatePath]);
+        runGit(['commit', '-m', `chore: track in-progress state [#${currentPr.number}]`]);
+        runGit(['push', 'origin', 'HEAD']);
+      } catch {
+        // 写入失败不阻断流程
+      }
     }
 
     console.log(`\u001b[32m/tdd push 完成：代码已推送到远端。\u001b[0m`);
