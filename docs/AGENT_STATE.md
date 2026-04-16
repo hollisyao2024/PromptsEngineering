@@ -11,3 +11,10 @@
 - [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-11; PR #5, commit 08eb325
 
 - [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-16; PR #7, commit 822f3a0
+
+## IN_PROGRESS
+<!-- 脚本维护，勿手动编辑 -->
+branch: 
+pr: 
+step: 
+started_at: 

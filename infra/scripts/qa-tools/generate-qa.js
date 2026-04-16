@@ -10,6 +10,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { writeInProgressFields } = require('../tdd-tools/agent-state-utils');
 
 const CONFIG = {
   paths: {
@@ -772,6 +773,10 @@ function main() {
   } else {
     log('📄 本次未产生文档改动。', 'yellow');
   }
+
+  writeInProgressFields(path.resolve(process.cwd(), 'docs/AGENT_STATE.md'), {
+    step: '/qa plan 完成，等待 /qa verify',
+  });
 
   process.exit(0);
 }
