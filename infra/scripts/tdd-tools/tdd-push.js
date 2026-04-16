@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
+const { writeInProgressFields } = require('./agent-state-utils');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
@@ -431,6 +432,16 @@ function main() {
     // 自动创建 PR（失败不阻断，push 已完成）
     createPullRequest(reviewDecision);
     printReviewDecision(reviewDecision);
+
+    // 更新 IN_PROGRESS：写入 pr 号和当前 step
+    const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
+    const currentPr = prAlreadyExists(branch);
+    if (currentPr) {
+      writeInProgressFields(agentStatePath, {
+        pr: `#${currentPr.number}`,
+        step: '/tdd push 完成，等待 /qa plan',
+      });
+    }
 
     console.log(`\u001b[32m/tdd push 完成：代码已推送到远端。\u001b[0m`);
   } catch (error) {

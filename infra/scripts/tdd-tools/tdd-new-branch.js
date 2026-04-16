@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { execSync, spawnSync } = require('child_process');
 const path = require('path');
+const { writeInProgressFields, nowDatetime } = require('./agent-state-utils');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
@@ -34,15 +35,38 @@ function getBranchSuffix() {
 function getDescription() {
   // 无 TASK ID 时，positionalArgs[0] 作为描述（如果不是 TASK-* 开头且非空）
   const arg = positionalArgs[0];
-  if (arg && arg !== '' && !arg.toUpperCase().startsWith('TASK-')) {
+  if (arg && !arg.toUpperCase().startsWith('TASK-')) {
     return slugify(arg);
   }
-  // 也检查 positionalArgs[1]（当 positionalArgs[0] 为空字符串时）
   const arg2 = positionalArgs[1];
   if (arg2) {
     return slugify(arg2);
   }
   return '';
+}
+
+function checkOpenPRs() {
+  const force = process.argv.includes('--force');
+  try {
+    const result = spawnSync(
+      'gh',
+      ['pr', 'list', '--state', 'open', '--json', 'number,title,headRefName'],
+      { cwd: repoRoot, encoding: 'utf8', stdio: 'pipe' }
+    );
+    if (result.status !== 0 || !result.stdout.trim()) return;
+    const prs = JSON.parse(result.stdout);
+    if (prs.length === 0) return;
+    console.warn('\x1b[33m⚠ 检测到未合并的 open PR：\x1b[0m');
+    prs.forEach((pr) => console.warn(`  #${pr.number}: ${pr.title} (${pr.headRefName})`));
+    if (!force) {
+      console.warn('建议先完成现有 PR（/qa merge）再创建新分支。');
+      console.warn('如需强制创建，请加 --force 参数。');
+      process.exit(1);
+    }
+    console.warn('\x1b[33m[--force] 忽略未合并 PR，继续创建分支\x1b[0m');
+  } catch {
+    // gh 不可用时静默跳过
+  }
 }
 
 function branchExists(name) {
@@ -55,6 +79,8 @@ function branchExists(name) {
 }
 
 function main() {
+  checkOpenPRs();
+
   const isFix = process.argv.includes('--fix');
   const taskId = getTaskId();
 
@@ -93,6 +119,13 @@ function main() {
   }
 
   console.log(`已创建并切换到分支 ${branchName}`);
+
+  // 写入 IN_PROGRESS（branch + started_at），pr/step 由 tdd-push 补写
+  const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
+  writeInProgressFields(agentStatePath, {
+    branch: branchName,
+    started_at: nowDatetime(),
+  });
 }
 
 main();

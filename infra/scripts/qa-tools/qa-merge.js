@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
@@ -727,15 +728,17 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
 
     const content = fs.readFileSync(agentStatePath, 'utf8');
     const date = new Date().toISOString().slice(0, 10);
-    const updated = upsertQaValidatedEntry(content, prNumber, commitHash, date);
+    let updated = upsertQaValidatedEntry(content, prNumber, commitHash, date);
 
     if (updated === content) {
       console.log('\x1b[33m  警告：AGENT_STATE.md 中未找到待勾选的 QA_VALIDATED 条目（可能已勾选）\x1b[0m');
       return false;
     }
 
+    updated = clearInProgressContent(updated);
+
     fs.writeFileSync(agentStatePath, updated, 'utf8');
-    console.log('\x1b[32m  AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m');
+    console.log('\x1b[32m  AGENT_STATE.md 已更新（QA_VALIDATED + IN_PROGRESS 已清除）\x1b[0m');
     return true;
   } catch (err) {
     console.log(`\x1b[33m  警告：自动更新 AGENT_STATE.md 失败（${err.message}），请手动勾选\x1b[0m`);

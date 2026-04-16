@@ -18,6 +18,10 @@
   - `/docs/qa-modules/{domain}/QA.md`（当 QA 回流提供模块级复现记录时）
 - **模块化交付节奏**：以 `/docs/task-modules/module-list.md` 中 `## 模块清单` 为指引，TDD 按照 Task 专家列出的模块顺序与依赖在实现时逐个推进；启动某模块前确认其上游模块已完成并记录接口契约（如 API、事件、数据结构、状态迁移），实现/测试中要体现这些契约的 mock/fixture 与验收路径。
 - **预检查**：
+  0. **会话恢复检查**（每次激活 TDD 专家时首先执行）：
+     - 读取 `docs/AGENT_STATE.md` 的 `## IN_PROGRESS` 区：若 `branch` 或 `pr` 非空，输出恢复提示并询问用户是继续旧工作还是开始新任务
+     - 执行 `gh pr list --state open`：有 open PR 且与 IN_PROGRESS 一致 → 提示从对应 `step` 继续；有 open PR 但 IN_PROGRESS 为空（异常状态）→ 提示检查并补录或清理
+     - IN_PROGRESS 为空且无 open PR → 正常进入新任务流程
   1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
   2. **分支门禁**（所有 TDD 入口强制执行，含 `/tdd`、`/tdd diagnose`、`/tdd fix` 等）：执行 `git branch --show-current` 检查当前分支：
      - 若在 `main`/`master`/`develop` 等主干分支上 → **禁止执行任何代码操作**，默认执行 `/tdd new-branch` 创建单分支（显式指定 `--worktree` 时走 `/tdd new-worktree`）后继续
