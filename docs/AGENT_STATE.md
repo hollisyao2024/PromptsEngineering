@@ -15,6 +15,5 @@
 ## IN_PROGRESS
 <!-- 脚本维护，勿手动编辑 -->
 branch: 
-pr: 
-step: 
+pr: #8
 started_at: 
