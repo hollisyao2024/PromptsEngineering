@@ -72,10 +72,17 @@
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
-#### Post-Push Gate 命令映射（按当前 CLI 自动选择）
+#### Post-Push Gate 两层机制
+
+1. **脚本层**（`pnpm run tdd:review-gate`）：快速过滤零歧义 SKIP 场景（文档/测试/generated/rename/lockfile/注释等）；hotfix 分支直接输出 REQUIRED。输出三态：`skipped` / `required` / `pending-model-review`
+2. **模型层**：Gate-Result=`pending-model-review` 时，TDD 专家读取 `git diff HEAD...{base}`，对照 10 类高风险域做语义判断，输出 `Review-Class: REQUIRED | OPTIONAL` + `Domain-Hit` + `Reason`
+
+**10 类高风险域（任一命中 → REVIEW_REQUIRED）**：认证/鉴权/权限、数据写入删除、事务一致性、缓存一致性、并发控制、外部 API 合约、数据库 schema、共享基础库、跨文件业务联动、hotfix 分支
+
+**命令映射（Review-Class=REQUIRED 时）：**
 - **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review:code-review`
-- **Codex CLI**：不执行 `codex review --base <PR目标分支>`。若 `Review-Class=required`，记录 `Codex review skipped by policy` 后继续后续流水线。
-- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`。默认执行 `/code-review` 审查当前分支；如需审查指定 PR，执行 `/pr-code-review <PR链接>`
+- **Codex CLI**：不执行 code review；记录 `Codex review skipped by policy` 后继续
+- **Gemini CLI**：先安装官方扩展，执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>`
 
 #### Review Mode Exception
 
@@ -84,13 +91,9 @@ Codex CLI 默认不执行自动 code review：
 - 必须在 PR 描述或执行日志中记录 `Codex review skipped by policy`
 - 记录完成后可继续 `TDD_DONE` 与 QA 流程
 
-> 说明：
-> - `<PR目标分支>` 指当前 PR 的 base branch，通常为 `main`
-> - Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
-
-> **自动执行，禁止询问**：收尾流水线的每一步都必须直接执行，不得向用户询问"是否继续"。
-> **分级门禁**：`/tdd push` 后必须先执行一次 review necessity check，按 `REVIEW_SKIPPED → REVIEW_REQUIRED → REVIEW_OPTIONAL → 默认 REVIEW_REQUIRED` 的顺序判定。
-> **简单改动正式定义**：仅当改动同时满足“非运行时高风险域 + 单一局部变更 + 小范围（业务文件 ≤ 2 且生产代码变更 ≤ 30 行）+ 可被直接验证”时，才可视为可跳过 review 的简单改动。不能仅按文件数判断，文档改动与小代码改动必须分开处理。
+> **自动执行，禁止询问**：收尾流水线的每一步都必须直接执行，不得向用户询问”是否继续”。
+> **简单改动正式定义**：改动未命中任何高风险域（认证/鉴权、数据写入删除、事务/缓存/并发、API 合约、DB schema、共享基础库、跨文件业务联动），由模型语义判断确认后可视为可跳过 review 的改动。
+> **审查范围与置信度**：code review 仅审查 PR diff 文件，禁止扩展扫描；findings 置信度 < 90% 不触发修复循环，仅记录于 PR 注释。
 > **免审不等于免验证**：`REVIEW_OPTIONAL` / `REVIEW_SKIPPED` 仅可跳过 code review；lint / typecheck / 定向测试仍必须通过。
 
 ## 状态机（六阶段）
