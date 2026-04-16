@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.9] - 2026-04-16
+
+### 更新
+- feat: tighten post push gate review policy
+
+---
+
+
 ## [v1.18.8] - 2026-04-11
 
 ### 更新
