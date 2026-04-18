@@ -385,20 +385,22 @@ function ensureWorkspaceDependencies(workspacePath, label = workspacePath) {
 // ==================== 同步本地 main ====================
 
 function syncLocalMain(mainWorkspacePath) {
-  if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
-    // main 已在其他 worktree 中 checkout，不能在当前 feature 工作区执行 checkout main
-    // 用 `fetch --prune origin`（不加 refspec）才能清理所有过期 remote tracking ref（包括已删除的 feature 分支）
-    console.log(`\x1b[36m同步 main 工作区：${mainWorkspacePath}\x1b[0m`);
-    runGit(['fetch', '--prune', 'origin'], { cwd: mainWorkspacePath });
-    runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
-  } else {
-    console.log('\x1b[36m切换到 main 并拉取最新代码...\x1b[0m');
-    runGit(['checkout', 'main']);
-    // 用 `fetch --prune` + `merge` 替代 `pull --prune origin main`：
-    // `pull --prune origin main` 只 prune main refspec 范围内的引用，不清理其他已删除的 feature 分支
-    runGit(['fetch', '--prune', 'origin']);
-    runGit(['merge', '--ff-only', 'origin/main']);
+  // 始终基于 mainWorkspacePath 的当前分支判断，不依赖 process.cwd()。
+  // 这样无论用户在仓库根目录、子目录还是其他 worktree 下运行，
+  // 都能保证主工作树最终停在 main 分支。
+  const current = runGit(['branch', '--show-current'], {
+    capture: true,
+    cwd: mainWorkspacePath,
+  }).trim();
+
+  if (current !== 'main') {
+    console.log(`\x1b[36m切换 ${mainWorkspacePath} 到 main...\x1b[0m`);
+    runGit(['checkout', 'main'], { cwd: mainWorkspacePath });
   }
+
+  console.log('\x1b[36m拉取最新 main 代码...\x1b[0m');
+  runGit(['fetch', '--prune', 'origin'], { cwd: mainWorkspacePath });
+  runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
 }
 
 function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
@@ -793,6 +795,24 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
   console.log(`  分支:   ${featureBranch} → main`);
+
+  let finalBranch;
+  try {
+    finalBranch = runGit(['branch', '--show-current'], {
+      capture: true,
+      cwd: mainRepoRoot,
+    }).trim();
+  } catch {
+    finalBranch = '';
+  }
+  if (finalBranch === 'main') {
+    console.log('  当前:   \x1b[32m✓ 已回到 main 分支\x1b[0m');
+  } else {
+    console.log(
+      `  当前:   \x1b[33m⚠ 当前分支: ${finalBranch || '未知'}（请手动执行 git switch main）\x1b[0m`
+    );
+  }
+
   console.log(
     `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
   );
