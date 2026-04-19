@@ -217,9 +217,9 @@ flowchart TD
     H5 -->|Changes Requested| H6["自动 /tdd fix + push"]
     H6 --> H2
     I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
-    QA1 --> QA2{智能测试判断}
-    QA2 -->|fix/* 分支| QA3[跳过编写，执行已有测试]
-    QA2 -->|feature/* 分支| QA4[编写 E2E + 执行全量测试]
+    QA1 --> QA2{命中风险域?}
+    QA2 -->|未命中| QA3[跳过编写，执行已有测试]
+    QA2 -->|命中| QA4[按命中域补写 E2E/性能/安全/回归 + 执行]
     QA3 --> QA5["/qa verify 验收检查"]
     QA4 --> QA5
     QA5 -->|Go| QA6["/qa merge 合并到 main"]
