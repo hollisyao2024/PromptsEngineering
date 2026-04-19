@@ -203,8 +203,10 @@ flowchart TD
     D --> F
     E --> F
     F --> G["/tdd sync 文档回写 Gate"]
-    G --> G2["Pre-Push Gate: code-simplifier"]
-    G2 --> H["/tdd push: 自动提交当前分支改动 + push + 创建 PR"]
+    G --> G1{tdd:review-gate}
+    G1 -->|skipped| H["/tdd push: 自动提交当前分支改动 + push + 创建 PR"]
+    G1 -->|required / pending-model-review| G2["Pre-Push Gate: code-simplifier"]
+    G2 --> H
     H --> H2["Post-Push Gate: tdd:review-gate"]
     H2 -->|REVIEW_REQUIRED| H3{CLI 类型}
     H2 -->|REVIEW_OPTIONAL / REVIEW_SKIPPED| I[标记 TDD_DONE]
@@ -268,7 +270,7 @@ flowchart TD
 
 | Gate | Claude Code | Gemini CLI | Codex CLI | GitHub Copilot |
 |------|-------------|------------|-----------|---------------|
-| Pre-Push（代码简化） | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
+| Pre-Push（代码简化）<br>仅当 `pnpm run tdd:review-gate` 输出非 `skipped` 时执行 | `code-simplifier` subagent | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 | 直接提示当前模型简化修改文件 |
 | Post-Push（代码审查） | 安装 `claude plugin install code-review@claude-plugins-official` 后执行 `/code-review` | 安装官方扩展后执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>` | 不执行 `codex review`；记录 `Codex review skipped by policy` 后继续 | 无稳定 CLI 等效，需 Web/IDE 人工 review |
 
 ---
