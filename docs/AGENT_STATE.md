@@ -14,4 +14,6 @@
 
 ## IN_PROGRESS
 <!-- 脚本维护，勿手动编辑 -->
-branch: feature/chore-remove-rules-md
+branch: 
+
+- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-20; PR #11, commit 453ee66

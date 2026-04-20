@@ -2,6 +2,14 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v1.18.12] - 2026-04-20
+
+### 更新
+- feat: chore remove rules md
+
+---
+
+
 ## [v1.18.11] - 2026-04-16
 
 ### 更新
