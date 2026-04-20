@@ -27,6 +27,8 @@
 .env.production.local
 .env.production
 .env.staging
+.envrc
+.envrc.local
 
 # 本地部署目录
 .next-dev-deploy/
