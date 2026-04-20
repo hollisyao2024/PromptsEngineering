@@ -1,5 +1,7 @@
 # /AgentRoles/PRD-WRITER-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 面向用户与业务方完成**需求澄清→PRD 输出**，确保后续架构/任务/实现有清晰、可验收的依据。
 

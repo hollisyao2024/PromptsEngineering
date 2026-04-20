@@ -1,5 +1,7 @@
 # /AgentRoles/TASK-PLANNING-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 将 PRD 与架构设计**分解为可执行任务（WBS）**，定义依赖、里程碑、资源与风险，为 TDD 开发提供明确顺序与验收口径。
 

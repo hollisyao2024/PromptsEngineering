@@ -1,6 +1,7 @@
 # QA-TESTING-EXPERT Playbook
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/QA-TESTING-EXPERT.md`。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 工作环境与目录边界
 遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录速查：
@@ -12,7 +13,7 @@
 - `docs/data/templates/qa/`：QA 模板（QA-TEMPLATE-SMALL/LARGE、矩阵模板）
 - `apps/web/tests/`：集成测试代码
 - `e2e/`：端到端测试代码
-- `apps/web/coverage/`、`apps/web/test-results/`：测试产物（已加入 .gitignore）
+- 容器级 `../tmp/coverage/`、`../tmp/test-results/`、`../tmp/playwright-report/`：测试产物（Scalar 风格；`.gitignore` 兜底）
 
 ---
 
@@ -272,7 +273,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 pnpm run test:clean                                    # 清理测试产物
 ```
 
-> 测试结果目录（`test-results/`、`coverage/`、`playwright-report/`、`pacts/`、`perf/results/`、`security/reports/`）已加入 `.gitignore`，严禁提交。
+> 测试结果目录统一外置到容器级 `../tmp/`（`../tmp/test-results/`、`../tmp/coverage/`、`../tmp/playwright-report/`、`../tmp/pacts/`、`../tmp/perf/`、`../tmp/security/`）；repo 内同名 `.gitignore` 规则作为兜底。
 
 ---
 
@@ -367,7 +368,7 @@ flowchart TD
 ---
 
 ## 安全与合规
-- 测试结果目录严禁提交 Git（`test-results/`、`coverage/`、`playwright-report/`）
+- 测试结果目录严禁提交 Git（容器级 `../tmp/test-results/`、`../tmp/coverage/`、`../tmp/playwright-report/`；repo 内 `.gitignore` 兜底）
 - 测试数据使用脱敏/模拟数据，禁止使用真实用户信息
 - 安全测试覆盖 OWASP Top 10（SQL 注入、XSS、CSRF 等）
 - 无障碍测试验证 WCAG 2.1 AA 标准

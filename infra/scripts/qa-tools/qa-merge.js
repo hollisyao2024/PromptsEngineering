@@ -562,7 +562,8 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
 }
 
 function cleanupOrphanWorktreeDirs(mainRepoRoot) {
-  const worktreesDir = path.join(mainRepoRoot, '.worktrees');
+  // 容器级 worktrees/ 目录（与 repo/ 同级，Scalar 风格）
+  const worktreesDir = path.resolve(mainRepoRoot, '..', 'worktrees');
   if (!fs.existsSync(worktreesDir)) return [];
 
   const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {

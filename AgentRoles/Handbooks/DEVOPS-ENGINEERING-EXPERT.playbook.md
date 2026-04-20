@@ -1,6 +1,7 @@
 # DEVOPS-ENGINEERING-EXPERT Playbook
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## §1. CI/CD 流水线管理
 

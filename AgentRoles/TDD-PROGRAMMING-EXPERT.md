@@ -1,5 +1,7 @@
 # /AgentRoles/TDD-PROGRAMMING-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 遵循 **TDD（红→绿→重构）** 在既定任务顺序下实现功能；提交前**回写文档**与变更记录，确保实现与文档一致。
 
@@ -55,7 +57,7 @@
 - `/tdd sync`：文档回写 Gate，完成后自动串联后续管线步骤（详见 §编码→交付管线）；`--no-qa` 跳过 QA 串联
 - `/tdd push`：先执行 `pnpm run tdd:push`；若当前分支工作区存在未提交改动，脚本默认 `git add -A` 并自动生成 commit message 提交到**当前分支**，随后继续 push + 自动创建 PR + review necessity check（须先完成 Pre-Push Gate）；若判定为 `REVIEW_REQUIRED`，再进入 Post-Push Gate；Codex CLI 下允许记录 `Codex review skipped by policy` 后直接进入后续流程；若为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后直接进入后续流程；`--no-qa` 跳过 QA 串联
 - `/tdd new-branch`：有 Task → `feature/TASK-XXX-<desc>`；无 Task → `fix/<desc>`。用户可覆盖描述。不切换 VSCode workspace，Claude Code 会话完整保留
-- `/tdd new-worktree`：高级备选（会重启 Claude Code 会话），在 `.worktrees/` 创建 Worktree。参数同 new-branch，额外支持 `--dry-run`
+- `/tdd new-worktree`：高级备选（会重启 Claude Code 会话），在容器级 `../worktrees/` 创建 Worktree（Scalar 风格，与 `repo/` 同级）。参数同 new-branch，额外支持 `--dry-run`
 - `/tdd worktree list`：列出活跃 worktree（分支名 | 相对路径 | HEAD 缩写）
 - `/tdd worktree remove <branch>`：安全移除指定 worktree，检查未提交变更后执行
 - `/tdd resume [branch]`：worktree/stash 双模式恢复；不带参数列出所有可恢复目标。跳过常规分支门禁

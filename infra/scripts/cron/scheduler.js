@@ -24,6 +24,16 @@ const {
 } = require('../../../apps/web/src/services/order-lifecycle.ts');
 const { sendOrderExpiryReminder } = require('../../../apps/web/src/lib/order-sms.ts');
 const { runReconciliation } = require('../../../apps/web/src/services/credit-reconciliation.ts');
+// 以下两个文件含 require.main === module 守卫，必须在顶层 require 以确保 esbuild
+// 能正确将该守卫替换为模块变量（而非保留 module 字面量导致 bundle 中永远为 true）
+const { archiveSystemAlerts } = require('./archive-system-alerts.ts');
+const { flushSquareViewCounts } = require('./square-view-flush.ts');
+const { runBackgroundJobProcessorOnce } = require('./process-background-jobs.ts');
+const { runOperationalHealthCheck } = require('./operational-health-check.ts');
+const {
+  main: runReconcileStuckStoryboardVideoTasksOnce,
+} = require('./reconcile-stuck-storyboard-video-tasks.ts');
+const { runReconcileStuckVoiceoverTasksOnce } = require('./reconcile-stuck-voiceover-tasks.ts');
 
 // ============================================
 // Prisma Client（可选，降级到 console）
@@ -31,7 +41,9 @@ const { runReconciliation } = require('../../../apps/web/src/services/credit-rec
 let prisma;
 try {
   const { PrismaClient } = require('@prisma/client');
-  prisma = new PrismaClient();
+  const parsedUrl = new URL(process.env.DATABASE_URL || '');
+  parsedUrl.searchParams.set('connection_limit', process.env.DB_POOL_CRON || '3');
+  prisma = new PrismaClient({ datasources: { db: { url: parsedUrl.toString() } } });
 } catch (_e) {
   console.warn('[scheduler] Prisma Client 不可用，执行日志将仅输出到控制台');
 }
@@ -39,7 +51,23 @@ try {
 // ============================================
 // 状态文件路径
 // ============================================
-const STATUS_DIR = path.join(process.cwd(), '.scheduler');
+// 优先级：
+//   1) SCHEDULER_STATE_DIR 环境变量（显式指定，最高优先级）
+//   2) 若 CWD 位于 git worktree 内（开发场景）→ 自动解析到容器级 <repo>/../tmp/scheduler
+//   3) 否则（生产 PM2/standalone 部署目录非 worktree）→ CWD 相对 .scheduler/
+// 该设计保证：无论从 repo 哪个子目录手动运行 scheduler，状态都不会落到 repo 内污染
+function resolveStatusDir(cwd) {
+  if (process.env.SCHEDULER_STATE_DIR) return process.env.SCHEDULER_STATE_DIR;
+  let dir = cwd;
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.git'))) {
+      return path.resolve(dir, '..', 'tmp', 'scheduler');
+    }
+    dir = path.dirname(dir);
+  }
+  return path.join(cwd, '.scheduler');
+}
+const STATUS_DIR = resolveStatusDir(process.cwd());
 const PID_FILE = path.join(STATUS_DIR, 'scheduler.pid');
 const STATUS_FILE = path.join(STATUS_DIR, 'scheduler.status.json');
 const TASK_STATES_FILE = path.join(STATUS_DIR, 'task-states.json');
@@ -107,7 +135,9 @@ const TASK_REGISTRY = [
     schedule: '每小时',
     handler: async () => {
       const { PrismaClient } = require('@prisma/client');
-      const healthPrisma = new PrismaClient();
+      const healthUrl = new URL(process.env.DATABASE_URL || '');
+      healthUrl.searchParams.set('connection_limit', '1');
+      const healthPrisma = new PrismaClient({ datasources: { db: { url: healthUrl.toString() } } });
       try {
         await healthPrisma.$queryRaw`SELECT 1`;
         const userCount = await healthPrisma.users.count({ where: { deletedAt: null } });
@@ -183,7 +213,6 @@ const TASK_REGISTRY = [
     cronExpression: '0 5 * * *',
     schedule: '每日 05:00',
     handler: async () => {
-      const { archiveSystemAlerts } = require('./archive-system-alerts.ts');
       const result = await archiveSystemAlerts();
       return `归档了 ${result.archivedCount} 条告警`;
     },
@@ -235,6 +264,102 @@ const TASK_REGISTRY = [
         return null;
       }
       return `${result.scanType === 'full' ? '全量' : '增量'}扫描: 新增=${result.newOrphans}, 累计=${result.totalAccumulated}, ${result.durationMs}ms`;
+    },
+  },
+  {
+    key: 'square-view-flush',
+    name: '广场浏览量 flush',
+    cronExpression: '*/5 * * * *',
+    schedule: '每 5 分钟',
+    silentWhenEmpty: true,
+    handler: async () => {
+      const result = await flushSquareViewCounts();
+      if (result.flushed === 0) {
+        return null;
+      }
+      return `flush=${result.flushed} 条, 错误=${result.errors.length}`;
+    },
+  },
+  {
+    key: 'background-job-processor',
+    name: '后台任务处理器',
+    cronExpression: '*/10 * * * * *',
+    schedule: '每 10 秒',
+    silentWhenEmpty: true,
+    handler: async () => {
+      const exitCode = await runBackgroundJobProcessorOnce();
+      if (exitCode !== 0) {
+        throw new Error(`后台任务处理器退出码异常: ${exitCode}`);
+      }
+      return null;
+    },
+  },
+  {
+    key: 'reconcile-stuck-storyboard-video-tasks',
+    name: '卡住分镜视频任务自愈',
+    cronExpression: '*/2 * * * *',
+    schedule: '每 2 分钟',
+    silentWhenEmpty: true,
+    handler: async () => {
+      const stats = await runReconcileStuckStoryboardVideoTasksOnce();
+      if (stats.scanned === 0) return null;
+      return `扫描=${stats.scanned}, 完成=${stats.reconciledCompleted}, 失败=${stats.reconciledFailed}, 跳过=${stats.skipped}, 错误=${stats.errors}`;
+    },
+  },
+  {
+    key: 'reconcile-stuck-voiceover-tasks',
+    name: '卡住配音任务自愈',
+    cronExpression: '*/2 * * * *',
+    schedule: '每 2 分钟',
+    silentWhenEmpty: true,
+    handler: async () => {
+      const stats = await runReconcileStuckVoiceoverTasksOnce();
+      if (stats.scanned === 0) return null;
+      return `扫描=${stats.scanned}, 完成=${stats.reconciledCompleted}, 失败=${stats.reconciledFailed}, 跳过=${stats.skipped}, 错误=${stats.errors}`;
+    },
+  },
+  {
+    key: 'operational-health-check',
+    name: '运维健康巡检',
+    cronExpression: '0 * * * *',
+    schedule: '每小时',
+    handler: async () => {
+      await runOperationalHealthCheck();
+      return '巡检完成（详情见 system_alerts 表 ops-health-heartbeat 记录）';
+    },
+  },
+  {
+    key: 'error-logs-cleanup',
+    name: '错误日志清理',
+    cronExpression: '0 2 * * *',
+    schedule: '每日 02:00',
+    silentWhenEmpty: true,
+    handler: async () => {
+      if (!prisma) return null;
+      const now = new Date();
+
+      // low/medium 且已 resolved/ignored：90 天后删除
+      const mediumCutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const { count: deletedMedium } = await prisma.errorLog.deleteMany({
+        where: {
+          severity: { in: ['low', 'medium'] },
+          createdAt: { lt: mediumCutoff },
+          status: { in: ['resolved', 'ignored'] },
+        },
+      });
+
+      // high 且已 resolved：365 天后删除
+      const highCutoff = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      const { count: deletedHigh } = await prisma.errorLog.deleteMany({
+        where: {
+          severity: 'high',
+          createdAt: { lt: highCutoff },
+          status: 'resolved',
+        },
+      });
+
+      if (deletedMedium + deletedHigh === 0) return null;
+      return `清理完成：medium/low ${deletedMedium} 条，high ${deletedHigh} 条`;
     },
   },
 ];

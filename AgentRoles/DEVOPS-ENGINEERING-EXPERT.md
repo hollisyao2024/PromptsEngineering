@@ -1,5 +1,7 @@
 # /AgentRoles/DEVOPS-ENGINEERING-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证，确保代码从构建到上线的全链路自动化、可追溯与可回滚。
 

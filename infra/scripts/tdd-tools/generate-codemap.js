@@ -45,7 +45,6 @@ const SKIP_PATTERNS = [
   /\.next-deploy\//,
   /standalone\//,
   /\.turbo\//,
-  /\.worktrees\//,
   /coverage\//,
   /build\//,
 ];

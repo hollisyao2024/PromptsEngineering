@@ -14,7 +14,7 @@
 # ============================================
 
 # 防止重复加载
-if [[ -n "$_DEPLOY_COMMON_LOADED" ]]; then
+if [[ -n "${_DEPLOY_COMMON_LOADED:-}" ]]; then
     return 0 2>/dev/null || exit 0
 fi
 _DEPLOY_COMMON_LOADED=true
@@ -24,6 +24,7 @@ _DEPLOY_COMMON_LOADED=true
 # ============================================
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$COMMON_SCRIPT_DIR/../../.." && pwd)"
+CONTAINER_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/apps/web"
 DATABASE_DIR="$PROJECT_ROOT/packages/database"
 
@@ -33,11 +34,14 @@ BUILD_DIR_DEV=".next"
 
 # Hash 文件名（相对于 BUILD_DIR）
 BUILD_HASH_FILENAME=".build-commit-hash"
+BUILD_FINGERPRINT_FILENAME=".build-fingerprint"
 ENV_HASH_FILENAME=".build-env-hash"
 PRISMA_HASH_FILENAME=".prisma-schema-hash"
 CRON_HASH_FILENAME=".cron-build-hash"
 DEPS_HASH_FILENAME=".deps-hash"
+RUNTIME_DEPS_FINGERPRINT_FILENAME=".runtime-deps-fingerprint"
 SCHEMA_HASH_FILENAME=".schema-hash"
+ARTIFACT_MANIFEST_FILENAME="artifact-manifest.env"
 
 # ============================================
 # 第二部分：可配置常量（全部可通过环境变量覆盖）
@@ -47,6 +51,9 @@ SCHEMA_HASH_FILENAME=".schema-hash"
 # --- CI 检查配置 ---
 TYPECHECK_TIMEOUT="${TYPECHECK_TIMEOUT:-60}"           # TypeScript 检查超时（秒）
 LINT_TIMEOUT="${LINT_TIMEOUT:-300}"                     # Lint 检查超时（秒）
+DEPLOY_CHECK_MODE="${DEPLOY_CHECK_MODE:-}"             # 部署前检查模式（full|reuse）
+DEPLOY_CHECK_TTL_MINUTES="${DEPLOY_CHECK_TTL_MINUTES:-180}"  # 预检缓存有效期（分钟）
+BUILD_PUBLIC_ENV_KEYS="${BUILD_PUBLIC_ENV_KEYS:-}"     # 参与 build fingerprint 的 NEXT_PUBLIC_* 白名单（逗号分隔，为空则使用全部）
 
 # --- SSH 连接配置 ---
 SSH_KEY="${SSH_KEY:-}"                                   # SSH 私钥路径（staging/prod 必填）
@@ -56,6 +63,7 @@ SSH_CONTROL_PERSIST="${SSH_CONTROL_PERSIST:-1800}"      # SSH 连接复用保持
 # --- 健康检查配置 ---
 HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-3}"       # 健康检查重试次数
 HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-3}"     # 健康检查间隔（秒）
+HEALTH_CHECK_PATH="${HEALTH_CHECK_PATH:-/api/health}"   # HTTP 健康检查路径
 
 # --- 备份配置 ---
 BACKUP_KEEP_STAGING="${BACKUP_KEEP_STAGING:-2}"         # Staging 备份保留数量
@@ -70,13 +78,22 @@ APP_PORT="${APP_PORT:-3000}"                            # 应用监听端口
 APP_STARTUP_WAIT="${APP_STARTUP_WAIT:-3}"               # 应用启动等待时间（秒）
 APP_READY_WAIT="${APP_READY_WAIT:-5}"                   # 应用完全就绪等待时间（秒）
 
+# --- 本地部署缓存/产物配置 ---
+DEPLOY_CACHE_DIR="${DEPLOY_CACHE_DIR:-$CONTAINER_ROOT/artifacts/deploy-cache}"
+DEPLOY_CHECK_CACHE_DIR="${DEPLOY_CHECK_CACHE_DIR:-$DEPLOY_CACHE_DIR/checks}"
+DEPLOY_ARTIFACT_CACHE_DIR="${DEPLOY_ARTIFACT_CACHE_DIR:-$DEPLOY_CACHE_DIR/artifacts}"
+
 # --- Nginx 配置 ---
 NGINX_CLIENT_MAX_BODY_SIZE="${NGINX_CLIENT_MAX_BODY_SIZE:-50M}"       # 上传文件大小限制
-NGINX_PROXY_TIMEOUT="${NGINX_PROXY_TIMEOUT:-60s}"                     # 代理超时时间
+NGINX_PROXY_TIMEOUT="${NGINX_PROXY_TIMEOUT:-300s}"                    # 代理超时时间（需覆盖 AI 同步生成场景）
 NGINX_SSL_SESSION_CACHE="${NGINX_SSL_SESSION_CACHE:-shared:SSL:50m}"  # SSL 会话缓存
 
 # --- 数据库备份配置 ---
 DB_BACKUP_RETENTION_DAYS="${DB_BACKUP_RETENTION_DAYS:-7}"  # pg_dump 备份保留天数
+
+# --- 运行时版本门禁 ---
+REQUIRED_NODE_VERSION="${REQUIRED_NODE_VERSION:-}"
+REQUIRED_NEXT_VERSION="${REQUIRED_NEXT_VERSION:-}"
 
 # ============================================
 # 第三部分：环境相关变量（运行时设置）
@@ -113,8 +130,8 @@ load_deploy_config() {
             SERVER_HOST="localhost"
             SERVER_USER="$USER"
             SERVER_PORT=""
-            DEPLOY_PATH="$PROJECT_ROOT/.next-dev-deploy"
-            APP_NAME="dev-app"
+            DEPLOY_PATH="$CONTAINER_ROOT/artifacts/next-dev-deploy"
+            APP_NAME="${DEV_SERVER_NAME:-frontend-dev}"
             DOMAIN_NAME=""
             BUILD_DIR="$BUILD_DIR_DEV"
             REMOTE_BUILD_DIR="$BUILD_DIR_DEV"
@@ -184,11 +201,16 @@ validate_deploy_config() {
         [[ -z "$DEPLOY_PATH" ]] && errors+=("${env_prefix}_DEPLOY_PATH 未配置")
         [[ -z "$SSH_KEY" ]] && errors+=("SSH_KEY 未配置")
         [[ -n "$SSH_KEY" && "$SSH_KEY" == "~/"* ]] && SSH_KEY="$HOME/${SSH_KEY#~/}"
+        # 相对路径统一解析为项目根下的绝对路径，避免子进程切换 cwd 后 scp/ssh 找不到密钥
+        [[ -n "$SSH_KEY" && "$SSH_KEY" != /* ]] && SSH_KEY="$PROJECT_ROOT/$SSH_KEY"
         [[ -n "$SSH_KEY" && ! -f "$SSH_KEY" ]] && errors+=("SSH 密钥不存在: $SSH_KEY")
     fi
 
-    # 检查环境变量文件
+    # dev 环境与本地开发脚本一致，统一使用 .env.local
     local env_file="$PROJECT_ROOT/.env.$env"
+    if [[ "$env" == "dev" ]]; then
+        env_file="$PROJECT_ROOT/.env.local"
+    fi
     [[ ! -f "$env_file" ]] && errors+=("环境变量文件不存在: $env_file")
 
     # 输出错误
@@ -203,6 +225,71 @@ validate_deploy_config() {
     return 0
 }
 
+normalize_semver() {
+    local version="${1:-}"
+    version="${version#v}"
+    version="${version#V}"
+    printf '%s' "$version" | tr -d '[:space:]'
+}
+
+version_gte() {
+    local current required first
+    current=$(normalize_semver "$1")
+    required=$(normalize_semver "$2")
+
+    if [[ -z "$current" || -z "$required" ]]; then
+        return 1
+    fi
+
+    first=$(printf '%s\n%s\n' "$required" "$current" | sort -V | head -n1)
+    [[ "$first" == "$required" ]]
+}
+
+resolve_required_runtime_versions() {
+    if [[ -z "$REQUIRED_NODE_VERSION" ]]; then
+        if [[ -f "$PROJECT_ROOT/.nvmrc" ]]; then
+            REQUIRED_NODE_VERSION=$(tr -d '[:space:]' < "$PROJECT_ROOT/.nvmrc")
+        else
+            REQUIRED_NODE_VERSION="24.14.1"
+        fi
+    fi
+
+    if [[ -z "$REQUIRED_NEXT_VERSION" ]]; then
+        REQUIRED_NEXT_VERSION=$(node -p "(() => {
+          const pkg = require('$FRONTEND_DIR/package.json');
+          const value = (pkg.dependencies && pkg.dependencies.next) || (pkg.devDependencies && pkg.devDependencies.next) || '';
+          return String(value).replace(/^[\^~]/, '');
+        })()" 2>/dev/null)
+    fi
+
+    if [[ -z "$REQUIRED_NEXT_VERSION" ]]; then
+        REQUIRED_NEXT_VERSION="16.2.3"
+    fi
+}
+
+verify_remote_node_runtime_preflight() {
+    resolve_required_runtime_versions
+
+    log_info "检查目标服务器 Node.js 运行时版本..."
+
+    local remote_node_version
+    remote_node_version=$(ssh ${SSH_OPTS} "$SERVER_USER@$SERVER_HOST" "node -v 2>/dev/null || true" 2>/dev/null | tr -d '\r\n')
+
+    if [[ -z "$remote_node_version" ]]; then
+        log_error "目标服务器未安装 Node.js，无法继续部署"
+        return 1
+    fi
+
+    if ! version_gte "$remote_node_version" "$REQUIRED_NODE_VERSION"; then
+        log_error "目标服务器 Node.js 版本过低：当前 ${remote_node_version}，要求 >= v${REQUIRED_NODE_VERSION}"
+        log_error "请先升级服务器 Node.js，再执行 /ship staging 或 /ship prod"
+        return 1
+    fi
+
+    log_success "目标服务器 Node.js 版本满足要求：${remote_node_version} (required >= v${REQUIRED_NODE_VERSION})"
+    return 0
+}
+
 # 显示当前部署配置（用于调试）
 show_deploy_config() {
     log_info "当前部署配置："
@@ -213,6 +300,178 @@ show_deploy_config() {
     log_info "  构建目录: $BUILD_DIR"
     log_info "  SSH 密钥: $SSH_KEY"
     log_info "  备份保留: $BACKUP_KEEP_COUNT"
+}
+
+ensure_deploy_cache_dirs() {
+    mkdir -p "$DEPLOY_CACHE_DIR" "$DEPLOY_CHECK_CACHE_DIR" "$DEPLOY_ARTIFACT_CACHE_DIR"
+}
+
+deploy_hash_string() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        printf '%s' "$1" | /sbin/md5 -q
+    elif command -v md5sum &> /dev/null; then
+        printf '%s' "$1" | md5sum | cut -d' ' -f1
+    else
+        printf '%s' "$1"
+    fi
+}
+
+deploy_hash_file_if_exists() {
+    local file_path=$1
+
+    if [[ ! -f "$file_path" ]]; then
+        echo "missing:$file_path"
+        return 0
+    fi
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        /sbin/md5 -q "$file_path"
+    elif command -v md5sum &> /dev/null; then
+        md5sum "$file_path" | cut -d' ' -f1
+    else
+        wc -c < "$file_path" | tr -d ' '
+    fi
+}
+
+deploy_repo_is_clean() {
+    [[ -z "$(git -C "$PROJECT_ROOT" status --porcelain 2>/dev/null)" ]]
+}
+
+deploy_hash_tracked_paths() {
+    local path_hash
+    path_hash=$(git -C "$PROJECT_ROOT" ls-files -s -- "$@" 2>/dev/null || true)
+    deploy_hash_string "$path_hash"
+}
+
+compute_public_env_hash() {
+    local env_snapshot
+    env_snapshot=$(env | grep '^NEXT_PUBLIC_' | sort || true)
+    deploy_hash_string "$env_snapshot"
+}
+
+compute_build_public_env_hash() {
+    if [[ -z "$BUILD_PUBLIC_ENV_KEYS" ]]; then
+        compute_public_env_hash
+        return 0
+    fi
+
+    local filtered_snapshot=""
+    local key
+    local value
+    IFS=',' read -r -a _build_env_keys <<< "$BUILD_PUBLIC_ENV_KEYS"
+    for key in "${_build_env_keys[@]}"; do
+        key="${key// /}"
+        [[ -n "$key" ]] || continue
+        value="${!key-}"
+        filtered_snapshot="${filtered_snapshot}${key}=${value}"$'\n'
+    done
+
+    deploy_hash_string "$filtered_snapshot"
+}
+
+compute_lockfile_hash() {
+    deploy_hash_file_if_exists "$PROJECT_ROOT/pnpm-lock.yaml"
+}
+
+compute_prisma_schema_hash() {
+    deploy_hash_tracked_paths \
+        packages/database/prisma/schema.prisma \
+        packages/database/prisma/migrations
+}
+
+compute_deploy_check_mode() {
+    local env=$1
+
+    if [[ -n "$DEPLOY_CHECK_MODE" ]]; then
+        echo "$DEPLOY_CHECK_MODE"
+        return 0
+    fi
+
+    if [[ "$env" == "staging" ]]; then
+        echo "reuse"
+    else
+        echo "full"
+    fi
+}
+
+compute_check_input_fingerprint() {
+    local check_name=$1
+    local public_env_hash=${2:-$(compute_public_env_hash)}
+    local lockfile_hash=${3:-$(compute_lockfile_hash)}
+    local prisma_hash=${4:-$(compute_prisma_schema_hash)}
+    local source_hash=""
+
+    case "$check_name" in
+        "lint")
+            source_hash=$(deploy_hash_tracked_paths \
+                apps/web/src \
+                apps/web/.eslintrc.json \
+                apps/web/package.json \
+                package.json \
+                pnpm-lock.yaml)
+            ;;
+        "typecheck")
+            source_hash=$(deploy_hash_tracked_paths \
+                apps/web/src \
+                apps/web/package.json \
+                apps/web/tsconfig.json \
+                apps/web/next.config.js \
+                package.json \
+                pnpm-lock.yaml \
+                packages/database/prisma/schema.prisma \
+                packages/database/prisma/migrations)
+            ;;
+        "test")
+            source_hash=$(deploy_hash_tracked_paths \
+                apps/web/src \
+                apps/web/scripts \
+                apps/web/jest.config.js \
+                apps/web/jest.setup.js \
+                apps/web/package.json \
+                package.json \
+                pnpm-lock.yaml \
+                packages/database/prisma/schema.prisma \
+                packages/database/prisma/migrations)
+            ;;
+        *)
+            source_hash=$(deploy_hash_tracked_paths apps/web/src apps/web/package.json package.json)
+            ;;
+    esac
+
+    deploy_hash_string "check=$check_name|src=$source_hash|public=$public_env_hash|lock=$lockfile_hash|prisma=$prisma_hash"
+}
+
+compute_build_input_fingerprint() {
+    local public_env_hash=${1:-$(compute_build_public_env_hash)}
+    local lockfile_hash=${2:-$(compute_lockfile_hash)}
+    local prisma_hash=${3:-$(compute_prisma_schema_hash)}
+    local source_hash
+
+    source_hash=$(deploy_hash_tracked_paths \
+        apps/web/src \
+        apps/web/public \
+        apps/web/scripts \
+        apps/web/package.json \
+        apps/web/next.config.js \
+        apps/web/tsconfig.json \
+        package.json \
+        pnpm-lock.yaml \
+        packages/database/prisma/schema.prisma \
+        packages/database/prisma/migrations \
+        infra/scripts/cron \
+        infra/scripts/server/deploy-build.sh)
+
+    deploy_hash_string "build=$source_hash|public=$public_env_hash|lock=$lockfile_hash|prisma=$prisma_hash"
+}
+
+artifact_cache_dir_for_fingerprint() {
+    local fingerprint=$1
+    echo "$DEPLOY_ARTIFACT_CACHE_DIR/$fingerprint"
+}
+
+artifact_manifest_path_for_fingerprint() {
+    local fingerprint=$1
+    echo "$(artifact_cache_dir_for_fingerprint "$fingerprint")/$ARTIFACT_MANIFEST_FILENAME"
 }
 
 # ============================================
@@ -581,7 +840,7 @@ generate_nginx_config() {
 
     # 使用可配置变量
     local max_body_size="${NGINX_CLIENT_MAX_BODY_SIZE:-50M}"
-    local proxy_timeout="${NGINX_PROXY_TIMEOUT:-60s}"
+    local proxy_timeout="${NGINX_PROXY_TIMEOUT:-300s}"
     local ssl_cache="${NGINX_SSL_SESSION_CACHE:-shared:SSL:50m}"
     local app_port="${APP_PORT:-3000}"
 
@@ -723,6 +982,7 @@ EOFCONFIG
       cwd: __dirname,
       instances: parseInt(envVars.PM2_INSTANCES || '1', 10),
       exec_mode: "cluster",
+      node_args: "--max-old-space-size=512 --expose-gc",
       env: Object.assign({
         HOSTNAME: "0.0.0.0",
         NODE_ENV: "production",
@@ -739,6 +999,7 @@ EOFAPP
       cwd: __dirname,
       instances: parseInt(envVars.PM2_INSTANCES || '1', 10),
       exec_mode: "cluster",
+      node_args: "--max-old-space-size=512 --expose-gc",
       env: Object.assign({
         HOSTNAME: "0.0.0.0",
         NODE_ENV: "production",

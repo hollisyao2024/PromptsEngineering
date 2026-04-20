@@ -2,7 +2,9 @@
 
 本模板复制到任意项目后，请参考以下约定管理目录与文件。若现有仓库已有成熟规范，可在此基础上调整并保持 `AGENTS.md` 引用路径不变。
 
-## 顶层结构
+> **路径基准（重要）**：本项目采用 Git Scalar enlistment 结构，物理目录布局为 `<container>/` → `repo/` → 源码。本文件中所有"顶层"、"根目录"、"项目根目录"均指 **`repo/`（Git 主 worktree 根，即 `AGENTS.md` / `package.json` 所在目录）**，不是外层容器 `<container>/`（即 `repo/` 的上级目录）。所有相对路径（如 `apps/`、`packages/`、`infra/`、`docs/`）均相对 `repo/` 解析，也是所有专家的默认 CWD；需要引用容器层资源时以 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/` 开头（详见下文"容器层"章节）。
+
+## 顶层结构（`repo/` 根，即 Git 主 worktree）
 - `AGENTS.md`：多专家路由与流程约束（必须存在）。
 - `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
 - `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
@@ -12,7 +14,17 @@
 - `tooling/`：内部构建工具（eslint、tsconfig 基础配置等）。
 - `e2e/`：跨端端到端测试（Playwright / Cypress），详见「项目目录结构（Monorepo）」章节。
 - `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
-- `.worktrees/`：TDD 并行开发用 Git Worktree 临时目录（已 .gitignore），详见 AGENTS.md Phase 4。
+
+## 容器层（repo 外，Scalar 风格）
+
+本项目采用 Git Scalar enlistment 模型：所有 tracked 内容位于 `repo/`（内层 Git worktree），四个**非隐藏**兄弟目录位于容器层（`repo/` 的父目录）。详见 `AGENTS.md` §仓库拓扑。
+
+- `../worktrees/`：TDD 并行开发用 Git linked worktrees（`/tdd new-worktree` 的输出位置；`/qa merge` 完成后自动清理）。
+- `../cache/`：可重建缓存（pnpm store 默认走用户级；本目录预留给 turbo、playwright browsers 等按需外置）。
+- `../artifacts/`：构建产物（`deploy-cache/`、`next-dev-deploy/`）——跨 worktree 单槽位共享。
+- `../tmp/`：临时/运行时/测试报告（`test-results/`、`playwright-report/`、`coverage/`、`pacts/`、`perf/`、`security/`、`scan-manifests/`、`scheduler/` 本地状态等）。
+
+**原则**：能跨 worktree 共享的产物外置到容器层；per-worktree 代码耦合产物（`node_modules/`、`apps/web/.next/`）保留在 worktree 内。
 
 ## `docs/` 子结构与文档目录职责
 
@@ -166,10 +178,10 @@
 
 ## 项目目录结构（Monorepo）
 
-本项目采用 pnpm workspaces + Turborepo 的 Monorepo 架构。
+本项目采用 pnpm workspaces + Turborepo 的 Monorepo 架构。以下树展示 `repo/`（Git 主 worktree 根）**内部**结构；容器层兄弟目录（`../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`）见本文件"容器层（repo 外，Scalar 风格）"章节及 `AGENTS.md` §仓库拓扑。
 
 ```
-项目根目录/
+repo/                         # = 项目根目录 = Git 主 worktree = 所有命令/专家的默认 CWD
 ├── package.json              # 根 package.json（workspace 定义 + 全局 devDeps + CI 脚本）
 ├── apps/                     # 可独立运行的应用（不互相 import，只依赖 packages）
 │   ├── web/                  # Web 前端（Next.js / React）

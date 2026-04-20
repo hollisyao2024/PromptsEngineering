@@ -1,5 +1,20 @@
 # AGENTS.md — 轻量路由与最小上下文规范
 > 目的：用**一个**上下文文件在三款 CLI 中协同 6 位专家，**分阶段按需激活**，避免一次性加载过多上下文。
+> **路径基准**：本文件及所有被其引用的文档（`CLAUDE.md` / `RULES.md` / `docs/CONVENTIONS.md` / `AgentRoles/**`）中所有相对路径均以 `repo/`（Git 主 worktree 根，即本文件所在目录）为基准；外层容器 `<container>/`（即 `repo/` 的上级目录）不是路径基准，只有需要引用容器层资源（worktrees/cache/artifacts/tmp）时才写 `../<类别>/`。详见下方「仓库拓扑」。
+
+## 仓库拓扑（Scalar 风格）
+本 monorepo 采用"外层容器 + 内层 repo worktree"结构，借鉴 Git 官方 Scalar enlistment 模型：
+- `repo/`：Git 主 worktree，存放所有源码、配置、文档（即本文件所在目录）。
+- `../worktrees/`：并行开发的 linked worktrees。`/tdd new-worktree` 自动创建到此；`/qa merge` 完成 PR 合入后自动清理对应 worktree。
+- `../cache/`：可重建缓存（turbo、playwright browsers 等按需外置；pnpm store 走用户级默认，已跨项目共享）。
+- `../artifacts/`：构建产物（`deploy-cache/`、`next-dev-deploy/`）。本机单槽位 dev 部署覆盖式共享。
+- `../tmp/`：临时/运行时/测试报告（`test-results/`、`playwright-report/`、`coverage/`、`pacts/`、`perf/`、`security/`、`scan-manifests/`、`scheduler/` 本地状态）。
+
+**核心原则**：
+1. 所有专家的读写操作默认以 `repo/`（= CWD）为根，无需感知容器层。
+2. 跨 worktree 可共享的产物（按内容哈希去重、或单槽位资源）外置到容器层；per-worktree 强耦合产物（`node_modules/`、`apps/web/.next/`）保留在 worktree 内。
+3. 需要外置时由脚本/配置直接写到 `../{类别}/...`；禁止在代码中硬编码容器绝对路径。
+4. 手动创建的 worktree 通过 `/tdd worktree remove` 清理；`/qa merge` 会自动清理当前流程的 worktree。
 
 ## 目录与角色
 - 专家文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`、`/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`
@@ -36,7 +51,7 @@
 
 - Discovery 与 Editing 必须分离，禁止边扫边改。
 - 完整候选清单落盘前，禁止开始编辑。
-- manifest 必须写入 `tmp/scan-manifests/`；每个任务独立一个文件。
+- manifest 必须写入容器级 `../tmp/scan-manifests/`（相对 `repo/`）；每个任务独立一个文件。
 - manifest 命名格式：`{task}__{scope}__{phase}__{run}.manifest.md`；`phase` 仅允许 `discovery` 或 `edit`。
 - 同一任务跨阶段应保持相同的 `task` 与 `scope`；范围或规则变化时必须新建 manifest。
 - 完成前必须覆盖所有相关目录、路由入口、聚合导出、别名引用和动态注册源，不得只处理首批明显匹配项。
@@ -163,7 +178,7 @@ Codex CLI 默认不执行自动 code review：
 - `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步 TASK/模块文档，自动勾选复选框、更新状态）。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
 - `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
 - `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（单分支模式，通常由分支门禁自动调用，也可手动执行）
-- `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在 `.worktrees/` 下创建 Git Worktree 并行开发环境（推荐用于多任务并行开发）
+- `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在容器级 `../worktrees/` 下创建 Git Worktree 并行开发环境（Scalar 风格，与 `repo/` 同级；推荐用于多任务并行开发）
 - `/tdd worktree list`：**首先执行** `pnpm run tdd:worktree-list` **脚本**，列出当前所有活跃的 worktree
 - `/tdd worktree remove`：**首先执行** `pnpm run tdd:worktree-remove` **脚本**，清理指定 worktree（检查未提交变更后安全移除）
 - `/tdd resume [branch]`：**首先执行** `pnpm run tdd:resume` **脚本**，自动感知 worktree/stash 双模式恢复之前的开发环境；不带参数时列出所有可恢复目标
@@ -214,3 +229,4 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
+

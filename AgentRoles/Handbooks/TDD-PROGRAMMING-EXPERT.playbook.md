@@ -1,6 +1,7 @@
 # TDD-PROGRAMMING-EXPERT Playbook
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/TDD-PROGRAMMING-EXPERT.md`。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 工作环境与目录边界
 遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录速查：

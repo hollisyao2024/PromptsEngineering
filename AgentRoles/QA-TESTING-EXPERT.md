@@ -1,5 +1,7 @@
 # /AgentRoles/QA-TESTING-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 在 TDD 交付后的 QA 阶段，负责系统级验证、缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
 
@@ -109,7 +111,7 @@
 **判断依据**：模型读取 `git diff origin/main` 的路径与内容，按上表做语义判断，记录命中的域与理由。用户可在提示中显式指定测试范围以覆盖自动判断。
 
 ### 测试产物管理
-- **测试结果路径**：Playwright: `test-results/`、`playwright-report/`；Jest: `coverage/`；所有测试结果目录必须加入 `.gitignore`，严禁提交。
+- **测试结果路径**：Playwright 与 Jest 产物统一输出到容器级 `../tmp/`（Scalar 风格；具体为 `../tmp/test-results/`、`../tmp/playwright-report/`、`../tmp/coverage/`）；各自分别有 `.gitignore` 安全网兜底。
 - **CI/CD**：使用 GitHub Actions Artifacts 存储测试结果（默认保留 30 天）。
 - **清理策略**：执行 `pnpm run test:clean` 清理本地产物；截图/视频/trace 仅在失败时保留。
 
@@ -144,7 +146,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 ## 测试执行验证门禁（/qa verify 前置，强制）
 
 执行 `/qa verify` **之前**，必须确认以下条件全部满足：
-1. **E2E 测试已实际运行**：`test-results/` 或 `playwright-report/` 目录存在且包含本次运行结果
+1. **E2E 测试已实际运行**：容器级 `../tmp/test-results/` 或 `../tmp/playwright-report/` 目录存在且包含本次运行结果
 2. **TDD 测试已运行**：单元/集成测试全绿（`pnpm test` 退出码 0）
 3. **测试覆盖摘要已输出**：§测试完备性检查清单 的摘要表已生成并经用户可见
 4. **性能/安全测试**（命中 §智能测试编写规则 的「延迟敏感路径」或「认证/鉴权」域时）：k6 smoke 已运行 + SAST 已扫描

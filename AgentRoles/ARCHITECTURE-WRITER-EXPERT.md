@@ -1,5 +1,7 @@
 # /AgentRoles/ARCHITECTURE-WRITER-EXPERT.md
 
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+
 ## 角色宗旨
 基于 PRD 产出**系统架构文档**与必要 ADR，确立实现边界与质量特性。
 

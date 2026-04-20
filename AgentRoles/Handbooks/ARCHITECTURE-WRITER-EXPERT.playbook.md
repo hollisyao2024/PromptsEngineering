@@ -2,6 +2,7 @@
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`。
 > ARCH 模板见 `/docs/data/templates/arch/ARCH-TEMPLATE-SMALL.md`（小型）和 `ARCH-TEMPLATE-LARGE.md`（大型）。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 核心工作流程
 

@@ -102,7 +102,14 @@ function buildWorktreePath(branch, mainRoot) {
   let name = branch.replace(/^(feature|fix)\//, '');
   name = name.replace(/\//g, '-');
   if (name.length > 50) name = name.slice(0, 50);
-  return path.join(mainRoot, '.worktrees', name);
+  // Scalar 风格：worktrees 目录位于容器层（mainRoot 的父目录），与 repo/ 同级
+  const containerRoot = path.resolve(mainRoot, '..');
+  const wtPath = path.join(containerRoot, 'worktrees', name);
+  const expectedPrefix = path.join(containerRoot, 'worktrees') + path.sep;
+  if (!wtPath.startsWith(expectedPrefix)) {
+    throw new Error(`worktree path escape detected: ${wtPath}`);
+  }
+  return wtPath;
 }
 
 function branchExists(name) {
@@ -131,8 +138,8 @@ function worktreeAlreadyMounted(wtPath, mainRoot) {
 }
 
 function createWorktree(wtPath, branch, mainRoot) {
-  // 确保 .worktrees/ 目录存在
-  const worktreesDir = path.join(mainRoot, '.worktrees');
+  // 确保容器级 worktrees/ 目录存在（与 repo/ 同级，Scalar 风格）
+  const worktreesDir = path.resolve(mainRoot, '..', 'worktrees');
   fs.mkdirSync(worktreesDir, { recursive: true });
 
   let result;
@@ -253,4 +260,3 @@ function main() {
 }
 
 main();
-
