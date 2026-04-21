@@ -1,19 +1,107 @@
 {
   "permissions": {
+    "additionalDirectories": [
+      "/tmp",
+      "/private/tmp",
+      "../tmp/",
+      "../worktrees/",
+      "../cache/",
+      "../artifacts/"
+    ],
     "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git stash:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rebase:*)",
+      "Bash(git merge:*)",
+      "Bash(git tag:*)",
+      "Bash(git pull:*)",
+
+      "Bash(pnpm test*)",
+      "Bash(pnpm run test*)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm run lint*)",
+      "Bash(pnpm type-check*)",
+      "Bash(pnpm run type-check*)",
+      "Bash(pnpm build*)",
+      "Bash(pnpm run build*)",
+      "Bash(pnpm run clean*)",
+      "Bash(pnpm run codemap*)",
+      "Bash(pnpm run precommit*)",
+
+      "Bash(pnpm dev)",
+      "Bash(pnpm run dev*)",
+      "Bash(pnpm dev:*)",
+
+      "Bash(pnpm run prd:*)",
+      "Bash(pnpm run arch:*)",
+      "Bash(pnpm run nfr:*)",
+      "Bash(pnpm run priority:*)",
+      "Bash(pnpm run persona:*)",
+      "Bash(pnpm run goal:*)",
+      "Bash(pnpm run task:*)",
+      "Bash(pnpm run tdd:*)",
+      "Bash(pnpm run qa:*)",
+
+      "Bash(pnpm ship:dev)",
+      "Bash(pnpm run ship:dev)",
+      "Bash(pnpm run ship:dev:quick)",
+
+      "Edit(apps/**)",
+      "Write(apps/**)",
+      "Edit(packages/**)",
+      "Write(packages/**)",
+      "Edit(infra/**)",
+      "Write(infra/**)",
+      "Edit(e2e/**)",
+      "Write(e2e/**)",
+      "Edit(perf/**)",
+      "Write(perf/**)",
+      "Edit(security/**)",
+      "Write(security/**)",
+      "Edit(tooling/**)",
+      "Write(tooling/**)",
       "Edit(docs/**)",
-      "Edit(AgentRoles/**)",
       "Write(docs/**)",
+      "Edit(AgentRoles/**)",
       "Write(AgentRoles/**)"
     ]
   },
 
-  "includeCoAuthoredBy": true,
+  "env": {
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
+  },
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'set -a; [ -f .env.local ] && . .env.local; set +a; [ -n \"$GH_TOKEN\" ] && echo \"export GH_TOKEN=$GH_TOKEN\" >> \"$CLAUDE_ENV_FILE\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'set -a; [ -f .env.local ] && . .env.local; set +a; [ -n \"$GH_TOKEN\" ] && echo \"export GH_TOKEN=$GH_TOKEN\" >> \"$CLAUDE_ENV_FILE\"'"
+          }
+        ]
+      }
+    ]
+  },
 
   "cleanupPeriodDays": 30
 }
+

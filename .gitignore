@@ -27,8 +27,6 @@
 .env.production.local
 .env.production
 .env.staging
-.envrc
-.envrc.local
 
 # 本地部署目录
 .next-dev-deploy/
@@ -167,5 +165,3 @@ apps/web/public/e2e/export-images/*.png
 !apps/web/src/lib/storage/
 infra/scripts/cron/.scheduler/
 
-# TDD 并行开发 worktree 临时目录
-.worktrees/

@@ -131,3 +131,10 @@ network_access = true  # 启用网络访问，允许 WebFetch 等操作
 # - 支持多个配置文件（CLI）
 #
 # ==============================================================================
+
+# --- Shell 环境变量白名单 ---
+# 只把 GH_TOKEN 从 Codex 进程 env 透传给工具子进程
+# 其他 secret（DB 密码、AI Key 等）不暴露给工具调用
+[shell_environment_policy]
+inherit = "core"
+include_only = ["GH_TOKEN"]
