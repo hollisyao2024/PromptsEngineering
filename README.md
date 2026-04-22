@@ -1,37 +1,46 @@
-# Agents Router 模板（v1.9 · 2026-02-10）
+# Agents Router 模板（v1.18.12 · 2026-04-22）
 
-这是一套服务于 Codex CLI、Claude Code CLI、Gemini CLI 等多模型编码场景的提示词工程模板。核心目标是以极小的上下文体积，驱动多位领域专家按阶段协作，让大模型在明确的工序中持续交付一致、可追溯的结果。
+这是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家提示词工程模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
 
-**v1.8 新增**：支持大型项目**全流程模块化**（PRD / ARCH / TASK / QA），按功能域拆分详细需求、架构、任务与测试计划，避免单文件过大撑爆上下文。
+请注意：本仓库本身是**纯模板仓库**，交付的是角色协议、目录约定、文档骨架与自动化脚本示例；它不代表当前仓库存在一个真实产品需求、开发任务、QA 验收或部署任务需要执行。把模板复制到具体项目后，再根据那个项目的真实目标激活专家、生成产物并推进阶段状态。
+
+当前版本重点强化了三件事：
+- **轻量路由**：任一时刻只激活 1 位专家，先读专家短卡片，再按需点读 Playbook 章节。
+- **Scalar 风格仓库拓扑**：源码与文档位于内层 `repo/`，并行 worktree、缓存、构建产物和临时报告放在容器层 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`。
+- **自动化交付闭环**：TDD 完成后串联 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，并由 DevOps 专家负责 CI/CD、环境与部署。
 
 ## 模板目标与价值
-- 统一语言：三款 CLI 共用一套上下文协议与激活语法，降低切换成本。
-- 最小上下文：只在激活阶段加载对应专家卡片，避免把 Handbooks 或全部角色一次性塞入对话。
-- **全流程模块化**（v1.8）：大型项目可按功能域拆分 PRD / ARCH / TASK / QA 文档，主文档 < 500 行，模块按需加载，避免上下文撑爆。支持统一的功能域对齐与 ID 命名规范。
-- 产物驱动：PRD → 架构 → 任务 → TDD → QA 的串行交接，以 `/docs` 下的产物文件作为唯一真相来源。
-- 随取随用：激活专家后快速点读 `AgentRoles/Handbooks/*.playbook.md` 指定章节，获取模板、Checklist 与回写规范。
+- 统一协议：三款 CLI 共用 `[[ACTIVATE: ...]]`、`/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops` 等激活语法，降低多工具切换成本。
+- 最小上下文：专家文件与 Handbooks 分离，只有当前阶段需要的内容进入上下文。
+- 状态驱动：以 `docs/AGENT_STATE.md` 记录 PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED 六阶段进度。
+- 产物驱动：PRD → 架构 → 任务 → TDD → QA → DevOps 串行交接，以 `/docs` 下的产物文件作为阶段输入与唯一真相来源。
+- 模块化扩展：大型项目可按功能域拆分 PRD / ARCH / TASK / QA 文档，主文档保留总纲，模块文档按需加载。
+- 工程闭环：内置 pnpm 脚本、Review Gate、QA Gate、worktree 管理和部署命令约定，适合把提示词流程落到真实仓库。
 
 ## 目录速览
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
 - `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
-- `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`（目录与命名规范）及数据资料。
-  - **`docs/prd-modules/`**（v1.8）：大型项目 PRD 模块化目录，按功能域拆分的详细 PRD，含 `README.md` 模块索引。
-  - **`docs/arch-modules/`**（v1.8）：大型项目架构模块化目录，按功能域拆分的架构设计，含 `README.md` 模块索引。
-  - **`docs/task-modules/`**（v1.8）：大型项目任务模块化目录，按功能域拆分的任务计划，含 `README.md` 模块索引。
-  - **`docs/qa-modules/`**（v1.8）：大型项目 QA 模块化目录，按功能域拆分的测试计划，含 `README.md` 模块索引。
-  - **`docs/data/traceability-matrix.md`**（v1.8）：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
+- `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CONVENTIONS.md` 及数据资料。
+  - `docs/prd-modules/`：大型项目 PRD 模块化目录，按功能域拆分详细需求。
+  - `docs/arch-modules/`：大型项目架构模块化目录，按功能域拆分系统设计。
+  - `docs/task-modules/`：大型项目任务模块化目录，按功能域拆分任务计划。
+  - `docs/qa-modules/`：大型项目 QA 模块化目录，按功能域拆分测试计划。
+  - `docs/data/traceability-matrix.md`：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
 - `docs/adr/`：架构决策记录（ADR）模板目录。
+- `infra/scripts/`：PRD / ARCH / TASK / TDD / QA / DevOps 自动化脚本。
 - `db/migrations/`：数据库迁移骨架，默认附带 Python / SQL 双模板。
 - `.gemini/`：定义 Gemini CLI 的上下文配置，指向 `AGENTS.md` 而非默认 `GEMINI.md`。
 - `CLAUDE.md`：Claude Code CLI 的入口提示，确保其读取 `AGENTS.md`。
+- `.codex/`、`.claude/`：CLI 侧辅助说明与上下文入口。
 
 ## 快速开始
-1. 将整个模板放置在目标项目根目录，确保路径与文档约定保持一致。
-2. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
-3. 根据项目阶段，使用 `/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops`（或对应自然语言）激活专家；激活后按提示点读对应 Playbook 章节。
-4. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中勾选阶段成果（六个状态：PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED），再切换下一位专家。
-5. 实现阶段完成后，执行“文档回写 Gate”：同步 PRD/ARCHITECTURE/TASK/QA/CHANGELOG/ADR 等文件并回传给 QA。
+1. 将模板放入目标项目的 `repo/` 根目录；如需并行开发，将 linked worktrees 放在同级容器目录 `../worktrees/`。
+2. 使用 pnpm 安装依赖：`pnpm install`。本模板禁止 npm / yarn。
+3. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
+4. 根据项目阶段，使用 `/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops` 或 `[[ACTIVATE: X]]` 激活专家；激活后先读专家文件，再点读对应 Playbook 章节。
+5. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中推进六阶段状态。
+6. 编码完成后按 TDD 收尾流水线执行 `/tdd sync` → `/tdd push` → `/qa plan` → `/qa verify` → `/qa merge`；部署与环境管理交给 DevOps 专家处理。
 
 ## 命令作用域速查（TDD / QA）
 以下 5 个命令采用统一规则：
@@ -49,20 +58,20 @@
 
 ## 阶段化工作流
 1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
-   - **v1.8 增强**：自动评估是否需要拆分 PRD（> 1000 行 或 50+ 用户故事 或 3+ 业务域），采用主从结构（主 PRD + 模块 PRD + 追溯矩阵）。
-   - **v1.8+ 新增**：企业级需求管理工具链（见下文）
+   - 自动评估是否需要拆分 PRD（> 1000 行 或 50+ 用户故事 或 3+ 业务域），采用主从结构（主 PRD + 模块 PRD + 追溯矩阵）。
+   - 支持企业级需求管理工具链（见下文）
 2. **架构专家**：输出 C4 架构视图（上下文/容器/组件）、数据/接口/运维/安全视图与技术选型；同步 ADR。
-   - **v1.8 增强**：自动评估是否需要拆分架构（> 1000 行 或 8+ 子系统 或 3+ 业务域），采用主从结构（主 ARCH + 模块 ARCH）。
+   - 自动评估是否需要拆分架构（> 1000 行 或 8+ 子系统 或 3+ 业务域），采用主从结构（主 ARCH + 模块 ARCH）。
 3. **任务规划专家**：拆解 WBS、依赖矩阵、关键路径（CPM）、里程碑与风险，沉淀到 `/docs/TASK.md`。
-   - **v1.8 增强**：自动评估是否需要拆分任务（> 1000 行 或 50+ 工作包 或 3+ 并行开发流），采用主从结构（主 TASK + 模块 TASK）。
+   - 自动评估是否需要拆分任务（> 1000 行 或 50+ 工作包 或 3+ 并行开发流），采用主从结构（主 TASK + 模块 TASK）。
 4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写、更新 `CHANGELOG.md` 并移交 QA。
 5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
-   - **v1.8 增强**：自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
-6. **DevOps 专家**（v1.9 新增）：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
+   - 自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
+6. **DevOps 专家**：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
 
 ---
 
-## 🎯 v1.8+ 企业级需求管理增强（PRD 专家）
+## 🎯 企业级需求管理增强（PRD 专家）
 
 > **新增于 2025-11-05**：面向大型项目（50+ 用户故事）的专业需求管理工具链。
 
@@ -79,10 +88,10 @@
 **快速开始**：
 ```bash
 # 创建新变更请求
-npm run cr:new -- --type="需求修改" --priority="High"
+pnpm run cr:new -- --type="需求修改" --priority="High"
 
 # 查看待审批 CR
-npm run cr:pending
+pnpm run cr:pending
 ```
 
 ---
@@ -98,7 +107,7 @@ npm run cr:pending
 **快速开始**：
 ```bash
 # 检测依赖循环
-npm run prd:check-dependency-cycles
+pnpm run prd:check-dependency-cycles
 
 # 在线预览依赖图
 # 访问 https://mermaid.live/ 粘贴 dependency-graph.md 内容
@@ -117,10 +126,10 @@ npm run prd:check-dependency-cycles
 **快速开始**：
 ```bash
 # 检测优先级冲突
-npm run priority:check-conflicts
+pnpm run priority:check-conflicts
 
 # 生成优先级报告
-npm run priority:report
+pnpm run priority:report
 ```
 
 ---
@@ -136,10 +145,10 @@ npm run priority:report
 **快速开始**：
 ```bash
 # 检查孤儿 Story
-npm run goal:check-orphans
+pnpm run goal:check-orphans
 
 # 生成目标覆盖报告
-npm run goal:coverage-report
+pnpm run goal:coverage-report
 ```
 
 ---
@@ -155,10 +164,10 @@ npm run goal:coverage-report
 **快速开始**：
 ```bash
 # 生成角色覆盖报告
-npm run persona:coverage-report
+pnpm run persona:coverage-report
 
 # 检测孤儿角色
-npm run persona:check-orphans
+pnpm run persona:check-orphans
 ```
 
 ---
@@ -174,7 +183,7 @@ npm run persona:check-orphans
 **快速开始**：
 ```bash
 # 检查 NFR 达标情况
-npm run nfr:check-compliance
+pnpm run nfr:check-compliance
 ```
 
 ---
@@ -191,10 +200,10 @@ npm run nfr:check-compliance
 **快速开始**：
 ```bash
 # 运行前置验证报告
-npm run prd:preflight-report
+pnpm run prd:preflight-report
 
 # PRD 完整性检查
-npm run prd:lint
+pnpm run prd:lint
 ```
 
 ---
@@ -225,37 +234,37 @@ npm run prd:lint
 #### 安装
 ```bash
 # 本工具使用 Node.js，无额外依赖
-npm install
+pnpm install
 ```
 
 #### 核心命令
 ```bash
 # PRD 质量检查
-npm run prd:lint                          # PRD 完整性检查
-npm run prd:check-dependency-cycles       # 依赖循环检查
-npm run prd:preflight-report              # 前置验证报告
+pnpm run prd:lint                          # PRD 完整性检查
+pnpm run prd:check-dependency-cycles       # 依赖循环检查
+pnpm run prd:preflight-report              # 前置验证报告
 
 # NFR 管理
-npm run nfr:check-compliance              # NFR 达标检查（发布 Gate）
+pnpm run nfr:check-compliance              # NFR 达标检查（发布 Gate）
 
 # 优先级管理
-npm run priority:check-conflicts          # 优先级冲突检测
-npm run priority:report                   # 生成优先级报告
+pnpm run priority:check-conflicts          # 优先级冲突检测
+pnpm run priority:report                   # 生成优先级报告
 
 # 角色覆盖分析
-npm run persona:coverage-report           # 角色覆盖率报告
-npm run persona:check-orphans             # 孤儿角色检测
+pnpm run persona:coverage-report           # 角色覆盖率报告
+pnpm run persona:check-orphans             # 孤儿角色检测
 
 # 业务目标追溯
-npm run goal:coverage-report              # 目标覆盖率报告
-npm run goal:check-orphans                # 孤儿 Story 检测
+pnpm run goal:coverage-report              # 目标覆盖率报告
+pnpm run goal:check-orphans                # 孤儿 Story 检测
 
 # 变更请求管理
-npm run cr:new                            # 创建新变更请求
-npm run cr:pending                        # 查看待审批 CR
+pnpm run cr:new                            # 创建新变更请求
+pnpm run cr:pending                        # 查看待审批 CR
 ```
 
-**完整文档**：[scripts/prd-tools/README.md](scripts/prd-tools/README.md)
+**完整文档**：[infra/scripts/prd-tools/README.md](infra/scripts/prd-tools/README.md)
 
 ---
 
@@ -291,7 +300,7 @@ npm run cr:pending                        # 查看待审批 CR
 - `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
 - `docs/`（含 `ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
   - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板见 `docs/data/templates/prd/PRD-TEMPLATE-SMALL.md` 和 `PRD-TEMPLATE-LARGE.md`）
-  - **v1.8 新增模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
+  - **模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
 - `db/`（含 `migrations/` 模板）
 - `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）
 - `CLAUDE.md`（若需要支持 Claude Code CLI）
