@@ -143,7 +143,7 @@ node infra/scripts/agent-runner/agent-run.js --mode=diagnose --desc "inspect fai
 node infra/scripts/agent-runner/agent-run.js --phase=tdd --task TASK-USER-001 --desc "login" --auto
 ```
 
-运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 工作流已废弃，不再提供脚本入口。
+运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 工作流已废弃，仅保留脚本级 deprecated shim 输出迁移提示，默认不合并到目标项目 package aliases。
 
 `infra/scripts/agent-runner/agent-run.js` 是外部 agent 的生命周期入口：它负责规范任务模式、创建/恢复 worktree、输出 `NEXT_CWD` 与结构化状态；具体 PRD/ARCH/TASK/TDD/QA/DevOps 工作仍由激活后的专家或外部执行器完成。
 

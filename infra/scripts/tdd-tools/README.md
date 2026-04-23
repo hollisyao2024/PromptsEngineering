@@ -97,6 +97,7 @@ pnpm run tdd:review-gate -- --base main
 |------|------|------|
 | `create-migration.sh` | ✅ 实用 | 通用数据库迁移模板，支持多方言与幂等性提示 |
 | `create-migration-supabase.sh` | ✅ 实用 | Supabase 风格迁移，输出到 `supabase/migrations` |
+| `tdd-new-branch.js` | ⚠️ 废弃 shim | 仅输出 Worktree-First 迁移提示，不创建 branch，不提供默认 package alias |
 | `tdd-tick.js` | ✅ 实现 | 基于分支名自动勾选 TASK 文档中的复选项 |
 | `tdd-push.js` | ✅ 实现 | push + 自动创建 PR + 输出 review gate 判定 |
 | `tdd-review-gate.js` | ✅ 实现 | 按差异风险判定 `required / optional-skipped / skipped` |

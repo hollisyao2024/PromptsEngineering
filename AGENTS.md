@@ -215,7 +215,7 @@ Codex CLI 默认不执行自动 code review：
 - `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
 - `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
 - `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。
-- `/tdd new-branch`：已废弃且不再提供脚本入口；修改型任务必须使用 worktree，branch 仍由 worktree 底层自动创建。
+- `/tdd new-branch`：已废弃；保留 `node infra/scripts/tdd-tools/tdd-new-branch.js` 兼容提示脚本，但它只输出迁移指引并退出，不创建 branch，也不合并到目标项目 package aliases。修改型任务必须使用 worktree，branch 仍由 worktree 底层自动创建。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容入口，内部调用 `worktree:*` 公共脚本。
 
 分支门禁与分支生成规则详见 Expert 文件 §输入→预检查 和 §命令说明。

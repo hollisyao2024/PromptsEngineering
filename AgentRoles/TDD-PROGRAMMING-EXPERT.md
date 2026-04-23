@@ -44,6 +44,7 @@
 | `/worktree list` | `node infra/scripts/worktree-tools/worktree-list.js` | `pnpm run worktree:list` | 列出活跃 worktree |
 | `/worktree remove` | `node infra/scripts/worktree-tools/worktree-remove.js` | `pnpm run worktree:remove` | 安全移除指定 worktree |
 | `/worktree resume` | `node infra/scripts/worktree-tools/worktree-resume.js` | `pnpm run worktree:resume` | 恢复或重新挂载 worktree |
+| `/tdd new-branch` | `node infra/scripts/tdd-tools/tdd-new-branch.js` | 默认不合并 alias | 已废弃；仅输出 worktree 迁移提示，不创建 branch |
 | `/tdd new-worktree` | `node infra/scripts/tdd-tools/tdd-new-worktree.js` | `pnpm run tdd:new-worktree` | 兼容入口，调用 `worktree:new --phase=tdd` |
 | `/tdd worktree list/remove` | `node infra/scripts/tdd-tools/tdd-worktree-*.js` | `pnpm run tdd:worktree-*` | 兼容入口，调用公共 `worktree:*` |
 | `/tdd resume` | `node infra/scripts/tdd-tools/tdd-resume.js` | `pnpm run tdd:resume` | 兼容入口，调用 `worktree:resume` |
@@ -58,7 +59,7 @@
 - `/tdd push`：先执行 `node infra/scripts/tdd-tools/tdd-push.js`（已安全合并 alias 时可用 `pnpm run tdd:push`）；若当前分支工作区存在未提交改动，脚本默认 `git add -A` 并自动生成 commit message 提交到**当前分支**，随后继续 push + 自动创建 PR + review necessity check（须先完成 Pre-Push Gate）；若判定为 `REVIEW_REQUIRED`，再进入 Post-Push Gate；Codex CLI 下允许记录 `Codex review skipped by policy` 后直接进入后续流程；若为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后直接进入后续流程；`--no-qa` 跳过 QA 串联
 - `/worktree new -- --phase=tdd --task TASK-XXX --desc "<desc>"`：有 Task 时创建 `feature/TASK-XXX-<desc>` 分支和 `../worktrees/tdd-*` 工作区。
 - `/worktree new -- --phase=tdd --kind=fix --desc "<desc>"`：无 Task 的 bug 修复，创建 `fix/<desc>` 分支和 worktree。
-- `/tdd new-branch`：已废弃且不再提供脚本入口；用户不再直接创建单分支在主 repo 中开发。
+- `/tdd new-branch`：已废弃；兼容脚本仅输出 worktree 迁移提示并退出，用户不再直接创建单分支在主 repo 中开发。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容旧命令，内部调用公共 `worktree:*`。
 - `node infra/scripts/tdd-tools/tdd-tick.js`：手动执行任务勾选（通常由 tdd:sync 调用；已安全合并 alias 时可用 `pnpm run tdd:tick`）
 
