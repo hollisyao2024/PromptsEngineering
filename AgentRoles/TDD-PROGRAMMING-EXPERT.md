@@ -29,7 +29,7 @@
      - `/tdd diagnose` 默认是只读排查模式；不创建 worktree，临时产物写入脚本按主 repo 解析出的容器层 `tmp/cache/artifacts`。一旦需要新增失败测试、修改代码或文档，必须升级为修改型任务。
      - 修改型任务必须执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd ...` 或兼容入口 `node infra/scripts/tdd-tools/tdd-new-worktree.js ...` 创建/恢复专属 worktree；已安全合并 package aliases 时可使用对应 `pnpm run` 命令。
      - worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令必须以 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。
-     - `/tdd new-branch` 已废弃；branch 仍由 worktree 底层自动创建。
+     - `/tdd new-branch` 默认阻断并提示使用 worktree；只有用户明确要求单槽轻量模式时，才可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`。
      - 未通过 Worktree 门禁前，禁止执行任何代码或文档修改操作。
 
 ## 命令-脚本映射表（强制规范）
@@ -44,7 +44,7 @@
 | `/worktree list` | `node infra/scripts/worktree-tools/worktree-list.js` | `pnpm run worktree:list` | 列出活跃 worktree |
 | `/worktree remove` | `node infra/scripts/worktree-tools/worktree-remove.js` | `pnpm run worktree:remove` | 安全移除指定 worktree |
 | `/worktree resume` | `node infra/scripts/worktree-tools/worktree-resume.js` | `pnpm run worktree:resume` | 恢复或重新挂载 worktree |
-| `/tdd new-branch` | `node infra/scripts/tdd-tools/tdd-new-branch.js` | 默认不合并 alias | 已废弃；仅输出 worktree 迁移提示，不创建 branch |
+| `/tdd new-branch` | `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` | 默认不合并 alias | 显式单槽轻量模式；默认阻断并提示使用 worktree |
 | `/tdd new-worktree` | `node infra/scripts/tdd-tools/tdd-new-worktree.js` | `pnpm run tdd:new-worktree` | 兼容入口，调用 `worktree:new --phase=tdd` |
 | `/tdd worktree list/remove` | `node infra/scripts/tdd-tools/tdd-worktree-*.js` | `pnpm run tdd:worktree-*` | 兼容入口，调用公共 `worktree:*` |
 | `/tdd resume` | `node infra/scripts/tdd-tools/tdd-resume.js` | `pnpm run tdd:resume` | 兼容入口，调用 `worktree:resume` |
@@ -59,7 +59,7 @@
 - `/tdd push`：先执行 `node infra/scripts/tdd-tools/tdd-push.js`（已安全合并 alias 时可用 `pnpm run tdd:push`）；若当前分支工作区存在未提交改动，脚本默认 `git add -A` 并自动生成 commit message 提交到**当前分支**，随后继续 push + 自动创建 PR + review necessity check（须先完成 Pre-Push Gate）；若判定为 `REVIEW_REQUIRED`，再进入 Post-Push Gate；Codex CLI 下允许记录 `Codex review skipped by policy` 后直接进入后续流程；若为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后直接进入后续流程；`--no-qa` 跳过 QA 串联
 - `/worktree new -- --phase=tdd --task TASK-XXX --desc "<desc>"`：有 Task 时创建 `feature/TASK-XXX-<desc>` 分支和 `../worktrees/tdd-*` 工作区。
 - `/worktree new -- --phase=tdd --kind=fix --desc "<desc>"`：无 Task 的 bug 修复，创建 `fix/<desc>` 分支和 worktree。
-- `/tdd new-branch`：已废弃；兼容脚本仅输出 worktree 迁移提示并退出，用户不再直接创建单分支在主 repo 中开发。
+- `/tdd new-branch`：默认阻断并提示使用 worktree；仅用户明确要求单槽轻量模式时，执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` 创建普通 branch。该模式不适合并行任务，也不作为外部 agent 自动化入口。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容旧命令，内部调用公共 `worktree:*`。
 - `node infra/scripts/tdd-tools/tdd-tick.js`：手动执行任务勾选（通常由 tdd:sync 调用；已安全合并 alias 时可用 `pnpm run tdd:tick`）
 

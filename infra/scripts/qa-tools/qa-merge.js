@@ -894,7 +894,7 @@ function main() {
       throw new Error(
         `当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n` +
         `  只读排查不需要 merge；如需修改 tracked 文件，请先执行 pnpm run worktree:new 创建/恢复 worktree。\n` +
-        `  /tdd new-branch 已废弃，branch 会由 worktree 底层自动创建。`
+        `  /tdd new-branch 仅用于用户明确指定的单槽轻量模式；默认 branch 由 worktree 底层自动创建。`
       );
     }
 

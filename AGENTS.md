@@ -32,7 +32,7 @@
 - **只读不建 worktree**：阅读、搜索、诊断、复现但不改 tracked 文件时，不创建 branch/worktree。临时文件、缓存、报告写到容器层 `tmp/cache/artifacts`，路径必须通过脚本/配置按主 repo 解析。
 - **修改必进 worktree**：任何专家准备修改 tracked 文件前，必须通过 `/worktree new`、`node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js --mode=change` 创建/恢复 worktree。
 - **创建后必须进入目录**：worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令都必须以脚本输出的 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令切到该目录。
-- **new branch 工作流废弃**：用户不再直接使用 `/tdd new-branch` 开发；branch 仍由 worktree 底层自动创建。
+- **new branch 仅显式 opt-in**：默认不直接使用 `/tdd new-branch`；branch 仍由 worktree 底层自动创建。少量、单槽、用户明确指定的轻量修改可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`，但不具备并行隔离能力，也不合并到默认 package aliases。
 - **并行状态外置**：多任务运行态写入 `../tmp/worktree-sessions/`，并发锁写入 `../tmp/agent-locks/`；`docs/AGENT_STATE.md` 只记录阶段结果，不作为多任务调度源。
 - **完成后给清单**：修改型任务完成后必须输出 `MODIFIED_FILES` 与 `TEMPLATE_APPLY_CHECKLIST`，方便把模板同步到新项目。
 
@@ -215,7 +215,7 @@ Codex CLI 默认不执行自动 code review：
 - `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
 - `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
 - `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。
-- `/tdd new-branch`：已废弃；保留 `node infra/scripts/tdd-tools/tdd-new-branch.js` 兼容提示脚本，但它只输出迁移指引并退出，不创建 branch，也不合并到目标项目 package aliases。修改型任务必须使用 worktree，branch 仍由 worktree 底层自动创建。
+- `/tdd new-branch`：默认阻断并提示使用 worktree；仅当用户明确要求单槽轻量模式时，执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` 创建普通 branch。该模式不具备并行隔离能力，不合并到目标项目 package aliases；自动化与外部 agent 默认必须使用 worktree。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容入口，内部调用 `worktree:*` 公共脚本。
 
 分支门禁与分支生成规则详见 Expert 文件 §输入→预检查 和 §命令说明。

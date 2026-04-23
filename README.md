@@ -126,7 +126,7 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 ## Worktree-First 并行开发
 - `diagnose` 模式：排查问题、读代码、跑只读检查，不创建 worktree；临时产物写容器层 `tmp`，缓存写容器层 `cache`，构建/部署产物写容器层 `artifacts`。这些路径由脚本/`agent.config.json` 按主 `repo/` 解析，进入 linked worktree 后不要手写 `../tmp`。
 - `change` 模式：任何会修改 tracked 文件的任务都创建或恢复专属 worktree；主 `repo/` 不承载修改型任务。
-- `new branch` 工作流已废弃；branch 仍由 Git worktree 底层自动创建。
+- `new branch` 不是默认工作流；branch 仍由 Git worktree 底层自动创建。少量、单槽、用户明确指定的轻量修改可使用 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`，但不具备并行隔离能力。
 - 每个并行任务对应一个 worktree、一个 branch、一个 PR；合并成功后自动清理 worktree。
 - 外部 agent（OpenClaw、Hermes、Goose 等）只调用 `agent-runner` 或 `worktree-tools` 统一入口，不自行管理 worktree/merge/cleanup。
 - 多任务可并行开发，但 merge 回 `main` 串行排队：自动 `fetch/rebase/verify/merge/cleanup`，只有 Git 冲突或语义冲突才需要人工介入。
@@ -143,7 +143,12 @@ node infra/scripts/agent-runner/agent-run.js --mode=diagnose --desc "inspect fai
 node infra/scripts/agent-runner/agent-run.js --phase=tdd --task TASK-USER-001 --desc "login" --auto
 ```
 
-运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 工作流已废弃，仅保留脚本级 deprecated shim 输出迁移提示，默认不合并到目标项目 package aliases。
+运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 默认阻断并提示使用 worktree，仅 `--explicit` 时创建普通 branch，且默认不合并到目标项目 package aliases。
+
+```bash
+node infra/scripts/tdd-tools/tdd-new-branch.js --explicit --desc "fix typo"
+node infra/scripts/tdd-tools/tdd-new-branch.js --explicit --task TASK-USER-001 --desc "login"
+```
 
 `infra/scripts/agent-runner/agent-run.js` 是外部 agent 的生命周期入口：它负责规范任务模式、创建/恢复 worktree、输出 `NEXT_CWD` 与结构化状态；具体 PRD/ARCH/TASK/TDD/QA/DevOps 工作仍由激活后的专家或外部执行器完成。
 
