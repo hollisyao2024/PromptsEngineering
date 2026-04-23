@@ -24,8 +24,8 @@
 ### CD 配置要求
 - **默认策略**：手动触发或环境审批（staging 可自动，production 需人工确认）
 - **触发方式**：
-  - 本地部署：`/ship` 命令 → `pnpm ship:{env}`
-  - 远程部署：`/cd` 命令 → `pnpm cd:{env}` → GitHub Actions
+  - 本地部署：`/ship` 命令 → `node infra/scripts/devops-tools/devops-run.js --action=ship --env=<env>`
+  - 远程部署：`/cd` 命令 → `node infra/scripts/devops-tools/devops-run.js --action=cd --env=<env>`
 - **部署策略**（根据项目规模选择）：
   - 小型项目：直接部署（替换旧版本）
   - 中型项目：蓝绿部署（新旧版本切换）
@@ -51,18 +51,14 @@
 
 ### 环境健康检查
 - 维护健康检查脚本，覆盖：应用端点（`/api/health`）、数据库连通性、外部服务依赖
-- `/env check <env>` 执行指定环境的完整健康检查
-- `/env status` 查看所有环境概览
+- `/env check <env>` 执行指定环境的完整健康检查，实际命令来自 `agent.config.json devops.commands.envCheck` 或 `devops.healthCheck`
+- `/env status` 查看所有环境概览，实际命令来自 `agent.config.json devops.commands.envStatus`
 
 ### 本地开发服务管理
-- 管理脚本：`infra/scripts/server/server-dev.sh`
-- 命令接口：`server-dev.sh <start|restart|stop|status|logs>`
-- npm 入口：`pnpm dev:start`、`pnpm dev:restart`、`pnpm dev:stop`、`pnpm dev:status`、`pnpm dev:logs`
-- **环境变量约定**：脚本从 `.env.local` 或系统环境变量读取以下配置，不同项目可自定义：
-  - `DEV_PORT`：开发服务端口（如 `3000`、`4000`）
-  - `DEV_APP_NAME`：进程管理器服务名（如 `frontend-dev`、`server-dev`）
-  - `DEV_LOG_FILE`：日志文件路径（如 `/tmp/server-dev.log`）
-  - `APP_ENVIRONMENT`：环境标识（默认 `development`）
+- 管理脚本：`infra/scripts/devops-tools/devops-run.js`
+- 命令接口：`devops-run.js --action=dev-<start|restart|stop|status|logs>`
+- pnpm 入口：`pnpm dev:start`、`pnpm dev:restart`、`pnpm dev:stop`、`pnpm dev:status`、`pnpm dev:logs`
+- **配置约定**：实际命令写在 `agent.config.json devServer.commands`，必要时通过环境变量提供端口、服务名和日志路径
 - 验收标准：重启后健康检查端点返回 200；失败时查看日志文件排查
 
 ---
@@ -70,7 +66,7 @@
 ## §3. 部署流程
 
 ### 部署时数据库迁移
-- 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f packages/database/prisma/migrations/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
+- 含 DB 变更的部署须在应用启动前执行迁移：纯 SQL 项目 `psql -f <migrations-dir>/<name>.sql`；Prisma 项目 `pnpm prisma migrate deploy && pnpm prisma generate`。
 - 迁移失败立即中止部署，执行 L2 回滚（见下方回滚流程），不启动新版本应用。
 - 迁移脚本的编写规范与幂等性要求见 TDD 专家 §B.2~B.5（`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）。
 
@@ -108,8 +104,8 @@
 
 ### 回滚流程
 当部署后发现严重问题时（回滚脚本规范见 TDD 专家 §B.4，`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）：
-1. **L1 即时回滚**（应用层）：`infra/scripts/server/deploy.sh <env> --rollback` 或 `git revert <hash>`
-2. **L2 数据库回滚**（如涉及迁移）：`psql -f packages/database/prisma/migrations/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
+1. **L1 即时回滚**（应用层）：执行目标项目在 `agent.config.json devops.commands.rollback` 中声明的回滚命令，或 `git revert <hash>`
+2. **L2 数据库回滚**（如涉及迁移）：`psql -f <migrations-dir>/rollback/<name>.sql` / `prisma migrate resolve --rolled-back` / `pg_restore <backup>`
 3. **L3 回滚后处理**：通知 QA 并取消 `DEPLOYED` 勾选 → 在部署记录中记录回滚原因 → QA 被重新激活后从回滚记录中提取信息，在 `defect-log.md` 正式登记缺陷条目 → 退回 TDD/QA 修复后重新部署
 4. **事后回顾**：production 回滚后 24 小时内完成事后分析（触发原因、影响范围、时间线、根因、改进措施），记录到部署记录的事后回顾段及 ADR。
 
@@ -126,28 +122,30 @@
   - 所有数据存储操作在服务器上执行
     - 数据库：pg_dump、psql、prisma migrate 等
     - Redis：redis-cli、FLUSHDB、GET/SET 等
-  - 实现脚本：
-    - `infra/scripts/server/deploy-database.sh`（迁移模块）
-    - `infra/scripts/server/deploy-server-mode.sh`（服务器端部署）
-  - SSH 连接：通过 `deploy-common.sh` 的 ControlMaster 复用
+  - 实现脚本：目标项目自有脚本，通过 `agent.config.json devops.commands.*` 显式声明
+  - SSH 连接：由目标项目自有脚本负责，模板不默认假设服务器拓扑
   - 环境变量：`DATABASE_URL`、`REDIS_URL` 从服务器 `.env` 文件读取
 
 ---
 
 ## §5. 脚本路径参考
 
-| npm 脚本 | 实际脚本路径 | 备注 |
+| 可选 package alias | 实际脚本路径 | 备注 |
 |---------|------------|------|
-| `ship:dev` | `infra/scripts/server/deploy.sh local dev` | |
-| `ship:dev:quick` | `SKIP_CI=true infra/scripts/server/deploy.sh local dev` | 跳过 CI |
-| `ship:staging` | `infra/scripts/server/deploy-api.sh staging` | 注意：staging/prod 用 `deploy-api.sh` |
-| `ship:staging:quick` | `SKIP_CI=true infra/scripts/server/deploy-api.sh staging` | |
-| `ship:prod` | `infra/scripts/server/deploy-api.sh production` | |
-| `cd:staging` | `infra/scripts/server/deploy.sh ci staging` | |
-| `cd:prod` | `infra/scripts/server/deploy.sh ci production` | |
-| `dev:restart` | `infra/scripts/server/server-dev.sh restart` | |
+| `ship:dev` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=dev` | 需 `devops.deployEnabled=true` |
+| `ship:dev:quick` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=dev --quick` | 快速模式由项目命令自行解释 |
+| `ship:staging` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=staging` | |
+| `ship:staging:quick` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=staging --quick` | |
+| `ship:prod` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=production` | |
+| `cd:staging` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=staging` | |
+| `cd:prod` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=production` | |
+| `ci:run` | `node infra/scripts/devops-tools/devops-run.js --action=ci-run` | |
+| `ci:status` | `node infra/scripts/devops-tools/devops-run.js --action=ci-status` | |
+| `env:check` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` | |
+| `env:status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | |
+| `dev:restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | |
 
-`deploy.sh` 接口：`deploy.sh <mode> <env> [--rollback]`，mode 为 `local|ci`，env 为 `dev|staging|production`；退出码 0=成功、1=失败、2=需回滚；脚本须包含环境检查、构建、部署、冒烟验证四个阶段，每阶段输出结构化日志。
+`devops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际部署脚本须由目标项目在 `agent.config.json` 中声明，并包含环境检查、构建、部署、冒烟验证四个阶段。
 
 ---
 

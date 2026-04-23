@@ -6,6 +6,10 @@
 
 ## 顶层结构（`repo/` 根，即 Git 主 worktree）
 - `AGENTS.md`：多专家路由与流程约束（必须存在）。
+- `agent.config.example.json`：可复制默认配置，集中声明 base branch、命令、容器层目录、外部 agent 默认 executor 等项目差异。
+- `agent.config.json`：目标项目覆盖配置；可选择本地忽略或由团队提交，优先级高于 example。
+- `agent.package.scripts.example.json`：可选 package scripts 清单；只能通过安全合并脚本追加到目标项目 `package.json`，禁止复制模板 `package.json` 覆盖项目文件。
+- `agent.template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`init-if-missing`、`append-block`、`merge-package-scripts`、`project-owned`、`exclude` 等策略。
 - `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
 - `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
 - `apps/`：所有可独立运行的应用（web、mobile、desktop、server 等），详见「项目目录结构（Monorepo）」章节。
@@ -19,12 +23,18 @@
 
 本项目采用 Git Scalar enlistment 模型：所有 tracked 内容位于 `repo/`（内层 Git worktree），四个**非隐藏**兄弟目录位于容器层（`repo/` 的父目录）。详见 `AGENTS.md` §仓库拓扑。
 
-- `../worktrees/`：TDD 并行开发用 Git linked worktrees（`/tdd new-worktree` 的输出位置；`/qa merge` 完成后自动清理）。
+- `../worktrees/`：所有修改型任务的 Git linked worktrees（`/worktree new` 的输出位置；合并后自动清理）。
 - `../cache/`：可重建缓存（pnpm store 默认走用户级；本目录预留给 turbo、playwright browsers 等按需外置）。
 - `../artifacts/`：构建产物（`deploy-cache/`、`next-dev-deploy/`）——跨 worktree 单槽位共享。
 - `../tmp/`：临时/运行时/测试报告（`test-results/`、`playwright-report/`、`coverage/`、`pacts/`、`perf/`、`security/`、`scan-manifests/`、`scheduler/` 本地状态等）。
 
-**原则**：能跨 worktree 共享的产物外置到容器层；per-worktree 代码耦合产物（`node_modules/`、`apps/web/.next/`）保留在 worktree 内。
+> 上述 `../*` 路径均相对主 `repo/` 解析。linked worktree 位于 `../worktrees/<name>/` 时，其 `../tmp` 并不是容器层 tmp；脚本必须通过主 repo root 与 `agent.config.json` 解析容器层路径。
+
+**原则**：
+- 只读排查不创建 worktree；测试报告、覆盖率、扫描 manifest、agent run 日志等写入脚本按主 repo 解析出的容器层 `tmp`。
+- 修改 tracked 文件前必须创建或恢复专属 worktree；创建后所有读写命令以该 worktree 为 CWD。
+- 能跨 worktree 共享的产物外置到容器层；per-worktree 代码耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。
+- Git worktree 默认完整 checkout tracked 文件；源码/文档不跨 worktree symlink。共享的是 Git object database、pnpm store、`../cache/`、`../artifacts/`、`../tmp/` 与必要本地配置 symlink。
 
 ## `docs/` 子结构与文档目录职责
 
@@ -105,9 +115,34 @@
 | **里程碑甘特图** | `/docs/data/milestone-gantt.md` | TASK 专家 | 项目时间线与里程碑 |
 
 ## Scripts 约定
-- 脚本按用途分类，统一存放于 `infra/scripts/`：`infra/scripts/server/`（部署脚本）、`infra/scripts/qa-tools/`（QA 脚本）、`infra/scripts/tdd-tools/`（TDD 工具脚本）。
+- 脚本按用途分类，统一存放于 `infra/scripts/`：`infra/scripts/shared/`（共享配置/工具）、`infra/scripts/worktree-tools/`（全专家 worktree 生命周期）、`infra/scripts/agent-runner/`（外部 agent 统一入口）、`infra/scripts/devops-tools/`（配置化 DevOps 快捷命令入口）、`infra/scripts/qa-tools/`（QA 脚本）、`infra/scripts/tdd-tools/`（TDD 工具脚本）。部署/cron 的具体实现属于目标项目自有脚本，由 `agent.config.json` 接入。
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
+- 项目差异必须优先读取 `agent.config.json`、环境变量或 CLI 参数，禁止在脚本中硬编码目标项目的绝对路径、业务名、固定端口或固定应用目录。
+- 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `agent.config.example.json` > 内置默认值。
+- 容器层路径必须通过 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()` 解析。linked worktree 中的字面量 `../tmp` 会落到 `../worktrees/tmp`，禁止在脚本中这样拼路径。
+- 模板不得要求复制根 `package.json` 到目标项目；需要快捷命令时使用 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 scripts，冲突项保留项目原值。
+- 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`。
+- 项目耦合脚本（部署、数据库同步、cron registry 等）不由模板提供。实际项目可放在自己的 `scripts/ops/` 或项目约定目录，并把应用目录、数据库目录、部署路径、cron registry 等写入 `agent.config.json` 或环境变量。
+
+## 变量配置约定
+剥离出来的变量只能进入以下位置：
+- `agent.config.json`：团队或本地项目差异，例如 `paths.*`、`commands.*`、`release.*`、`devops.*`、`cron.*`。
+- 环境变量 / CI secrets：真实域名、服务器、数据库连接、token、部署密钥。
+- CLI 参数：一次性覆盖，例如 `--target`、`--phase`、`--desc`、`--executor`。
+
+禁止把真实项目变量写入模板文件。变量缺失时，脚本应跳过相关能力或输出 `STATUS=BLOCKED` + `REASON`，不得猜默认业务路径执行。
+
+## Worktree-First 工作区约定
+
+| 模式 | 是否创建 worktree | 输出位置 | 说明 |
+|------|-------------------|----------|------|
+| 只读排查 / diagnose | 否 | 容器层 `tmp/agent-runs/`、`tmp/test-results/` 等 | 不修改 tracked 文件 |
+| 修改型任务 / change | 是 | `../worktrees/<phase>-<slug>/` | 后续 CWD 必须切换到 `WORKTREE_PATH` |
+| 缓存 | 否 | `../cache/` | 可重建、可共享 |
+| 构建/部署产物 | 否 | `../artifacts/` | 单槽位资源需加锁 |
+
+外部 agent（OpenClaw、Hermes、Goose 等）只能通过 `node infra/scripts/agent-runner/agent-run.js` 或 `node infra/scripts/worktree-tools/worktree-*.js` 接入；已安全合并 package aliases 的项目可使用 `pnpm run agent:run` / `pnpm run worktree:*`。外部 agent 不直接管理本仓库的 worktree、merge、cleanup 策略。
 
 ## Tests 约定
 
@@ -142,7 +177,7 @@
 ```
 
 ### 创建方法
-- 推荐使用项目脚本：`./infra/scripts/tdd-tools/create-migration.sh add_user_roles --dir packages/database/prisma/migrations --dialect postgres`
+- 推荐使用项目脚本：`./infra/scripts/tdd-tools/create-migration.sh add_user_roles --dir <migrations-dir> --dialect postgres`
 - Supabase 项目：`supabase migration new add_user_roles`
 - 严禁手动输入日期
 
@@ -176,7 +211,9 @@
 ## 其他约定
 - 机密文件保持 `.gitignore` 遮盖；若需本地存放，创建 `secret/README.md` 引导操作。
 
-## 项目目录结构（Monorepo）
+## 项目目录结构（Monorepo 示例）
+
+以下结构是可参考的通用 monorepo 形态，不是模板强制目录。实际应用目录、数据库目录、迁移目录必须以 `agent.config.json` 的 `paths.*` 或项目既有规范为准。
 
 本项目采用 pnpm workspaces + Turborepo 的 Monorepo 架构。以下树展示 `repo/`（Git 主 worktree 根）**内部**结构；容器层兄弟目录（`../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`）见本文件"容器层（repo 外，Scalar 风格）"章节及 `AGENTS.md` §仓库拓扑。
 
@@ -264,13 +301,12 @@ repo/                         # = 项目根目录 = Git 主 worktree = 所有命
 │   ├── k8s/
 │   ├── terraform/
 │   └── scripts/              # 自动化脚本
-│       ├── server/           # 服务器部署脚本（deploy.sh、server-dev.sh 等）
+│       ├── devops-tools/     # 配置化 DevOps 快捷命令入口
 │       ├── qa-tools/         # QA 脚本（generate-qa.js、qa-verify.js、qa-merge.js）
 │       ├── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
 │       ├── arch-tools/       # ARCH 工具脚本
 │       ├── prd-tools/        # PRD 工具脚本
-│       ├── task-tools/       # TASK 工具脚本
-│       └── cron/             # 定时任务脚本和列表
+│       └── task-tools/       # TASK 工具脚本
 │
 ├── tooling/                  # 内部构建工具（不发布到 registry）
 │   ├── eslint/
@@ -307,15 +343,15 @@ repo/                         # = 项目根目录 = Git 主 worktree = 所有命
 **核心原则：**
 - `apps/*`：独立可启动，不互相引用，只依赖 `packages/*`
 - `packages/*`：沉淀共享逻辑，不依赖任何 `apps/*`
-- `packages/database`：整个 Monorepo 唯一 DB 入口，只有 `server` 引用；禁止在 `server` 中直接写 `prisma.user.findMany()`，必须通过 `repositories/` 访问
+- `<database-package>`：Monorepo 推荐只有一个 DB 入口；禁止在应用层直接调用 ORM 细节，必须通过 `repositories/` 或项目约定的数据访问层访问
 - `packages/api-client`：web / mobile / desktop 共用，统一管理后端接口调用
 - `packages/core` 与 `packages/domain`：纯 TS，无框架依赖，可在全端复用
-- `infra/scripts/`：所有自动化脚本统一存放；`server/`（部署）、`qa-tools/`（QA）、`tdd-tools/`（TDD 工具）、`arch-tools/`（ARCH 工具）、`prd-tools/`（PRD 工具）、`task-tools/`（TASK 工具）、`cron/`（定时任务）
+- `infra/scripts/`：模板自动化脚本统一存放；部署/cron 的具体实现为项目自有脚本，通过 `devops-run.js` 与 `agent.config.json` 接入
 - **测试目录结构**：单测 colocate 在源码旁；集成/契约/降级测试在 `apps/*/tests/`（TDD 编写）；E2E 在 `e2e/`、性能在 `perf/`、安全在 `security/`（QA 编写）；`pacts/` 为契约测试自动输出（.gitignore）
 - **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 workspace 包）
 - **依赖管理**：应用运行依赖（react、next 等）写在各自 `apps/*/package.json`，禁止提升到根目录；全局工具类（eslint、turbo、typescript）写在根 `devDependencies`
 
-### Database 层级设计（`packages/database`）
+### Database 层级设计（可选 `<database-package>` 示例）
 
 | 层 | 目录 | 职责 | 规则 |
 |---|------|------|------|

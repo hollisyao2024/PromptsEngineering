@@ -203,7 +203,7 @@
 
 ### 6.3 定期审查（每个里程碑完成后）
 
-1. **QA 专家**执行覆盖率统计：`npm run qa:coverage-report`
+1. **QA 专家**执行覆盖率统计：`pnpm run qa:coverage-report`
 2. **QA 专家**更新"3. 全局覆盖率统计"
 3. **QA 专家**识别"4. 测试覆盖空白区域"
 4. **QA 专家**制定补充计划，更新 `test-priority-matrix.md`
@@ -239,7 +239,7 @@
 
 ```bash
 # 检查 Story → 测试类型覆盖完整性
-npm run qa:check-test-strategy-coverage
+<project qa check-test-strategy-coverage command>
 
 # 输出：
 # ✅ 13/13 Story 已定义测试策略
@@ -251,7 +251,7 @@ npm run qa:check-test-strategy-coverage
 
 ```bash
 # 基于 Story 优先级与功能特性，自动推荐测试类型
-npm run qa:suggest-test-strategy -- --story=US-NEW-001
+<project qa suggest-test-strategy command> --story=US-NEW-001
 
 # 输出：
 # Story: US-NEW-001（用户支付历史查询）

@@ -56,7 +56,7 @@ pnpm run qa:verify -- --project --write-reports
 ```
 
 说明：
-- `session` 模式优先读取 `/qa plan` 记录文件（默认在系统临时目录：`/tmp/linghuiai-qa-plan-session.json`，可通过 `QA_PLAN_SESSION_STATE_PATH` 覆盖）。
+- `session` 模式优先读取 `/qa plan` 记录文件（默认在系统临时目录：`/tmp/agent-qa-plan-session.json`，可通过 `QA_PLAN_SESSION_STATE_PATH` 覆盖）。
 - 若会话状态文件不存在，再回退到当前工作区 QA 改动 / 会话推断。
 - `project` 模式会复用 `qa:lint`、`qa:sync-prd-qa-ids`、`qa:coverage-report`、`qa:check-defect-blockers`。
 - `project` 默认只校验不写 `qa-reports`，显式传 `--write-reports` 才会输出报告文件。

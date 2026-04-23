@@ -1,0 +1,19 @@
+# Agent template local overrides
+agent.config.json
+
+# Agent runtimes and local auth/session files
+.codex/config.toml
+.codex/auth.json
+.codex/history.jsonl
+.codex/sessions/
+.claude/settings.local.json
+.gemini/settings.local.json
+
+# Agent/test/runtime outputs
+**/test-results/
+**/playwright-report/
+**/.last-run.json
+coverage/
+pacts/
+perf/results/
+security/reports/

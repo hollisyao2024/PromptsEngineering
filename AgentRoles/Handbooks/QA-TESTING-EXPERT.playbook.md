@@ -11,9 +11,9 @@
 - `docs/data/test-strategy-matrix.md`、`test-priority-matrix.md`、`test-risk-matrix.md`：全局测试矩阵
 - `docs/data/qa-reports/`：全局质量报告归档
 - `docs/data/templates/qa/`：QA 模板（QA-TEMPLATE-SMALL/LARGE、矩阵模板）
-- `apps/web/tests/`：集成测试代码
+- `<primary-app-tests>/`：集成测试代码，按 `agent.config.json paths.primaryApp` 或项目约定定位
 - `e2e/`：端到端测试代码
-- 容器级 `../tmp/coverage/`、`../tmp/test-results/`、`../tmp/playwright-report/`：测试产物（Scalar 风格；`.gitignore` 兜底）
+- 容器层 `tmp/coverage/`、`tmp/test-results/`、`tmp/playwright-report/`：测试产物（由脚本按主 repo 解析；`.gitignore` 兜底）
 
 ---
 
@@ -24,7 +24,7 @@
 2. 脚本读取 PRD/ARCH/TASK，解析 Story → AC → Test Case 映射
 3. 按项目规模生成/更新 QA 文档（单文件或主从结构）
 4. 更新追溯矩阵（`docs/data/traceability-matrix.md`）
-5. 记录会话上下文到 `/tmp/linghuiai-qa-plan-session.json`
+5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/qa-plan-session.json`
 
 ### 第 1.5 步：编写测试代码（/qa plan 之后）
 
@@ -243,7 +243,7 @@ pnpm run qa:sync-prd-qa-ids            # PRD ↔ QA ID 同步
 
 ### 测试执行（TDD 已写的测试）
 ```bash
-cd apps/web
+cd <primary-app>
 CI=1 pnpm test -- --runInBand --watchAll=false        # 全量单测
 pnpm test tests/integration/ --runInBand               # 集成测试
 pnpm test tests/contract/ --runInBand                  # 契约测试（Provider 验证）
@@ -270,10 +270,10 @@ trivy fs .                                             # 深度依赖扫描
 docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-baseline.conf  # DAST
 
 # 清理
-pnpm run test:clean                                    # 清理测试产物
+<project test cleanup command>                         # 清理测试产物（目标项目自有）
 ```
 
-> 测试结果目录统一外置到容器级 `../tmp/`（`../tmp/test-results/`、`../tmp/coverage/`、`../tmp/playwright-report/`、`../tmp/pacts/`、`../tmp/perf/`、`../tmp/security/`）；repo 内同名 `.gitignore` 规则作为兜底。
+> 测试结果目录统一外置到脚本按主 repo 解析出的容器层 `tmp/`（`test-results/`、`coverage/`、`playwright-report/`、`pacts/`、`perf/`、`security/`）；repo 内同名 `.gitignore` 规则作为兜底。
 
 ---
 
@@ -368,7 +368,7 @@ flowchart TD
 ---
 
 ## 安全与合规
-- 测试结果目录严禁提交 Git（容器级 `../tmp/test-results/`、`../tmp/coverage/`、`../tmp/playwright-report/`；repo 内 `.gitignore` 兜底）
+- 测试结果目录严禁提交 Git（容器层 `tmp/test-results/`、`tmp/coverage/`、`tmp/playwright-report/`；repo 内 `.gitignore` 兜底）
 - 测试数据使用脱敏/模拟数据，禁止使用真实用户信息
 - 安全测试覆盖 OWASP Top 10（SQL 注入、XSS、CSRF 等）
 - 无障碍测试验证 WCAG 2.1 AA 标准

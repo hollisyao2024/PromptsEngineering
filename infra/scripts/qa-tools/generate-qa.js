@@ -122,7 +122,7 @@ function writeJsonFile(filePath, payload) {
 function getQaPlanSessionStatePath() {
   const customPath = process.env.QA_PLAN_SESSION_STATE_PATH;
   if (customPath && customPath.trim()) return customPath.trim();
-  return path.join(os.tmpdir(), 'linghuiai-qa-plan-session.json');
+  return path.join(os.tmpdir(), 'agent-qa-plan-session.json');
 }
 
 function runGit(args, { allowFailure = false } = {}) {

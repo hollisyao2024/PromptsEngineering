@@ -10,9 +10,9 @@
 
 | 环境 | 用途 | URL | 部署方式 | 当前版本 | 状态 |
 | ---- | ---- | --- | -------- | -------- | ---- |
-| dev | 本地开发/联调 | http://localhost:3000 | `/ship dev` | - | 🟢 正常 |
-| staging | 预发验证/UAT | https://staging.example.com | `/ship staging` 或 `/cd staging` | - | 🟢 正常 |
-| production | 生产环境 | https://example.com | `/ship prod` 或 `/cd prod` | - | 🟢 正常 |
+| dev | 本地开发/联调 | `<dev-url>` | `/ship dev` | - | 待确认 |
+| staging | 预发验证/UAT | `<staging-url>` | `/ship staging` 或 `/cd staging` | - | 待确认 |
+| production | 生产环境 | `<production-url>` | `/ship prod` 或 `/cd prod` | - | 待确认 |
 
 ## 2. 环境配置项
 

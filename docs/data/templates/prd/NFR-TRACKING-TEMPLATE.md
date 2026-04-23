@@ -152,13 +152,9 @@
 ### 脚本工具
 ```bash
 # 检查 NFR 达标情况
-npm run nfr:check-compliance
+pnpm run nfr:check-compliance
 
-# 生成 NFR 达标报告
-npm run nfr:report
-
-# 检测阻塞性 NFR（未达标且无缓解措施）
-npm run nfr:check-blockers
+# NFR 报告和阻塞项检测属于项目自有扩展；实现后再注册 alias。
 ```
 
 ### CI/CD 集成
@@ -178,23 +174,23 @@ jobs:
 
       # 性能测试
       - name: Lighthouse CI
-        run: npm run lighthouse:ci
+        run: <project lighthouse command>
         env:
           THRESHOLD_FCP: 2000  # 首屏加载 < 2s
 
       # 安全扫描
       - name: OWASP ZAP
-        run: docker run -t owasp/zap2docker-stable zap-baseline.py -t http://localhost:3000
+        run: docker run -t owasp/zap2docker-stable zap-baseline.py -t <target-url>
 
       # 测试覆盖率
       - name: Jest Coverage
-        run: npm run test:coverage
+        run: <project test coverage command>
         env:
           COVERAGE_THRESHOLD: 80  # 覆盖率 > 80%
 
       # 生成 NFR 报告
       - name: NFR Report
-        run: npm run nfr:report
+        run: <project nfr report command>
 ```
 
 ### 示例输出

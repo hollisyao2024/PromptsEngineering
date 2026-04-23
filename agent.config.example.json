@@ -1,0 +1,124 @@
+{
+  "projectName": "portable-agent-template",
+  "baseBranch": "main",
+  "packageManager": "pnpm",
+  "containerDirs": {
+    "worktrees": "../worktrees",
+    "tmp": "../tmp",
+    "cache": "../cache",
+    "artifacts": "../artifacts"
+  },
+  "commands": {
+    "lint": "pnpm run lint",
+    "typecheck": "pnpm run type-check",
+    "test": "pnpm test",
+    "build": "pnpm run build",
+    "qaGenerate": "pnpm run qa:generate",
+    "qaVerify": "pnpm run qa:verify",
+    "qaMerge": "pnpm run qa:merge"
+  },
+  "paths": {
+    "primaryApp": "",
+    "appDirs": [],
+    "webAppDir": "",
+    "databaseDir": "",
+    "prismaSchema": "",
+    "migrationsDir": "",
+    "e2eDir": "e2e",
+    "perfDir": "perf",
+    "securityDir": "security"
+  },
+  "worktree": {
+    "defaultForChanges": true,
+    "copyStrategy": "full-checkout",
+    "envSymlinks": [".env.local"],
+    "sharedConfigSymlinks": [
+      ".codex/config.toml",
+      ".claude/settings.json",
+      ".gemini/settings.json"
+    ],
+    "sessionDir": "../tmp/worktree-sessions",
+    "lockDir": "../tmp/agent-locks"
+  },
+  "automation": {
+    "defaultExecutor": "codex",
+    "autoPush": true,
+    "autoPr": true,
+    "autoMerge": false
+  },
+  "template": {
+    "manifest": "agent.template.manifest.json",
+    "applyReportDir": "../tmp/template-apply-reports"
+  },
+  "release": {
+    "bumpVersion": false,
+    "versionFile": "package.json",
+    "updateChangelog": false,
+    "changelogFile": "CHANGELOG.md",
+    "createTag": false,
+    "tagPrefix": "v"
+  },
+  "devServer": {
+    "portStart": 3000,
+    "portEnd": 3099,
+    "appDir": "",
+    "command": "",
+    "commands": {
+      "start": "",
+      "restart": "",
+      "stop": "",
+      "status": "",
+      "logs": ""
+    }
+  },
+  "devops": {
+    "deployEnabled": false,
+    "framework": "custom",
+    "appDir": "",
+    "databaseDir": "",
+    "buildCommand": "",
+    "startCommand": "",
+    "healthCheckPath": "/",
+    "commands": {
+      "ship": {
+        "dev": "",
+        "staging": "",
+        "production": ""
+      },
+      "cd": {
+        "staging": "",
+        "production": ""
+      },
+      "ciRun": "",
+      "ciStatus": "",
+      "envCheck": {
+        "dev": "",
+        "staging": "",
+        "production": ""
+      },
+      "envStatus": ""
+    },
+    "workflows": {
+      "ci": "",
+      "staging": "",
+      "production": ""
+    },
+    "healthCheck": {
+      "dev": "",
+      "staging": "",
+      "production": ""
+    },
+    "environments": {
+      "dev": {},
+      "staging": {},
+      "production": {}
+    }
+  },
+  "cron": {
+    "enabled": false,
+    "registry": []
+  },
+  "features": {
+    "devopsDeploy": false
+  }
+}

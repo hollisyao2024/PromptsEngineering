@@ -124,7 +124,7 @@
 | `pnpm run arch:check-api-contracts` | 验证主 ARCH 跨模块引用的接口是否在模块 ARCH 中定义 |
 | `pnpm run arch:check-component-cycles` | 检查 `docs/data/component-dependency-graph.md` 中的循环依赖 |
 | `pnpm run arch:sync` | 扫描 PRD ↔ ARCH 的 Story/Component ID，并生成 `docs/data/arch-prd-traceability.md` 报告 |
-| `pnpm run arch:check-dependencies` |（如存在）验证模块依赖表格/traceability 与 TASK/PRD 同步 |
+| 项目自有依赖检查命令 |（可选）验证模块依赖表格/traceability 与 TASK/PRD 同步 |
 
 ## 8. 相关资源
 

@@ -58,7 +58,7 @@
 1. 填表前先从 `docs/prd-modules/{domain}/PRD.md` 抽取角色、Story、优先级，确保 Story ID 与跨模块依赖一致。  
 2. 模板复制生成后，将文件保存到 `/docs/data/persona-story-matrix.md`，并在 `module-list.md` 或 `AGENT_STATE` 中记录更新时间。  
 3. 更改后同步到 `docs/data/persona-story-matrix.md` 的 coverage 统计（以及 QA 的 Story/Test Case）。  
-4. 推荐使用 `npm run persona:check-orphans` 等脚本校验角色覆盖，输出可直接填入 `Coverage%` 表。
+4. 如目标项目已实现角色覆盖脚本，可用项目自有命令校验覆盖率，输出可直接填入 `Coverage%` 表。
 
 ---  
 > 模板中每段均可由大模型输出，填充完成后即可作为 `goal-story-mapping.md` 的基础视图或 `persona-story-matrix.md` 的换代。  

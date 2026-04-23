@@ -4,12 +4,12 @@
 > **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 工作环境与目录边界
-遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录速查：
-- `apps/web/`：TypeScript + React/Vite；代码调整后运行 `pnpm run lint` 与无 watch 的单测；保留 `.env.production` 等部署配置不变
-- `apps/server/`：Python + FastAPI；使用 Black/PEP8；执行 `pytest`（必要时限定路径）验证
-- `packages/`：前后端共享类型与工具；变动需确保双向兼容
+遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录由 `agent.config.json paths.*` 或项目既有约定确定：
+- `<primary-app>/`：主要应用目录；代码调整后运行配置中的 lint/test 命令
+- `<server-app>/`：后端服务目录；按项目配置执行格式化、类型检查与测试
+- `<shared-packages>/`：共享类型与工具；变动需确保双向兼容
 - 单测 colocate 在源码旁；集成测试在 `apps/*/tests/`；e2e 在根 `e2e/`
-- `packages/database/prisma/migrations/`：数据库脚本按日期+序号命名，任何结构变化同步 `docs/data/`目录下的`ERD.md`、`dictionary.md`
+- `<migrations-dir>/`：数据库脚本按日期+序号命名，任何结构变化同步项目的数据视图文档
 
 ### 数据库迁移文件命名规范
 
@@ -156,7 +156,7 @@ pnpm vitest run --runInBand
 cd backend
 pip install -r requirements.txt
 pytest -q
-pnpm test apps/web/tests/auth.integration.test.ts
+pnpm test <integration-test-path>
 black .
 uvicorn app.main:app --reload  # 本地联调需手动停止
 ```
@@ -172,7 +172,7 @@ pnpm run build
 ---
 
 ## 数据库迁移检查清单（如有数据库变更）
-- [ ] 迁移脚本位置正确：`packages/database/prisma/migrations/YYYYMMDD_HHMMSS_*.sql|py`
+- [ ] 迁移脚本位置正确：`<migrations-dir>/YYYYMMDD_HHMMSS_*.sql|py`
 - [ ] 脚本遵循命名规范（描述清晰、易理解）
 - [ ] **EXPAND 阶段**：所有 DDL 使用条件判断（`IF NOT EXISTS` / `IF EXISTS`）
 - [ ] **BACKFILL 阶段**：数据迁移使用 WHERE 条件（`WHERE field IS NULL`），确保幂等
@@ -196,13 +196,15 @@ pnpm run build
 
 ```mermaid
 flowchart TD
-    A[TDD 专家激活] --> B{分支门禁检查}
-    B -->|在主干分支上| C{有 Task ID?}
-    B -->|已在正确分支| F[编码：TDD 循环]
-    C -->|有| D["/tdd new-branch TASK-XXX"]
-    C -->|无：bug/临时需求| E["/tdd new-branch fix/..."]
-    D --> F
-    E --> F
+    A[TDD 专家激活] --> B{任务模式}
+    B -->|只读排查| D0["/tdd diagnose: 留在当前 CWD，产物写容器层 tmp"]
+    D0 --> D1{需要改 tracked 文件?}
+    D1 -->|否| END0[输出诊断结论]
+    D1 -->|是| C["升级为修改型任务"]
+    B -->|修改型任务| C
+    C --> W["/worktree new --phase=tdd"]
+    W --> W2["进入 WORKTREE_PATH / NEXT_CWD"]
+    W2 --> F[编码：TDD 循环]
     F --> G["/tdd sync 文档回写 Gate"]
     G --> G1{tdd:review-gate}
     G1 -->|skipped| H["/tdd push: 自动提交当前分支改动 + push + 创建 PR"]
@@ -291,4 +293,3 @@ flowchart TD
 | ARCH | 接口契约/设计约束 | 实现 + 范围变更回写 | 设计变更走 ADR |
 | QA | QA 退回缺陷记录 | 修复代码 + CHANGELOG | CI 全绿后移交 QA |
 | DevOps | — | CI 全绿制品 | 不越权配置 CI/CD，部署由 DevOps 执行 |
-

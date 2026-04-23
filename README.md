@@ -4,9 +4,10 @@
 
 请注意：本仓库本身是**纯模板仓库**，交付的是角色协议、目录约定、文档骨架与自动化脚本示例；它不代表当前仓库存在一个真实产品需求、开发任务、QA 验收或部署任务需要执行。把模板复制到具体项目后，再根据那个项目的真实目标激活专家、生成产物并推进阶段状态。
 
-当前版本重点强化了三件事：
+当前版本重点强化了四件事：
 - **轻量路由**：任一时刻只激活 1 位专家，先读专家短卡片，再按需点读 Playbook 章节。
-- **Scalar 风格仓库拓扑**：源码与文档位于内层 `repo/`，并行 worktree、缓存、构建产物和临时报告放在容器层 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`。
+- **Worktree-First 并行任务**：只读排查不建 worktree；任何会修改 tracked 文件的任务自动创建/恢复专属 worktree，创建后进入 `WORKTREE_PATH` 开发。
+- **Scalar 风格仓库拓扑**：主 `repo/` 保持在 `main` 作为协调区；并行 worktree、缓存、构建产物和临时报告放在容器层 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`。
 - **自动化交付闭环**：TDD 完成后串联 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，并由 DevOps 专家负责 CI/CD、环境与部署。
 
 ## 模板目标与价值
@@ -15,7 +16,8 @@
 - 状态驱动：以 `docs/AGENT_STATE.md` 记录 PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED 六阶段进度。
 - 产物驱动：PRD → 架构 → 任务 → TDD → QA → DevOps 串行交接，以 `/docs` 下的产物文件作为阶段输入与唯一真相来源。
 - 模块化扩展：大型项目可按功能域拆分 PRD / ARCH / TASK / QA 文档，主文档保留总纲，模块文档按需加载。
-- 工程闭环：内置 pnpm 脚本、Review Gate、QA Gate、worktree 管理和部署命令约定，适合把提示词流程落到真实仓库。
+- 可整体复制：项目差异集中在 `agent.config.json`、环境变量或 CLI 参数中，模板文件尽量不需要在实际项目中修改。
+- 工程闭环：内置脚本入口、Review Gate、QA Gate、worktree 管理和部署命令约定；`package.json` 只通过安全合并脚本追加缺失 aliases，不覆盖项目自有内容。
 
 ## 目录速览
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
@@ -29,18 +31,121 @@
   - `docs/data/traceability-matrix.md`：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
 - `docs/adr/`：架构决策记录（ADR）模板目录。
 - `infra/scripts/`：PRD / ARCH / TASK / TDD / QA / DevOps 自动化脚本。
-- `db/migrations/`：数据库迁移骨架，默认附带 Python / SQL 双模板。
+- `agent.config.example.json`：可复制默认配置；复杂项目可复制为 `agent.config.json` 后覆盖 base branch、命令、目录、外部 agent executor 等差异。
+- `agent.package.scripts.example.json`：可选 package scripts 清单；通过 `infra/scripts/setup/merge-package-scripts.js` 合并，禁止直接覆盖目标项目 `package.json`。
+- `agent.template.manifest.json`：模板应用策略清单，声明哪些路径可覆盖、只初始化、只合并、项目自有或排除。
+- 数据库迁移目录由目标项目决定，可在 `agent.config.json paths.migrationsDir` 中声明。
 - `.gemini/`：定义 Gemini CLI 的上下文配置，指向 `AGENTS.md` 而非默认 `GEMINI.md`。
 - `CLAUDE.md`：Claude Code CLI 的入口提示，确保其读取 `AGENTS.md`。
 - `.codex/`、`.claude/`：CLI 侧辅助说明与上下文入口。
 
 ## 快速开始
-1. 将模板放入目标项目的 `repo/` 根目录；如需并行开发，将 linked worktrees 放在同级容器目录 `../worktrees/`。
-2. 使用 pnpm 安装依赖：`pnpm install`。本模板禁止 npm / yarn。
-3. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
-4. 根据项目阶段，使用 `/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops` 或 `[[ACTIVATE: X]]` 激活专家；激活后先读专家文件，再点读对应 Playbook 章节。
-5. 专家产出或更新 `/docs` 下的文件后，在 `docs/AGENT_STATE.md` 中推进六阶段状态。
-6. 编码完成后按 TDD 收尾流水线执行 `/tdd sync` → `/tdd push` → `/qa plan` → `/qa verify` → `/qa merge`；部署与环境管理交给 DevOps 专家处理。
+1. 在模板仓库 `repo/` 下执行一键应用或升级，目标路径支持相对路径：
+   `pnpm agent:update-template -- ../target-project/repo`
+2. `package.json` 不复制、不覆盖；脚本只通过 `agent.package.scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
+3. 变量统一放到目标项目的 `agent.config.json`、环境变量或 CLI 参数；复杂项目先复制 example 再调整，不改模板文件。
+4. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
+5. 只读排查直接执行，不创建 worktree；若任务会修改 tracked 文件，执行 `node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js` 创建/恢复 worktree。
+6. 创建成功后进入脚本输出的 `WORKTREE_PATH`：VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令以该目录为 CWD。
+7. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
+
+## 一键应用与重复升级
+`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。dry-run/write 日志写入容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中。
+
+```bash
+# 首次应用或重复升级，目标路径支持相对路径
+pnpm agent:update-template -- ../target-project/repo
+
+# 仅预览，不写入
+pnpm agent:update-template -- ../target-project/repo --dry-run
+
+# 部署/cron 快捷命令保留；项目耦合脚本由目标项目通过 agent.config.json 接入
+```
+
+应用策略：
+- `overwrite`：模板协议和核心脚本，可覆盖升级。
+- `init-if-missing`：目标没有才创建，例如 `docs/AGENT_STATE.md`、`agent.config.json`。
+- `append-block`：用 managed block 合并，例如 `.gitignore`、`.envrc`。
+- `merge-package-scripts`：只向 `package.json` 追加缺失 scripts，已有 scripts 永不覆盖。
+- `project-owned` / `generated`：目标项目自有或生成文件，永不覆盖。
+- `exclude`：目标项目自有内容，模板不应用；部署/cron 命令保留为 `devops-run.js` 配置入口。
+
+剥离出来的变量统一进入 `agent.config.json`，例如：
+- `paths.*`：应用目录、数据库目录、迁移目录、E2E/性能/安全目录。
+- `commands.*`：lint、typecheck、test、build、QA 命令。
+- `release.*`：是否递增版本、是否更新 CHANGELOG、是否打 tag。
+- `devops.*`：部署开关、应用目录、构建/启动命令、环境配置。
+- `cron.*`：定时任务是否启用与任务注册表。
+
+### 实际项目 Ops 一次性迁移
+
+模板不再提供 `infra/scripts/server/`、`infra/scripts/cron/` 的具体实现，但 `/ship`、`/cd`、`/ci`、`/env`、`/restart` 这些命令仍保留，统一通过 `infra/scripts/devops-tools/devops-run.js` 调度。实际项目只需做一次迁移：把自己的部署、cron、本地服务脚本放到项目自有目录（推荐 `scripts/ops/`），再在 `agent.config.json` 接入。
+
+```json
+{
+  "devops": {
+    "deployEnabled": true,
+    "commands": {
+      "ship": {
+        "dev": "bash scripts/ops/deploy.sh local dev",
+        "staging": "bash scripts/ops/deploy.sh local staging",
+        "production": "bash scripts/ops/deploy.sh local production"
+      },
+      "cd": {
+        "staging": "bash scripts/ops/deploy.sh ci staging",
+        "production": "bash scripts/ops/deploy.sh ci production"
+      },
+      "envCheck": {
+        "dev": "bash scripts/ops/env-check.sh dev",
+        "staging": "bash scripts/ops/env-check.sh staging",
+        "production": "bash scripts/ops/env-check.sh production"
+      }
+    }
+  },
+  "devServer": {
+    "commands": {
+      "restart": "bash scripts/ops/dev-server.sh restart",
+      "status": "bash scripts/ops/dev-server.sh status"
+    }
+  },
+  "cron": {
+    "enabled": true,
+    "registry": [
+      { "name": "daily-cleanup", "command": "bash scripts/ops/cron-run.sh daily-cleanup" }
+    ]
+  }
+}
+```
+
+可交给大模型执行的一次性迁移指令：
+
+```text
+请执行一次性迁移：把当前项目的部署、cron、本地服务脚本迁移到 project-owned ops 结构。保留快捷命令 /ship、/cd、/env、/restart，但它们必须通过 agent.config.json 接入 infra/scripts/devops-tools/devops-run.js。不要修改模板文件；项目自有脚本放 scripts/ops/，敏感变量继续走环境变量或 CI secrets。迁移后运行 pnpm ship:staging -- --dry-run、pnpm env:check:staging、pnpm dev:status，并输出旧脚本到新配置的映射表。
+```
+
+## Worktree-First 并行开发
+- `diagnose` 模式：排查问题、读代码、跑只读检查，不创建 worktree；临时产物写容器层 `tmp`，缓存写容器层 `cache`，构建/部署产物写容器层 `artifacts`。这些路径由脚本/`agent.config.json` 按主 `repo/` 解析，进入 linked worktree 后不要手写 `../tmp`。
+- `change` 模式：任何会修改 tracked 文件的任务都创建或恢复专属 worktree；主 `repo/` 不承载修改型任务。
+- `new branch` 工作流已废弃；branch 仍由 Git worktree 底层自动创建。
+- 每个并行任务对应一个 worktree、一个 branch、一个 PR；合并成功后自动清理 worktree。
+- 外部 agent（OpenClaw、Hermes、Goose 等）只调用 `agent-runner` 或 `worktree-tools` 统一入口，不自行管理 worktree/merge/cleanup。
+- 多任务可并行开发，但 merge 回 `main` 串行排队：自动 `fetch/rebase/verify/merge/cleanup`，只有 Git 冲突或语义冲突才需要人工介入。
+
+### Worktree 命令速查
+```bash
+node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --task TASK-USER-001 --desc "login"
+node infra/scripts/worktree-tools/worktree-new.js --phase=prd --desc "billing v2"
+node infra/scripts/worktree-tools/worktree-list.js
+node infra/scripts/worktree-tools/worktree-resume.js --branch feature/TASK-USER-001-login
+node infra/scripts/worktree-tools/worktree-remove.js --branch feature/TASK-USER-001-login
+
+node infra/scripts/agent-runner/agent-run.js --mode=diagnose --desc "inspect failing tests"
+node infra/scripts/agent-runner/agent-run.js --phase=tdd --task TASK-USER-001 --desc "login" --auto
+```
+
+运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 工作流已废弃，不再提供脚本入口。
+
+`infra/scripts/agent-runner/agent-run.js` 是外部 agent 的生命周期入口：它负责规范任务模式、创建/恢复 worktree、输出 `NEXT_CWD` 与结构化状态；具体 PRD/ARCH/TASK/TDD/QA/DevOps 工作仍由激活后的专家或外部执行器完成。
 
 ## 命令作用域速查（TDD / QA）
 以下 5 个命令采用统一规则：
@@ -50,11 +155,11 @@
 
 | 命令 | 默认（session） | 项目级（project） |
 |------|------------------|-------------------|
-| `/tdd sync` | `pnpm run tdd:sync` | `pnpm run tdd:sync -- --project` |
-| `/tdd push` | `pnpm run tdd:push`（推送当前分支并创建当前分支 PR） | `pnpm run tdd:push -- --project bump "release note"` |
+| `/tdd sync` | `node infra/scripts/tdd-tools/tdd-sync.js` | `node infra/scripts/tdd-tools/tdd-sync.js --project` |
+| `/tdd push` | `node infra/scripts/tdd-tools/tdd-push.js`（推送当前分支并创建当前分支 PR） | `node infra/scripts/tdd-tools/tdd-push.js --project bump "release note"` |
 | `/qa plan` | `/qa plan`（仅会话范围） | `/qa plan --project`（全量刷新） |
 | `/qa verify` | `/qa verify`（仅会话范围） | `/qa verify --project`（项目级验收） |
-| `/qa merge` | `pnpm run qa:merge`（合并当前分支对应 PR） | `pnpm run qa:merge -- --project`（显式项目模式） |
+| `/qa merge` | `node infra/scripts/qa-tools/qa-merge.js`（合并当前分支对应 PR） | `node infra/scripts/qa-tools/qa-merge.js --project`（显式项目模式） |
 
 ## 阶段化工作流
 1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
@@ -64,207 +169,23 @@
    - 自动评估是否需要拆分架构（> 1000 行 或 8+ 子系统 或 3+ 业务域），采用主从结构（主 ARCH + 模块 ARCH）。
 3. **任务规划专家**：拆解 WBS、依赖矩阵、关键路径（CPM）、里程碑与风险，沉淀到 `/docs/TASK.md`。
    - 自动评估是否需要拆分任务（> 1000 行 或 50+ 工作包 或 3+ 并行开发流），采用主从结构（主 TASK + 模块 TASK）。
-4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写、更新 `CHANGELOG.md` 并移交 QA。
+4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写并移交 QA；版本、CHANGELOG、tag 由 `release.*` 配置控制。
 5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
    - 自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
 6. **DevOps 专家**：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
 
 ---
 
-## 🎯 企业级需求管理增强（PRD 专家）
+## PRD 工具链状态
+模板默认只合并已实现、可运行的 PRD alias，避免目标项目得到坏命令：
 
-> **新增于 2025-11-05**：面向大型项目（50+ 用户故事）的专业需求管理工具链。
-
-### 核心增强功能
-
-#### 1. 变更请求（CR）管理 📋
-**位置**：`/docs/data/change-requests/`
-
-结构化管理需求变更，支持：
-- **影响范围分析**：自动识别变更影响的 Story、AC、模块、测试用例
-- **多专家协同审批**：PRD / ARCH / TASK / QA 专家联合评审
-- **状态追踪**：Draft → Under Review → Approved → Implemented → Closed
-
-**快速开始**：
 ```bash
-# 创建新变更请求
-pnpm run cr:new -- --type="需求修改" --priority="High"
-
-# 查看待审批 CR
-pnpm run cr:pending
-```
-
----
-
-#### 2. 依赖关系图可视化 🔗
-**位置**：`/docs/data/dependency-graph.md`
-
-使用 Mermaid 可视化需求依赖网络，支持：
-- **关键路径识别**：自动计算最长依赖链
-- **循环依赖检测**：发现并修正 A → B → C → A 循环
-- **并行开发规划**：识别可并行实施的 Story
-
-**快速开始**：
-```bash
-# 检测依赖循环
+pnpm run prd:lint
 pnpm run prd:check-dependency-cycles
-
-# 在线预览依赖图
-# 访问 https://mermaid.live/ 粘贴 dependency-graph.md 内容
-```
-
----
-
-#### 3. 优先级动态评分矩阵 ⭐
-**位置**：`/docs/data/priority-matrix.md`
-
-量化需求优先级，支持：
-- **多维度评分**：业务价值 × 2 + 用户影响面 × 1.5 + (6-技术风险) + 依赖权重 × 0.5
-- **优先级冲突检测**：自动识别"建议优先级"与"当前优先级"不一致的 Story
-- **ROI 分析**：预期贡献 / 预估工时
-
-**快速开始**：
-```bash
-# 检测优先级冲突
-pnpm run priority:check-conflicts
-
-# 生成优先级报告
-pnpm run priority:report
-```
-
----
-
-#### 4. 业务目标追溯表 🎯
-**位置**：`/docs/data/goal-story-mapping.md`
-
-确保需求与业务目标强绑定，支持：
-- **Story → OKR 映射**：每个 Story 关联至少 1 个 Objective / Key Result
-- **目标覆盖验证**：预期贡献之和是否覆盖目标差值
-- **孤儿 Story 检测**：识别无关联业务目标的需求
-
-**快速开始**：
-```bash
-# 检查孤儿 Story
-pnpm run goal:check-orphans
-
-# 生成目标覆盖报告
-pnpm run goal:coverage-report
-```
-
----
-
-#### 5. 用户角色-故事覆盖矩阵 👥
-**位置**：`/docs/data/persona-story-matrix.md`
-
-验证每个用户角色的功能完整性，支持：
-- **覆盖率统计**：每个角色的 Story 覆盖率
-- **孤儿角色检测**：覆盖率 < 30% 的角色
-- **权限冲突检测**：Guest 拥有需登录功能等
-
-**快速开始**：
-```bash
-# 生成角色覆盖报告
-pnpm run persona:coverage-report
-
-# 检测孤儿角色
-pnpm run persona:check-orphans
-```
-
----
-
-#### 6. NFR 量化追踪表 📊
-**位置**：`/docs/data/nfr-tracking.md`
-
-将抽象的非功能需求具体化，支持：
-- **8 大类 NFR**：性能、可扩展性、安全、可用性、易用性、兼容性、可维护性、合规
-- **达标状态追踪**：基准值 vs 目标值 vs 当前值
-- **发布 Gate 验证**：阻塞性 NFR 未达标则阻止发布
-
-**快速开始**：
-```bash
-# 检查 NFR 达标情况
 pnpm run nfr:check-compliance
 ```
 
----
-
-#### 7. Shift-Left 需求验证 ✅
-**位置**：`/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7
-
-在 PRD 阶段前置验证，支持：
-- **技术可行性**：新技术栈 PoC、数据量级评估、第三方依赖稳定性
-- **数据合规性**：GDPR/PIPL 符合性、敏感数据识别、数据保留策略
-- **依赖风险**：循环依赖、跨团队依赖协调
-- **文档完整性**：章节、追溯矩阵、依赖图
-
-**快速开始**：
-```bash
-# 运行前置验证报告
-pnpm run prd:preflight-report
-
-# PRD 完整性检查
-pnpm run prd:lint
-```
-
----
-
-### 快速实施路线图
-
-#### 📋 立即可用（Day 1，推荐优先级 ⭐⭐⭐）
-1. **引入依赖关系图** — 可视化需求网络（2-3 小时）
-2. **建立 NFR 追踪表** — 性能安全可量化（3-4 小时）
-3. **使用角色-故事矩阵** — 覆盖率验证（2 小时）
-
-#### 📈 短期投入（Week 1-2）
-1. **引入 CR 流程** — 结构化变更管理（1 周）
-2. **建立优先级矩阵** — 量化决策（1 周）
-3. **执行 Shift-Left 检查清单** — 前置验证（1-2 周）
-
-#### 🔧 持续优化（长期）
-1. **自动化脚本开发** — 减少手工劳动（2-4 周）
-2. **CI/CD 集成** — 发布 Gate 自动化（1 周）
-3. **工具集成** — Jira / Notion / Confluence（按需）
-
-**详细指南**：参见 `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md` §7（Shift-Left 检查与质量门禁）。
-
----
-
-### 自动化工具链
-
-#### 安装
-```bash
-# 本工具使用 Node.js，无额外依赖
-pnpm install
-```
-
-#### 核心命令
-```bash
-# PRD 质量检查
-pnpm run prd:lint                          # PRD 完整性检查
-pnpm run prd:check-dependency-cycles       # 依赖循环检查
-pnpm run prd:preflight-report              # 前置验证报告
-
-# NFR 管理
-pnpm run nfr:check-compliance              # NFR 达标检查（发布 Gate）
-
-# 优先级管理
-pnpm run priority:check-conflicts          # 优先级冲突检测
-pnpm run priority:report                   # 生成优先级报告
-
-# 角色覆盖分析
-pnpm run persona:coverage-report           # 角色覆盖率报告
-pnpm run persona:check-orphans             # 孤儿角色检测
-
-# 业务目标追溯
-pnpm run goal:coverage-report              # 目标覆盖率报告
-pnpm run goal:check-orphans                # 孤儿 Story 检测
-
-# 变更请求管理
-pnpm run cr:new                            # 创建新变更请求
-pnpm run cr:pending                        # 查看待审批 CR
-```
-
-**完整文档**：[infra/scripts/prd-tools/README.md](infra/scripts/prd-tools/README.md)
+CR、优先级矩阵、角色覆盖、目标追溯、前置验证报告等属于可选治理主题。模板保留文档模板和方法，但不默认声明 `cr:*`、`priority:*`、`persona:*`、`goal:*`、`prd:preflight-report` 等 aliases；目标项目实现对应脚本后，再通过项目自己的 `package.json` 或 `agent.config.json` 增加入口。
 
 ---
 
@@ -288,29 +209,43 @@ pnpm run cr:pending                        # 查看待审批 CR
 ## 自定义与扩展建议
 - 若团队流程不同，可修改 `AGENTS.md` 的状态机或快捷命令；保持阶段产物路径一致即可。
 - 可在 `AgentRoles/Handbooks` 中增补团队自定义章节，确保引用粒度尽量小。
-- `db/migrations/` 模板适合快速搭建 Expand → Migrate/Backfill → Contract 流程，可按技术栈调整脚本。
-- 结合仓库 CI，可在 `/ci run`、`/ci status`、`/ship`、`/cd` 等命令上扩展自动化脚本与部署策略。
+- 数据库迁移模板按目标技术栈放入项目自有目录，并在 `agent.config.json paths.migrationsDir` 中声明。
+- `/ci`、`/ship`、`/cd`、`/env`、`/restart` 统一通过 `infra/scripts/devops-tools/devops-run.js` 调度，实际命令写入 `agent.config.json`。
 - 若引入新增阶段或角色，记得同步更新 `AGENTS.md`、`docs/AGENT_STATE.md` 与相关 Playbook，以保持路由与产物一致。
 
 ---
 
 ## 拷贝指引：将模板应用到自己的项目
-**建议拷贝**
+**推荐整体复制**
 - `AGENTS.md`
-- `AgentRoles/`（含全部专家卡片与 `Handbooks/` 手册）
-- `docs/`（含 `ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CHANGELOG.md`、`CONVENTIONS.md`、`data/` 及 `adr/` 目录）
-  - **注意**：原仓库的 `PRD.md` 为模板示例，建议删除后由 PRD 专家按需生成（模板见 `docs/data/templates/prd/PRD-TEMPLATE-SMALL.md` 和 `PRD-TEMPLATE-LARGE.md`）
-  - **模块化目录**（可选，按需创建）：`prd-modules/`、`arch-modules/`、`task-modules/`、`qa-modules/`，含各自的 `README.md` 模块索引
-- `db/`（含 `migrations/` 模板）
-- `.gemini/`（将 Gemini CLI 上下文指向 `AGENTS.md`）
-- `CLAUDE.md`（若需要支持 Claude Code CLI）
+- `AgentRoles/`
+- `docs/CONVENTIONS.md`、`docs/data/templates/`、各模块 `MODULE-TEMPLATE.md`
+- `infra/scripts/shared/`、`worktree-tools/`、`agent-runner/`、`devops-tools/`、`setup/`、PRD/ARCH/TASK/TDD/QA 工具脚本
+- `agent.config.example.json`
+- `agent.package.scripts.example.json`
+- `agent.template.manifest.json`
+- `.gemini/`、`CLAUDE.md`（如需要 Gemini / Claude Code 入口）
 
-**通常不拷贝**
-- 本仓库的 `README.md`、`CHANGELOG.md` —— 请在自己的项目中编写专属说明与历史记录。
-- `.DS_Store`、临时文件以及与你项目无关的脚本或配置。
-- 任何你不打算启用的示例数据或手册章节，可按需删减。
+**按项目情况合并**
+- `package.json`：不要复制覆盖；通过 `node infra/scripts/setup/merge-package-scripts.js --write` 从 `agent.package.scripts.example.json` 只追加缺失 scripts，冲突项人工决定
+- `.gitignore`
+- `.envrc`
+- `.github/workflows/`
+- `README.md`、`CHANGELOG.md`
+- 项目自有迁移目录模板
+- `agent.config.json`（复杂项目可由 example 复制后维护）
+- 部署/cron 项目自有脚本：模板不提供 `infra/scripts/server/`、`infra/scripts/cron/` 实现；实际项目通过 `agent.config.json devops.*` / `cron.*` 接入自己的命令
 
-> 拷贝完成后，请根据目标项目情况更新 `docs/CONVENTIONS.md`、`docs/AGENT_STATE.md`、以及 Playbook 中的特定规范，以保持团队约定一致。
+**不要复制**
+- 模板根 `package.json`（目标项目保留自己的文件）
+- `.env.local`、`.env.*` 非 example 文件
+- `.codex/auth.json`、`.codex/sessions/`
+- `.claude/settings.local.json`
+- `.gemini/settings.local.json`
+- `node_modules/`
+- 容器层 `../worktrees/`、`../tmp/`、`../cache/`、`../artifacts/`
+
+> 拷贝完成后，优先通过 `agent.config.json` 调整目标项目差异；不要把业务项目细节写回模板文件，这样后续可以整体覆盖升级模板。
 
 ---
 

@@ -119,11 +119,7 @@
 
 **维护者**：QA 专家（测试计划阶段）
 
-**自动化工具**：
-```bash
-npm run qa:check-test-strategy-coverage  # 检查覆盖率
-npm run qa:suggest-test-strategy         # 自动推荐测试类型
-```
+**自动化工具**：测试策略自动推荐属于可选扩展。模板提供矩阵结构；目标项目实现脚本后再注册对应命令。
 
 ---
 
@@ -152,12 +148,7 @@ npm run qa:suggest-test-strategy         # 自动推荐测试类型
 
 **维护者**：QA 专家（测试计划阶段，每周更新缺陷率）
 
-**自动化工具**：
-```bash
-npm run qa:calc-test-priority            # 计算测试优先级
-npm run qa:generate-test-plan            # 生成测试执行计划
-npm run qa:optimize-test-suite           # 资源受限下的最优测试集
-```
+**自动化工具**：测试优先级计算属于可选扩展。模板提供矩阵结构；目标项目实现脚本后再注册对应命令。
 
 ---
 
@@ -187,13 +178,7 @@ npm run qa:optimize-test-suite           # 资源受限下的最优测试集
 
 **维护者**：QA 专家（每 2 周风险回顾会议更新）
 
-**自动化工具**：
-```bash
-npm run qa:calc-risk-score               # 风险评分自动计算
-npm run qa:risk-trend                    # 风险趋势分析
-npm run qa:check-risk-triggers           # 风险触发器检查
-npm run qa:generate-risk-report          # 生成风险报告
-```
+**自动化工具**：风险评分和趋势分析属于可选扩展。模板提供矩阵结构；目标项目实现脚本后再注册对应命令。
 
 ---
 
@@ -394,7 +379,7 @@ pnpm run task:sync   # 验证 Story ↔ Task 映射的一致性
 - Component ID 统计与缺失依赖（依赖图中出现但无对应模块文档的组件）
 - 自动列出依赖图与文档之间的“缺口”，引导补齐架构说明或调整依赖关系
 
-**生成方式**：`npm run arch:sync -- --report` 自动对比 PRD/ARCH 数据并刷新该报告。
+**生成方式**：`pnpm run arch:sync -- --report` 自动对比 PRD/ARCH 数据并刷新该报告。
 
 **维护者**：ARCH 专家（作为架构与需求一致性的每日核对产物）
 
@@ -414,45 +399,29 @@ pnpm run task:sync   # 验证 Story ↔ Task 映射的一致性
 
 ## 🛠️ 自动化脚本
 
-项目已提供以下脚本扫描全局数据：
+模板已提供以下可运行脚本扫描全局数据：
 
 ### 1. PRD 工具
 ```bash
-npm run prd:lint                          # PRD 完整性检查
-npm run prd:check-dependency-cycles       # 依赖循环检查
-npm run prd:sync-prd-qa-ids               # PRD ↔ QA ID 同步验证
+pnpm run prd:lint                          # PRD 完整性检查
+pnpm run prd:check-dependency-cycles       # 依赖循环检查
 ```
 
 ### 2. QA 工具
 ```bash
-# 文档检查
-npm run qa:lint                           # QA 文档完整性检查
-
-# 测试策略
-npm run qa:check-test-strategy-coverage   # 检查测试策略覆盖率
-npm run qa:suggest-test-strategy          # 自动推荐测试类型
-
-# 测试优先级
-npm run qa:calc-test-priority             # 计算测试优先级
-npm run qa:generate-test-plan             # 生成测试执行计划
-npm run qa:optimize-test-suite            # 资源受限下的最优测试集
-
-# 测试风险
-npm run qa:calc-risk-score                # 风险评分自动计算
-npm run qa:risk-trend                     # 风险趋势分析
-npm run qa:check-risk-triggers            # 风险触发器检查
-npm run qa:generate-risk-report           # 生成风险报告
-
-# 测试报告
-npm run qa:generate-test-report           # 测试报告生成
-npm run qa:coverage-report                # 测试覆盖率分析
-npm run qa:check-defect-blockers          # 缺陷阻塞检查与发布门禁
+pnpm run qa:lint                           # QA 文档完整性检查
+pnpm run qa:sync-prd-qa-ids                # PRD ↔ QA ID 同步验证
+pnpm run qa:generate-test-report           # 测试报告生成
+pnpm run qa:coverage-report                # 测试覆盖率分析
+pnpm run qa:check-defect-blockers          # 缺陷阻塞检查与发布门禁
 ```
 
 ### 3. 其他工具
 ```bash
-npm run nfr:check-compliance              # NFR 达标检查
+pnpm run nfr:check-compliance              # NFR 达标检查
 ```
+
+未列出的 `qa:*`、`test:*`、`security:*` 命令属于项目自有扩展，需先实现脚本再注册 alias。
 
 ---
 

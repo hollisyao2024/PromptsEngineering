@@ -25,7 +25,7 @@ chmod +x infra/scripts/task-tools/*.js
 从 PRD + ARCHITECTURE 自动生成 TASK.md，包含 WBS、依赖矩阵、关键路径、里程碑、风险。**大型项目自动拆分为模块文档**。
 
 ```bash
-npm run task:generate
+pnpm run task:generate
 ```
 
 **功能**：
@@ -64,9 +64,9 @@ TASK 自动生成工具 v1.0
 
 接下来建议：
 1. 检查生成的 TASK.md：cat docs/TASK.md
-2. 运行质量检查：npm run task:lint
-3. 验证关键路径：npm run task:check-critical-path
-4. 同步 PRD ↔ TASK ID：npm run task:sync
+2. 运行质量检查：pnpm run task:lint
+3. 验证关键路径：pnpm run task:check-critical-path
+4. 同步 PRD ↔ TASK ID：pnpm run task:sync
 5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED
 ```
 
@@ -105,9 +105,9 @@ TASK 自动生成工具 v1.0
 接下来建议：
 1. 检查生成的 TASK.md：cat docs/TASK.md
    检查模块文档：ls docs/task-modules/
-2. 运行质量检查：npm run task:lint
-3. 验证关键路径：npm run task:check-critical-path
-4. 同步 PRD ↔ TASK ID：npm run task:sync
+2. 运行质量检查：pnpm run task:lint
+3. 验证关键路径：pnpm run task:check-critical-path
+4. 同步 PRD ↔ TASK ID：pnpm run task:sync
 5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED
 ```
 
@@ -127,7 +127,7 @@ TASK 自动生成工具 v1.0
 检查 TASK 文档的章节完整性、Task ID 格式、依赖关系规范。
 
 ```bash
-npm run task:lint
+pnpm run task:lint
 ```
 
 **检查项**：
@@ -176,7 +176,7 @@ TASK 完整性检查工具 v1.0
 检测 Task 之间的循环依赖和无效依赖。
 
 ```bash
-npm run task:check-cycles
+pnpm run task:check-cycles
 ```
 
 **检查项**：
@@ -220,7 +220,7 @@ npm run task:check-cycles
 验证所有 Story 是否都有对应的 Task，确保需求追溯完整性。
 
 ```bash
-npm run task:sync
+pnpm run task:sync
 ```
 
 **检查项**：
@@ -265,7 +265,7 @@ Story → Task 映射验证工具 v1.0
 基于任务依赖关系和工作量，生成 Mermaid 格式的甘特图。
 
 ```bash
-npm run task:generate-gantt
+pnpm run task:generate-gantt
 ```
 
 **功能**：
@@ -308,7 +308,7 @@ gantt
 计算项目关键路径，识别影响工期的瓶颈任务。
 
 ```bash
-npm run task:check-critical-path
+pnpm run task:check-critical-path
 ```
 
 **功能**：
@@ -351,7 +351,7 @@ TASK-PAY-001（4d） → ... → TASK-QA-FINAL（10d）
 验证数据库迁移任务是否遵循 Expand → Migrate/Backfill → Contract 流程。
 
 ```bash
-npm run task:validate-db-tasks
+pnpm run task:validate-db-tasks
 ```
 
 **检查项**：
@@ -394,7 +394,7 @@ npm run task:validate-db-tasks
 检测同一人员是否被分配到并行的多个任务，识别资源超载。
 
 ```bash
-npm run task:check-resource-conflicts
+pnpm run task:check-resource-conflicts
 ```
 
 **检查项**：
@@ -452,7 +452,7 @@ npm run task:check-resource-conflicts
 生成任务执行状态报告，包括完成率、风险任务、延期任务。
 
 ```bash
-npm run task:generate-status-report
+pnpm run task:generate-status-report
 ```
 
 **功能**：
@@ -524,22 +524,22 @@ npm run task:generate-status-report
 ### TASK 核心检查（优先级 ⭐⭐⭐）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run task:lint` | TASK 完整性检查 | ⭐⭐⭐ |
-| `npm run task:check-cycles` | 任务依赖循环检查 | ⭐⭐⭐ |
-| `npm run task:sync` | Story → Task 映射验证 | ⭐⭐⭐ |
+| `pnpm run task:lint` | TASK 完整性检查 | ⭐⭐⭐ |
+| `pnpm run task:check-cycles` | 任务依赖循环检查 | ⭐⭐⭐ |
+| `pnpm run task:sync` | Story → Task 映射验证 | ⭐⭐⭐ |
 
 ### TASK 可视化与分析（优先级 ⭐⭐）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run task:generate-gantt` | 生成甘特图 | ⭐⭐ |
-| `npm run task:check-critical-path` | 关键路径分析 | ⭐⭐ |
-| `npm run task:generate-status-report` | 生成任务状态报告 | ⭐⭐ |
+| `pnpm run task:generate-gantt` | 生成甘特图 | ⭐⭐ |
+| `pnpm run task:check-critical-path` | 关键路径分析 | ⭐⭐ |
+| `pnpm run task:generate-status-report` | 生成任务状态报告 | ⭐⭐ |
 
 ### TASK 专项检查（优先级 ⭐⭐）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run task:validate-db-tasks` | 数据库迁移任务验证 | ⭐⭐ |
-| `npm run task:check-resource-conflicts` | 资源冲突检测 | ⭐⭐ |
+| `pnpm run task:validate-db-tasks` | 数据库迁移任务验证 | ⭐⭐ |
+| `pnpm run task:check-resource-conflicts` | 资源冲突检测 | ⭐⭐ |
 
 ---
 
@@ -549,7 +549,7 @@ npm run task:generate-status-report
 在提交 TASK 变更前运行：
 
 ```bash
-npm run task:lint && npm run task:check-cycles && npm run task:sync
+pnpm run task:lint && pnpm run task:check-cycles && pnpm run task:sync
 ```
 
 ### CI/CD 集成
@@ -578,19 +578,19 @@ jobs:
           node-version: '18'
 
       - name: Run TASK Lint
-        run: npm run task:lint
+        run: pnpm run task:lint
 
       - name: Check Task Dependency Cycles
-        run: npm run task:check-cycles
+        run: pnpm run task:check-cycles
 
       - name: Verify Story → Task Mapping
-        run: npm run task:sync
+        run: pnpm run task:sync
 
       - name: Check Critical Path
-        run: npm run task:check-critical-path
+        run: pnpm run task:check-critical-path
 
       - name: Validate DB Migration Tasks
-        run: npm run task:validate-db-tasks
+        run: pnpm run task:validate-db-tasks
 ```
 
 ---
@@ -686,7 +686,7 @@ chmod +x infra/scripts/task-tools/*.js
 **A**: 可以。脚本使用纯 JavaScript 编写，跨平台兼容。但颜色输出在 Windows CMD 中可能显示异常（PowerShell 和 Windows Terminal 正常）。
 
 ### Q5: 如何与 PRD/ARCH 工具联动？
-**A**: 使用 `npm run task:sync` 可自动验证 PRD 中的 Story ID 与 TASK 中的 Task ID 的映射关系。确保需求追溯完整。
+**A**: 使用 `pnpm run task:sync` 可自动验证 PRD 中的 Story ID 与 TASK 中的 Task ID 的映射关系。确保需求追溯完整。
 
 ---
 

@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
+const { loadConfig } = require('../shared/config');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const envLocalPath = path.join(repoRoot, '.env.local');
@@ -134,6 +135,10 @@ function parseArgs(argv) {
     scope: scope === 'project' ? 'project' : 'session',
     skipChecks: argv.includes('--skip-checks'),
     dryRun: argv.includes('--dry-run'),
+    bumpVersion: argv.includes('--bump-version'),
+    noVersionBump: argv.includes('--no-version-bump'),
+    createTag: argv.includes('--tag'),
+    noTag: argv.includes('--no-tag'),
   };
 }
 
@@ -675,8 +680,8 @@ function bumpPatchVersion(version) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-function insertChangelogEntry(mainRepoRoot, targetVersion, note) {
-  const changelogPath = path.join(mainRepoRoot, 'CHANGELOG.md');
+function insertChangelogEntry(mainRepoRoot, targetVersion, note, changelogFile = 'CHANGELOG.md') {
+  const changelogPath = path.join(mainRepoRoot, changelogFile);
   const raw = fs.readFileSync(changelogPath, 'utf8');
   const today = new Date().toISOString().slice(0, 10);
   const sanitizedNote = note || `发布版本 v${targetVersion}`;
@@ -749,21 +754,23 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
   }
 }
 
-function commitReleaseAndTag(mainRepoRoot, version, note) {
-  runGit(['add', 'package.json', 'CHANGELOG.md', 'docs/AGENT_STATE.md'], {
+function commitReleaseAndTag(mainRepoRoot, version, note, files, createTag, tagPrefix) {
+  runGit(['add', ...files], {
     cwd: mainRepoRoot,
   });
-  runGit(['commit', '-m', `chore(release): v${version}`], {
+  runGit(['commit', '-m', version ? `chore(release): ${tagPrefix}${version}` : 'chore(qa): update merge state'], {
     cwd: mainRepoRoot,
   });
-  runGit(['tag', '-a', `v${version}`, '-m', note || `Release v${version}`], {
-    cwd: mainRepoRoot,
-  });
+  if (createTag && version) {
+    runGit(['tag', '-a', `${tagPrefix}${version}`, '-m', note || `Release ${tagPrefix}${version}`], {
+      cwd: mainRepoRoot,
+    });
+  }
 }
 
-function pushMainAndTag(mainRepoRoot, tagName) {
+function pushMainAndTag(mainRepoRoot, tagName = '') {
   runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
-  runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
+  if (tagName) runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
 }
 
 // ==================== 摘要输出 ====================
@@ -866,6 +873,7 @@ function main() {
     if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
       console.log(`\x1b[36mmain 当前位于独立 worktree：${mainWorkspacePath}\x1b[0m`);
     }
+    const config = loadConfig({ repoRoot: mainWorkspacePath });
 
     // Step 2: 加载 GH_TOKEN
     loadProjectGhToken();
@@ -885,8 +893,8 @@ function main() {
     if (isMainBranch(currentBranch)) {
       throw new Error(
         `当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n` +
-        `  如需推送文档 / 配置等小改动：git push origin ${currentBranch}\n` +
-        `  如需推送代码变更：请先 git stash，再 /tdd new-branch 创建 feature 分支，走正常 PR 流程。`
+        `  只读排查不需要 merge；如需修改 tracked 文件，请先执行 pnpm run worktree:new 创建/恢复 worktree。\n` +
+        `  /tdd new-branch 已废弃，branch 会由 worktree 底层自动创建。`
       );
     }
 
@@ -1005,36 +1013,64 @@ function main() {
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
     cleanupOrphanWorktreeDirs(mainRepoRoot);
 
-    // Step 15: 版本递增 + CHANGELOG + AGENT_STATE + tag
-    const packageJsonPath = path.join(mainWorkspacePath, 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    const currentVersion = pkg.version;
-    const newVersion = bumpPatchVersion(currentVersion);
+    // Step 15: 可选版本递增 / CHANGELOG / AGENT_STATE / tag
+    const releaseConfig = config.release || {};
+    const shouldBumpVersion =
+      args.bumpVersion || (releaseConfig.bumpVersion === true && !args.noVersionBump);
+    const shouldUpdateChangelog = releaseConfig.updateChangelog === true;
+    const shouldCreateTag =
+      args.createTag || (releaseConfig.createTag === true && !args.noTag);
+    const versionFile = releaseConfig.versionFile || 'package.json';
+    const changelogFile = releaseConfig.changelogFile || 'CHANGELOG.md';
+    const tagPrefix = releaseConfig.tagPrefix || 'v';
+    let newVersion = '';
 
     // Release note 从 PR 标题提取
-    const releaseNote = getPrTitle(pr.number) || pr.title || `Release v${newVersion}`;
+    const releaseNote = getPrTitle(pr.number) || pr.title || 'QA merge';
+    const releaseFiles = [];
 
-    // 更新 package.json
-    pkg.version = newVersion;
-    fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
-    console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+    if (shouldBumpVersion) {
+      const versionFilePath = path.join(mainWorkspacePath, versionFile);
+      const pkg = JSON.parse(fs.readFileSync(versionFilePath, 'utf8'));
+      const currentVersion = pkg.version;
+      newVersion = bumpPatchVersion(currentVersion);
+      pkg.version = newVersion;
+      fs.writeFileSync(versionFilePath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+      releaseFiles.push(versionFile);
+      console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+    } else {
+      console.log('\x1b[36m  跳过版本递增（release.bumpVersion=false；可用 --bump-version 开启）\x1b[0m');
+    }
 
-    // 更新 CHANGELOG
-    insertChangelogEntry(mainWorkspacePath, newVersion, releaseNote);
-    console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
+    if (shouldUpdateChangelog) {
+      insertChangelogEntry(mainWorkspacePath, newVersion || 'unversioned', releaseNote, changelogFile);
+      releaseFiles.push(changelogFile);
+      console.log('\x1b[32m  CHANGELOG.md 已更新\x1b[0m');
+    } else {
+      console.log('\x1b[36m  跳过 CHANGELOG 更新（release.updateChangelog=false）\x1b[0m');
+    }
 
     // 更新 AGENT_STATE
     const commitHash = getLatestMainCommit(mainWorkspacePath);
     const agentStateUpdated = updateAgentState(mainWorkspacePath, pr.number, commitHash);
+    if (agentStateUpdated) releaseFiles.push('docs/AGENT_STATE.md');
 
-    // Step 16: commit + tag
-    commitReleaseAndTag(mainWorkspacePath, newVersion, releaseNote);
-    console.log(`\x1b[32m  Release commit + tag v${newVersion} 已创建\x1b[0m`);
+    // Step 16: commit + optional tag
+    if (releaseFiles.length > 0) {
+      commitReleaseAndTag(mainWorkspacePath, newVersion, releaseNote, releaseFiles, shouldCreateTag, tagPrefix);
+      console.log(
+        shouldCreateTag && newVersion
+          ? `\x1b[32m  Release commit + tag ${tagPrefix}${newVersion} 已创建\x1b[0m`
+          : '\x1b[32m  Merge state commit 已创建\x1b[0m'
+      );
+    } else {
+      console.log('\x1b[36m  无 release/state 文件需要提交\x1b[0m');
+    }
 
     // Step 17: push main + tag
-    const tagName = `v${newVersion}`;
+    const tagName = shouldCreateTag && newVersion ? `${tagPrefix}${newVersion}` : '';
     pushMainAndTag(mainWorkspacePath, tagName);
-    console.log('\x1b[32m  已推送 main + tag 到远端\x1b[0m');
+    console.log(tagName ? '\x1b[32m  已推送 main + tag 到远端\x1b[0m' : '\x1b[32m  已推送 main 到远端\x1b[0m');
 
     printSummary(
       pr,
@@ -1064,4 +1100,3 @@ module.exports = {
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
 };
-

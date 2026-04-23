@@ -331,7 +331,7 @@ function generateTraceabilityReport(storyResults, componentResults) {
   }
 
   report += `---\n\n`;
-  report += `> 本报告由 \`npm run arch:sync -- --report\` 自动生成\n`;
+  report += `> 本报告由 \`pnpm run arch:sync -- --report\` 自动生成\n`;
 
   return report;
 }

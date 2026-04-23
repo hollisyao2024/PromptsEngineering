@@ -105,7 +105,7 @@
 
 **生成命令**：
 ```bash
-npm run qa:coverage-report
+pnpm run qa:coverage-report
 ```
 
 ---
@@ -153,7 +153,7 @@ npm run qa:coverage-report
 
 **生成命令**：
 ```bash
-npm run qa:generate-test-report
+pnpm run qa:generate-test-report
 ```
 
 ---
@@ -197,7 +197,7 @@ npm run qa:generate-test-report
 
 **生成命令**：
 ```bash
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 
 ---
@@ -279,10 +279,7 @@ npm run qa:check-defect-blockers
 | VULN-003 | 代码漏洞 | SQL 注入风险（未使用参数化查询） | payment-system | - | 重构查询逻辑 | @dev-c |
 ```
 
-**生成命令**：
-```bash
-npm run security:scan
-```
+**生成命令**：安全扫描属于项目自有扩展，目标项目实现后再注册 `security:*` alias。
 
 ---
 
@@ -342,10 +339,7 @@ npm run security:scan
 - P1 缺陷影响用户体验，但不阻塞核心功能
 ```
 
-**生成命令**：
-```bash
-npm run qa:release-gate-report
-```
+**生成命令**：发布门禁报告属于项目自有扩展。模板默认使用已实现的 QA/NFR 检查组合判断发布风险。
 
 ---
 
@@ -360,11 +354,11 @@ npm run qa:release-gate-report
 ### 工作流示例：测试执行 → 发布决策
 
 1. **QA 专家**执行测试，更新各模块 QA 文档（`qa-modules/{domain}/QA.md`）
-2. **自动化脚本**每日聚合：`npm run qa:aggregate-reports`
+2. **自动化脚本**每日聚合：目标项目自有聚合命令
    - 生成 `coverage-summary.md`
    - 生成 `test-execution-summary.md`
    - 生成 `defect-summary.md`
-3. **发布前**：运行 `npm run qa:release-gate-report`
+3. **发布前**：运行项目自有发布门禁命令，或组合已实现 QA/NFR 检查
    - 生成 `release-gate-YYYYMMDD.md`
    - 检查 P0 缺陷、NFR 达标率、安全漏洞
 4. **QA 专家**基于 `release-gate-YYYYMMDD.md` 给出发布建议（Go/No-Go）
@@ -375,36 +369,24 @@ npm run qa:release-gate-report
 
 ### 1. 覆盖率报告生成
 ```bash
-npm run qa:coverage-report
+pnpm run qa:coverage-report
 ```
 **输出**：`coverage-summary.md`
 
 ### 2. 测试执行报告生成
 ```bash
-npm run qa:generate-test-report
+pnpm run qa:generate-test-report
 ```
 **输出**：`test-execution-summary.md`、`test-execution-YYYYMMDD.json`
 
 ### 3. 缺陷阻塞检查
 ```bash
-npm run qa:check-defect-blockers
+pnpm run qa:check-defect-blockers
 ```
 **输出**：`defect-summary.md`（高亮 P0/P1 缺陷）
 
-### 4. 发布门禁报告
-```bash
-npm run qa:release-gate-report
-```
-**输出**：`release-gate-YYYYMMDD.md`
-
-### 5. 报告聚合（每日自动）
-```bash
-npm run qa:aggregate-reports
-```
-**执行操作**：
-- 扫描所有模块 QA 文档
-- 生成/更新 `coverage-summary.md`、`test-execution-summary.md`、`defect-summary.md`
-- 更新 `coverage-history.json`、`defect-trends.json`
+### 4. 发布门禁报告与报告聚合
+发布门禁报告、每日聚合属于项目自有扩展。模板提供报告目录与格式约定，目标项目实现脚本后再注册对应 alias。
 
 ---
 

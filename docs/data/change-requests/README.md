@@ -139,17 +139,7 @@ graph LR
 
 ## 自动化建议（可选）
 
-### 脚本工具
-```bash
-# 创建新变更请求
-npm run cr:new -- --type="需求修改" --priority="High"
-
-# 检查待审批 CR
-npm run cr:pending
-
-# 生成变更影响报告
-npm run cr:impact -- --id=CR-20251105-001
-```
+CR 管理属于项目治理扩展。模板只提供目录和文档约定，不默认声明 `cr:*` aliases；目标项目实现对应脚本后，再在项目自己的 `package.json` 或 `agent.config.json` 中注册。
 
 ### GitHub/GitLab 集成
 - 使用 Issue 模板管理 CR

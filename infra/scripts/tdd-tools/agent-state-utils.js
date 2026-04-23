@@ -2,7 +2,8 @@
 /**
  * agent-state-utils.js
  * 共享工具：读写 docs/AGENT_STATE.md 的 IN_PROGRESS 区
- * 被 tdd-new-branch.js、tdd-push.js、generate-qa.js、qa-verify.js、qa-merge.js 引用
+ * 被 tdd-push.js、generate-qa.js、qa-verify.js、qa-merge.js 引用。
+ * 多任务运行态请使用容器层 ../tmp/worktree-sessions/，不要扩展本文件为并行调度源。
  */
 const fs = require('fs');
 

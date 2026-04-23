@@ -23,7 +23,7 @@ erDiagram
 - 实体变更是否同步更新 `/docs/data/dictionary.md`（字段/约束条目）？
 - 数据关系是否反映在 `/docs/ARCH.md` 的“数据视图”节？
 - 结构调整是否需要新增 ADR（如分区、脱敏、审计）？
-- 是否使用 `/arch data-view` 或 `npm run arch:sync -- --report` 重新生成追溯输出？
+- 是否使用 `/arch data-view` 或 `pnpm run arch:sync -- --report` 重新生成追溯输出？
 
 ## 版本记录
 - `v1` 初始版本

@@ -25,14 +25,14 @@
 
 **说明：**
 - `description` 仅允许小写字母/数字/下划线（例如 `add_user_roles`）。
-- `--dir` 可定制输出目录（默认 `packages/database/prisma/migrations`）。
+- `--dir` 指定输出目录；也可通过 `AGENT_MIGRATIONS_DIR` 或 `agent.config.json paths.migrationsDir` 配置，未配置时脚本会明确阻断，避免猜测项目目录。
 - `--dialect` 用于提示块中标注目标数据库，方便团队成员识别（默认 `generic`）。
 - 生成文件内包含 Expand → Migrate → Contract 模板、各方言示例与幂等性提示、回滚建议。
 
 **示例输出：**
 ```
 ✅ 迁移文件创建成功！
-📄 文件路径: packages/database/prisma/migrations/20251112094500_add_user_roles.sql
+📄 文件路径: <migrations-dir>/20251112094500_add_user_roles.sql
 🧩 方言标签: postgres
 ```
 
@@ -118,7 +118,7 @@ steps:
   - name: Run TDD Tick
     run: pnpm run tdd:tick
   - name: Create Deployment Migration
-    run: ./infra/scripts/tdd-tools/create-migration.sh add_new_feature --dir packages/database/prisma/migrations --dialect postgres
+    run: ./infra/scripts/tdd-tools/create-migration.sh add_new_feature --dir <migrations-dir> --dialect postgres
   - name: Publish Release
     run: pnpm run tdd:push bump "Release prep"
 ```

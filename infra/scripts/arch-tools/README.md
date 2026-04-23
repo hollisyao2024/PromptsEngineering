@@ -21,7 +21,7 @@ chmod +x infra/scripts/arch-tools/*.js
 ### 1. 架构完整性检查
 
 ```bash
-npm run arch:lint
+pnpm run arch:lint
 ```
 
 **检查项：**
@@ -45,7 +45,7 @@ npm run arch:lint
 ### 2. API 契约一致性检查
 
 ```bash
-npm run arch:check-api-contracts [--json]
+pnpm run arch:check-api-contracts [--json]
 ```
 
 **检查项：**
@@ -60,7 +60,7 @@ npm run arch:check-api-contracts [--json]
 ### 3. 组件循环依赖检测
 
 ```bash
-npm run arch:check-component-cycles [--json]
+pnpm run arch:check-component-cycles [--json]
 ```
 
 **检查项：**
@@ -75,7 +75,7 @@ npm run arch:check-component-cycles [--json]
 ### 4. PRD ↔ ARCH ID 双向追溯
 
 ```bash
-npm run arch:sync [--json] [--report]
+pnpm run arch:sync [--json] [--report]
 ```
 
 **检查项：**
@@ -104,7 +104,7 @@ npm run arch:sync [--json] [--report]
 在提交 ARCH 或 PRD 变更前先跑：
 
 ```bash
-npm run arch:lint && npm run arch:sync -- --report
+pnpm run arch:lint && pnpm run arch:sync -- --report
 ```
 
 ### CI/CD
@@ -120,13 +120,13 @@ jobs:
         uses: actions/setup-node@v3
         with: { node-version: '18' }
       - name: Run Architecture Lint
-        run: npm run arch:lint
+        run: pnpm run arch:lint
       - name: Check API Contracts
-        run: npm run arch:check-api-contracts
+        run: pnpm run arch:check-api-contracts
       - name: Detect Component Cycles
-        run: npm run arch:check-component-cycles
+        run: pnpm run arch:check-component-cycles
       - name: Sync PRD-ARCH IDs
-        run: npm run arch:sync -- --report
+        run: pnpm run arch:sync -- --report
 ```
 
 ---

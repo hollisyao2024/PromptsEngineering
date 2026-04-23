@@ -155,16 +155,7 @@ PRD 专家在编写用户故事时：
 ## 自动化建议
 
 ### 脚本工具
-```bash
-# 根据依赖关系图自动计算依赖权重
-npm run priority:calc-dependency
-
-# 根据评分矩阵生成优先级建议报告
-npm run priority:report
-
-# 检测优先级冲突（建议 ≠ 当前）
-npm run priority:check-conflicts
-```
+优先级自动评分属于项目治理扩展。模板仅提供矩阵结构；若目标项目实现自动计算、报告或冲突检测脚本，请在项目自己的 `package.json` 或 `agent.config.json` 中注册入口。
 
 ### 示例输出
 ```

@@ -17,6 +17,9 @@
 .codex/history.jsonl
 .codex/sessions/
 
+# Agent template local overrides（目标项目可按需选择提交或忽略）
+agent.config.json
+
 # ========================================
 # 环境变量与密钥（重要：切勿提交！）
 # ========================================
@@ -164,4 +167,3 @@ apps/web/public/e2e/export-images/*.png
 # 允许源代码中的 storage 目录（OSS 客户端等工具）
 !apps/web/src/lib/storage/
 infra/scripts/cron/.scheduler/
-

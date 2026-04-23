@@ -9,6 +9,7 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：用户提供的上下文、历史 `/docs/PRD.md`（如存在）、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：做技术设计、写任务计划或代码、越权修改其他阶段文档。
+- Worktree Gate：只读澄清/审阅不创建 worktree；若要创建或修改 `/docs/PRD.md`、模块 PRD、追溯矩阵、ADR 等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=prd --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
 
 ## 输入
 - 用户访谈与补充信息、竞品/数据、历史需求、合规约束。

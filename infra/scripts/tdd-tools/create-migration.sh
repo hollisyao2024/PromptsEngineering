@@ -3,32 +3,40 @@
 # ============================================================
 # 通用数据库迁移文件生成脚本
 # 用途: 创建符合命名规范、可适配多种数据库（PostgreSQL / MySQL / Oracle / SQLite 等）的迁移文件
-# 用法: ./infra/scripts/tdd-tools/create-migration.sh <description> [--dir 路径] [--dialect postgres|mysql|oracle|sqlite|generic]
-# 示例: ./infra/scripts/tdd-tools/create-migration.sh add_user_roles --dir packages/database/prisma/migrations --dialect postgres
+# 用法: ./infra/scripts/tdd-tools/create-migration.sh <description> --dir 路径 [--dialect postgres|mysql|oracle|sqlite|generic]
+# 也可通过 AGENT_MIGRATIONS_DIR 或 agent.config.json paths.migrationsDir 提供目录
 # ============================================================
 
 set -euo pipefail
 
-TARGET_DIR="packages/database/prisma/migrations"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+TARGET_DIR="${AGENT_MIGRATIONS_DIR:-}"
 DIALECT="generic"
 DESCRIPTION=""
 
 usage() {
   cat <<'EOF'
 用法:
-  ./infra/scripts/tdd-tools/create-migration.sh <description> [--dir 路径] [--dialect postgres|mysql|oracle|sqlite|generic]
+  ./infra/scripts/tdd-tools/create-migration.sh <description> --dir 路径 [--dialect postgres|mysql|oracle|sqlite|generic]
 
 参数:
   <description>           迁移描述（小写字母/数字/下划线）
-  --dir <路径>            输出目录（默认: packages/database/prisma/migrations）
+  --dir <路径>            输出目录；也可用 AGENT_MIGRATIONS_DIR 或 agent.config.json paths.migrationsDir
   --dialect <方言>        数据库方言标签，用于模板注释（默认: generic）
   -h, --help              展示帮助
 
 示例:
-  ./infra/scripts/tdd-tools/create-migration.sh add_user_roles
+  AGENT_MIGRATIONS_DIR=infra/migrations ./infra/scripts/tdd-tools/create-migration.sh add_user_roles
   ./infra/scripts/tdd-tools/create-migration.sh add_billing_tables --dir infra/migrations --dialect mysql
   ./infra/scripts/tdd-tools/create-migration.sh shard_user_data --dialect oracle
 EOF
+}
+
+read_config_migrations_dir() {
+  local config_file="$REPO_ROOT/agent.config.json"
+  [[ -f "$config_file" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -r '.paths.migrationsDir // empty' "$config_file"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -69,6 +77,20 @@ if [[ -z "$DESCRIPTION" ]]; then
   echo "❌ 缺少迁移描述"
   usage
   exit 1
+fi
+
+if [[ -z "$TARGET_DIR" ]]; then
+  TARGET_DIR="$(read_config_migrations_dir)"
+fi
+
+if [[ -z "$TARGET_DIR" ]]; then
+  echo "❌ 缺少迁移目录"
+  echo "请传入 --dir，或在 agent.config.json paths.migrationsDir / AGENT_MIGRATIONS_DIR 中配置"
+  exit 1
+fi
+
+if [[ "$TARGET_DIR" != /* ]]; then
+  TARGET_DIR="$REPO_ROOT/$TARGET_DIR"
 fi
 
 if ! [[ "$DESCRIPTION" =~ ^[a-z0-9_]+$ ]]; then

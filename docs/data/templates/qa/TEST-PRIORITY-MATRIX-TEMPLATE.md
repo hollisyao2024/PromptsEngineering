@@ -209,7 +209,7 @@ QA 专家在编写测试用例时：
 
 ```bash
 # 自动选择 TP0 且执行时间 ≤ 5 分钟的测试
-npm run test:smoke
+<project test smoke command>
 ```
 
 #### 策略 2: 每日回归测试（2 小时）
@@ -217,7 +217,7 @@ npm run test:smoke
 
 ```bash
 # 自动选择 TP0 和 TP1 的测试用例
-npm run test:daily
+<project test daily command>
 ```
 
 #### 策略 3: 发布前全量测试（1 天）
@@ -225,7 +225,7 @@ npm run test:daily
 
 ```bash
 # 执行所有测试用例
-npm run test:full
+<project test full command>
 ```
 
 ### 4. 关联到 QA 文档
@@ -312,7 +312,7 @@ npm run test:full
 **示例**：
 ```bash
 # 执行 US-PAY-002 相关的所有测试
-npm run test:hotfix -- --story=US-PAY-002
+<project test hotfix command> --story=US-PAY-002
 
 # 输出：
 # TC-PAY-005, TC-PAY-006, TC-PAY-007 (3 个测试用例)
@@ -332,10 +332,10 @@ npm run test:hotfix -- --story=US-PAY-002
 **示例**：
 ```bash
 # 仅执行 TP0 测试用例
-npm run test:priority -- --level=TP0
+<project test priority command> --level=TP0
 
 # 生成跳过报告
-npm run test:report-skipped
+<project test report-skipped command>
 ```
 
 ### 场景 3: 新模块首次发布（风险高）
@@ -350,7 +350,7 @@ npm run test:report-skipped
 **示例**：
 ```bash
 # 为新模块创建保守的优先级评分
-npm run qa:init-priority -- --module=new-module --conservative
+<project qa init-priority command> --module=new-module --conservative
 
 # 输出：
 # 所有测试用例优先级 +1（TP2 → TP1, TP1 → TP0）
@@ -369,7 +369,7 @@ npm run qa:init-priority -- --module=new-module --conservative
 **示例**：
 ```bash
 # 分析历史缺陷，推荐优先级调整
-npm run qa:analyze-defects -- --module=payment
+<project qa analyze-defects command> --module=payment
 
 # 输出：
 # ⚠️  US-PAY-002 历史缺陷率从 4 升级为 5
@@ -384,29 +384,29 @@ npm run qa:analyze-defects -- --module=payment
 
 ```bash
 # 1. 根据评分自动计算测试优先级
-npm run qa:calc-test-priority
+<project qa calc-test-priority command>
 
 # 2. 生成测试执行计划（按优先级排序）
-npm run qa:generate-test-plan
+<project qa generate-test-plan command>
 
 # 3. 检测优先级冲突（TP0 但执行时间过长）
-npm run qa:check-priority-conflicts
+<project qa check-priority-conflicts command>
 
 # 4. 基于资源限制生成最优测试集
-npm run qa:optimize-test-suite -- --time-limit=120
+<project qa optimize-test-suite command> --time-limit=120
 
 # 5. 分析历史缺陷率，推荐优先级调整
-npm run qa:analyze-defects
+<project qa analyze-defects command>
 
 # 6. 生成测试优先级报告（Markdown）
-npm run qa:report-priority
+<project qa report-priority command>
 ```
 
 ### 示例输出
 
 #### 1. 测试执行计划
 ```bash
-$ npm run qa:generate-test-plan
+$ <project qa generate-test-plan command>
 
 📋 测试执行计划（基于优先级排序）
 
@@ -431,7 +431,7 @@ TP2 - 每周回归测试（5 个测试用例，20 分钟）
 
 #### 2. 优先级冲突检测
 ```bash
-$ npm run qa:check-priority-conflicts
+$ <project qa check-priority-conflicts command>
 
 ⚠️  优先级冲突检测结果
 
@@ -448,7 +448,7 @@ TC-PAY-007: 支付降级测试
 
 #### 3. 资源受限下的最优测试集
 ```bash
-$ npm run qa:optimize-test-suite -- --time-limit=120
+$ <project qa optimize-test-suite command> --time-limit=120
 
 🎯 最优测试集（时间限制 120 分钟）
 
@@ -523,7 +523,7 @@ $ npm run qa:optimize-test-suite -- --time-limit=120
 - **每日回归（2 小时）**：执行前 20 个测试用例，覆盖率 100%
 - **发布前全量（1 天）**：执行所有测试用例，覆盖率 100% + 长尾场景
 
-建议：使用 `npm run qa:optimize-test-suite` 自动生成时间限制下的最优测试集。
+建议：目标项目可实现自有命令，自动生成时间限制下的最优测试集。
 
 ### Q5: 测试优先级矩阵需要多久更新一次？
 

@@ -4,17 +4,50 @@
 
 ## 仓库拓扑（Scalar 风格）
 本 monorepo 采用"外层容器 + 内层 repo worktree"结构，借鉴 Git 官方 Scalar enlistment 模型：
-- `repo/`：Git 主 worktree，存放所有源码、配置、文档（即本文件所在目录）。
-- `../worktrees/`：并行开发的 linked worktrees。`/tdd new-worktree` 自动创建到此；`/qa merge` 完成 PR 合入后自动清理对应 worktree。
+- `repo/`：Git 主 worktree，保持在 `main`，作为协调区、只读排查区、worktree 创建/恢复/清理入口。
+- `../worktrees/`：所有修改型任务的 linked worktrees。`/worktree new` / `node infra/scripts/worktree-tools/worktree-new.js` 自动创建到此；任务合并后自动清理对应 worktree。
 - `../cache/`：可重建缓存（turbo、playwright browsers 等按需外置；pnpm store 走用户级默认，已跨项目共享）。
 - `../artifacts/`：构建产物（`deploy-cache/`、`next-dev-deploy/`）。本机单槽位 dev 部署覆盖式共享。
 - `../tmp/`：临时/运行时/测试报告（`test-results/`、`playwright-report/`、`coverage/`、`pacts/`、`perf/`、`security/`、`scan-manifests/`、`scheduler/` 本地状态）。
 
+> `../tmp`、`../cache`、`../artifacts` 是相对主 `repo/` 的容器层 shorthand。进入 linked worktree 后，禁止手写 `../tmp` 这类路径；必须由脚本/`agent.config.json` 基于主 repo 解析容器层绝对路径。
+
 **核心原则**：
-1. 所有专家的读写操作默认以 `repo/`（= CWD）为根，无需感知容器层。
-2. 跨 worktree 可共享的产物（按内容哈希去重、或单槽位资源）外置到容器层；per-worktree 强耦合产物（`node_modules/`、`apps/web/.next/`）保留在 worktree 内。
-3. 需要外置时由脚本/配置直接写到 `../{类别}/...`；禁止在代码中硬编码容器绝对路径。
-4. 手动创建的 worktree 通过 `/tdd worktree remove` 清理；`/qa merge` 会自动清理当前流程的 worktree。
+1. 所有专家的**只读排查**可在 `repo/` 或当前 worktree 中执行；任何会修改 tracked 文件的任务必须先进入专属 worktree。
+2. 跨 worktree 可共享的产物（按内容哈希去重、或单槽位资源）外置到容器层；per-worktree 强耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。
+3. 需要外置时由脚本/配置按主 `repo/` 解析容器层路径；Node 脚本使用 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()`，禁止在 linked worktree 中手写 `../tmp`。
+4. 手动创建的 worktree 通过 `/worktree remove` 清理；`/qa merge` 或外部 agent 的收尾流程应在合并后清理当前任务 worktree。
+5. 模板文件应尽量整体复制到实际项目后即可工作；项目差异集中放在 `agent.config.json`、环境变量或 CLI 参数中，避免改动 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 等模板文件。
+
+## 可整体复制配置原则
+- **模板文件可升级**：`AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 不写具体业务项目逻辑，后续可以整体覆盖升级。
+- **项目差异配置化**：项目名、base branch、应用目录、测试命令、端口、部署开关、外部 agent 默认 executor 等放到 `agent.config.json`、环境变量或 CLI 参数。
+- **配置优先级**：CLI 参数 > 环境变量 > `agent.config.json` > `agent.config.example.json` > 内置默认值。
+- **默认可运行**：没有项目配置时使用内置默认值；目录不存在时跳过或给出明确提示，不直接失败。
+- **不覆盖项目 package.json**：模板根 `package.json` 不作为目标项目复制文件；可选 aliases 由 `agent.package.scripts.example.json` + `node infra/scripts/setup/merge-package-scripts.js --write` 只追加缺失 scripts，已有 scripts 永不覆盖。
+- **一键应用可重复**：模板复制/升级必须通过 `node infra/scripts/setup/update-template.js <target>` 执行。该入口内部读取 `agent.template.manifest.json`，先 dry-run、检查冲突，再写入和校验。`overwrite` 只用于模板协议文件；`init-if-missing` 不覆盖目标已有文件；`.gitignore` / `.envrc` / `package.json` 只能合并；`README.md`、`CHANGELOG.md`、真实项目文档与源码视为 project-owned；部署/cron 等项目耦合脚本不由模板提供，但 `/ship`、`/cd`、`/ci`、`/env`、`/restart` 命令保留并统一走 `devops-run.js`。
+- **变量剥离归位**：从模板脚本中剥离出的路径、命令、端口、部署、定时任务、版本发布策略，统一进入 `agent.config.json`、环境变量或 CLI 参数。不得把目标项目业务变量写回 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/`。
+
+## Worktree-First 并行工作协议
+- **只读不建 worktree**：阅读、搜索、诊断、复现但不改 tracked 文件时，不创建 branch/worktree。临时文件、缓存、报告写到容器层 `tmp/cache/artifacts`，路径必须通过脚本/配置按主 repo 解析。
+- **修改必进 worktree**：任何专家准备修改 tracked 文件前，必须通过 `/worktree new`、`node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js --mode=change` 创建/恢复 worktree。
+- **创建后必须进入目录**：worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令都必须以脚本输出的 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令切到该目录。
+- **new branch 工作流废弃**：用户不再直接使用 `/tdd new-branch` 开发；branch 仍由 worktree 底层自动创建。
+- **并行状态外置**：多任务运行态写入 `../tmp/worktree-sessions/`，并发锁写入 `../tmp/agent-locks/`；`docs/AGENT_STATE.md` 只记录阶段结果，不作为多任务调度源。
+- **完成后给清单**：修改型任务完成后必须输出 `MODIFIED_FILES` 与 `TEMPLATE_APPLY_CHECKLIST`，方便把模板同步到新项目。
+
+### 并行合并协议
+- 多个 worktree 可并行开发，但合并回 `main` 必须进入串行 merge queue；同一时间只允许一个任务执行 rebase/merge/push。
+- 合并前自动执行 `fetch`、`rebase`、门禁验证和文件集合复查；无冲突时自动继续，冲突已由 Git 明确标注时才中止并输出 `NEXT_MANUAL_ACTION`。
+- 文档状态文件、package scripts、配置文件等高冲突路径优先使用脚本化合并；业务代码冲突可尝试结构化自动解决，但语义冲突必须保留给人工确认。
+- 合并成功后删除远端分支、清理 worktree/session/lock；失败时保留 worktree 和 session，供后续 `/worktree resume` 恢复。
+
+## 外部 Agent 调用协议
+- OpenClaw、Hermes、Goose 等外部 agent 可以作为调度器或执行器，但不得自行定义本仓库的 worktree、merge、cleanup 策略。
+- 外部 agent 必须优先调用统一入口：`node infra/scripts/agent-runner/agent-run.js --phase=<prd|arch|task|tdd|qa|devops> --desc "<task>" --auto`，或调用 `node infra/scripts/worktree-tools/worktree-*.js` 公共命令；已安全合并 package aliases 的项目也可使用 `pnpm run agent:run` / `pnpm run worktree:*`。`agent-runner` 负责规范模式、创建/恢复 worktree、输出 `NEXT_CWD` 与结构化状态；具体专家工作仍由激活后的专家或外部执行器完成。
+- 外部 agent 读取结构化输出：`STATUS`、`WORKTREE_PATH`、`BRANCH_NAME`、`PR`、`MODIFIED_FILES`、`TESTS`、`SUMMARY`、`NEXT_MANUAL_ACTION`。
+- 若输出 `STATUS=BLOCKED`，外部 agent 必须停止自动推进，并把 `REASON` 与 `NEXT_MANUAL_ACTION` 返回给用户。
+- 若外部 agent 自带 worktree isolation，应禁用该层或配置为使用本仓库已创建的 `WORKTREE_PATH`，避免双重 worktree 状态。
 
 ## 目录与角色
 - 专家文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`、`/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`
@@ -69,7 +102,7 @@
 5. **QA 专家**：在 TDD 专家交付后，负责编写系统级测试（E2E/性能/安全）并执行全量验证，缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
 6. **DevOps 专家**：负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证，确保代码从构建到上线的全链路自动化。
 
-## TDD 开发全流程（分支 → 编码 → PR → QA → 部署）
+## TDD 开发全流程（worktree → 编码 → PR → QA → 部署）
 
 ### 计划批准后的执行衔接
 接受计划后开始执行时，**第一步必须**：
@@ -89,7 +122,7 @@
 
 #### Post-Push Gate 两层机制
 
-1. **脚本层**（`pnpm run tdd:review-gate`）：快速过滤零歧义 SKIP 场景（文档/测试/generated/rename/lockfile/注释等）；hotfix 分支直接输出 REQUIRED。输出三态：`skipped` / `required` / `pending-model-review`
+1. **脚本层**（`node infra/scripts/tdd-tools/tdd-review-gate.js`；已安全合并 alias 时可用 `pnpm run tdd:review-gate`）：快速过滤零歧义 SKIP 场景（文档/测试/generated/rename/lockfile/注释等）；hotfix 分支直接输出 REQUIRED。输出三态：`skipped` / `required` / `pending-model-review`
 2. **模型层**：Gate-Result=`pending-model-review` 时，TDD 专家读取 `git diff HEAD...{base}`，对照 10 类高风险域做语义判断，输出 `Review-Class: REQUIRED | OPTIONAL` + `Domain-Hit` + `Reason`
 
 **10 类高风险域（任一命中 → REVIEW_REQUIRED）**：认证/鉴权/权限、数据写入删除、事务一致性、缓存一致性、并发控制、外部 API 合约、数据库 schema、共享基础库、跨文件业务联动、hotfix 分支
@@ -130,6 +163,7 @@ Codex CLI 默认不执行自动 code review：
 
 ### 软触发与别名
 - **短命令**：`/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops`
+- **模板维护命令**：`/update template <target-path>` 必须首先执行 `node infra/scripts/setup/update-template.js <target-path>`；已安全合并 package aliases 时可用 `pnpm agent:update-template -- <target-path>`。目标路径支持相对当前 `repo/` 的相对路径；报告写入容器层 `../tmp/template-apply-reports/`。
 - **中文自然语言**：如"你是 PRD 专家"激活 PRD、"进入架构阶段"激活 ARCH、"进入部署阶段"或"配置 CI"激活 DevOps，依此类推。
 - **停用/切换**：完成某阶段后仅勾选对应状态；若要进入下一阶段，请显式发 `/arch`、`/task` 等或 `[[ACTIVATE: ...]]`。
 - **优先级**：同条消息内若同时包含 `[[ACTIVATE: ...]]` 与别名，以 `[[ACTIVATE: ...]]` 为准；如出现多个角色，以最后一个为准；无明确触发则保持当前阶段。
@@ -175,13 +209,14 @@ Codex CLI 默认不执行自动 code review：
 - **作用域规则**：`/tdd sync`、`/tdd push` 裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入 `project` 模式。
 - `/tdd diagnose`：诊断当前代码/测试问题
 - `/tdd fix`：修复已识别问题
-- `/tdd sync`：**首先执行** `pnpm run tdd:sync` **脚本**（同步 TASK/模块文档，自动勾选复选框、更新状态）。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
-- `/tdd push`：**首先执行** `pnpm run tdd:push` **脚本**。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
-- `/tdd new-branch`：**首先执行** `pnpm run tdd:new-branch` **脚本**，创建 feature/fix 分支（单分支模式，通常由分支门禁自动调用，也可手动执行）
-- `/tdd new-worktree`：**首先执行** `pnpm run tdd:new-worktree` **脚本**，在容器级 `../worktrees/` 下创建 Git Worktree 并行开发环境（Scalar 风格，与 `repo/` 同级；推荐用于多任务并行开发）
-- `/tdd worktree list`：**首先执行** `pnpm run tdd:worktree-list` **脚本**，列出当前所有活跃的 worktree
-- `/tdd worktree remove`：**首先执行** `pnpm run tdd:worktree-remove` **脚本**，清理指定 worktree（检查未提交变更后安全移除）
-- `/tdd resume [branch]`：**首先执行** `pnpm run tdd:resume` **脚本**，自动感知 worktree/stash 双模式恢复之前的开发环境；不带参数时列出所有可恢复目标
+- `/tdd sync`：**首先执行** `node infra/scripts/tdd-tools/tdd-sync.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:sync`），同步 TASK/模块文档，自动勾选复选框、更新状态。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
+- `/tdd push`：**首先执行** `node infra/scripts/tdd-tools/tdd-push.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:push`）。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
+- `/worktree new`：**首先执行** `node infra/scripts/worktree-tools/worktree-new.js` **脚本**，为任意修改型任务创建/恢复 Git Worktree；已安全合并 aliases 时可用 `pnpm run worktree:new`。
+- `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
+- `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
+- `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。
+- `/tdd new-branch`：已废弃且不再提供脚本入口；修改型任务必须使用 worktree，branch 仍由 worktree 底层自动创建。
+- `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容入口，内部调用 `worktree:*` 公共脚本。
 
 分支门禁与分支生成规则详见 Expert 文件 §输入→预检查 和 §命令说明。
 
@@ -196,9 +231,9 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 
 **快捷命令**：
 - **作用域规则**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
-- `/qa plan`：**首先执行** `pnpm run qa:generate` **脚本**（生成测试用例和策略）。支持 `--modules <list>`、`--dry-run`
-- `/qa verify`：**首先执行** `pnpm run qa:verify` **脚本**（验证文档完整性，输出 Go/Conditional/No-Go）
-- `/qa merge`：**首先执行** `pnpm run qa:merge` **脚本**（含 rebase/门禁/合并/版本递增等 17 步），合并当前分支 PR 到 main。支持 `--skip-checks`、`--dry-run`
+- `/qa plan`：**首先执行** `node infra/scripts/qa-tools/generate-qa.js` **脚本**（已安全合并 alias 时可用 `pnpm run qa:generate`），生成测试用例和策略。支持 `--modules <list>`、`--dry-run`
+- `/qa verify`：**首先执行** `node infra/scripts/qa-tools/qa-verify.js` **脚本**（已安全合并 alias 时可用 `pnpm run qa:verify`），验证文档完整性，输出 Go/Conditional/No-Go
+- `/qa merge`：**首先执行** `node infra/scripts/qa-tools/qa-merge.js` **脚本**（已安全合并 alias 时可用 `pnpm run qa:merge`），合并当前分支 PR 到 main；版本递增、CHANGELOG、tag 默认关闭，由 `agent.config.json release.*` 或 CLI 参数开启。支持 `--skip-checks`、`--dry-run`
 
 部署命令（`/ship`、`/cd`）已迁移至 DevOps 专家。
 
@@ -210,23 +245,19 @@ CI/CD 流水线配置与部署由 DevOps 专家负责。
 **完成状态**：部署成功并通过冒烟验证后，在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`。
 
 **快捷命令**：
-- CI 命令：`/ci run`、`/ci status`（自动激活 DevOps 专家）
+- CI 命令：`/ci run`、`/ci status`（自动激活 DevOps 专家，首先执行 `node infra/scripts/devops-tools/devops-run.js --action=ci-run|ci-status`）
 - 部署命令：
-  - `/ship dev`：**首先执行** `pnpm ship:dev` **脚本**（本地部署到开发环境，支持 `:quick` 快速模式）
-  - `/ship staging`：**首先执行** `pnpm ship:staging` **脚本**（本地部署到预发环境，支持 `:quick` 快速模式）
-  - `/ship prod`：**首先执行** `pnpm ship:prod` **脚本**（本地部署到生产环境，仅完整检查）
-  - `/cd staging`：**首先执行** `pnpm cd:staging` **脚本**，通过 CI/CD 远程部署到预发环境
-  - `/cd prod`：**首先执行** `pnpm cd:prod` **脚本**，通过 CI/CD 远程部署到生产环境
-- 环境命令：`/env check <env>`、`/env status`（自动激活 DevOps 专家）
-- 本地服务命令：`/restart`（自动激活 DevOps 专家，**首先执行** `pnpm dev:restart` **脚本**，重启本地开发服务）
+  - `/ship dev`：首先执行 `node infra/scripts/devops-tools/devops-run.js --action=ship --env=dev`；脚本确认 `devops.deployEnabled=true` 且部署命令已配置后再执行
+  - `/ship staging`：同上，目标环境为 staging
+  - `/ship prod`：同上，目标环境为 production
+  - `/cd staging`：首先执行 `node infra/scripts/devops-tools/devops-run.js --action=cd --env=staging`，具体 workflow/命令由目标项目配置
+  - `/cd prod`：首先执行 `node infra/scripts/devops-tools/devops-run.js --action=cd --env=production`，具体 workflow/命令由目标项目配置
+- 环境命令：`/env check <env>`、`/env status`（自动激活 DevOps 专家，首先执行 `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` 或 `--action=env-status`）
+- 本地服务命令：`/restart`（自动激活 DevOps 专家，首先执行 `node infra/scripts/devops-tools/devops-run.js --action=dev-restart`；没有配置时输出明确提示，不猜测应用目录）
 
 ## 包管理器
-本项目使用 pnpm，禁止使用 npm 或 yarn。
-- 安装依赖：`pnpm install`
-- 添加依赖：`pnpm add <package>`
-- 运行脚本：`pnpm run <script>` 或 `pnpm <script>`
+模板示例默认使用 pnpm；目标项目如使用 npm、yarn、bun 等，必须在 `agent.config.json` 的 `packageManager` 与 `commands.*` 中声明。模板核心入口优先使用 `node infra/scripts/...`，不依赖目标项目必须存在 package aliases。
 
 ---
 
 > 本文件仅描述激活及路由规范，具体职责、产出内容与工具详见各自 `AgentRoles/*.md` 和 Handbook。
-

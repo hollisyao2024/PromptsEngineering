@@ -329,7 +329,7 @@ module.exports = { generateUsers };
 
 ## 清理脚本
 \`\`\`bash
-pnpm run qa:cleanup-test-data -- --module={domain}
+<project qa cleanup-test-data command> --module={domain}
 \`\`\`
 ```
 
@@ -558,7 +558,7 @@ pnpm run qa:check-defect-blockers
 
 ### 5. 测试数据清理
 ```bash
-pnpm run qa:cleanup-test-data -- --module={domain}
+<project qa cleanup-test-data command> --module={domain}
 ```
 **执行操作**：
 - 根据 `test-data/cleanup.md` 策略清理测试数据
@@ -579,13 +579,13 @@ pnpm run qa:cleanup-test-data -- --module={domain}
 **A**:
 1. 模块报告（`{domain}/reports/`）：实时生成，便于模块团队查看
 2. 全局报告（`/docs/data/qa-reports/`）：定期汇总（如每日 CI 聚合），用于发布决策
-3. **工具支持**：`pnpm run qa:aggregate-reports` 自动汇总所有模块报告到全局目录
+3. **工具支持**：目标项目可实现自有聚合命令，自动汇总所有模块报告到全局目录
 
 ### Q3: 测试数据如何管理避免数据污染？
 **A**:
 1. 使用统一前缀（`test-*`、`perf-*`）标识测试数据
 2. 在 `test-data/cleanup.md` 定义清理策略
-3. 测试结束后运行 `pnpm run qa:cleanup-test-data`
+3. 测试结束后运行目标项目自有测试数据清理命令
 4. 生产环境禁止使用测试数据（通过环境变量隔离）
 
 ### Q4: 模块 QA 与主 QA 的职责边界？
@@ -1269,9 +1269,9 @@ Error: [错误信息]
 
 ### 9.3 CI/CD 集成
 - **CI 配置**: `.github/workflows/qa-{module}.yml`
-- **测试命令**: `pnpm run test:{module}`
-- **覆盖率命令**: `pnpm run coverage:{module}`
-- **发布 Gate**: `pnpm run qa:release-gate`
+- **测试命令**: `<project module test command>`
+- **覆盖率命令**: `<project module coverage command>`
+- **发布 Gate**: `<project release gate command>`
 
 ---
 

@@ -24,7 +24,7 @@ chmod +x infra/scripts/prd-tools/*.js
 检查 PRD 文档的章节完整性、Story ID 格式、验收标准规范。
 
 ```bash
-npm run prd:lint
+pnpm run prd:lint
 ```
 
 **检查项**：
@@ -70,7 +70,7 @@ PRD 完整性检查工具 v1.0
 检测 Story 之间的循环依赖和无效依赖。
 
 ```bash
-npm run prd:check-dependency-cycles
+pnpm run prd:check-dependency-cycles
 ```
 
 **检查项**：
@@ -113,7 +113,7 @@ npm run prd:check-dependency-cycles
 检查非功能需求的达标情况，生成发布 Gate 报告。
 
 ```bash
-npm run nfr:check-compliance
+pnpm run nfr:check-compliance
 ```
 
 **检查项**：
@@ -168,55 +168,21 @@ NFR 达标检查工具 v1.0
 
 ---
 
-## 📋 所有可用命令
+## 📋 默认可用命令
 
 ### PRD 质量检查
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run prd:lint` | PRD 完整性检查 | ⭐⭐⭐ |
-| `npm run prd:check-dependency-cycles` | 依赖循环检查 | ⭐⭐⭐ |
-| `npm run prd:check-dependencies` | 第三方依赖可用性检查 | ⭐⭐ |
-| `npm run prd:check-compliance` | 数据合规性检查 | ⭐⭐ |
-| `npm run prd:preflight-report` | 生成前置验证报告 | ⭐⭐ |
+| `pnpm run prd:lint` | PRD 完整性检查 | 高 |
+| `pnpm run prd:check-dependency-cycles` | 依赖循环检查 | 高 |
 
 ### NFR 管理
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `npm run nfr:check-compliance` | NFR 达标检查 | ⭐⭐⭐ |
+| `pnpm run nfr:check-compliance` | NFR 达标检查 | 高 |
 
-### 优先级管理
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `npm run priority:check-conflicts` | 优先级冲突检测 | ⭐⭐ |
-| `npm run priority:calc-dependency` | 计算依赖权重 | ⭐⭐ |
-| `npm run priority:report` | 生成优先级报告 | ⭐⭐ |
-
-### 角色覆盖分析
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `npm run persona:coverage-report` | 角色覆盖率报告 | ⭐⭐ |
-| `npm run persona:check-orphans` | 孤儿角色检测 | ⭐⭐ |
-| `npm run persona:check-conflicts` | 权限冲突检测 | ⭐ |
-
-### 业务目标追溯
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `npm run goal:coverage-report` | 目标覆盖率报告 | ⭐⭐ |
-| `npm run goal:check-orphans` | 孤儿 Story 检测 | ⭐⭐ |
-| `npm run goal:roi-analysis` | ROI 分析报告 | ⭐ |
-
-### 变更请求管理
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `npm run cr:new` | 创建新变更请求 | ⭐⭐ |
-| `npm run cr:pending` | 列出待审批 CR | ⭐⭐ |
-| `npm run cr:impact` | 分析 CR 影响范围 | ⭐⭐ |
-
-### 自动化工具
-| 命令 | 说明 | 优先级 |
-|------|------|--------|
-| `npm run prd:sync-matrix` | 同步追溯矩阵 | ⭐ |
-| `npm run prd:generate-dependency-graph` | 自动生成依赖关系图 | ⭐ |
+### 可选扩展
+优先级管理、角色覆盖、业务目标追溯、变更请求、前置验证报告属于可选治理能力。模板保留文档模板，不默认声明对应 aliases；目标项目实现脚本后，再在项目自己的 `package.json` 或 `agent.config.json` 中注册。
 
 ---
 
@@ -226,7 +192,7 @@ NFR 达标检查工具 v1.0
 在提交 PRD 变更前运行：
 
 ```bash
-npm run prd:lint && npm run prd:check-dependency-cycles
+pnpm run prd:lint && pnpm run prd:check-dependency-cycles
 ```
 
 ### CI/CD 集成
@@ -253,13 +219,13 @@ jobs:
           node-version: '18'
 
       - name: Run PRD Lint
-        run: npm run prd:lint
+        run: pnpm run prd:lint
 
       - name: Check Dependency Cycles
-        run: npm run prd:check-dependency-cycles
+        run: pnpm run prd:check-dependency-cycles
 
       - name: Check NFR Compliance
-        run: npm run nfr:check-compliance
+        run: pnpm run nfr:check-compliance
 ```
 
 ---

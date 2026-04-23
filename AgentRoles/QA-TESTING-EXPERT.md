@@ -9,6 +9,7 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接修改**业务代码实现**（如需修复，退回 TDD 阶段）。**允许**编写测试脚本（Playwright E2E、k6 性能脚本、ZAP 安全配置），测试脚本不属于"业务代码实现"。
+- Worktree Gate：只读验证、查看报告、执行不改 tracked 文件的测试不创建 worktree；若要创建或修改 `/docs/QA.md`、模块 QA、E2E/性能/安全测试脚本等 tracked 文件，必须先进入当前任务 worktree，或执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=qa --desc "<主题>"` 创建 QA 专属 worktree。
 
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
@@ -23,13 +24,13 @@
 
 ## 命令-脚本映射表（强制规范）
 
-执行快捷命令时，**必须首先调用对应 npm 脚本**，禁止跳过脚本直接执行 git/shell 命令。脚本不可用或失败时**必须向用户报告**，禁止自行手动操作。
+执行快捷命令时，**必须首先调用对应模板脚本入口**；已安全合并 package aliases 时可用 `pnpm run <script>`。脚本不可用或失败时**必须向用户报告**，禁止自行绕过流程。
 
-| 快捷命令 | npm 脚本 | 脚本路径 |
+| 快捷命令 | 模板脚本入口 | 可选 package alias |
 |---------|---------|---------|
-| `/qa plan` | `pnpm run qa:generate` | `infra/scripts/qa-tools/generate-qa.js` |
-| `/qa verify` | `pnpm run qa:verify` | `infra/scripts/qa-tools/qa-verify.js` |
-| `/qa merge` | `pnpm run qa:merge` | `infra/scripts/qa-tools/qa-merge.js` |
+| `/qa plan` | `node infra/scripts/qa-tools/generate-qa.js` | `pnpm run qa:generate` |
+| `/qa verify` | `node infra/scripts/qa-tools/qa-verify.js` | `pnpm run qa:verify` |
+| `/qa merge` | `node infra/scripts/qa-tools/qa-merge.js` | `pnpm run qa:merge` |
 
 **作用域**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
 
@@ -111,9 +112,9 @@
 **判断依据**：模型读取 `git diff origin/main` 的路径与内容，按上表做语义判断，记录命中的域与理由。用户可在提示中显式指定测试范围以覆盖自动判断。
 
 ### 测试产物管理
-- **测试结果路径**：Playwright 与 Jest 产物统一输出到容器级 `../tmp/`（Scalar 风格；具体为 `../tmp/test-results/`、`../tmp/playwright-report/`、`../tmp/coverage/`）；各自分别有 `.gitignore` 安全网兜底。
+- **测试结果路径**：Playwright 与 Jest 产物统一输出到脚本按主 repo 解析出的容器层 `tmp`（具体为 `test-results/`、`playwright-report/`、`coverage/`）；各自分别有 `.gitignore` 安全网兜底。
 - **CI/CD**：使用 GitHub Actions Artifacts 存储测试结果（默认保留 30 天）。
-- **清理策略**：执行 `pnpm run test:clean` 清理本地产物；截图/视频/trace 仅在失败时保留。
+- **清理策略**：执行目标项目自有测试清理命令；截图/视频/trace 仅在失败时保留。
 
 ## 测试完备性检查清单（每 Story 强制）
 
@@ -146,7 +147,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 ## 测试执行验证门禁（/qa verify 前置，强制）
 
 执行 `/qa verify` **之前**，必须确认以下条件全部满足：
-1. **E2E 测试已实际运行**：容器级 `../tmp/test-results/` 或 `../tmp/playwright-report/` 目录存在且包含本次运行结果
+1. **E2E 测试已实际运行**：容器层 `tmp/test-results/` 或 `tmp/playwright-report/` 目录存在且包含本次运行结果
 2. **TDD 测试已运行**：单元/集成测试全绿（`pnpm test` 退出码 0）
 3. **测试覆盖摘要已输出**：§测试完备性检查清单 的摘要表已生成并经用户可见
 4. **性能/安全测试**（命中 §智能测试编写规则 的「延迟敏感路径」或「认证/鉴权」域时）：k6 smoke 已运行 + SAST 已扫描

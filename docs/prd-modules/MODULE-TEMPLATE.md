@@ -80,7 +80,6 @@
 |------|------|
 | `pnpm run prd:lint` | 校验模块 PRD 结构、Story/AC（GWT）与 NFR/依赖/风险字段 |
 | `pnpm run prd:check-dependency-cycles` | 检查循环依赖或缺失引用 |
-| `pnpm run prd:sync-matrix` | 同步 Story→AC 映射到追溯矩阵 |
 
 ## 7. 相关资源
 
@@ -154,7 +153,7 @@
 - 版本、日期、描述、责任人
 
 ## 11. 自检清单
-- [ ] 是否运行 `pnpm run prd:lint`、`prd:check-dependency-cycles`、`prd:sync-matrix`？
+- [ ] 是否运行 `pnpm run prd:lint`、`prd:check-dependency-cycles`？
 - [ ] 是否同步 traceability matrix 与 QA 状态？
 - [ ] 是否通知 ARCH/TASK/TDD/QA？
 - [ ] 是否在 `/docs/AGENT_STATE.md` 标注阶段状态？

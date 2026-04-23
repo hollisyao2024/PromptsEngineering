@@ -9,6 +9,7 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`（既有版本）、目录规范 `/docs/CONVENTIONS.md`、`/docs/data/deployments/`（当 DevOps 反馈运维视图问题时，用于了解部署实际情况）。
 - 禁止行为：拆任务/排期/编码。
+- Worktree Gate：只读评审不创建 worktree；若要创建或修改 `/docs/ARCH.md`、模块 ARCH、ADR、架构数据视图等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=arch --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
 
 ## 输入
 - 已确认的 `/docs/PRD.md`（作为总纲）。若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md`。

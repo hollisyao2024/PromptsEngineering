@@ -181,22 +181,22 @@
 
 ```bash
 # 1. 风险评分自动计算（基于实时数据）
-npm run qa:calc-risk-score
+<project qa calc-risk-score command>
 
 # 2. 风险趋势分析（对比上周）
-npm run qa:risk-trend
+<project qa risk-trend command>
 
 # 3. 风险触发器检查（是否需要升级）
-npm run qa:check-risk-triggers
+<project qa check-risk-triggers command>
 
 # 4. 生成风险报告（Markdown + 热力图）
-npm run qa:generate-risk-report
+<project qa generate-risk-report command>
 ```
 
 ### 示例输出
 
 ```bash
-$ npm run qa:check-risk-triggers
+$ <project qa check-risk-triggers command>
 
 🔍 风险触发器检查结果
 

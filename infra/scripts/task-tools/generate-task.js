@@ -10,7 +10,7 @@
  * - 大型项目自动拆分为模块化任务文档
  *
  * 用法：
- *   npm run task:generate -- [--init] [--update-only] [--preserve-manual-annotations]
+ *   pnpm run task:generate -- [--init] [--update-only] [--preserve-manual-annotations]
  */
 
 const fs = require('fs');
@@ -785,9 +785,9 @@ function main() {
   if (needsSplit) {
     log(`   检查模块文档：ls docs/task-modules/`, 'yellow');
   }
-  log(`2. 运行质量检查：npm run task:lint`, 'yellow');
-  log(`3. 验证关键路径：npm run task:check-critical-path`, 'yellow');
-  log(`4. 同步 PRD ↔ TASK ID：npm run task:sync`, 'yellow');
+  log(`2. 运行质量检查：pnpm run task:lint`, 'yellow');
+  log(`3. 验证关键路径：pnpm run task:check-critical-path`, 'yellow');
+  log(`4. 同步 PRD ↔ TASK ID：pnpm run task:sync`, 'yellow');
   log(`5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED`, 'yellow');
   log(`\n`, 'reset');
 }

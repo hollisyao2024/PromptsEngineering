@@ -9,6 +9,7 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：编写功能代码。
+- Worktree Gate：只读任务评审不创建 worktree；若要创建或修改 `/docs/TASK.md`、模块 TASK、任务依赖矩阵等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=task --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
 
 ## 输入
 - 已确认的`/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）。
