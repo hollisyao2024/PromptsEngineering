@@ -191,6 +191,7 @@ function main() {
       AGENT_DEVOPS_ACTION: action,
       AGENT_ENV: env,
       AGENT_QUICK: quick ? '1' : '0',
+      SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
       AGENT_RUN_DIR: runDir,
       AGENT_ARTIFACTS_DIR: resolveContainerPath(config, mainRoot, 'artifacts'),
       AGENT_TMP_DIR: resolveContainerPath(config, mainRoot, 'tmp'),
