@@ -61,7 +61,7 @@ function templateCommand(command, vars) {
 
 function ensureRunDir(config, mainRoot) {
   const tmpDir = resolveContainerPath(config, mainRoot, 'tmp');
-  const runId = new Date().toISOString().replace(/[:.]/g, '-');
+  const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`;
   const runDir = path.join(tmpDir, 'devops-runs', runId);
   fs.mkdirSync(runDir, { recursive: true });
   return runDir;
@@ -115,6 +115,7 @@ function main() {
   const cli = parseCliArgs(process.argv.slice(2));
   const action = String(cli.action || '').toLowerCase();
   const env = normalizeEnv(cli.env || cli.environment || cli.target);
+  const quick = Boolean(cli.quick || cli['quick']);
   const mainRoot = getMainRepoRoot(process.cwd());
   const repoRoot = getWorktreeRoot(process.cwd());
   const config = loadConfig({ repoRoot, cli });
@@ -169,6 +170,7 @@ function main() {
     cwd: repoRoot,
     run_dir: runDir,
     dry_run: Boolean(cli.dryRun || cli['dry-run']),
+    quick,
   };
   fs.writeFileSync(path.join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`);
 
@@ -178,6 +180,7 @@ function main() {
   console.log(`RUN_DIR=${runDir}`);
   console.log(`CWD=${repoRoot}`);
   console.log(`COMMAND=${command}`);
+  if (quick) console.log('QUICK=1');
 
   if (result.dry_run) return;
 
@@ -187,6 +190,7 @@ function main() {
       ...process.env,
       AGENT_DEVOPS_ACTION: action,
       AGENT_ENV: env,
+      AGENT_QUICK: quick ? '1' : '0',
       AGENT_RUN_DIR: runDir,
       AGENT_ARTIFACTS_DIR: resolveContainerPath(config, mainRoot, 'artifacts'),
       AGENT_TMP_DIR: resolveContainerPath(config, mainRoot, 'tmp'),

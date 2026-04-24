@@ -1,5 +1,5 @@
 # Agent template local overrides
-agent.config.json
+# Keep root agent.config.json tracked; project command wiring belongs there.
 
 # Agent runtimes and local auth/session files
 .codex/config.toml
