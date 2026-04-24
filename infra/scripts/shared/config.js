@@ -169,10 +169,6 @@ function readJsonIfExists(filePath) {
   }
 }
 
-function firstExistingPath(paths) {
-  return paths.find((filePath) => fs.existsSync(filePath)) || paths[0];
-}
-
 function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -281,10 +277,7 @@ function cliOverrides(cli = {}) {
 function loadConfig(options = {}) {
   const repoRoot = options.repoRoot || options.configRoot || getWorktreeRoot(process.cwd());
   const cli = options.cli || parseCliArgs(options.argv);
-  const examplePath = firstExistingPath([
-    path.join(repoRoot, 'infra/templates/agent/config.example.json'),
-    path.join(repoRoot, 'agent.config.example.json'),
-  ]);
+  const examplePath = path.join(repoRoot, 'infra/templates/agent/config.example.json');
   const localPath = path.join(repoRoot, 'agent.config.json');
 
   return deepMerge(

@@ -73,7 +73,6 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 
 template-owned 文件说明：
 - `infra/templates/agent/config.example.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json` 会复制到目标项目，但属于模板协议文件，后续升级可能覆盖。
-- 旧版本模板曾在根目录生成 `agent.config.example.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json`；新版本升级时会在确认它们是 template-owned 后自动移除。
 - 实际项目需要改配置时，只改 `agent.config.json`、环境变量、CLI 参数、目标项目 `package.json` 或 `scripts/ops/` 等 project-owned 文件。
 - 如果确实需要扩展模板应用策略，优先回到模板仓库修改并升级模板，不在单个实际项目里手改 `infra/templates/agent/template.manifest.json`。
 

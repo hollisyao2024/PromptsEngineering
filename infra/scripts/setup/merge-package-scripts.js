@@ -10,7 +10,6 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_SCRIPT_MANIFEST = 'infra/templates/agent/package-scripts.example.json';
-const LEGACY_SCRIPT_MANIFEST = 'agent.package.scripts.example.json';
 
 function parseArgs(argv) {
   const args = {};
@@ -38,20 +37,13 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function firstExistingPath(paths) {
-  return paths.find((filePath) => fs.existsSync(filePath)) || paths[0];
-}
-
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const packagePath = path.resolve(process.cwd(), args.package || 'package.json');
   const manifestPath = args.manifest
     ? path.resolve(repoRoot, args.manifest)
-    : firstExistingPath([
-      path.join(repoRoot, DEFAULT_SCRIPT_MANIFEST),
-      path.join(repoRoot, LEGACY_SCRIPT_MANIFEST),
-    ]);
+    : path.join(repoRoot, DEFAULT_SCRIPT_MANIFEST);
   const write = Boolean(args.write);
 
   if (!fs.existsSync(packagePath)) {

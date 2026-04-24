@@ -93,10 +93,6 @@
     { "path": ".gitignore", "source": "infra/templates/merge/gitignore.agent.append", "strategy": "append-block", "marker": "agent-template:gitignore" },
     { "path": ".envrc", "source": "infra/templates/merge/envrc.agent.append", "strategy": "append-block", "marker": "agent-template:envrc" },
 
-    { "path": "agent.config.example.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/config.example.json" },
-    { "path": "agent.package.scripts.example.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/package-scripts.example.json" },
-    { "path": "agent.template.manifest.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/template.manifest.json" },
-
     { "path": "README.md", "strategy": "project-owned" },
     { "path": "CHANGELOG.md", "strategy": "project-owned" },
     { "path": ".env.example", "strategy": "project-owned" },

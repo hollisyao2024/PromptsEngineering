@@ -11,7 +11,6 @@ const path = require('path');
 
 const SKIP_NAMES = new Set(['.git', 'node_modules', '.DS_Store']);
 const DEFAULT_MANIFEST = 'infra/templates/agent/template.manifest.json';
-const LEGACY_MANIFEST = 'agent.template.manifest.json';
 
 function parseArgs(argv) {
   const args = { include: [] };
@@ -41,10 +40,6 @@ function parseArgs(argv) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function firstExistingPath(paths) {
-  return paths.find((filePath) => fs.existsSync(filePath)) || paths[0];
 }
 
 function ensureDir(dirPath, write) {
@@ -193,32 +188,6 @@ function mergePackageScripts(sourceRoot, targetRoot, rule, write) {
   }];
 }
 
-function isTemplateOwnedJson(filePath) {
-  if (!pathExists(filePath)) return false;
-  try {
-    const content = readJson(filePath);
-    if (content._templateNotice || content._configNotice) return true;
-    if (content.schemaVersion && Array.isArray(content.rules)) return true;
-    if (content.scripts && content.scripts['agent:update-template']) return true;
-    if (content.projectName === 'portable-agent-template' && content.containerDirs) return true;
-  } catch (_error) {
-    return false;
-  }
-  return false;
-}
-
-function removeIfTemplateOwned(_sourceRoot, targetRoot, rule, write) {
-  const targetPath = path.join(targetRoot, rule.path);
-  if (!pathExists(targetPath)) {
-    return [{ status: 'skipped', path: rule.path, strategy: rule.strategy, reason: 'target missing' }];
-  }
-  if (!isTemplateOwnedJson(targetPath)) {
-    return [{ status: 'skipped', path: rule.path, strategy: rule.strategy, reason: 'not template-owned' }];
-  }
-  if (write) fs.unlinkSync(targetPath);
-  return [{ status: write ? 'removed' : 'would-remove', path: rule.path, strategy: rule.strategy, reason: rule.reason || 'template-owned legacy path' }];
-}
-
 function shouldApplyRule(rule, includeGroups) {
   if (rule.strategy !== 'opt-in') return true;
   return includeGroups.has(rule.group) || includeGroups.has('examples') || includeGroups.has('all');
@@ -233,7 +202,6 @@ function applyRule(sourceRoot, targetRoot, rule, write, includeGroups) {
   if (rule.strategy === 'init-if-missing') return initIfMissing(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'append-block') return appendBlock(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'merge-package-scripts') return mergePackageScripts(sourceRoot, targetRoot, rule, write);
-  if (rule.strategy === 'remove-if-template-owned') return removeIfTemplateOwned(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'project-owned') {
     return [{ status: 'skipped', path: rule.path, strategy: rule.strategy, reason: 'target-owned' }];
   }
@@ -258,10 +226,7 @@ function main() {
   const targetRoot = path.resolve(args.target || process.cwd());
   const manifestPath = args.manifest
     ? path.resolve(sourceRoot, args.manifest)
-    : firstExistingPath([
-      path.join(sourceRoot, DEFAULT_MANIFEST),
-      path.join(sourceRoot, LEGACY_MANIFEST),
-    ]);
+    : path.join(sourceRoot, DEFAULT_MANIFEST);
   const write = Boolean(args.write);
   const includeGroups = new Set(args.include || []);
 
