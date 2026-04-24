@@ -152,12 +152,21 @@ function getWorktreeRoot(cwd = process.cwd()) {
   return gitValue(cwd, ['rev-parse', '--show-toplevel']) || getRepoRoot();
 }
 
+function mainRootFromCommonDir(commonDir) {
+  if (!commonDir) return '';
+  const normalized = path.resolve(commonDir);
+  if (path.basename(normalized) === '.git') return path.dirname(normalized);
+
+  const marker = `${path.sep}.git${path.sep}worktrees${path.sep}`;
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex !== -1) return normalized.slice(0, markerIndex);
+
+  return '';
+}
+
 function getMainRepoRoot(cwd = process.cwd()) {
   const commonDir = gitValue(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-  if (commonDir && path.basename(commonDir) === '.git') {
-    return path.dirname(commonDir);
-  }
-  return getWorktreeRoot(cwd);
+  return mainRootFromCommonDir(commonDir) || getWorktreeRoot(cwd);
 }
 
 function readJsonIfExists(filePath) {

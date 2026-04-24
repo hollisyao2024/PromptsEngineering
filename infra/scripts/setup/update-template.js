@@ -150,10 +150,12 @@ function main() {
     block('template apply engine not found', { source: sourceRoot });
   }
 
-  const config = loadConfig({ repoRoot: sourceRoot, cli: args });
-  const mainRoot = getMainRepoRoot(sourceRoot);
+  const targetIsGitWorktree = isGitWorktree(targetRoot);
+  const reportRoot = targetIsGitWorktree ? getMainRepoRoot(targetRoot) : getMainRepoRoot(sourceRoot);
+  const configRoot = targetIsGitWorktree ? targetRoot : sourceRoot;
+  const config = loadConfig({ repoRoot: configRoot, cli: args });
   const reportDir = resolveFromRepo(
-    mainRoot,
+    reportRoot,
     (config.template && config.template.applyReportDir) || '../tmp/template-apply-reports'
   );
   ensureDir(reportDir);
@@ -186,6 +188,7 @@ function main() {
   }
   if (dryRunOnly) {
     console.log('STATUS=DRY_RUN_ONLY');
+    console.log(`REPORT_DIR=${reportDir}`);
     console.log(`DRY_RUN_LOG=${dryRunLog}`);
     return;
   }
@@ -225,6 +228,7 @@ function main() {
   console.log('STATUS=UPDATED');
   console.log(`SOURCE=${sourceRoot}`);
   console.log(`TARGET=${targetRoot}`);
+  console.log(`REPORT_DIR=${reportDir}`);
   console.log(`DRY_RUN_LOG=${dryRunLog}`);
   console.log(`WRITE_LOG=${writeLogPath}`);
 }

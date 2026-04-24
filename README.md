@@ -51,7 +51,7 @@
 7. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
 
 ## 一键应用与重复升级
-`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。dry-run/write 日志写入容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中。
+`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
 
 ```bash
 # 首次应用或重复升级，目标路径支持相对路径

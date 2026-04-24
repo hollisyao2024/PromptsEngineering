@@ -122,7 +122,7 @@
 - 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `infra/templates/agent/config.example.json` > 内置默认值。
 - 容器层路径必须通过 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()` 解析。linked worktree 中的字面量 `../tmp` 会落到 `../worktrees/tmp`，禁止在脚本中这样拼路径。
 - 模板不得要求复制根 `package.json` 到目标项目；需要快捷命令时使用 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 scripts，冲突项保留项目原值。
-- 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`。
+- 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`；报告目录按目标项目主 `repo/` 解析到容器层，禁止落到 `worktrees/tmp`。
 - 项目耦合脚本（部署、数据库同步、cron registry 等）不由模板提供。实际项目可放在自己的 `scripts/ops/` 或项目约定目录，并把应用目录、数据库目录、部署路径、cron registry 等写入 `agent.config.json` 或环境变量。
 
 ## 变量配置约定
