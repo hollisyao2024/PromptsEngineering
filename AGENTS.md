@@ -24,6 +24,7 @@
 - **项目差异配置化**：项目名、base branch、应用目录、测试命令、端口、部署开关、外部 agent 默认 executor 等放到 `agent.config.json`、环境变量或 CLI 参数。
 - **配置优先级**：CLI 参数 > 环境变量 > `agent.config.json` > `agent.config.example.json` > 内置默认值。
 - **默认可运行**：没有项目配置时使用内置默认值；目录不存在时跳过或给出明确提示，不直接失败。
+- **template-owned 文件不做项目定制**：`agent.config.example.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json` 会复制到实际项目，但属于模板协议文件，后续升级可能覆盖；项目差异只写 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
 - **不覆盖项目 package.json**：模板根 `package.json` 不作为目标项目复制文件；可选 aliases 由 `agent.package.scripts.example.json` + `node infra/scripts/setup/merge-package-scripts.js --write` 只追加缺失 scripts，已有 scripts 永不覆盖。
 - **一键应用可重复**：模板复制/升级必须通过 `node infra/scripts/setup/update-template.js <target>` 执行。该入口内部读取 `agent.template.manifest.json`，先 dry-run、检查冲突，再写入和校验。`overwrite` 只用于模板协议文件；`init-if-missing` 不覆盖目标已有文件；`.gitignore` / `.envrc` / `package.json` 只能合并；`README.md`、`CHANGELOG.md`、真实项目文档与源码视为 project-owned；部署/cron 等项目耦合脚本不由模板提供，但 `/ship`、`/cd`、`/ci`、`/env`、`/restart` 命令保留并统一走 `devops-run.js`。
 - **变量剥离归位**：从模板脚本中剥离出的路径、命令、端口、部署、定时任务、版本发布策略，统一进入 `agent.config.json`、环境变量或 CLI 参数。不得把目标项目业务变量写回 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/`。

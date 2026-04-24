@@ -1,4 +1,5 @@
 {
+  "_configNotice": "Project overrides belong in agent.config.json. If this file is named agent.config.example.json, it is template-owned and may be overwritten by template updates; if initialized as agent.config.json, edit it for project customization.",
   "projectName": "portable-agent-template",
   "baseBranch": "main",
   "packageManager": "pnpm",
