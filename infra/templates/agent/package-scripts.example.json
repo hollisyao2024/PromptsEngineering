@@ -57,7 +57,6 @@
     "worktree:resume": "node infra/scripts/worktree-tools/worktree-resume.js",
     "worktree:remove": "node infra/scripts/worktree-tools/worktree-remove.js",
     "agent:run": "node infra/scripts/agent-runner/agent-run.js",
-    "agent:apply-template": "node infra/scripts/setup/apply-template.js",
     "agent:update-template": "node infra/scripts/setup/update-template.js",
     "agent:merge-package-scripts": "node infra/scripts/setup/merge-package-scripts.js",
     "codemap": "node infra/scripts/tdd-tools/generate-codemap.js",

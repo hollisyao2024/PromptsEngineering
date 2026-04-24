@@ -134,7 +134,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
   const targetRoot = path.resolve(process.cwd(), args.target || '');
-  const applyScript = path.join(sourceRoot, 'infra/scripts/setup/apply-template.js');
+  const applyEngine = path.join(sourceRoot, 'infra/scripts/setup/template-apply-engine.js');
   const dryRunOnly = Boolean(args.dryRun || args['dry-run']);
   const allowConflicts = Boolean(args.allowConflicts || args['allow-conflicts']);
 
@@ -146,8 +146,8 @@ function main() {
   if (!fs.existsSync(targetRoot)) {
     block('target path does not exist', { target: targetRoot });
   }
-  if (!fs.existsSync(applyScript)) {
-    block('apply-template.js not found', { source: sourceRoot });
+  if (!fs.existsSync(applyEngine)) {
+    block('template apply engine not found', { source: sourceRoot });
   }
 
   const config = loadConfig({ repoRoot: sourceRoot, cli: args });
@@ -170,7 +170,7 @@ function main() {
       : [];
   for (const include of includes) includeArgs.push('--include', include);
 
-  const baseArgs = [applyScript, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
+  const baseArgs = [applyEngine, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
   const dryRun = run(process.execPath, baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
