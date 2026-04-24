@@ -113,6 +113,23 @@ function isGitWorktree(targetRoot) {
   return result.status === 0 && result.stdout.trim() === 'true';
 }
 
+function collectGitNameStatus(targetRoot) {
+  const output = [];
+  const diff = run('git', ['diff', '--name-status'], { cwd: targetRoot });
+  if (diff.status === 0 && diff.stdout.trim()) {
+    output.push(...diff.stdout.trimEnd().split('\n'));
+  }
+
+  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], { cwd: targetRoot });
+  if (untracked.status === 0 && untracked.stdout.trim()) {
+    for (const file of untracked.stdout.trimEnd().split('\n')) {
+      output.push(`A\t${file}`);
+    }
+  }
+
+  return output;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
@@ -196,9 +213,9 @@ function main() {
       block('git diff --check failed', { target: targetRoot });
     }
     console.log('VALIDATION_DIFF_CHECK=OK');
-    const nameStatus = run('git', ['diff', '--name-status'], { cwd: targetRoot });
+    const nameStatus = collectGitNameStatus(targetRoot);
     console.log('MODIFIED_FILES_START');
-    process.stdout.write(nameStatus.output || 'none\n');
+    process.stdout.write(nameStatus.length ? `${nameStatus.join('\n')}\n` : 'none\n');
     console.log('MODIFIED_FILES_END');
   } else {
     console.log('VALIDATION_DIFF_CHECK=SKIPPED');
