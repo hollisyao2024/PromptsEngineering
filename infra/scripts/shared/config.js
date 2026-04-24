@@ -3,7 +3,7 @@
  * Shared agent template configuration loader.
  *
  * Priority: CLI args > environment variables > agent.config.json >
- * agent.config.example.json > built-in defaults.
+ * infra/templates/agent/config.example.json > built-in defaults.
  */
 
 const fs = require('fs');
@@ -59,7 +59,7 @@ const DEFAULT_CONFIG = {
     autoMerge: false,
   },
   template: {
-    manifest: 'agent.template.manifest.json',
+    manifest: 'infra/templates/agent/template.manifest.json',
     applyReportDir: '../tmp/template-apply-reports',
   },
   release: {
@@ -167,6 +167,10 @@ function readJsonIfExists(filePath) {
   } catch (error) {
     throw new Error(`Invalid JSON in ${filePath}: ${error.message}`);
   }
+}
+
+function firstExistingPath(paths) {
+  return paths.find((filePath) => fs.existsSync(filePath)) || paths[0];
 }
 
 function isPlainObject(value) {
@@ -277,7 +281,10 @@ function cliOverrides(cli = {}) {
 function loadConfig(options = {}) {
   const repoRoot = options.repoRoot || options.configRoot || getWorktreeRoot(process.cwd());
   const cli = options.cli || parseCliArgs(options.argv);
-  const examplePath = path.join(repoRoot, 'agent.config.example.json');
+  const examplePath = firstExistingPath([
+    path.join(repoRoot, 'infra/templates/agent/config.example.json'),
+    path.join(repoRoot, 'agent.config.example.json'),
+  ]);
   const localPath = path.join(repoRoot, 'agent.config.json');
 
   return deepMerge(

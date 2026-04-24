@@ -180,7 +180,13 @@ function main() {
     block('write failed', { write_log: writeLogPath });
   }
 
-  validateJsonFiles(targetRoot, ['agent.config.json', 'agent.template.manifest.json', 'package.json']);
+  validateJsonFiles(targetRoot, [
+    'agent.config.json',
+    'infra/templates/agent/config.example.json',
+    'infra/templates/agent/package-scripts.example.json',
+    'infra/templates/agent/template.manifest.json',
+    'package.json',
+  ]);
 
   console.log('VALIDATION_JSON=OK');
   if (isGitWorktree(targetRoot)) {

@@ -31,9 +31,10 @@
   - `docs/data/traceability-matrix.md`：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
 - `docs/adr/`：架构决策记录（ADR）模板目录。
 - `infra/scripts/`：PRD / ARCH / TASK / TDD / QA / DevOps 自动化脚本。
-- `agent.config.example.json`：template-owned 默认配置示例；首次应用可初始化 `agent.config.json`，项目差异只改 `agent.config.json`。
-- `agent.package.scripts.example.json`：template-owned 可选 package scripts 清单；通过 `infra/scripts/setup/merge-package-scripts.js` 合并，禁止直接覆盖目标项目 `package.json`。
-- `agent.template.manifest.json`：template-owned 模板应用策略清单，声明哪些路径可覆盖、只初始化、只合并、项目自有或排除。
+- `agent.config.json`：目标项目覆盖配置；首次应用时由 `infra/templates/agent/config.example.json` 初始化，项目差异只改这里。
+- `infra/templates/agent/config.example.json`：template-owned 默认配置示例，升级模板时可覆盖。
+- `infra/templates/agent/package-scripts.example.json`：template-owned 可选 package scripts 清单；通过 `infra/scripts/setup/merge-package-scripts.js` 合并，禁止直接覆盖目标项目 `package.json`。
+- `infra/templates/agent/template.manifest.json`：template-owned 模板应用策略清单，声明哪些路径可覆盖、只初始化、只合并、项目自有或排除。
 - 数据库迁移目录由目标项目决定，可在 `agent.config.json paths.migrationsDir` 中声明。
 - `.gemini/`：定义 Gemini CLI 的上下文配置，指向 `AGENTS.md` 而非默认 `GEMINI.md`。
 - `CLAUDE.md`：Claude Code CLI 的入口提示，确保其读取 `AGENTS.md`。
@@ -42,8 +43,8 @@
 ## 快速开始
 1. 在模板仓库 `repo/` 下执行一键应用或升级，目标路径支持相对路径：
    `pnpm agent:update-template -- ../target-project/repo`
-2. `package.json` 不复制、不覆盖；脚本只通过 `agent.package.scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
-3. 变量统一放到目标项目的 `agent.config.json`、环境变量或 CLI 参数；不要修改 `agent.config.example.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json` 这类 template-owned 文件。
+2. `package.json` 不复制、不覆盖；脚本只通过 `infra/templates/agent/package-scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
+3. 变量统一放到目标项目根目录的 `agent.config.json`、环境变量或 CLI 参数；不要修改 `infra/templates/agent/` 下的 template-owned 文件。
 4. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
 5. 只读排查直接执行，不创建 worktree；若任务会修改 tracked 文件，执行 `node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js` 创建/恢复 worktree。
 6. 创建成功后进入脚本输出的 `WORKTREE_PATH`：VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令以该目录为 CWD。
@@ -71,9 +72,10 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 - `exclude`：目标项目自有内容，模板不应用；部署/cron 命令保留为 `devops-run.js` 配置入口。
 
 template-owned 文件说明：
-- `agent.config.example.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json` 会复制到目标项目，但属于模板协议文件，后续升级可能覆盖。
+- `infra/templates/agent/config.example.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json` 会复制到目标项目，但属于模板协议文件，后续升级可能覆盖。
+- 旧版本模板曾在根目录生成 `agent.config.example.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json`；新版本升级时会在确认它们是 template-owned 后自动移除。
 - 实际项目需要改配置时，只改 `agent.config.json`、环境变量、CLI 参数、目标项目 `package.json` 或 `scripts/ops/` 等 project-owned 文件。
-- 如果确实需要扩展模板应用策略，优先回到模板仓库修改并升级模板，不在单个实际项目里手改 `agent.template.manifest.json`。
+- 如果确实需要扩展模板应用策略，优先回到模板仓库修改并升级模板，不在单个实际项目里手改 `infra/templates/agent/template.manifest.json`。
 
 剥离出来的变量统一进入 `agent.config.json`，例如：
 - `paths.*`：应用目录、数据库目录、迁移目录、E2E/性能/安全目录。
@@ -231,13 +233,11 @@ CR、优先级矩阵、角色覆盖、目标追溯、前置验证报告等属于
 - `AgentRoles/`
 - `docs/CONVENTIONS.md`、`docs/data/templates/`、各模块 `MODULE-TEMPLATE.md`
 - `infra/scripts/shared/`、`worktree-tools/`、`agent-runner/`、`devops-tools/`、`setup/`、PRD/ARCH/TASK/TDD/QA 工具脚本
-- `agent.config.example.json`
-- `agent.package.scripts.example.json`
-- `agent.template.manifest.json`
+- `infra/templates/agent/`
 - `.gemini/`、`CLAUDE.md`（如需要 Gemini / Claude Code 入口）
 
 **按项目情况合并**
-- `package.json`：不要复制覆盖；通过 `node infra/scripts/setup/merge-package-scripts.js --write` 从 `agent.package.scripts.example.json` 只追加缺失 scripts，冲突项人工决定
+- `package.json`：不要复制覆盖；通过 `node infra/scripts/setup/merge-package-scripts.js --write` 从 `infra/templates/agent/package-scripts.example.json` 只追加缺失 scripts，冲突项人工决定
 - `.gitignore`
 - `.envrc`
 - `.github/workflows/`

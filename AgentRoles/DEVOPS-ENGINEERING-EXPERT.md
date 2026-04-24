@@ -20,7 +20,7 @@
 - `.github/workflows/*.yml`（CI/CD 工作流配置）
 - `infra/scripts/devops-tools/devops-run.js`（快捷命令统一入口）
 - 项目自有部署/服务脚本（仅当 `agent.config.json devops.commands` 或 `devServer.commands` 明确声明时读取）
-- `agent.config.json`、`agent.package.scripts.example.json`、`agent.template.manifest.json`（部署变量、可选 scripts、模板应用策略）；目标项目 `package.json` 只能通过安全合并脚本追加缺失 alias，禁止覆盖。
+- `agent.config.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json`（部署变量、可选 scripts、模板应用策略）；目标项目 `package.json` 只能通过安全合并脚本追加缺失 alias，禁止覆盖。
 - `/CHANGELOG.md`（版本与变更记录）
 - **预检查**：
   - 若 `.github/workflows/` 目录不存在，提示创建基础 CI 工作流

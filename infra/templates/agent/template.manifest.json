@@ -80,21 +80,22 @@
     { "path": "infra/scripts/task-tools", "strategy": "overwrite" },
     { "path": "infra/scripts/qa-tools", "strategy": "overwrite" },
     { "path": "infra/scripts/tdd-tools", "strategy": "overwrite" },
-    { "path": "agent.config.example.json", "strategy": "overwrite" },
-    { "path": "agent.package.scripts.example.json", "strategy": "overwrite" },
-    { "path": "agent.template.manifest.json", "strategy": "overwrite" },
 
     { "path": "docs/AGENT_STATE.md", "source": "docs/data/templates/core/AGENT_STATE-TEMPLATE.md", "strategy": "init-if-missing" },
     { "path": "docs/data/README.md", "strategy": "init-if-missing" },
     { "path": "docs/changelogs/README.md", "strategy": "init-if-missing" },
     { "path": "docs/data/change-requests/README.md", "strategy": "init-if-missing" },
     { "path": "docs/data/qa-reports/README.md", "strategy": "init-if-missing" },
-    { "path": "agent.config.json", "source": "agent.config.example.json", "strategy": "init-if-missing" },
+    { "path": "agent.config.json", "source": "infra/templates/agent/config.example.json", "strategy": "init-if-missing" },
     { "path": ".github/workflows/ci.yml", "source": "docs/data/templates/devops/CI-WORKFLOW-TEMPLATE.yml", "strategy": "init-if-missing" },
 
-    { "path": "package.json", "source": "agent.package.scripts.example.json", "strategy": "merge-package-scripts" },
+    { "path": "package.json", "source": "infra/templates/agent/package-scripts.example.json", "strategy": "merge-package-scripts" },
     { "path": ".gitignore", "source": "infra/templates/merge/gitignore.agent.append", "strategy": "append-block", "marker": "agent-template:gitignore" },
     { "path": ".envrc", "source": "infra/templates/merge/envrc.agent.append", "strategy": "append-block", "marker": "agent-template:envrc" },
+
+    { "path": "agent.config.example.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/config.example.json" },
+    { "path": "agent.package.scripts.example.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/package-scripts.example.json" },
+    { "path": "agent.template.manifest.json", "strategy": "remove-if-template-owned", "reason": "moved to infra/templates/agent/template.manifest.json" },
 
     { "path": "README.md", "strategy": "project-owned" },
     { "path": "CHANGELOG.md", "strategy": "project-owned" },

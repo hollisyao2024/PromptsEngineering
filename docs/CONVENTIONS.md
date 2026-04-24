@@ -6,10 +6,10 @@
 
 ## 顶层结构（`repo/` 根，即 Git 主 worktree）
 - `AGENTS.md`：多专家路由与流程约束（必须存在）。
-- `agent.config.example.json`：可复制默认配置，集中声明 base branch、命令、容器层目录、外部 agent 默认 executor 等项目差异。
-- `agent.config.json`：目标项目覆盖配置；可选择本地忽略或由团队提交，优先级高于 example。
-- `agent.package.scripts.example.json`：可选 package scripts 清单；只能通过安全合并脚本追加到目标项目 `package.json`，禁止复制模板 `package.json` 覆盖项目文件。
-- `agent.template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`init-if-missing`、`append-block`、`merge-package-scripts`、`project-owned`、`exclude` 等策略。
+- `agent.config.json`：目标项目覆盖配置；可选择本地忽略或由团队提交，优先级高于模板 example。
+- `infra/templates/agent/config.example.json`：template-owned 默认配置，集中声明 base branch、命令、容器层目录、外部 agent 默认 executor 等默认值。
+- `infra/templates/agent/package-scripts.example.json`：可选 package scripts 清单；只能通过安全合并脚本追加到目标项目 `package.json`，禁止复制模板 `package.json` 覆盖项目文件。
+- `infra/templates/agent/template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`init-if-missing`、`append-block`、`merge-package-scripts`、`project-owned`、`exclude` 等策略。
 - `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
 - `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
 - `apps/`：所有可独立运行的应用（web、mobile、desktop、server 等），详见「项目目录结构（Monorepo）」章节。
@@ -119,7 +119,7 @@
 - Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
 - 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
 - 项目差异必须优先读取 `agent.config.json`、环境变量或 CLI 参数，禁止在脚本中硬编码目标项目的绝对路径、业务名、固定端口或固定应用目录。
-- 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `agent.config.example.json` > 内置默认值。
+- 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `infra/templates/agent/config.example.json` > 内置默认值。
 - 容器层路径必须通过 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()` 解析。linked worktree 中的字面量 `../tmp` 会落到 `../worktrees/tmp`，禁止在脚本中这样拼路径。
 - 模板不得要求复制根 `package.json` 到目标项目；需要快捷命令时使用 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 scripts，冲突项保留项目原值。
 - 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`。
