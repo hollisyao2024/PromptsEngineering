@@ -16,13 +16,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
 const {
   loadConfig,
   resolveRepoRoot,
   getMainRepoRoot: sharedGetMainRepoRoot,
 } = require('../shared/config');
+const defectBlockerCheckers = require('./check-defect-blockers');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const envLocalPath = path.join(repoRoot, '.env.local');
@@ -191,11 +192,22 @@ function findOpenPR(branch) {
   }
 }
 
-function autoRebaseOnMain(currentBranch, dryRun) {
-  console.log('\x1b[36m获取最新 origin/main...\x1b[0m');
-  runGit(['fetch', 'origin', 'main']);
+/**
+ * B3: short-circuit when GitHub already says the PR is MERGEABLE. Saves
+ * ~3-8s on the warm path (one fetch + one rev-list + later sleep 3 + a
+ * second findOpenPR). Other states (UNKNOWN / BEHIND / CONFLICTING) still
+ * fall through to the original fetch+rebase flow.
+ */
+function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit = runGit } = {}) {
+  if (prMergeable === 'MERGEABLE') {
+    console.log('\x1b[32m分支已 MERGEABLE，跳过 fetch + rebase\x1b[0m');
+    return { rebased: false, commitsBehind: 0, skipped: true };
+  }
 
-  const behindOutput = runGit(
+  console.log('\x1b[36m获取最新 origin/main...\x1b[0m');
+  _runGit(['fetch', 'origin', 'main']);
+
+  const behindOutput = _runGit(
     ['rev-list', '--count', 'HEAD..origin/main'],
     { capture: true }
   );
@@ -215,14 +227,14 @@ function autoRebaseOnMain(currentBranch, dryRun) {
     return { rebased: false, commitsBehind };
   }
 
-  const originalHead = runGit(['rev-parse', 'HEAD'], { capture: true }).trim();
+  const originalHead = _runGit(['rev-parse', 'HEAD'], { capture: true }).trim();
 
   try {
-    runGit(['rebase', 'origin/main']);
+    _runGit(['rebase', 'origin/main']);
   } catch {
     console.error('\x1b[31mrebase 过程中发现冲突，正在中止...\x1b[0m');
-    try { runGit(['rebase', '--abort']); } catch { /* ignore */ }
-    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
+    try { _runGit(['rebase', '--abort']); } catch { /* ignore */ }
+    try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
       '请手动解决冲突后重试：\n' +
@@ -234,10 +246,10 @@ function autoRebaseOnMain(currentBranch, dryRun) {
 
   try {
     console.log('\x1b[36m推送 rebase 后的分支 (force-with-lease)...\x1b[0m');
-    runGit(['push', '--force-with-lease', 'origin', currentBranch]);
+    _runGit(['push', '--force-with-lease', 'origin', currentBranch]);
   } catch (pushError) {
     console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
-    try { runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
+    try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       `rebase 成功但 force-push 失败：${pushError.message}\n` +
       '分支已恢复到 rebase 前的状态。\n' +
@@ -262,14 +274,48 @@ function checkPrState(prNumber) {
   }
 }
 
-function runPreMergeChecks() {
-  console.log('\x1b[36m运行发布门禁检查 (qa:check-defect-blockers)...\x1b[0m');
-  const result = spawnSync('pnpm', ['run', 'qa:check-defect-blockers'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: 'inherit',
-  });
-  return result.status === 0;
+/**
+ * B2: in-process release-gate check. Replaces the previous spawnSync('pnpm
+ * run qa:check-defect-blockers') which incurred 5-15s of node + workspace
+ * cold-start every merge. Behavior is preserved (P0 blockers + NFR check);
+ * release report is intentionally not written here (CLI entry still does).
+ */
+function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
+  console.log('\x1b[36m运行发布门禁检查（in-process）...\x1b[0m');
+  const defects = checkers.parseDefects();
+  const analysis = checkers.analyzeDefects(defects);
+  const nfr = checkers.checkNFRCompliance();
+
+  const p0OpenCount = (analysis.p0Defects || []).length;
+  const nonCompliantNfrCount = (nfr.nonCompliantNFRs || []).length;
+  const blockers = [];
+  if (p0OpenCount > 0) blockers.push(`${p0OpenCount} 个 P0 缺陷未关闭`);
+  if (nonCompliantNfrCount > 0) blockers.push(`${nonCompliantNfrCount} 项 NFR 未达标`);
+
+  if (blockers.length > 0) {
+    console.error(
+      '\x1b[31m发布门禁未通过：\x1b[0m\n' + blockers.map((b) => `  ❌ ${b}`).join('\n')
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * B1: open / focus the main repo in VSCode without blocking. Detached spawn
+ * + unref means the parent qa-merge.js can exit immediately even if the
+ * `code` shell wrapper hangs (which it did for 8+ minutes in production).
+ */
+function switchVscodeWindow(mainRepoRoot, { spawn: _spawn = spawn } = {}) {
+  try {
+    const child = _spawn('code', ['-r', mainRepoRoot], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    if (child && typeof child.unref === 'function') child.unref();
+  } catch {
+    // `code` not on PATH (SSH session, container, etc.) — non-fatal.
+  }
 }
 
 function buildCommitMessage(pr) {
@@ -373,7 +419,7 @@ function syncLocalMain(mainWorkspacePath) {
   runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
 }
 
-function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
+async function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
@@ -401,26 +447,46 @@ function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
     throw error;
   }
 
-  closeAndCleanup(featureBranch, pr, commitMsg);
+  await closeAndCleanup(featureBranch, pr, commitMsg);
 }
 
-function closeAndCleanup(featureBranch, pr, commitMsg) {
-  console.log(`\x1b[36m关闭 PR #${pr.number}...\x1b[0m`);
-  const closeResult = runGh([
-    'pr', 'close', String(pr.number),
-    '--comment',
-    `Squash merged locally to main.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
-  ]);
-  if (closeResult.status !== 0) {
-    console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
-  }
+/**
+ * B6: in the local-merge fallback, `gh pr close` and `git push origin
+ * --delete <branch>` are independent network calls. Run them concurrently
+ * with Promise.all so total wall time = max(close, delete) instead of sum.
+ */
+async function closeAndCleanup(
+  featureBranch,
+  pr,
+  commitMsg,
+  { runGh: _runGh = runGh, runGit: _runGit = runGit } = {}
+) {
+  console.log(`\x1b[36m并行关闭 PR #${pr.number} + 删除远程分支 ${featureBranch}...\x1b[0m`);
 
-  console.log(`\x1b[36m删除远程分支 ${featureBranch}...\x1b[0m`);
-  try {
-    runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
-  } catch {
-    console.log('\x1b[33m  远程分支删除失败（可能已删除）\x1b[0m');
-  }
+  const closeP = (async () => {
+    try {
+      const result = _runGh([
+        'pr', 'close', String(pr.number),
+        '--comment',
+        `Squash merged locally to main.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
+      ]);
+      if (result && result.status !== 0) {
+        console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
+      }
+    } catch {
+      console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
+    }
+  })();
+
+  const deleteP = (async () => {
+    try {
+      _runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
+    } catch {
+      console.log('\x1b[33m  远程分支删除失败（可能已删除）\x1b[0m');
+    }
+  })();
+
+  await Promise.all([closeP, deleteP]);
 }
 
 function getLatestMainCommit(mainWorkspacePath) {
@@ -823,7 +889,7 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
 
 // ==================== 主流程 ====================
 
-function main() {
+async function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
 
@@ -880,8 +946,8 @@ function main() {
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
 
-    // Step 7: 自动 rebase（确保 feature 分支基于最新 main）
-    const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun);
+    // Step 7: 自动 rebase（B3 短路：MERGEABLE 时跳过 fetch + rebase）
+    const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun, pr.mergeable);
 
     // Step 8: rebase 后重新检查 PR 合并状态
     if (rebaseResult.rebased) {
@@ -960,17 +1026,16 @@ function main() {
         syncLocalMain(mainWorkspacePath);
       } else {
         strategy = 'local';
-        localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
+        await localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
       }
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
-    cleanupOrphanWorktreeDirs(mainRepoRoot);
 
-    // worktree 模式：切换 VSCode 窗口回主仓库
+    // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
     if (isInWorktree) {
-      spawnSync('code', ['-r', mainRepoRoot], { encoding: 'utf8', stdio: 'pipe' });
+      switchVscodeWindow(mainRepoRoot);
     }
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
@@ -982,6 +1047,8 @@ function main() {
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
+    // B5: 单次 cleanupOrphanWorktreeDirs。worktree 移除 + 本地分支删除已完成，
+    // 容器层 worktrees/ 此时是稳定状态，一次扫描足够。
     cleanupOrphanWorktreeDirs(mainRepoRoot);
 
     // Step 15: 可选版本递增 / CHANGELOG / AGENT_STATE / tag
@@ -1060,7 +1127,10 @@ function main() {
 }
 
 if (require.main === module) {
-  main();
+  main().catch((err) => {
+    console.error(`\x1b[31m/qa merge 失败: ${err.message}\x1b[0m`);
+    process.exit(1);
+  });
 }
 
 module.exports = {
@@ -1070,5 +1140,9 @@ module.exports = {
   formatGhError,
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
+  // B1-B6 surface for unit tests:
+  switchVscodeWindow,
+  runPreMergeChecks,
+  autoRebaseOnMain,
+  closeAndCleanup,
 };
-
