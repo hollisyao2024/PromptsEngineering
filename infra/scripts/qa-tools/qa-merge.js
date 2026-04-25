@@ -23,6 +23,10 @@ const {
   resolveRepoRoot,
   getMainRepoRoot: sharedGetMainRepoRoot,
 } = require('../shared/config');
+const {
+  readSessions,
+  removeSession,
+} = require('../worktree-tools/worktree-core');
 const defectBlockerCheckers = require('./check-defect-blockers');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
@@ -586,6 +590,13 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
     });
     console.log('\x1b[32m  Worktree 已清理\x1b[0m');
 
+    try {
+      const config = loadConfig({ repoRoot: mainRepoRoot });
+      removeSession(config, mainRepoRoot, featureBranch);
+    } catch (sessionErr) {
+      console.log(`\x1b[33m  Session 文件清理跳过（${sessionErr.message}）\x1b[0m`);
+    }
+
     const cwd = process.cwd();
     if (cwd.startsWith(currentPath)) {
       console.log('');
@@ -642,6 +653,60 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot) {
   if (removed.length > 0) {
     console.log('\x1b[32m  已清理孤儿 worktree 目录:\x1b[0m');
     removed.forEach((item) => console.log(`    - ${item}`));
+  }
+
+  return removed;
+}
+
+function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
+  const loadCfg = opts.loadConfig || loadConfig;
+  const readSess = opts.readSessions || readSessions;
+  const removeSess = opts.removeSession || removeSession;
+  const runListPorcelain = opts.runListPorcelain || (() => spawnSync(
+    'git',
+    ['worktree', 'list', '--porcelain'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  ));
+
+  let config;
+  try {
+    config = loadCfg({ repoRoot: mainRepoRoot });
+  } catch {
+    return [];
+  }
+
+  const result = runListPorcelain();
+  const validPaths = new Set();
+  if (result && result.status === 0 && result.stdout) {
+    for (const line of result.stdout.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        validPaths.add(path.resolve(line.slice(9).trim()));
+      }
+    }
+  }
+
+  let sessions;
+  try {
+    sessions = readSess(config, mainRepoRoot);
+  } catch {
+    return [];
+  }
+
+  const removed = [];
+  for (const sess of sessions) {
+    if (!sess || !sess.branch) continue;
+    if (sess.worktree && validPaths.has(path.resolve(sess.worktree))) continue;
+    try {
+      removeSess(config, mainRepoRoot, sess.branch);
+      removed.push(sess.branch);
+    } catch (err) {
+      console.log(`\x1b[33m  Session 清理跳过（${sess.branch}: ${err.message}）\x1b[0m`);
+    }
+  }
+
+  if (removed.length > 0) {
+    console.log('\x1b[32m  已清理孤儿 worktree-session:\x1b[0m');
+    removed.forEach((branch) => console.log(`    - ${branch}`));
   }
 
   return removed;
@@ -1050,6 +1115,7 @@ async function main() {
     // B5: 单次 cleanupOrphanWorktreeDirs。worktree 移除 + 本地分支删除已完成，
     // 容器层 worktrees/ 此时是稳定状态，一次扫描足够。
     cleanupOrphanWorktreeDirs(mainRepoRoot);
+    cleanupOrphanSessions(mainRepoRoot);
 
     // Step 15: 可选版本递增 / CHANGELOG / AGENT_STATE / tag
     const releaseConfig = config.release || {};
@@ -1145,4 +1211,5 @@ module.exports = {
   runPreMergeChecks,
   autoRebaseOnMain,
   closeAndCleanup,
+  cleanupOrphanSessions,
 };
