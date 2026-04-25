@@ -13,8 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { resolveRepoRoot } = require('../shared/config');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const docsDir = path.join(repoRoot, 'docs');
 const mainTaskFile = path.join(docsDir, 'TASK.md');
 const taskModulesDir = path.join(docsDir, 'task-modules');

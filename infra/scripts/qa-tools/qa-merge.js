@@ -18,25 +18,19 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
-const { loadConfig } = require('../shared/config');
+const {
+  loadConfig,
+  resolveRepoRoot,
+  getMainRepoRoot: sharedGetMainRepoRoot,
+} = require('../shared/config');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const envLocalPath = path.join(repoRoot, '.env.local');
 
 // ==================== 主仓库根路径检测 ====================
 
 function getMainRepoRoot() {
-  const result = spawnSync('git', ['rev-parse', '--git-common-dir'], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-  if (result.status !== 0) return repoRoot;
-  const gitCommonDir = result.stdout.trim();
-  if (path.isAbsolute(gitCommonDir)) {
-    return path.dirname(gitCommonDir);
-  }
-  return repoRoot;
+  return sharedGetMainRepoRoot(process.cwd());
 }
 
 // ==================== 项目级 GH_TOKEN 加载 ====================

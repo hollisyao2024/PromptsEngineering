@@ -12,9 +12,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveRepoRoot } = require('../shared/config');
 
 // 配置
-const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+const PROJECT_ROOT = resolveRepoRoot({ scriptDir: __dirname });
 const COMPONENT_GRAPH_FILE = path.join(PROJECT_ROOT, 'docs/data/component-dependency-graph.md');
 
 // 命令行参数

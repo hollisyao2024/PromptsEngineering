@@ -18,8 +18,9 @@ const {
   resolveExplicitModules,
   getQaPlanSessionStatePath,
 } = require('./generate-qa');
+const { resolveRepoRoot } = require('../shared/config');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
 const CONFIG = {
   paths: {

@@ -32,7 +32,7 @@
 ## Worktree-First 并行工作协议
 - **只读不建 worktree**：阅读、搜索、诊断、复现但不改 tracked 文件时，不创建 branch/worktree。临时文件、缓存、报告写到容器层 `tmp/cache/artifacts`，路径必须通过脚本/配置按主 repo 解析。
 - **修改必进 worktree**：任何专家准备修改 tracked 文件前，必须通过 `/worktree new`、`node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js --mode=change` 创建/恢复 worktree。
-- **创建后必须进入目录**：worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令都必须以脚本输出的 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令切到该目录。
+- **创建后必须进入目录**：worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令都必须以脚本输出的 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令切到该目录。**禁止跨 worktree 用绝对路径调用脚本**（例如 CWD 在 worktree A 却调 `node /path/to/main/repo/infra/scripts/...`）；所有模板脚本统一通过 `resolveRepoRoot({ scriptDir: __dirname })`（见 `infra/scripts/shared/config.js`）按 `process.cwd()` 推导 repo 根，脚本检测到跨 repo 调用时会输出 `[cwd-anchor]` 警告，正确做法是先切 CWD 再用相对路径或 `pnpm run <alias>`。
 - **new branch 仅显式 opt-in**：默认不直接使用 `/tdd new-branch`；branch 仍由 worktree 底层自动创建。少量、单槽、用户明确指定的轻量修改可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`，但不具备并行隔离能力，也不合并到默认 package aliases。
 - **并行状态外置**：多任务运行态写入 `../tmp/worktree-sessions/`，并发锁写入 `../tmp/agent-locks/`；`docs/AGENT_STATE.md` 只记录阶段结果，不作为多任务调度源。
 - **完成后给清单**：修改型任务完成后必须输出 `MODIFIED_FILES` 与 `TEMPLATE_APPLY_CHECKLIST`，方便把模板同步到新项目。

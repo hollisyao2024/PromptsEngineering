@@ -13,8 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { resolveRepoRoot } = require('../shared/config');
 
-const ROOT = path.resolve(__dirname, '..', '..', '..');
+const ROOT = resolveRepoRoot({ scriptDir: __dirname });
 const OUTPUT = path.join(ROOT, 'docs', 'data', 'CODEBASE_MAP.md');
 const SCAN_DIRS = ['apps', 'packages'];
 const EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);

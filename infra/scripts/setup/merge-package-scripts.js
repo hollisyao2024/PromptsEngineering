@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveRepoRoot } = require('../shared/config');
 
 const DEFAULT_SCRIPT_MANIFEST = 'infra/templates/agent/package-scripts.example.json';
 
@@ -39,7 +40,7 @@ function readJson(filePath) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
   const packagePath = path.resolve(process.cwd(), args.package || 'package.json');
   const manifestPath = args.manifest
     ? path.resolve(repoRoot, args.manifest)

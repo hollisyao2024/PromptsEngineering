@@ -121,6 +121,7 @@
 - 项目差异必须优先读取 `agent.config.json`、环境变量或 CLI 参数，禁止在脚本中硬编码目标项目的绝对路径、业务名、固定端口或固定应用目录。
 - 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `infra/templates/agent/config.example.json` > 内置默认值。
 - 容器层路径必须通过 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()` 解析。linked worktree 中的字面量 `../tmp` 会落到 `../worktrees/tmp`，禁止在脚本中这样拼路径。
+- **仓库根路径必须通过 `resolveRepoRoot({ scriptDir: __dirname })` 统一解析**，禁止脚本各自写 `path.resolve(__dirname, '..', '..', '..')`。该 helper 以 `process.cwd()` 为准（跨 worktree 调用会自动指向调用方所在 worktree），并在"脚本副本所在仓库"与"CWD 解析出的仓库"不一致时输出 `[cwd-anchor]` stderr 警告，方便发现跨 worktree 绝对路径调用误操作。对于只需"自己脚本目录"相对定位的场景（如同目录 sibling 脚本调用、本目录内的构建产物落地），保留 `__dirname` 是正确的，不要改。
 - 模板不得要求复制根 `package.json` 到目标项目；需要快捷命令时使用 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 scripts，冲突项保留项目原值。
 - 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`；报告目录按目标项目主 `repo/` 解析到容器层，禁止落到 `worktrees/tmp`。
 - 项目耦合脚本（部署、数据库同步、cron registry 等）不由模板提供。实际项目可放在自己的 `scripts/ops/` 或项目约定目录，并把应用目录、数据库目录、部署路径、cron registry 等写入 `agent.config.json` 或环境变量。

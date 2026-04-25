@@ -4,8 +4,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 const { writeInProgressFields } = require('./agent-state-utils');
+const { resolveRepoRoot } = require('../shared/config');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const envLocalPath = path.join(repoRoot, '.env.local');
 
 // ==================== 项目级 GH_TOKEN 加载 ====================

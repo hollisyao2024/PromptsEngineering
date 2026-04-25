@@ -13,9 +13,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveRepoRoot } = require('../shared/config');
 
 // 配置
-const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+const PROJECT_ROOT = resolveRepoRoot({ scriptDir: __dirname });
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
 const PRD_FILE = path.join(PROJECT_ROOT, 'docs/PRD.md');

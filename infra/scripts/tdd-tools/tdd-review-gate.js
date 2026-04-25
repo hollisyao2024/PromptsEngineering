@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { resolveRepoRoot } = require('../shared/config');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
 const GATE_RESULT = {
   SKIPPED:       'skipped',

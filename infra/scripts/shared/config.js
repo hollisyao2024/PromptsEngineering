@@ -169,6 +169,40 @@ function getMainRepoRoot(cwd = process.cwd()) {
   return mainRootFromCommonDir(commonDir) || getWorktreeRoot(cwd);
 }
 
+/**
+ * Unified repo-root resolver for all template scripts.
+ *
+ * Always anchors to the caller's `process.cwd()` (so the script operates on
+ * the worktree the operator is actually in). If the caller passes its own
+ * `__dirname` via `scriptDir`, and that script copy belongs to a different
+ * repo than the CWD-derived root (e.g. someone invoked the main repo's copy
+ * while CWD sits in a linked worktree), a stderr warning is emitted so the
+ * mismatch becomes visible instead of silently misbehaving.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.scriptDir]  Caller's `__dirname` — enables mismatch check.
+ * @param {string} [opts.cwd]        Override CWD (tests only).
+ * @param {boolean} [opts.warn=true] Disable the mismatch warning.
+ * @returns {string} absolute path to the repo root corresponding to CWD.
+ */
+function resolveRepoRoot({ scriptDir, cwd = process.cwd(), warn = true } = {}) {
+  const cwdRoot = gitValue(cwd, ['rev-parse', '--show-toplevel']);
+  if (cwdRoot) {
+    if (!scriptDir || !warn) return cwdRoot;
+    const scriptRoot = path.resolve(scriptDir, '..', '..', '..');
+    if (path.resolve(cwdRoot) !== path.resolve(scriptRoot)) {
+      process.stderr.write(
+        `\x1b[33m[cwd-anchor] 脚本副本位于 ${scriptRoot}，` +
+        `与 process.cwd()=${cwd} 解析出的仓库根 ${cwdRoot} 不一致；` +
+        `按 CWD 操作 ${cwdRoot}。如需操作其他 worktree，请先 cd 进去。\x1b[0m\n`
+      );
+    }
+    return cwdRoot;
+  }
+  if (scriptDir) return path.resolve(scriptDir, '..', '..', '..');
+  return getRepoRoot();
+}
+
 function readJsonIfExists(filePath) {
   if (!fs.existsSync(filePath)) return {};
   try {
@@ -322,4 +356,5 @@ module.exports = {
   parseCliArgs,
   resolveContainerPath,
   resolveFromRepo,
+  resolveRepoRoot,
 };
