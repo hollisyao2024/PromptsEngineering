@@ -130,6 +130,11 @@
 6. **迁移目录核查**：
    - 纯 SQL：`agent.config.json paths.migrationsDir` 或项目迁移目录含迁移与回滚脚本
    - Prisma：以项目实际 `schema.prisma` 对应的迁移目录为准，含 `migration.sql` 及配套 `rollback.sql`
+7. **Schema → 数据字典联动**（**强制硬门禁**，由 tdd-sync 脚本自动校验）：
+   - **触发条件**：本次 commit/PR 改动了 `**/schema.prisma` 或 `**/migrations/**/*.sql`
+   - **必须同步**：`docs/data/ERD.md` 与 `docs/data/dictionary.md`（详见 §B.10）
+   - **失败行为**：脚本检测到 schema 差异但 ERD/dictionary 未改动 → Gate 失败 + 输出缺失文件清单 + 阻断 push
+   - **绕过条件**（极少数）：仅当 schema 差异为纯注释、纯 `@@map` 新增、或 prisma format 整形时可加 `--skip-schema-doc-sync=<具体原因>` 显式声明（reason 必填，会回显到 stderr；同时须在 PR 描述记录原因）
 
 ### Step 2：Pre-Push Gate — 代码简化（条件执行）
 
@@ -452,9 +457,35 @@ pnpm prisma migrate resolve --applied 0_init
 
 > **环境适用性总结**：`migrate dev` 仅 dev 推荐；`migrate deploy` staging/prod 必须；`migrate reset` staging/prod 禁止、dev 不推荐；`db push` 所有环境禁止；`db pull` 除 Baseline 外所有环境禁止。
 
-**B.10 数据字典同步**
+**B.10 数据字典同步（强制硬门禁）**
 
 Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`，规则同 `/docs/CONVENTIONS.md` §数据字典同步。
+
+**触发场景**（任一命中 → 必须同步两份文档）：
+| 变更类型 | ERD.md 需更新 | dictionary.md 需更新 |
+|---------|--------------|---------------------|
+| 新增 model / 表 | ✅ 实体定义 + 关系表 | ✅ 字段表 + 索引 + 业务规则 |
+| 删除 model / 表 | ✅ 删除实体 + 关系表 | ✅ 删除字段表 |
+| 字段增删改（含类型/长度/可空性）| ✅ 关键字段段 | ✅ 字段行 |
+| 索引 / 唯一约束变更 | ⚠️ 视影响 | ✅ 索引段 |
+| CHECK 约束变更 | ✅ 业务规则段 | ✅ 业务规则段 |
+| 外键 / 关系 (M:N / 1:N / 1:1) 变更 | ✅ 关系表 | ⚠️ 视影响 |
+| @@map / @@id 别名调整（不改 DB schema）| ❌ | ❌ |
+| 纯注释 / `///` 文档调整 | ❌ | ❌ |
+
+**脚本自动校验**：
+- `tdd-sync.js` 在 Gate 阶段会执行 `git diff origin/main...HEAD --name-only` 检查 schema 与文档同步性
+- 检测到 `**/schema.prisma` 或 `**/migrations/**/*.sql` 改动但 `docs/data/ERD.md`、`docs/data/dictionary.md` 未改 → 输出缺失文件清单并 exit 非零
+- 例外：本次 schema diff 仅含注释 / `@@map` **新增** / 空白调整（脚本通过启发式判断；`@@map` 值变更等于改 DB 表名，**不视为 trivial**）
+- 显式绕过：`--skip-schema-doc-sync=<reason>` 标志可绕过（reason 必填，缺失时 exit 2；reason 会输出到 stderr 供 CI 日志审计；同时须在 PR 描述记录原因）
+
+**手工 checklist**（脚本校验后人工二次复核）：
+- [ ] ERD.md 实体定义节描述与 schema 字段一致（类型/可空性/外键）
+- [ ] ERD.md 关系表反映新建 / 删除的 FK 关系
+- [ ] dictionary.md 字段表所有列（字段名/类型/长度/约束/默认值/说明/示例）覆盖新字段
+- [ ] dictionary.md 索引段反映 `@@index` / `@@unique`
+- [ ] 业务规则段（CHECK 约束、级联策略）与迁移 SQL 一致
+- [ ] 若新增 model 是 M:N 关联表，relationship 段表达为 `↔ via 中间表` 格式（参考 `proSeriesCharacter` / `proSeriesCreativeAsset`）
 
 ## ADR 触发规则（TDD 阶段）
 - 实现中发现重要技术取舍（如：性能优化策略、依赖库选择、数据库方案变更）→ 新增 ADR；状态 `Proposed/Accepted`。
