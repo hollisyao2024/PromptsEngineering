@@ -27,11 +27,12 @@ const CONFIG = {
   traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
 };
 
-// Story ID 格式正则（US-MODULE-NNN）
-const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/g;
+// Story ID 格式正则（US-MODULE-NNN）。MODULE 槽位允许字母数字混排
+// （如 E2E / V3 / K8S），与 qa-verify.js 已采用的 [A-Z0-9]+ 保持一致。
+const STORY_ID_PATTERN = /US-[A-Z0-9]+-\d{3}/g;
 
 // AC ID 格式正则（AC-MODULE-NNN-NN）
-const AC_ID_PATTERN = /AC-[A-Z]+-\d{3}-\d{2}/g;
+const AC_ID_PATTERN = /AC-[A-Z0-9]+-\d{3}-\d{2}/g;
 
 // 颜色输出
 const colors = {
@@ -73,17 +74,18 @@ function parseStoriesAndACsFromPRD() {
       if (fs.existsSync(prdFilePath)) {
         const prdContent = fs.readFileSync(prdFilePath, 'utf-8');
 
-        // 查找所有 Story ID 及其优先级
-        const storyMatches = prdContent.match(/US-[A-Z]+-\d{3}:[^\n]+/g) || [];
-        storyMatches.forEach(storyLine => {
-          const storyId = storyLine.match(/US-[A-Z]+-\d{3}/)[0];
+        // 查找所有 Story ID 及其优先级。模块 PRD 存在表格行、标题行、
+        // traceability 行等多种格式，不能只匹配旧的 `US-XXX-001:`。
+        const storyMatches = Array.from(prdContent.matchAll(STORY_ID_PATTERN));
+        storyMatches.forEach((storyMatch, index) => {
+          const storyId = storyMatch[0];
 
           // 尝试提取优先级
-          const storyIndex = prdContent.indexOf(storyLine);
-          const nextStoryIndex = prdContent.indexOf('US-', storyIndex + storyLine.length);
+          const storyIndex = storyMatch.index ?? 0;
+          const nextStoryIndex = storyMatches[index + 1]?.index ?? prdContent.length;
           const storyContent = prdContent.substring(
             storyIndex,
-            nextStoryIndex > 0 ? nextStoryIndex : prdContent.length
+            nextStoryIndex
           );
 
           const priorityMatch = storyContent.match(/\*\*优先级[：:]\*\*\s*(P[0-2])/);
@@ -92,6 +94,16 @@ function parseStoriesAndACsFromPRD() {
           // 提取该 Story 的所有 AC
           const acMatches = storyContent.match(AC_ID_PATTERN) || [];
           const acs = [...new Set(acMatches)]; // 去重
+
+          const previous = stories.get(storyId);
+          if (previous) {
+            stories.set(storyId, {
+              module: previous.module,
+              priority: previous.priority !== 'P2' ? previous.priority : priority,
+              acs: [...new Set([...previous.acs, ...acs])],
+            });
+            return;
+          }
 
           stories.set(storyId, { module: dir.name, priority, acs });
         });
