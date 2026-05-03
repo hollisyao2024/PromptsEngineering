@@ -281,7 +281,8 @@ function createOrResumeWorktree(options = {}) {
   if (branchExists(mainRoot, branch)) {
     runGit(['worktree', 'add', worktreePath, branch], { cwd: mainRoot });
   } else {
-    runGit(['worktree', 'add', '-b', branch, worktreePath, baseRef], { cwd: mainRoot });
+    // --no-track 防止 upstream 被设成 origin/main 导致裸 git push silent no-op
+    runGit(['worktree', 'add', '-b', branch, '--no-track', worktreePath, baseRef], { cwd: mainRoot });
   }
 
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
