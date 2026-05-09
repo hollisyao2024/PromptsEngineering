@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# Git pre-commit hook: TypeScript + Lint 门禁
+#
+# 跳过策略：
+# - 纯文档/配置型改动（.md / docs/ / *.yml 等）不触发 typecheck/lint，
+#   避免 PRD/ARCH/TASK/QA/DevOps 阶段必须装项目依赖才能 commit。
+# - 任意被改动的文件命中代码型扩展名（.ts/.tsx/.js/.jsx 等）则全量执行检查。
+#
+# 临时跳过整个 hook：git commit --no-verify
+#
+# 该文件由 infra/scripts/setup/install-git-hooks.js 安装到 .git/hooks/。
+# 直接修改 .git/hooks/pre-commit 不受版本管理 — 请改本模板源后重装。
+#
+
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo ""
+echo "🔍 运行 pre-commit 检查..."
+echo ""
+
+if [ ! -f "package.json" ]; then
+  echo -e "${RED}❌ 错误: 未找到 package.json${NC}"
+  exit 1
+fi
+
+# 收集本次将要提交的已暂存文件路径（相对仓库根）
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+if [ -z "${staged_files}" ]; then
+  echo -e "${YELLOW}⚠️  暂存区无文件变更，跳过检查${NC}"
+  echo ""
+  exit 0
+fi
+
+# 命中即视为代码型改动：.ts/.tsx/.js/.jsx/.mjs/.cjs/.json（lock 除外）
+code_changes="$(printf '%s\n' "${staged_files}" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$|^(apps|packages|tooling|infra/scripts)/.+\.json$' | grep -v -E 'package-lock\.json$|pnpm-lock\.yaml$' || true)"
+
+if [ -z "${code_changes}" ]; then
+  echo -e "${YELLOW}ℹ️  本次仅包含文档/配置型改动，跳过 TypeScript & Lint 检查${NC}"
+  echo -e "${YELLOW}   命中的暂存文件：$(printf '%s\n' "${staged_files}" | wc -l | tr -d ' ') 个，全部为 doc/yaml/markdown 等${NC}"
+  echo ""
+  exit 0
+fi
+
+echo -e "${BLUE}[1/2] TypeScript 类型检查...${NC}"
+if [ -f "apps/web/tsconfig.json" ]; then
+  (
+    cd apps/web
+    pnpm exec tsc --noEmit --incremental --pretty false
+  )
+  echo -e "${GREEN}✅ TypeScript 类型检查通过${NC}"
+else
+  echo -e "${YELLOW}⚠️  未找到 apps/web/tsconfig.json，跳过类型检查${NC}"
+fi
+echo ""
+
+echo -e "${BLUE}[2/2] Lint 检查...${NC}"
+if grep -q '"lint"' package.json 2>/dev/null; then
+  lint_log="$(mktemp)"
+  set +e
+  pnpm lint >"${lint_log}" 2>&1
+  lint_status=$?
+  set -e
+
+  tail -n 20 "${lint_log}" || true
+  rm -f "${lint_log}"
+
+  if [ ${lint_status} -ne 0 ]; then
+    echo ""
+    echo -e "${RED}❌ Lint 检查失败，已阻止提交${NC}"
+    echo -e "${YELLOW}请先修复 Lint 错误，或使用 git commit --no-verify 跳过${NC}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}✅ Lint 检查通过${NC}"
+else
+  echo -e "${YELLOW}⚠️  未找到 lint script，跳过 Lint 检查${NC}"
+fi
+echo ""
+
+echo -e "${GREEN}✅ Pre-commit 检查完成！${NC}"
+echo ""
+exit 0
