@@ -176,6 +176,44 @@ test('applyRule dispatches merge-json strategy end-to-end', () => {
   assert.equal(after.worktree.sessionDir, '../tmp/worktree-sessions');
 });
 
+test('mergeJson preserves Claude-settings arrays and nested env scalars', () => {
+  const sourceRoot = mkTmpDir('src');
+  const targetRoot = mkTmpDir('tgt');
+  const rule = { path: '.claude/settings.json', strategy: 'merge-json' };
+  writeJson(path.join(sourceRoot, rule.path), {
+    permissions: {
+      additionalDirectories: ['/tmp', '../tmp/'],
+      allow: ['Bash(git status:*)', 'Bash(pnpm test*)', 'Edit(apps/**)'],
+    },
+    env: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000' },
+    hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: 'echo source' }] }] },
+    cleanupPeriodDays: 30,
+  });
+  writeJson(path.join(targetRoot, rule.path), {
+    permissions: {
+      additionalDirectories: ['/tmp', '../tmp/', '../my-extra/'],
+      allow: ['Bash(git status:*)', 'Edit(my-project/**)'],
+    },
+    env: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' },
+    hooks: { SessionStart: [{ matcher: 'startup', hooks: [{ type: 'command', command: 'echo project-custom' }] }] },
+  });
+
+  const result = mergeJson(sourceRoot, targetRoot, rule, true);
+  assert.equal(result[0].status, 'merged');
+  assert.deepEqual(result[0].added, ['cleanupPeriodDays']);
+  const after = JSON.parse(fs.readFileSync(path.join(targetRoot, rule.path), 'utf8'));
+  // Project's custom additionalDirectories preserved (template's shorter list NOT merged in)
+  assert.deepEqual(after.permissions.additionalDirectories, ['/tmp', '../tmp/', '../my-extra/']);
+  // Project's allow[] preserved verbatim — template's extra entries NOT auto-added
+  assert.deepEqual(after.permissions.allow, ['Bash(git status:*)', 'Edit(my-project/**)']);
+  // Project's env scalar preserved
+  assert.equal(after.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS, '32000');
+  // Project's hooks SessionStart array preserved (object-containing array, target wins)
+  assert.equal(after.hooks.SessionStart[0].hooks[0].command, 'echo project-custom');
+  // Top-level missing key filled from source
+  assert.equal(after.cleanupPeriodDays, 30);
+});
+
 test('applyRule still routes other strategies normally (regression)', () => {
   const sourceRoot = mkTmpDir('src');
   const targetRoot = mkTmpDir('tgt');
