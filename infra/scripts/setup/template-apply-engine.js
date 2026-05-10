@@ -388,8 +388,46 @@ function mergeJsonc(sourceRoot, targetRoot, rule, write) {
   }];
 }
 
+function findRootClosingBrace(text) {
+  let inString = false;
+  let escape = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let lastBraceIdx = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inLineComment) {
+      if (c === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (c === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (c === '\\') {
+        escape = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '/' && next === '/') { inLineComment = true; i += 1; continue; }
+    if (c === '/' && next === '*') { inBlockComment = true; i += 1; continue; }
+    if (c === '}') lastBraceIdx = i;
+  }
+  return lastBraceIdx;
+}
+
 function appendTopLevelKeys(targetText, sourceJson, keys) {
-  const closingBraceIdx = targetText.lastIndexOf('}');
+  const closingBraceIdx = findRootClosingBrace(targetText);
   if (closingBraceIdx === -1) return null;
   const before = targetText.slice(0, closingBraceIdx);
   const after = targetText.slice(closingBraceIdx);
@@ -493,6 +531,7 @@ module.exports = {
   applyRule,
   appendTopLevelKeys,
   deepMerge,
+  findRootClosingBrace,
   isPlainObject,
   mergeJson,
   mergeJsonc,

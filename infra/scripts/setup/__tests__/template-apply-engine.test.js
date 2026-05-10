@@ -399,3 +399,66 @@ test('mergeJsonc treats keys-with-dots as top-level (e.g. "bash.autoExecute")', 
   assert.equal(parsed['bash.autoExecute'], false);
   assert.equal(parsed['mcp.autoConnect'], true);
 });
+
+const { findRootClosingBrace } = require('../template-apply-engine');
+
+test('findRootClosingBrace ignores } inside line comments', () => {
+  const text = '{\n  "x": 1\n}\n// note about }\n';
+  const idx = findRootClosingBrace(text);
+  assert.equal(text[idx], '}');
+  assert.equal(idx, text.indexOf('}'), 'returns the real outer closing brace, not the one in the comment');
+});
+
+test('findRootClosingBrace ignores } inside block comments', () => {
+  const text = '{\n  "x": 1\n}\n/* trailer with } */\n';
+  const idx = findRootClosingBrace(text);
+  assert.equal(text[idx], '}');
+  assert.equal(idx, text.indexOf('}'));
+});
+
+test('findRootClosingBrace ignores } inside string values', () => {
+  const text = '{ "x": "value with } inside" }';
+  const idx = findRootClosingBrace(text);
+  assert.equal(text[idx], '}');
+  // The real closing is the LAST `}` at file end (after the string)
+  assert.equal(idx, text.length - 1);
+});
+
+test('mergeJsonc handles target with trailing line comment containing }', () => {
+  const sourceRoot = mkTmpDir('src');
+  const targetRoot = mkTmpDir('tgt');
+  const rule = { path: '.gemini/settings.json', strategy: 'merge-jsonc' };
+  fs.mkdirSync(path.join(sourceRoot, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(targetRoot, '.gemini'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, rule.path), '{ "a": 1, "b": 2 }');
+  // Target has a trailing line comment that contains a `}` character
+  fs.writeFileSync(path.join(targetRoot, rule.path), '{\n  "a": 1\n}\n// override example: { "x": 1 }\n');
+  const result = mergeJsonc(sourceRoot, targetRoot, rule, true);
+  assert.equal(result[0].status, 'merged');
+  assert.deepEqual(result[0].added, ['b']);
+  const after = fs.readFileSync(path.join(targetRoot, rule.path), 'utf8');
+  // Resulting file must still be valid JSONC
+  const parsed = JSON.parse(stripJsonComments(after));
+  assert.equal(parsed.a, 1);
+  assert.equal(parsed.b, 2);
+  // Trailing comment must be retained verbatim
+  assert.ok(after.includes('// override example: { "x": 1 }'), 'trailing comment preserved');
+});
+
+test('mergeJsonc handles target with trailing block comment containing }', () => {
+  const sourceRoot = mkTmpDir('src');
+  const targetRoot = mkTmpDir('tgt');
+  const rule = { path: '.gemini/settings.json', strategy: 'merge-jsonc' };
+  fs.mkdirSync(path.join(sourceRoot, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(targetRoot, '.gemini'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, rule.path), '{ "a": 1, "newKey": true }');
+  fs.writeFileSync(path.join(targetRoot, rule.path), '{\n  "a": 1\n}\n/* footer note with } and {} braces */\n');
+  const result = mergeJsonc(sourceRoot, targetRoot, rule, true);
+  assert.equal(result[0].status, 'merged');
+  assert.deepEqual(result[0].added, ['newKey']);
+  const after = fs.readFileSync(path.join(targetRoot, rule.path), 'utf8');
+  const parsed = JSON.parse(stripJsonComments(after));
+  assert.equal(parsed.a, 1);
+  assert.equal(parsed.newKey, true);
+  assert.ok(after.includes('/* footer note with } and {} braces */'), 'trailing block comment preserved');
+});
