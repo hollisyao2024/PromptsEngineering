@@ -188,6 +188,91 @@ function mergePackageScripts(sourceRoot, targetRoot, rule, write) {
   }];
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepClone(value) {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+function deepMerge(target, source, parentPath = []) {
+  const addedKeys = [];
+  const conflicts = [];
+
+  if (!isPlainObject(target) || !isPlainObject(source)) {
+    if (parentPath.length > 0 && target !== undefined) {
+      conflicts.push({ path: parentPath.join('.'), reason: 'type-mismatch-at-root' });
+    }
+    return { merged: target, addedKeys, conflicts };
+  }
+
+  const merged = { ...target };
+  for (const key of Object.keys(source)) {
+    const sourceValue = source[key];
+    const here = parentPath.concat(key);
+    if (!Object.prototype.hasOwnProperty.call(target, key)) {
+      merged[key] = deepClone(sourceValue);
+      addedKeys.push(here.join('.'));
+      continue;
+    }
+    const targetValue = target[key];
+    if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+      const child = deepMerge(targetValue, sourceValue, here);
+      merged[key] = child.merged;
+      addedKeys.push(...child.addedKeys);
+      conflicts.push(...child.conflicts);
+    } else if (isPlainObject(sourceValue) !== isPlainObject(targetValue)) {
+      conflicts.push({ path: here.join('.'), reason: 'object-vs-non-object' });
+    }
+  }
+  return { merged, addedKeys, conflicts };
+}
+
+function mergeJson(sourceRoot, targetRoot, rule, write) {
+  const sourcePath = path.join(sourceRoot, rule.source || rule.path);
+  const targetPath = path.join(targetRoot, rule.path);
+  if (!pathExists(sourcePath)) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: 'source missing' }];
+  }
+  if (!pathExists(targetPath)) {
+    if (write) {
+      ensureDir(path.dirname(targetPath), true);
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+    return [{ status: 'initialized', path: rule.path, strategy: rule.strategy }];
+  }
+
+  let targetJson;
+  let sourceJson;
+  try {
+    targetJson = readJson(targetPath);
+  } catch (error) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: `target invalid json: ${error.message}` }];
+  }
+  try {
+    sourceJson = readJson(sourcePath);
+  } catch (error) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: `source invalid json: ${error.message}` }];
+  }
+
+  const { merged, addedKeys, conflicts } = deepMerge(targetJson, sourceJson);
+  const noChange = addedKeys.length === 0 && conflicts.length === 0;
+  if (noChange) {
+    return [{ status: 'unchanged', path: rule.path, strategy: rule.strategy, added: [], conflicts: [] }];
+  }
+  if (write && addedKeys.length > 0) {
+    fs.writeFileSync(targetPath, `${JSON.stringify(merged, null, 2)}\n`);
+  }
+  return [{
+    status: 'merged',
+    path: rule.path,
+    strategy: rule.strategy,
+    added: addedKeys,
+    conflicts: conflicts.map((c) => `${c.path}:${c.reason}`),
+  }];
+}
+
 function shouldApplyRule(rule, includeGroups) {
   if (rule.strategy !== 'opt-in') return true;
   return includeGroups.has(rule.group) || includeGroups.has('examples') || includeGroups.has('all');
@@ -200,6 +285,7 @@ function applyRule(sourceRoot, targetRoot, rule, write, includeGroups) {
 
   if (rule.strategy === 'overwrite') return copyPath(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'init-if-missing') return initIfMissing(sourceRoot, targetRoot, rule, write);
+  if (rule.strategy === 'merge-json') return mergeJson(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'append-block') return appendBlock(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'merge-package-scripts') return mergePackageScripts(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'project-owned') {
@@ -256,10 +342,19 @@ function main() {
   if (!write) console.log('NEXT_ACTION=rerun with --write to modify target project');
 }
 
-try {
-  main();
-} catch (error) {
-  console.error('STATUS=BLOCKED');
-  console.error(`REASON=${error.message}`);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error('STATUS=BLOCKED');
+    console.error(`REASON=${error.message}`);
+    process.exit(1);
+  }
 }
+
+module.exports = {
+  applyRule,
+  deepMerge,
+  isPlainObject,
+  mergeJson,
+};
