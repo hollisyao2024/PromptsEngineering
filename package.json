@@ -60,6 +60,7 @@
     "dev:status": "node infra/scripts/devops-tools/devops-run.js --action=dev-status",
     "dev:logs": "node infra/scripts/devops-tools/devops-run.js --action=dev-logs",
     "agent:update-template": "node infra/scripts/setup/update-template.js",
+    "setup:test": "node --test infra/scripts/setup/__tests__/*.test.js",
     "type-check": "echo 'skip type-check: configure target project package.json or agent.config.json commands.typecheck'",
     "lint": "echo 'skip lint: configure target project package.json or agent.config.json commands.lint'"
   },
