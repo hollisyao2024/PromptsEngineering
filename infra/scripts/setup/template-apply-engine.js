@@ -273,6 +273,179 @@ function mergeJson(sourceRoot, targetRoot, rule, write) {
   }];
 }
 
+function stripJsonComments(text) {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inLineComment) {
+      if (c === '\n') {
+        inLineComment = false;
+        out += c;
+      }
+      continue;
+    }
+    if (inBlockComment) {
+      if (c === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+        continue;
+      }
+      if (c === '\n') out += c;
+      continue;
+    }
+    if (inString) {
+      out += c;
+      if (escape) {
+        escape = false;
+      } else if (c === '\\') {
+        escape = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      out += c;
+      continue;
+    }
+    if (c === '/' && next === '/') {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+function mergeJsonc(sourceRoot, targetRoot, rule, write) {
+  const sourcePath = path.join(sourceRoot, rule.source || rule.path);
+  const targetPath = path.join(targetRoot, rule.path);
+  if (!pathExists(sourcePath)) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: 'source missing' }];
+  }
+  if (!pathExists(targetPath)) {
+    if (write) {
+      ensureDir(path.dirname(targetPath), true);
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+    return [{ status: 'initialized', path: rule.path, strategy: rule.strategy }];
+  }
+
+  const sourceText = fs.readFileSync(sourcePath, 'utf8');
+  const targetText = fs.readFileSync(targetPath, 'utf8');
+  let sourceJson;
+  let targetJson;
+  try {
+    sourceJson = JSON.parse(stripJsonComments(sourceText));
+  } catch (error) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: `source invalid jsonc: ${error.message}` }];
+  }
+  try {
+    targetJson = JSON.parse(stripJsonComments(targetText));
+  } catch (error) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: `target invalid jsonc: ${error.message}` }];
+  }
+
+  const { addedKeys, conflicts } = deepMerge(targetJson, sourceJson);
+  // Determine "top level" by direct key membership rather than dot-splitting,
+  // since a key name may itself contain a literal dot (e.g. `bash.autoExecute`).
+  const topLevelMissing = Object.keys(sourceJson)
+    .filter((k) => !Object.prototype.hasOwnProperty.call(targetJson, k));
+  const topLevelSet = new Set(topLevelMissing);
+  const nestedMissing = addedKeys.filter((p) => !topLevelSet.has(p));
+
+  if (addedKeys.length === 0 && conflicts.length === 0) {
+    return [{ status: 'unchanged', path: rule.path, strategy: rule.strategy, added: [], conflicts: [], manualSync: [] }];
+  }
+
+  if (write && topLevelMissing.length > 0) {
+    const newText = appendTopLevelKeys(targetText, sourceJson, topLevelMissing);
+    if (newText === null) {
+      return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: 'target has no top-level object brace' }];
+    }
+    fs.writeFileSync(targetPath, newText);
+  }
+
+  return [{
+    status: 'merged',
+    path: rule.path,
+    strategy: rule.strategy,
+    added: topLevelMissing,
+    conflicts: conflicts.map((c) => `${c.path}:${c.reason}`),
+    manualSync: nestedMissing,
+  }];
+}
+
+function findRootClosingBrace(text) {
+  let inString = false;
+  let escape = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let lastBraceIdx = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inLineComment) {
+      if (c === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (c === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (c === '\\') {
+        escape = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '/' && next === '/') { inLineComment = true; i += 1; continue; }
+    if (c === '/' && next === '*') { inBlockComment = true; i += 1; continue; }
+    if (c === '}') lastBraceIdx = i;
+  }
+  return lastBraceIdx;
+}
+
+function appendTopLevelKeys(targetText, sourceJson, keys) {
+  const closingBraceIdx = findRootClosingBrace(targetText);
+  if (closingBraceIdx === -1) return null;
+  const before = targetText.slice(0, closingBraceIdx);
+  const after = targetText.slice(closingBraceIdx);
+  const beforeNoComments = stripJsonComments(before).replace(/\s+$/u, '');
+  const lastMeaningfulChar = beforeNoComments.slice(-1);
+  const needsComma = lastMeaningfulChar !== '{' && lastMeaningfulChar !== ',';
+  const trimmedBefore = before.replace(/\s+$/u, '');
+  const additions = keys.map((key) => {
+    const literal = JSON.stringify(sourceJson[key], null, 2);
+    const indented = literal.replace(/\n/g, '\n  ');
+    return `  ${JSON.stringify(key)}: ${indented}`;
+  }).join(',\n');
+  // Place the separating comma on its own line so a trailing `// ...` line
+  // comment in the original target cannot swallow it.
+  const head = needsComma ? '\n  ,\n' : '\n';
+  return `${trimmedBefore}${head}${additions}\n${after}`;
+}
+
 function shouldApplyRule(rule, includeGroups) {
   if (rule.strategy !== 'opt-in') return true;
   return includeGroups.has(rule.group) || includeGroups.has('examples') || includeGroups.has('all');
@@ -286,6 +459,7 @@ function applyRule(sourceRoot, targetRoot, rule, write, includeGroups) {
   if (rule.strategy === 'overwrite') return copyPath(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'init-if-missing') return initIfMissing(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'merge-json') return mergeJson(sourceRoot, targetRoot, rule, write);
+  if (rule.strategy === 'merge-jsonc') return mergeJsonc(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'append-block') return appendBlock(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'merge-package-scripts') return mergePackageScripts(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'project-owned') {
@@ -336,6 +510,7 @@ function main() {
     if (result.reason) extras.push(`reason=${result.reason}`);
     if (result.added && result.added.length) extras.push(`added=${result.added.join(',')}`);
     if (result.conflicts && result.conflicts.length) extras.push(`conflicts=${result.conflicts.join(',')}`);
+    if (result.manualSync && result.manualSync.length) extras.push(`manual-sync=${result.manualSync.join(',')}`);
     console.log(`${result.status}\t${result.strategy || ''}\t${result.path}${extras.length ? `\t${extras.join('\t')}` : ''}`);
   }
   console.log('DETAILS_END');
@@ -354,7 +529,11 @@ if (require.main === module) {
 
 module.exports = {
   applyRule,
+  appendTopLevelKeys,
   deepMerge,
+  findRootClosingBrace,
   isPlainObject,
   mergeJson,
+  mergeJsonc,
+  stripJsonComments,
 };
