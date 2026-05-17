@@ -246,6 +246,189 @@ function removeSession(config, mainRoot, branch) {
   if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
 }
 
+function hasExplicitBootstrapMode(cli = {}) {
+  return Boolean(cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap);
+}
+
+function normalizeBootstrapMode(value, fallback = 'skip') {
+  const mode = String(value || fallback).trim().toLowerCase();
+  if (mode === 'auto' || mode === 'check' || mode === 'skip') return mode;
+  return fallback;
+}
+
+function bootstrapConfig(config) {
+  return (config.worktree && config.worktree.bootstrap) || {};
+}
+
+function bootstrapMode(config, cli = {}, defaultMode = '') {
+  if (cli['skip-bootstrap'] || cli.skipBootstrap) return 'skip';
+  if (cli.bootstrap) return normalizeBootstrapMode(cli.bootstrap, 'skip');
+  return normalizeBootstrapMode(defaultMode || bootstrapConfig(config).mode || 'skip', 'skip');
+}
+
+function bootstrapError(message, meta = {}) {
+  const error = new Error(message);
+  Object.assign(error, meta);
+  return error;
+}
+
+function runShell(command, options = {}) {
+  const result = spawnSync(command, {
+    cwd: options.cwd || process.cwd(),
+    encoding: 'utf8',
+    env: process.env,
+    shell: true,
+    stdio: options.capture ? 'pipe' : 'inherit',
+    timeout: options.timeoutMs || 600000,
+  });
+  return result;
+}
+
+function getStatusLines(cwd) {
+  const output = runGit(['status', '--porcelain', '--untracked-files=all'], {
+    cwd,
+    capture: true,
+    allowFailure: true,
+  });
+  return output.trim() ? output.trim().split('\n').filter(Boolean) : [];
+}
+
+function acquireLock(lockDir, lockName, timeoutMs = 600000) {
+  ensureDir(lockDir);
+  const safeName = slugify(lockName || 'worktree-bootstrap', 'worktree-bootstrap');
+  const lockPath = path.join(lockDir, `${safeName}.lock`);
+  const started = Date.now();
+  while (true) {
+    try {
+      fs.mkdirSync(lockPath);
+      fs.writeFileSync(path.join(lockPath, 'owner'), `${process.pid}\n${new Date().toISOString()}\n`);
+      return () => fs.rmSync(lockPath, { recursive: true, force: true });
+    } catch (error) {
+      if (error && error.code !== 'EEXIST') throw error;
+      if (Date.now() - started > timeoutMs) {
+        throw bootstrapError(`bootstrap lock timeout: ${lockPath}`, {
+          bootstrapStatus: 'BLOCKED',
+          nextManualAction: `Remove stale lock if safe: ${lockPath}`,
+        });
+      }
+      spawnSync('sleep', ['1'], { stdio: 'ignore' });
+    }
+  }
+}
+
+function runBootstrapCheck(worktreePath, command, timeoutMs) {
+  if (!command) {
+    return { configured: false, ok: false, status: null };
+  }
+  const result = runShell(command, {
+    cwd: worktreePath,
+    capture: true,
+    timeoutMs,
+  });
+  return {
+    configured: true,
+    ok: result.status === 0,
+    status: result.status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+  };
+}
+
+function nextBootstrapAction(command, worktreePath) {
+  return command
+    ? `cd "${worktreePath}" && ${command}`
+    : 'Configure worktree.bootstrap.command, then rerun with --bootstrap=auto.';
+}
+
+function runWorktreeBootstrap(options = {}) {
+  const { worktreePath, config, cli = {}, mainRoot, defaultMode = '' } = options;
+  const settings = bootstrapConfig(config);
+  const mode = bootstrapMode(config, cli, defaultMode);
+  const command = settings.command || '';
+  const checkCommand = settings.checkCommand || '';
+  const timeoutMs = Number(settings.timeoutMs || 600000);
+  const lockName = settings.lockName || `${config.projectName || 'project'}-worktree-bootstrap`;
+
+  if (!worktreePath) {
+    return { status: 'SKIPPED', mode, reason: 'missing worktree path' };
+  }
+  if (mode === 'skip') {
+    return { status: 'SKIPPED', mode, reason: 'bootstrap disabled' };
+  }
+
+  const check = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
+  if (check.configured && check.ok) {
+    return { status: 'READY', mode, checkCommand };
+  }
+
+  if (mode === 'check') {
+    return {
+      status: check.configured ? 'MISSING' : 'SKIPPED',
+      mode,
+      reason: check.configured ? `check command exited ${check.status}` : 'no checkCommand configured',
+      checkCommand,
+      nextManualAction: nextBootstrapAction(command, worktreePath),
+    };
+  }
+
+  if (!command) {
+    throw bootstrapError('worktree bootstrap mode is auto but command is not configured', {
+      worktreePath,
+      bootstrapStatus: 'BLOCKED',
+      nextManualAction: 'Set worktree.bootstrap.command or rerun with --skip-bootstrap.',
+    });
+  }
+
+  const beforeStatus = getStatusLines(worktreePath);
+  if (beforeStatus.length > 0) {
+    throw bootstrapError('worktree has existing non-ignored changes before bootstrap', {
+      worktreePath,
+      bootstrapStatus: 'BLOCKED',
+      dirtyFiles: beforeStatus.join(','),
+      nextManualAction: 'Commit, stash, or clean existing changes before running bootstrap auto mode.',
+    });
+  }
+
+  const lockDir = resolveFromRepo(mainRoot || getMainRepoRoot(worktreePath), (config.worktree && config.worktree.lockDir) || '../tmp/agent-locks');
+  const release = acquireLock(lockDir, lockName, timeoutMs);
+  try {
+    const result = runShell(command, { cwd: worktreePath, timeoutMs });
+    if (result.error || result.status !== 0) {
+      throw bootstrapError(`worktree bootstrap command failed${result.status == null ? '' : ` (exit ${result.status})`}`, {
+        worktreePath,
+        bootstrapStatus: 'FAILED',
+        command,
+        nextManualAction: nextBootstrapAction(command, worktreePath),
+      });
+    }
+  } finally {
+    release();
+  }
+
+  const afterStatus = getStatusLines(worktreePath);
+  if (afterStatus.length > 0) {
+    throw bootstrapError('worktree bootstrap produced non-ignored changes', {
+      worktreePath,
+      bootstrapStatus: 'BLOCKED',
+      dirtyFiles: afterStatus.join(','),
+      nextManualAction: 'Inspect the dirty files, commit intended config changes separately, or fix the bootstrap command.',
+    });
+  }
+
+  const postCheck = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
+  if (postCheck.configured && !postCheck.ok) {
+    throw bootstrapError(`worktree bootstrap check still fails (exit ${postCheck.status})`, {
+      worktreePath,
+      bootstrapStatus: 'FAILED',
+      command,
+      checkCommand,
+      nextManualAction: nextBootstrapAction(command, worktreePath),
+    });
+  }
+
+  return { status: 'READY', mode, command, checkCommand };
+}
+
 function createOrResumeWorktree(options = {}) {
   const cli = options.cli || {};
   const cwd = options.cwd || process.cwd();
@@ -262,7 +445,22 @@ function createOrResumeWorktree(options = {}) {
       status: 'in_progress',
       step: 'resumed',
     });
-    return { branch, worktreePath: existing.path, config, mainRoot, resumed: true };
+    const bootstrap = runWorktreeBootstrap({
+      worktreePath: existing.path,
+      config,
+      cli,
+      mainRoot,
+      defaultMode: hasExplicitBootstrapMode(cli) ? '' : 'check',
+    });
+    writeSession(config, mainRoot, {
+      phase: cli.phase || inferPhaseFromBranch(branch),
+      branch,
+      worktree: existing.path,
+      status: 'in_progress',
+      step: 'resumed',
+      bootstrap,
+    });
+    return { branch, worktreePath: existing.path, config, mainRoot, bootstrap, resumed: true };
   }
 
   runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
@@ -294,7 +492,23 @@ function createOrResumeWorktree(options = {}) {
     step: 'created',
     linked,
   });
-  return { branch, worktreePath, config, mainRoot, baseRef, linked, resumed: false };
+  const bootstrap = runWorktreeBootstrap({
+    worktreePath,
+    config,
+    cli,
+    mainRoot,
+    defaultMode: bootstrapConfig(config).mode || 'skip',
+  });
+  writeSession(config, mainRoot, {
+    phase: cli.phase || inferPhaseFromBranch(branch),
+    branch,
+    worktree: worktreePath,
+    status: 'in_progress',
+    step: 'created',
+    linked,
+    bootstrap,
+  });
+  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, resumed: false };
 }
 
 module.exports = {
@@ -317,6 +531,7 @@ module.exports = {
   resolveContainerPath,
   run,
   runGit,
+  runWorktreeBootstrap,
   setupSharedLinks,
   slugify,
   writeSession,

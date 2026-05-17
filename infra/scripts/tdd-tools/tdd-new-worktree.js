@@ -7,12 +7,21 @@ function translateArgs(argv) {
   const translated = ['--phase=tdd'];
   let isFix = false;
   const positional = [];
-  for (const arg of argv) {
+  const valueFlags = new Set(['--bootstrap', '--branch', '--desc', '--task', '--kind']);
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
     if (arg === '--') continue;
     if (arg === '--dry-run') {
       translated.push('--dry-run');
+    } else if (arg === '--skip-bootstrap' || arg.startsWith('--bootstrap=')) {
+      translated.push(arg);
+    } else if (valueFlags.has(arg) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
+      translated.push(arg, argv[i + 1]);
+      i += 1;
     } else if (arg === '--fix') {
       isFix = true;
+    } else if (arg.startsWith('--')) {
+      translated.push(arg);
     } else {
       positional.push(arg);
     }
