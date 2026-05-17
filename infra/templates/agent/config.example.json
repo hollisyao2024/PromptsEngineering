@@ -39,7 +39,14 @@
       ".gemini/settings.json"
     ],
     "sessionDir": "../tmp/worktree-sessions",
-    "lockDir": "../tmp/agent-locks"
+    "lockDir": "../tmp/agent-locks",
+    "bootstrap": {
+      "mode": "skip",
+      "command": "",
+      "checkCommand": "",
+      "lockName": "worktree-bootstrap",
+      "timeoutMs": 600000
+    }
   },
   "automation": {
     "defaultExecutor": "codex",
@@ -49,7 +56,8 @@
   },
   "template": {
     "manifest": "infra/templates/agent/template.manifest.json",
-    "applyReportDir": "../tmp/template-apply-reports"
+    "applyReportDir": "../tmp/template-apply-reports",
+    "sourceRepo": ""
   },
   "release": {
     "bumpVersion": false,

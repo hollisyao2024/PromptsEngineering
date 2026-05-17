@@ -51,6 +51,13 @@ const DEFAULT_CONFIG = {
     ],
     sessionDir: '../tmp/worktree-sessions',
     lockDir: '../tmp/agent-locks',
+    bootstrap: {
+      mode: 'skip',
+      command: '',
+      checkCommand: '',
+      lockName: 'worktree-bootstrap',
+      timeoutMs: 600000,
+    },
   },
   automation: {
     defaultExecutor: 'codex',
@@ -61,6 +68,7 @@ const DEFAULT_CONFIG = {
   template: {
     manifest: 'infra/templates/agent/template.manifest.json',
     applyReportDir: '../tmp/template-apply-reports',
+    sourceRepo: '',
   },
   release: {
     bumpVersion: false,
@@ -230,6 +238,12 @@ function deepMerge(base, override) {
 
 function parseCliArgs(argv = process.argv.slice(2)) {
   const args = {};
+  const assignArg = (key, value) => {
+    args[key] = value;
+    if (key.includes('-')) {
+      args[key.replace(/-([a-z])/g, (_, char) => char.toUpperCase())] = value;
+    }
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const raw = argv[i];
     if (raw === '--') continue;
@@ -237,17 +251,17 @@ function parseCliArgs(argv = process.argv.slice(2)) {
 
     const eq = raw.indexOf('=');
     if (eq !== -1) {
-      args[raw.slice(2, eq)] = raw.slice(eq + 1);
+      assignArg(raw.slice(2, eq), raw.slice(eq + 1));
       continue;
     }
 
     const key = raw.slice(2);
     const next = argv[i + 1];
     if (next && !next.startsWith('--')) {
-      args[key] = next;
+      assignArg(key, next);
       i += 1;
     } else {
-      args[key] = true;
+      assignArg(key, true);
     }
   }
   return args;
@@ -272,6 +286,36 @@ function envOverrides(env = process.env) {
   }
   if (env.AGENT_DEFAULT_EXECUTOR) {
     output.automation = { ...(output.automation || {}), defaultExecutor: env.AGENT_DEFAULT_EXECUTOR };
+  }
+  if (env.AGENT_TEMPLATE_SOURCE_REPO) {
+    output.template = { ...(output.template || {}), sourceRepo: env.AGENT_TEMPLATE_SOURCE_REPO };
+  }
+  if (env.AGENT_WORKTREE_BOOTSTRAP_MODE) {
+    output.worktree = {
+      ...(output.worktree || {}),
+      bootstrap: {
+        ...((output.worktree && output.worktree.bootstrap) || {}),
+        mode: env.AGENT_WORKTREE_BOOTSTRAP_MODE,
+      },
+    };
+  }
+  if (env.AGENT_WORKTREE_BOOTSTRAP_COMMAND) {
+    output.worktree = {
+      ...(output.worktree || {}),
+      bootstrap: {
+        ...((output.worktree && output.worktree.bootstrap) || {}),
+        command: env.AGENT_WORKTREE_BOOTSTRAP_COMMAND,
+      },
+    };
+  }
+  if (env.AGENT_WORKTREE_BOOTSTRAP_CHECK_COMMAND) {
+    output.worktree = {
+      ...(output.worktree || {}),
+      bootstrap: {
+        ...((output.worktree && output.worktree.bootstrap) || {}),
+        checkCommand: env.AGENT_WORKTREE_BOOTSTRAP_CHECK_COMMAND,
+      },
+    };
   }
   if (env.AGENT_PRIMARY_APP) output.paths = { ...(output.paths || {}), primaryApp: env.AGENT_PRIMARY_APP };
   if (env.AGENT_WEB_APP_DIR) output.paths = { ...(output.paths || {}), webAppDir: env.AGENT_WEB_APP_DIR };
@@ -310,6 +354,16 @@ function cliOverrides(cli = {}) {
   if (cli.project || cli.projectName) output.projectName = cli.project || cli.projectName;
   if (cli.base || cli.baseBranch) output.baseBranch = cli.base || cli.baseBranch;
   if (cli.executor) output.automation = { defaultExecutor: cli.executor };
+  if (cli.templateSource || cli.templateSourceRepo) {
+    output.template = { sourceRepo: cli.templateSource || cli.templateSourceRepo };
+  }
+  if (cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap) {
+    output.worktree = {
+      bootstrap: {
+        mode: cli['skip-bootstrap'] || cli.skipBootstrap ? 'skip' : cli.bootstrap,
+      },
+    };
+  }
   if (cli.worktreesDir) output.containerDirs = { worktrees: cli.worktreesDir };
   if (cli.appDir || cli.primaryApp) output.paths = { primaryApp: cli.appDir || cli.primaryApp };
   if (cli.webAppDir) output.paths = { ...(output.paths || {}), webAppDir: cli.webAppDir };
