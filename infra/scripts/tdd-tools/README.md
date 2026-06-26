@@ -83,7 +83,7 @@ pnpm run tdd:review-gate -- --base main
 - `tdd:push -- --project` 为显式项目模式，仍只针对当前分支执行：
   - 若工作树存在未提交改动，自动执行 `git add -A`，并基于当前分支名生成 commit message 后提交到当前分支。
   - 先执行 `tdd:review-gate`，输出 `Review-Class` 与 `Reason`。
-  - `git push` / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。
+  - 通过脚本内认证执行当前分支 push / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。
   - 若结果为 `required`，Claude Code / Gemini CLI 后续必须执行当前 CLI 对应的 code review；Codex CLI 不执行 `codex review --base <PR目标分支>`，也不要求人工 `Approved`，记录 `Codex review skipped by policy` 后继续后续流程。
   - 若结果为 `optional-skipped` 或 `skipped`，可跳过 review，但不能跳过 lint / typecheck / 定向测试。
 

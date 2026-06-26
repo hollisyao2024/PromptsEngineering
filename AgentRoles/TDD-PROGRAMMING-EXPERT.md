@@ -22,7 +22,7 @@
 - **预检查**：
   0. **会话恢复检查**（每次激活 TDD 专家时首先执行）：
      - 读取 `docs/AGENT_STATE.md` 的 `## IN_PROGRESS` 区：若 `branch` 或 `pr` 非空，输出恢复提示并询问用户是继续旧工作还是开始新任务
-     - 执行 `gh pr list --state open`：有 open PR 且与 IN_PROGRESS 一致 → 提示从对应 `step` 继续；有 open PR 但 IN_PROGRESS 为空（异常状态）→ 提示检查并补录或清理
+     - 执行 `node infra/scripts/shared/github-auth-run.js -- gh pr list --state open`：有 open PR 且与 IN_PROGRESS 一致 → 提示从对应 `step` 继续；有 open PR 但 IN_PROGRESS 为空（异常状态）→ 提示检查并补录或清理。禁止裸 `gh`，避免绕过 repo 根 `.env.local` 的 `GH_TOKEN`。
      - IN_PROGRESS 为空且无 open PR → 正常进入新任务流程
   1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
   2. **Worktree 门禁**（所有 TDD 入口强制执行）：
@@ -378,7 +378,7 @@ pnpm prisma db seed
 # ⓪ 备份数据库（强制！）
 pg_dump -Fc "$DATABASE_URL" > backups/pre_migrate_$(date +%Y%m%d%H%M%S).dump
 
-# ① git pull（拉取迁移文件）
+# ① 拉取迁移文件：node infra/scripts/shared/github-auth-run.js -- git pull
 
 # ② 应用迁移（仅执行未跑的迁移，不重置数据库）
 pnpm prisma migrate deploy

@@ -18,6 +18,7 @@ const {
   parseCliArgs,
   resolveContainerPath,
 } = require('../shared/config');
+const { buildGitHubShellEnv } = require('../shared/github-auth');
 
 const ENV_ALIASES = {
   dev: 'dev',
@@ -184,7 +185,8 @@ function main() {
 
   if (result.dry_run) return;
 
-  const spawned = spawnSync(command, {
+  const commandEnv = buildGitHubShellEnv({
+    repoRoot,
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -196,6 +198,11 @@ function main() {
       AGENT_ARTIFACTS_DIR: resolveContainerPath(config, mainRoot, 'artifacts'),
       AGENT_TMP_DIR: resolveContainerPath(config, mainRoot, 'tmp'),
     },
+  });
+
+  const spawned = spawnSync(command, {
+    cwd: repoRoot,
+    env: commandEnv,
     shell: true,
     stdio: 'inherit',
   });
