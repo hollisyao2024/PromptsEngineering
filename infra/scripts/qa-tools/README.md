@@ -662,9 +662,13 @@ jobs:
         run: pnpm run qa:check-defect-blockers
 
       - name: Commit Reports
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          TOKEN_HEADER=$(node -e "process.stdout.write(Buffer.from('x-access-token:' + process.env.GH_TOKEN).toString('base64'))")
+          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $TOKEN_HEADER"
           git add docs/data/qa-reports/
           git commit -m "chore: 更新每日 QA 报告 $(date +'%Y-%m-%d')" || echo "No changes"
           git push

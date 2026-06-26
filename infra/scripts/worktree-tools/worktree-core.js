@@ -14,15 +14,20 @@ const {
   resolveContainerPath,
   resolveFromRepo,
 } = require('../shared/config');
+const { buildGitHubGitEnv } = require('../shared/github-auth');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
 function run(command, args, options = {}) {
+  const cwd = options.cwd || process.cwd();
+  const env = command === 'git'
+    ? buildGitHubGitEnv({ repoRoot: getMainRepoRoot(cwd), cwd, args, env: process.env })
+    : process.env;
   const result = spawnSync(command, args, {
-    cwd: options.cwd || process.cwd(),
+    cwd,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
-    env: process.env,
+    env,
   });
 
   if (result.status !== 0 && !options.allowFailure) {

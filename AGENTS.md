@@ -50,6 +50,13 @@
 - 若输出 `STATUS=BLOCKED`，外部 agent 必须停止自动推进，并把 `REASON` 与 `NEXT_MANUAL_ACTION` 返回给用户。
 - 若外部 agent 自带 worktree isolation，应禁用该层或配置为使用本仓库已创建的 `WORKTREE_PATH`，避免双重 worktree 状态。
 
+## GitHub 远端命令鉴权规则（强制）
+- GitHub token 的唯一项目级变量名是 `GH_TOKEN`，由项目根 `.env.local` 提供；禁止引入其他 token 变量名作为模板协议。
+- 禁止裸执行会访问 GitHub 远端的命令，包括 `git fetch`、`git pull`、`git push`、`git ls-remote`、`gh pr`、`gh repo`、`gh api`、`gh workflow`、`gh run`。
+- 必须改用模板入口或鉴权包装器：`/worktree new`、`/tdd push`、`/qa merge`、`/ship`、`/cd`，或 `node infra/scripts/shared/github-auth-run.js -- <command>`。
+- 允许裸执行纯本地 Git 命令，例如 `git status`、`git diff`、`git log`、`git rev-parse`、`git branch --show-current`。
+- 如果脚本输出 `NEXT_MANUAL_ACTION` 涉及 GitHub 远端操作，也必须给出 `github-auth-run.js` 包装后的命令，禁止提示用户执行裸 GitHub 远端命令。
+
 ## 目录与角色
 - 专家文件：`/AgentRoles/PRD-WRITER-EXPERT.md`、`/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`、`/AgentRoles/TASK-PLANNING-EXPERT.md`、`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`、`/AgentRoles/QA-TESTING-EXPERT.md`、`/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md`
 - 手册与模板：详见各 `AgentRoles/Handbooks/*.playbook.md`

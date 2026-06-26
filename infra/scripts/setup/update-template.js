@@ -108,6 +108,39 @@ function validateJsonFiles(targetRoot, files) {
   }
 }
 
+const GH_TOKEN_ENV_BLOCK = [
+  '# ========================================',
+  '# GitHub CLI（开发环境，/tdd push 自动创建 PR）',
+  '# ========================================',
+  'GH_TOKEN=',
+  '',
+].join('\n');
+
+function ensureGhTokenEnvLocal(targetRoot, write) {
+  const envLocalPath = path.join(targetRoot, '.env.local');
+  const exists = fs.existsSync(envLocalPath);
+  const current = exists ? fs.readFileSync(envLocalPath, 'utf8') : '';
+
+  if (/^\s*(?:export\s+)?GH_TOKEN\s*=.*$/m.test(current)) {
+    return {
+      status: 'unchanged',
+      path: '.env.local',
+      reason: 'GH_TOKEN already present',
+    };
+  }
+
+  const prefix = current && !current.endsWith('\n') ? `${current}\n\n` : current ? `${current}\n` : '';
+  const next = `${prefix}${GH_TOKEN_ENV_BLOCK}`;
+  if (write) {
+    fs.writeFileSync(envLocalPath, next);
+  }
+  return {
+    status: exists ? 'updated' : 'created',
+    path: '.env.local',
+    reason: exists ? 'GH_TOKEN block appended' : 'file created with GH_TOKEN block',
+  };
+}
+
 function isGitWorktree(targetRoot) {
   const result = run('git', ['rev-parse', '--is-inside-work-tree'], { cwd: targetRoot });
   return result.status === 0 && result.stdout.trim() === 'true';
@@ -176,6 +209,9 @@ function main() {
   const dryRun = run(process.execPath, baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
+  const dryRunEnvLocal = ensureGhTokenEnvLocal(targetRoot, false);
+  console.log(`ENV_LOCAL_GH_TOKEN=${dryRunEnvLocal.status}`);
+  if (dryRunEnvLocal.reason) console.log(`ENV_LOCAL_GH_TOKEN_REASON=${dryRunEnvLocal.reason}`);
 
   if (dryRun.status !== 0) {
     block('dry-run failed', { dry_run_log: dryRunLog });
@@ -199,6 +235,9 @@ function main() {
   if (writeRun.status !== 0) {
     block('write failed', { write_log: writeLogPath });
   }
+  const writeEnvLocal = ensureGhTokenEnvLocal(targetRoot, true);
+  console.log(`ENV_LOCAL_GH_TOKEN=${writeEnvLocal.status}`);
+  if (writeEnvLocal.reason) console.log(`ENV_LOCAL_GH_TOKEN_REASON=${writeEnvLocal.reason}`);
 
   validateJsonFiles(targetRoot, [
     'agent.config.json',
@@ -233,8 +272,16 @@ function main() {
   console.log(`WRITE_LOG=${writeLogPath}`);
 }
 
-try {
-  main();
-} catch (error) {
-  block(error.message);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    block(error.message);
+  }
 }
+
+module.exports = {
+  GH_TOKEN_ENV_BLOCK,
+  ensureGhTokenEnvLocal,
+  parseArgs,
+};

@@ -1,40 +1,26 @@
 #!/usr/bin/env node
-const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 const { writeInProgressFields } = require('./agent-state-utils');
 const { resolveRepoRoot } = require('../shared/config');
+const {
+  buildGitHubGitEnv,
+  loadProjectGitHubToken,
+  sanitizeGitHubRemoteUrl,
+} = require('../shared/github-auth');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
-const envLocalPath = path.join(repoRoot, '.env.local');
-
-// ==================== 项目级 GH_TOKEN 加载 ====================
-
-/**
- * 从 .env.local 读取 GH_TOKEN 并注入 process.env
- * 覆盖 shell 中可能存在的其他仓库 token
- */
-function loadProjectGhToken() {
-  try {
-    if (!fs.existsSync(envLocalPath)) return;
-    const content = fs.readFileSync(envLocalPath, 'utf8');
-    const match = content.match(/^GH_TOKEN=(.+)$/m);
-    if (match && match[1].trim()) {
-      process.env.GH_TOKEN = match[1].trim();
-    }
-  } catch {
-    // 静默忽略，GH_TOKEN 缺失会在 createPullRequest 中降级处理
-  }
-}
 
 // ==================== Git 工具 ====================
 
 function runGit(args, options = {}) {
+  const cwd = options.cwd || repoRoot;
   const result = spawnSync('git', args, {
-    cwd: repoRoot,
+    cwd,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
+    env: buildGitHubGitEnv({ repoRoot, cwd, args, env: process.env }),
   });
 
   if (result.error) {
@@ -97,27 +83,8 @@ function parseCliArgs(argv) {
 
 // ==================== Push ====================
 
-function getAuthenticatedRemoteUrl() {
-  const token = process.env.GH_TOKEN;
-  if (!token) return null;
-  try {
-    let remoteUrl = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
-    // 剥离已嵌入的旧 token（形如 https://x-access-token:PAT@github.com/...）
-    remoteUrl = remoteUrl.replace(/^https:\/\/[^@]+@github\.com\//, 'https://github.com/');
-    if (!remoteUrl.startsWith('https://github.com/')) return null;
-    return remoteUrl.replace('https://github.com/', `https://x-access-token:${token}@github.com/`);
-  } catch {
-    return null;
-  }
-}
-
 function pushBranch() {
-  const authUrl = getAuthenticatedRemoteUrl();
-  if (authUrl) {
-    runGit(['push', authUrl, 'HEAD']);
-  } else {
-    runGit(['push', 'origin', 'HEAD']);
-  }
+  runGit(['push', 'origin', 'HEAD']);
 }
 
 // ==================== PR 自动创建 ====================
@@ -321,8 +288,7 @@ function buildPrTitle(branch) {
 function getRemoteUrl() {
   try {
     const url = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
-    // https://github.com/owner/repo.git → https://github.com/owner/repo
-    return url.replace(/\.git$/, '');
+    return sanitizeGitHubRemoteUrl(url);
   } catch {
     return '';
   }
@@ -400,7 +366,7 @@ function createPullRequest(reviewDecision) {
 
 function main() {
   try {
-    loadProjectGhToken();
+    loadProjectGitHubToken({ repoRoot });
     const cliArgs = parseCliArgs(process.argv.slice(2));
     const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     const branch = getCurrentBranch();
@@ -459,4 +425,3 @@ function main() {
 }
 
 main();
-

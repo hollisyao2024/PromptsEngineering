@@ -126,6 +126,34 @@
 - 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`；报告目录按目标项目主 `repo/` 解析到容器层，禁止落到 `worktrees/tmp`。
 - 项目耦合脚本（部署、数据库同步、cron registry 等）不由模板提供。实际项目可放在自己的 `scripts/ops/` 或项目约定目录，并把应用目录、数据库目录、部署路径、cron registry 等写入 `agent.config.json` 或环境变量。
 
+### GitHub 远端命令示例
+
+项目级 GitHub token 只使用根目录 `.env.local` 中的 `GH_TOKEN`。任何会访问 GitHub 远端的命令都必须通过模板脚本入口或 `github-auth-run.js` 包装执行。
+
+不允许：
+```bash
+git push origin HEAD
+git pull
+gh pr list --state open
+gh pr create --title "..." --body "..."
+```
+
+允许：
+```bash
+node infra/scripts/shared/github-auth-run.js -- git push origin HEAD
+node infra/scripts/shared/github-auth-run.js -- git pull
+node infra/scripts/shared/github-auth-run.js -- gh pr list --state open
+node infra/scripts/shared/github-auth-run.js -- gh pr create --title "..." --body "..."
+```
+
+纯本地 Git 命令可以裸执行：
+```bash
+git status --short
+git diff
+git log --oneline -5
+git rev-parse --show-toplevel
+```
+
 ### Manifest 策略一览
 
 | 策略 | 适用文件 | target 不存在 | target 存在 |

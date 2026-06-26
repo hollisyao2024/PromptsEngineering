@@ -28,9 +28,13 @@ const {
   removeSession,
 } = require('../worktree-tools/worktree-core');
 const defectBlockerCheckers = require('./check-defect-blockers');
+const {
+  buildGitHubGitEnv,
+  loadProjectGitHubToken,
+  sanitizeGitHubRemoteUrl,
+} = require('../shared/github-auth');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
-const envLocalPath = path.join(repoRoot, '.env.local');
 
 // ==================== 主仓库根路径检测 ====================
 
@@ -38,28 +42,15 @@ function getMainRepoRoot() {
   return sharedGetMainRepoRoot(process.cwd());
 }
 
-// ==================== 项目级 GH_TOKEN 加载 ====================
-
-function loadProjectGhToken() {
-  try {
-    if (!fs.existsSync(envLocalPath)) return;
-    const content = fs.readFileSync(envLocalPath, 'utf8');
-    const match = content.match(/^GH_TOKEN=(.+)$/m);
-    if (match && match[1].trim()) {
-      process.env.GH_TOKEN = match[1].trim();
-    }
-  } catch {
-    // 静默忽略
-  }
-}
-
 // ==================== Git 工具 ====================
 
 function runGit(args, options = {}) {
+  const cwd = options.cwd || repoRoot;
   const result = spawnSync('git', args, {
-    cwd: options.cwd || repoRoot,
+    cwd,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
+    env: buildGitHubGitEnv({ repoRoot, cwd, args, env: process.env }),
   });
 
   if (result.error) {
@@ -104,7 +95,7 @@ function isMainBranch(branch) {
 function getRemoteUrl() {
   try {
     const url = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
-    return url.replace(/\.git$/, '');
+    return sanitizeGitHubRemoteUrl(url);
   } catch {
     return '';
   }
@@ -241,11 +232,11 @@ function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit 
     try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
-      '请手动解决冲突后重试：\n' +
-      '  git rebase origin/main\n' +
-      '  # 解决冲突后：git rebase --continue\n' +
-      '  git push --force-with-lease'
-    );
+	      '请手动解决冲突后重试：\n' +
+	      '  git rebase origin/main\n' +
+	      '  # 解决冲突后：git rebase --continue\n' +
+	      `  node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
+	    );
   }
 
   try {
@@ -255,10 +246,10 @@ function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit 
     console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
     try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
-      `rebase 成功但 force-push 失败：${pushError.message}\n` +
-      '分支已恢复到 rebase 前的状态。\n' +
-      `请检查远程权限后手动执行：git push --force-with-lease origin ${currentBranch}`
-    );
+	      `rebase 成功但 force-push 失败：${pushError.message}\n` +
+	      '分支已恢复到 rebase 前的状态。\n' +
+	      `请检查远程权限后手动执行：node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
+	    );
   }
 
   console.log(
@@ -975,7 +966,7 @@ async function main() {
     const config = loadConfig({ repoRoot: mainWorkspacePath });
 
     // Step 2: 加载 GH_TOKEN
-    loadProjectGhToken();
+    loadProjectGitHubToken({ repoRoot });
 
     // Step 3: 确保 gh CLI 可用
     ensureGhAvailable();
