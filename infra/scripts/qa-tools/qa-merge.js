@@ -15,6 +15,7 @@
  */
 
 const fs = require('fs');
+const https = require('https');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
@@ -28,13 +29,10 @@ const {
   removeSession,
 } = require('../worktree-tools/worktree-core');
 const defectBlockerCheckers = require('./check-defect-blockers');
-const {
-  buildGitHubGitEnv,
-  loadProjectGitHubToken,
-  sanitizeGitHubRemoteUrl,
-} = require('../shared/github-auth');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
+const envLocalPath = path.join(repoRoot, '.env.local');
+let githubBackend = null;
 
 // ==================== 主仓库根路径检测 ====================
 
@@ -42,15 +40,91 @@ function getMainRepoRoot() {
   return sharedGetMainRepoRoot(process.cwd());
 }
 
+// ==================== 项目级 GH_TOKEN 加载 ====================
+
+function loadProjectGhToken() {
+  try {
+    if (!fs.existsSync(envLocalPath)) return;
+    const content = fs.readFileSync(envLocalPath, 'utf8');
+    const match = content.match(/^GH_TOKEN=(.+)$/m);
+    if (match && match[1].trim()) {
+      process.env.GH_TOKEN = match[1].trim();
+    }
+  } catch {
+    // 静默忽略
+  }
+}
+
 // ==================== Git 工具 ====================
 
+function parseEnvValue(rawValue) {
+  let value = String(rawValue || '').trim();
+  const commentIndex = value.search(/\s#/);
+  if (commentIndex >= 0) {
+    value = value.slice(0, commentIndex).trim();
+  }
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
+  }
+  return value.trim();
+}
+
+function getGhTokenEnvCandidates() {
+  const roots = [repoRoot];
+  try {
+    roots.push(sharedGetMainRepoRoot(process.cwd()));
+  } catch {
+    // ignore
+  }
+  try {
+    roots.push(getMainRepoRoot());
+  } catch {
+    // ignore
+  }
+  return [...new Set(roots.filter(Boolean).map((root) => path.join(root, '.env.local')))];
+}
+
+function readGhTokenFromEnvFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return '';
+    const content = fs.readFileSync(filePath, 'utf8');
+    for (const line of content.split(/\r?\n/)) {
+      const match = line.match(/^\s*(?:export\s+)?GH_TOKEN\s*=\s*(.+?)\s*$/);
+      if (match) return parseEnvValue(match[1]);
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+}
+
+function loadProjectGhTokenFromCandidates({
+  env = process.env,
+  candidates = getGhTokenEnvCandidates(),
+} = {}) {
+  if (env.GH_TOKEN && String(env.GH_TOKEN).trim()) {
+    return { loaded: false, source: 'process.env' };
+  }
+
+  for (const candidate of candidates) {
+    const token = readGhTokenFromEnvFile(candidate);
+    if (token) {
+      env.GH_TOKEN = token;
+      return { loaded: true, source: candidate };
+    }
+  }
+
+  return { loaded: false, source: '' };
+}
+
 function runGit(args, options = {}) {
-  const cwd = options.cwd || repoRoot;
   const result = spawnSync('git', args, {
-    cwd,
+    cwd: options.cwd || repoRoot,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
-    env: buildGitHubGitEnv({ repoRoot, cwd, args, env: process.env }),
   });
 
   if (result.error) {
@@ -84,6 +158,157 @@ function formatGhError(result, args) {
   return `gh ${args.join(' ')} failed: ${details}`;
 }
 
+function isGhAvailable() {
+  const result = spawnSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
+  return !result.error && result.status === 0;
+}
+
+function parseGitHubRepoSlug(remoteUrl) {
+  const normalized = String(remoteUrl || '').trim().replace(/\.git$/, '');
+  const match = normalized.match(/github\.com[:/](?<owner>[^/]+)\/(?<repo>[^/]+)$/i);
+  if (!match || !match.groups) {
+    return null;
+  }
+  return {
+    owner: match.groups.owner,
+    repo: match.groups.repo,
+  };
+}
+
+function encodeBranchRef(branch) {
+  return String(branch)
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
+}
+
+function createGhResult({ status = 0, stdout = '', stderr = '' } = {}) {
+  return { status, stdout, stderr };
+}
+
+function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!token) {
+      reject(new Error('GH_TOKEN is required for GitHub API fallback'));
+      return;
+    }
+
+    const payload = body === undefined ? '' : JSON.stringify(body);
+    const request = https.request(
+      {
+        hostname: 'api.github.com',
+        path: apiPath,
+        method,
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'XiaoLan-qa-merge',
+          'X-GitHub-Api-Version': '2022-11-28',
+          ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
+        },
+      },
+      (response) => {
+        let raw = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          raw += chunk;
+        });
+        response.on('end', () => {
+          let data = null;
+          if (raw.trim()) {
+            try {
+              data = JSON.parse(raw);
+            } catch {
+              data = raw;
+            }
+          }
+
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(data);
+            return;
+          }
+
+          const message =
+            data && typeof data === 'object' && data.message ? data.message : raw.trim();
+          const error = new Error(
+            `GitHub API ${method} ${apiPath} failed (${response.statusCode}): ${message}`
+          );
+          error.statusCode = response.statusCode;
+          error.response = data;
+          reject(error);
+        });
+      }
+    );
+
+    request.on('error', reject);
+    if (payload) request.write(payload);
+    request.end();
+  });
+}
+
+function createGitHubBackend({
+  ghAvailable = isGhAvailable(),
+  token = process.env.GH_TOKEN,
+  remoteUrl = getRemoteUrl(),
+  apiRequest = githubApiRequest,
+} = {}) {
+  if (ghAvailable) {
+    return { mode: 'gh' };
+  }
+
+  if (!token) {
+    throw new Error(
+      'gh CLI 未安装或不可用，且未从 .env.local 读取到 GH_TOKEN。\n' +
+      '  安装 gh CLI，或在仓库根目录 .env.local 配置 GH_TOKEN。'
+    );
+  }
+
+  const slug = parseGitHubRepoSlug(remoteUrl);
+  if (!slug) {
+    throw new Error(`无法从 origin remote 解析 GitHub 仓库：${remoteUrl || '<empty>'}`);
+  }
+
+  return {
+    mode: 'api',
+    token,
+    owner: slug.owner,
+    repo: slug.repo,
+    apiRequest,
+  };
+}
+
+function ensureGitHubBackend(options = {}) {
+  githubBackend = createGitHubBackend(options);
+  if (githubBackend.mode === 'api') {
+    console.log('\x1b[33mgh CLI 不可用，已使用 .env.local 的 GH_TOKEN 走 GitHub API fallback\x1b[0m');
+  }
+  return githubBackend;
+}
+
+function getGitHubBackend() {
+  return githubBackend || ensureGitHubBackend();
+}
+
+function normalizePullRequest(pr) {
+  if (!pr) return null;
+  let mergeable = 'UNKNOWN';
+  if (pr.mergeable === true) mergeable = 'MERGEABLE';
+  if (pr.mergeable === false) mergeable = 'CONFLICTING';
+  if (typeof pr.mergeable === 'string') mergeable = pr.mergeable;
+  return {
+    number: pr.number,
+    title: pr.title,
+    body: pr.body || '',
+    url: pr.html_url || pr.url || '',
+    mergeable,
+  };
+}
+
+function repoApiPath(backend, suffix) {
+  return `/repos/${encodeURIComponent(backend.owner)}/${encodeURIComponent(backend.repo)}${suffix}`;
+}
+
 function getCurrentBranch() {
   return runGit(['branch', '--show-current'], { capture: true, cwd: process.cwd() }).trim();
 }
@@ -95,7 +320,7 @@ function isMainBranch(branch) {
 function getRemoteUrl() {
   try {
     const url = runGit(['remote', 'get-url', 'origin'], { capture: true }).trim();
-    return sanitizeGitHubRemoteUrl(url);
+    return url.replace(/\.git$/, '');
   } catch {
     return '';
   }
@@ -163,7 +388,23 @@ function ensureCleanWorkingTreeAt(targetPath, label = targetPath) {
   }
 }
 
-function findOpenPR(branch) {
+async function findOpenPR(branch, { backend = getGitHubBackend() } = {}) {
+  if (backend.mode === 'api') {
+    const head = encodeURIComponent(`${backend.owner}:${branch}`);
+    const prs = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls?head=${head}&state=open&per_page=10`),
+      { token: backend.token }
+    );
+    if (!Array.isArray(prs) || prs.length === 0) return null;
+    const detail = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls/${prs[0].number}`),
+      { token: backend.token }
+    );
+    return normalizePullRequest(detail);
+  }
+
   const args = [
     'pr', 'list',
     '--head', branch,
@@ -232,11 +473,11 @@ function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit 
     try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
       '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
-	      '请手动解决冲突后重试：\n' +
-	      '  git rebase origin/main\n' +
-	      '  # 解决冲突后：git rebase --continue\n' +
-	      `  node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
-	    );
+      '请手动解决冲突后重试：\n' +
+      '  git rebase origin/main\n' +
+      '  # 解决冲突后：git rebase --continue\n' +
+      '  git push --force-with-lease'
+    );
   }
 
   try {
@@ -246,10 +487,10 @@ function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit 
     console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
     try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
     throw new Error(
-	      `rebase 成功但 force-push 失败：${pushError.message}\n` +
-	      '分支已恢复到 rebase 前的状态。\n' +
-	      `请检查远程权限后手动执行：node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
-	    );
+      `rebase 成功但 force-push 失败：${pushError.message}\n` +
+      '分支已恢复到 rebase 前的状态。\n' +
+      `请检查远程权限后手动执行：git push --force-with-lease origin ${currentBranch}`
+    );
   }
 
   console.log(
@@ -258,7 +499,17 @@ function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit 
   return { rebased: true, commitsBehind };
 }
 
-function checkPrState(prNumber) {
+async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
+  if (backend.mode === 'api') {
+    const pr = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls/${prNumber}`),
+      { token: backend.token }
+    );
+    if (pr && pr.merged) return 'MERGED';
+    return pr && pr.state ? String(pr.state).toUpperCase() : null;
+  }
+
   const result = runGh(['pr', 'view', String(prNumber), '--json', 'state']);
   if (result.status !== 0) return null;
   try {
@@ -307,6 +558,11 @@ function switchVscodeWindow(mainRepoRoot, { spawn: _spawn = spawn } = {}) {
       detached: true,
       stdio: 'ignore',
     });
+    if (child && typeof child.on === 'function') {
+      child.on('error', () => {
+        // `code` can fail asynchronously with ENOENT after spawn returns.
+      });
+    }
     if (child && typeof child.unref === 'function') child.unref();
   } catch {
     // `code` not on PATH (SSH session, container, etc.) — non-fatal.
@@ -337,7 +593,53 @@ function buildCommitMessage(pr) {
   return parts.join('\n');
 }
 
-function tryGhMerge(prNumber) {
+async function tryGhMerge(prNumber, { backend = getGitHubBackend() } = {}) {
+  if (backend.mode === 'api') {
+    console.log(`\x1b[36m尝试 GitHub API squash merge #${prNumber}...\x1b[0m`);
+    try {
+      const pr = await backend.apiRequest(
+        'GET',
+        repoApiPath(backend, `/pulls/${prNumber}`),
+        { token: backend.token }
+      );
+      await backend.apiRequest(
+        'PUT',
+        repoApiPath(backend, `/pulls/${prNumber}/merge`),
+        {
+          token: backend.token,
+          body: { merge_method: 'squash' },
+        }
+      );
+      const sameRepo =
+        pr &&
+        pr.head &&
+        pr.head.repo &&
+        pr.head.repo.full_name === `${backend.owner}/${backend.repo}`;
+      if (sameRepo && pr.head.ref) {
+        try {
+          await backend.apiRequest(
+            'DELETE',
+            repoApiPath(backend, `/git/refs/heads/${encodeBranchRef(pr.head.ref)}`),
+            { token: backend.token }
+          );
+        } catch (deleteError) {
+          console.log(
+            `\x1b[33m  远程分支删除失败（不影响合并结果）：${deleteError.message}\x1b[0m`
+          );
+        }
+      }
+      console.log('\x1b[32m  GitHub API squash merge 成功\x1b[0m');
+      return true;
+    } catch (error) {
+      if (error.statusCode === 403) {
+        console.log('\x1b[33m  GitHub API merge 权限不足，切换到本地合并策略...\x1b[0m');
+      } else {
+        console.log(`\x1b[33m  GitHub API merge 失败 (${error.message})，切换到本地合并策略...\x1b[0m`);
+      }
+      return false;
+    }
+  }
+
   console.log(`\x1b[36m尝试 gh pr merge #${prNumber} --squash...\x1b[0m`);
   const result = runGh([
     'pr', 'merge', String(prNumber),
@@ -450,21 +752,45 @@ async function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRo
  * --delete <branch>` are independent network calls. Run them concurrently
  * with Promise.all so total wall time = max(close, delete) instead of sum.
  */
+async function closePullRequest(prNumber, comment, { backend = getGitHubBackend(), runGh: _runGh = runGh } = {}) {
+  if (backend.mode === 'api') {
+    if (comment) {
+      await backend.apiRequest(
+        'POST',
+        repoApiPath(backend, `/issues/${prNumber}/comments`),
+        { token: backend.token, body: { body: comment } }
+      );
+    }
+    await backend.apiRequest(
+      'PATCH',
+      repoApiPath(backend, `/issues/${prNumber}`),
+      { token: backend.token, body: { state: 'closed' } }
+    );
+    return createGhResult();
+  }
+
+  return _runGh([
+    'pr', 'close', String(prNumber),
+    '--comment',
+    comment,
+  ]);
+}
+
 async function closeAndCleanup(
   featureBranch,
   pr,
   commitMsg,
-  { runGh: _runGh = runGh, runGit: _runGit = runGit } = {}
+  { runGh: _runGh = runGh, runGit: _runGit = runGit, closePr: _closePr = closePullRequest } = {}
 ) {
   console.log(`\x1b[36m并行关闭 PR #${pr.number} + 删除远程分支 ${featureBranch}...\x1b[0m`);
 
   const closeP = (async () => {
     try {
-      const result = _runGh([
-        'pr', 'close', String(pr.number),
-        '--comment',
+      const result = await _closePr(
+        pr.number,
         `Squash merged locally to main.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
-      ]);
+        { runGh: _runGh }
+      );
       if (result && result.status !== 0) {
         console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
       }
@@ -767,6 +1093,109 @@ function bumpPatchVersion(version) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
+function normalizeConfiguredReleasePath(relPath) {
+  if (!relPath || typeof relPath !== 'string') {
+    throw new Error('release.versionSyncFiles entry 缺少 path');
+  }
+  if (path.isAbsolute(relPath)) {
+    throw new Error(`release.versionSyncFiles path 必须是相对路径: ${relPath}`);
+  }
+  const normalized = path.normalize(relPath);
+  if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) {
+    throw new Error(`release.versionSyncFiles path 不能指向仓库外: ${relPath}`);
+  }
+  return normalized;
+}
+
+function setJsonField(obj, field, value, relPath) {
+  const segments = String(field || 'version').split('.').filter(Boolean);
+  if (segments.length === 0) {
+    throw new Error(`release.versionSyncFiles JSON field 无效: ${relPath}`);
+  }
+  let target = obj;
+  for (const segment of segments.slice(0, -1)) {
+    if (!target[segment] || typeof target[segment] !== 'object' || Array.isArray(target[segment])) {
+      target[segment] = {};
+    }
+    target = target[segment];
+  }
+  const last = segments[segments.length - 1];
+  if (target[last] === value) return false;
+  target[last] = value;
+  return true;
+}
+
+function syncJsonReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const obj = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+  if (!setJsonField(obj, entry.field || 'version', version, relPath)) return '';
+  fs.writeFileSync(fullPath, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
+  return relPath;
+}
+
+function syncCargoPackageReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const text = fs.readFileSync(fullPath, 'utf8');
+  const re = /^(\s*version\s*=\s*)"([^"]+)"/m;
+  const match = text.match(re);
+  if (!match) {
+    throw new Error(`release.versionSyncFiles 未在 ${relPath} 找到 [package] version`);
+  }
+  if (match[2] === version) return '';
+  fs.writeFileSync(fullPath, text.replace(re, `$1"${version}"`), 'utf8');
+  return relPath;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function syncCargoLockPackageReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const packageName = entry.package;
+  if (!packageName || typeof packageName !== 'string') {
+    throw new Error(`release.versionSyncFiles cargo-lock-package 缺少 package: ${relPath}`);
+  }
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const text = fs.readFileSync(fullPath, 'utf8');
+  const lineBreak = '\\r?\\n';
+  const re = new RegExp(
+    `(\\[\\[package\\]\\]${lineBreak}name = "${escapeRegExp(packageName)}"${lineBreak}(?:source = "[^"]+"${lineBreak})?version = )"([^"]+)"`,
+    'm'
+  );
+  const match = text.match(re);
+  if (!match) {
+    throw new Error(`release.versionSyncFiles 未在 ${relPath} 找到 [[package]] name="${packageName}"`);
+  }
+  if (match[2] === version) return '';
+  fs.writeFileSync(fullPath, text.replace(re, `$1"${version}"`), 'utf8');
+  return relPath;
+}
+
+function syncConfiguredVersionFiles(mainWorkspacePath, versionSyncFiles, version) {
+  if (!version || !Array.isArray(versionSyncFiles) || versionSyncFiles.length === 0) {
+    return [];
+  }
+  const changed = [];
+  for (const entry of versionSyncFiles) {
+    const format = entry && entry.format;
+    let relPath = '';
+    if (format === 'json') {
+      relPath = syncJsonReleaseVersion(mainWorkspacePath, entry, version);
+    } else if (format === 'cargo-package') {
+      relPath = syncCargoPackageReleaseVersion(mainWorkspacePath, entry, version);
+    } else if (format === 'cargo-lock-package') {
+      relPath = syncCargoLockPackageReleaseVersion(mainWorkspacePath, entry, version);
+    } else {
+      throw new Error(`release.versionSyncFiles format 不支持: ${format || '(empty)'}`);
+    }
+    if (relPath) changed.push(relPath);
+  }
+  return changed;
+}
+
 function insertChangelogEntry(mainRepoRoot, targetVersion, note, changelogFile = 'CHANGELOG.md') {
   const changelogPath = path.join(mainRepoRoot, changelogFile);
   const raw = fs.readFileSync(changelogPath, 'utf8');
@@ -787,7 +1216,16 @@ function insertChangelogEntry(mainRepoRoot, targetVersion, note, changelogFile =
   fs.writeFileSync(changelogPath, payload, 'utf8');
 }
 
-function getPrTitle(prNumber) {
+async function getPrTitle(prNumber, { backend = getGitHubBackend() } = {}) {
+  if (backend.mode === 'api') {
+    const pr = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls/${prNumber}`),
+      { token: backend.token }
+    );
+    return pr && pr.title ? pr.title : null;
+  }
+
   const result = runGh(['pr', 'view', String(prNumber), '--json', 'title', '--jq', '.title']);
   if (result.status === 0 && result.stdout.trim()) {
     return result.stdout.trim();
@@ -966,10 +1404,10 @@ async function main() {
     const config = loadConfig({ repoRoot: mainWorkspacePath });
 
     // Step 2: 加载 GH_TOKEN
-    loadProjectGitHubToken({ repoRoot });
+    loadProjectGhTokenFromCandidates();
 
     // Step 3: 确保 gh CLI 可用
-    ensureGhAvailable();
+    ensureGitHubBackend();
 
     // Step 4: 确保工作区干净
     // 只检查 cleanliness；不再在主 repo 跑 pnpm install。
@@ -992,7 +1430,7 @@ async function main() {
     }
 
     // Step 6: 查找 open PR
-    const pr = findOpenPR(currentBranch);
+    const pr = await findOpenPR(currentBranch);
     if (!pr) {
       throw new Error(
         `当前分支 (${currentBranch}) 没有 open PR。\n` +
@@ -1010,7 +1448,7 @@ async function main() {
       console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
       spawnSync('sleep', ['3'], { stdio: 'inherit' });
 
-      const updatedPr = findOpenPR(currentBranch);
+      const updatedPr = await findOpenPR(currentBranch);
       if (!updatedPr) {
         throw new Error(
           `rebase 并 force-push 后找不到 PR。\n` +
@@ -1068,14 +1506,14 @@ async function main() {
 
     // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
-    const ghMerged = tryGhMerge(pr.number);
+    const ghMerged = await tryGhMerge(pr.number);
 
     if (ghMerged) {
       strategy = 'gh';
       syncLocalMain(mainWorkspacePath);
     } else {
       // 防竞态：gh 可能超时但实际已完成合并
-      const prState = checkPrState(pr.number);
+      const prState = await checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
         strategy = 'gh';
@@ -1121,7 +1559,7 @@ async function main() {
     let newVersion = '';
 
     // Release note 从 PR 标题提取
-    const releaseNote = getPrTitle(pr.number) || pr.title || 'QA merge';
+    const releaseNote = (await getPrTitle(pr.number)) || pr.title || 'QA merge';
     const releaseFiles = [];
 
     if (shouldBumpVersion) {
@@ -1132,7 +1570,16 @@ async function main() {
       pkg.version = newVersion;
       fs.writeFileSync(versionFilePath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
       releaseFiles.push(versionFile);
+      const syncedVersionFiles = syncConfiguredVersionFiles(
+        mainWorkspacePath,
+        releaseConfig.versionSyncFiles,
+        newVersion
+      );
+      releaseFiles.push(...syncedVersionFiles.filter((file) => !releaseFiles.includes(file)));
       console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+      if (syncedVersionFiles.length > 0) {
+        console.log(`\x1b[32m  版本同步文件: ${syncedVersionFiles.join(', ')}\x1b[0m`);
+      }
     } else {
       console.log('\x1b[36m  跳过版本递增（release.bumpVersion=false；可用 --bump-version 开启）\x1b[0m');
     }
@@ -1192,11 +1639,21 @@ if (require.main === module) {
 
 module.exports = {
   findOpenPR,
+  checkPrState,
+  tryGhMerge,
+  getPrTitle,
   findWorktreePathByBranch,
   resolveMainWorkspacePath,
   formatGhError,
+  parseEnvValue,
+  readGhTokenFromEnvFile,
+  loadProjectGhTokenFromCandidates,
+  parseGitHubRepoSlug,
+  createGitHubBackend,
+  closePullRequest,
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
+  syncConfiguredVersionFiles,
   // B1-B6 surface for unit tests:
   switchVscodeWindow,
   runPreMergeChecks,
