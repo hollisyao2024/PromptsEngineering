@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'set -a; [ -f .env.local ] && . .env.local; set +a; [ -n \"${GH_TOKEN:-}\" ] && [ -n \"${CLAUDE_ENV_FILE:-}\" ] && printf \"%s\\n\" \"export GH_TOKEN=$GH_TOKEN\" >> \"$CLAUDE_ENV_FILE\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'set -a; [ -f .env.local ] && . .env.local; set +a; [ -n \"${GH_TOKEN:-}\" ] && [ -n \"${CLAUDE_ENV_FILE:-}\" ] && printf \"%s\\n\" \"export GH_TOKEN=$GH_TOKEN\" >> \"$CLAUDE_ENV_FILE\"'"
+          }
+        ]
+      }
+    ]
+  }
+}

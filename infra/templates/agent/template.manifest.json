@@ -13,6 +13,7 @@
     { "path": ".claude/settings.local.json.template", "strategy": "overwrite" },
     { "path": ".codex/README.md", "strategy": "overwrite" },
     { "path": ".codex/config.example.toml", "strategy": "overwrite" },
+    { "path": ".codex/hooks.json", "strategy": "overwrite" },
     { "path": ".gemini/README.md", "strategy": "overwrite" },
     { "path": ".gemini/settings.template.json", "source": ".gemini/settings.json", "strategy": "overwrite" },
     { "path": ".gemini/settings.json", "strategy": "merge-jsonc" },

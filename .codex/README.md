@@ -26,6 +26,12 @@
 - **目标**：覆盖团队配置，实现无打扰的自动化工作流
 - **格式**：TOML（从 `config.example.toml` 复制并修改）
 
+### `hooks.json` - 团队共享启动钩子
+- **用途**：会话启动/恢复时读取当前仓库 `.env.local`，把 `GH_TOKEN` 注入 CLI 环境文件，确保 GitHub 操作优先使用 repo-local token
+- **提交状态**：✅ 应提交到 Git 仓库
+- **安全边界**：只提交读取与转发逻辑，不提交 token 值；真实 token 仍只放在 `.env.local`
+- **适用场景**：Claude/Codex 相关本地会话需要继承项目级 `GH_TOKEN` 时默认生效
+
 ### 其他忽略的文件
 以下文件由 Codex 运行时生成，不应提交到 Git：
 - `auth.json` - 认证信息
@@ -257,7 +263,7 @@ env = { "GITHUB_TOKEN" = "your-token" }
 ### 提交变更
 
 ```bash
-git add .codex/config.example.toml .codex/README.md
+git add .codex/config.example.toml .codex/hooks.json .codex/README.md
 git commit -m "chore: update Codex config template"
 ```
 
