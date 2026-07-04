@@ -300,16 +300,53 @@ function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
  * B1: open / focus the main repo in VSCode without blocking. Detached spawn
  * + unref means the parent qa-merge.js can exit immediately even if the
  * `code` shell wrapper hangs (which it did for 8+ minutes in production).
+ *
+ * In Codex/CI/SSH contexts, focusing VSCode is surprising and can leave
+ * orphaned `code -r` wrapper processes, so only interactive local sessions do
+ * this by default. Set AGENT_QA_MERGE_FOCUS_VSCODE=1 to force it.
  */
-function switchVscodeWindow(mainRepoRoot, { spawn: _spawn = spawn } = {}) {
+function isTruthyEnvValue(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || '').trim());
+}
+
+function isFalsyEnvValue(value) {
+  return /^(0|false|no|off)$/i.test(String(value || '').trim());
+}
+
+function shouldSwitchVscodeWindow({ env = process.env } = {}) {
+  const explicit = env.AGENT_QA_MERGE_FOCUS_VSCODE;
+  if (isTruthyEnvValue(explicit)) return true;
+  if (isFalsyEnvValue(explicit)) return false;
+
+  if (isTruthyEnvValue(env.AGENT_SKIP_QA_MERGE_FOCUS_VSCODE)) return false;
+  if (isTruthyEnvValue(env.AGENT_SKIP_VSCODE_FOCUS)) return false;
+
+  if (env.CODEX_CI || env.CODEX_THREAD_ID || env.CI || env.GITHUB_ACTIONS) return false;
+  if (env.TERM === 'dumb' || env.SSH_CONNECTION || env.SSH_TTY) return false;
+
+  return true;
+}
+
+function switchVscodeWindow(mainRepoRoot, { spawn: _spawn = spawn, env = process.env } = {}) {
+  if (!shouldSwitchVscodeWindow({ env })) {
+    return false;
+  }
+
   try {
     const child = _spawn('code', ['-r', mainRepoRoot], {
       detached: true,
       stdio: 'ignore',
     });
+    if (child && typeof child.on === 'function') {
+      child.on('error', () => {
+        // `code` can fail asynchronously with ENOENT after spawn returns.
+      });
+    }
     if (child && typeof child.unref === 'function') child.unref();
+    return true;
   } catch {
     // `code` not on PATH (SSH session, container, etc.) — non-fatal.
+    return false;
   }
 }
 
@@ -1198,6 +1235,7 @@ module.exports = {
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
   // B1-B6 surface for unit tests:
+  shouldSwitchVscodeWindow,
   switchVscodeWindow,
   runPreMergeChecks,
   autoRebaseOnMain,
