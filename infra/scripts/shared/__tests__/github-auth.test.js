@@ -9,7 +9,9 @@ const {
   buildGitHubGitEnv,
   buildGitHubShellEnv,
   firstRemoteTarget,
+  getProjectEnvLocalCandidates,
   getProjectGitHubToken,
+  loadProjectGitHubToken,
   parseEnvContent,
   sanitizeGitHubRemoteUrl,
   shouldInjectGitHubAuth,
@@ -29,7 +31,7 @@ function createGitRepo(remoteUrl) {
 }
 
 test('parseEnvContent supports GH token lines', () => {
-  const parsed = parseEnvContent('A=1\nexport GH_TOKEN=\"from-file\"\n# nope\n');
+  const parsed = parseEnvContent('A=1\nexport GH_TOKEN=\"from-file\" # local token\n# nope\n');
   assert.equal(parsed.GH_TOKEN, 'from-file');
 });
 
@@ -99,4 +101,41 @@ test('buildGitHubShellEnv prepares gh and nested git commands for GitHub origin'
   assert.equal(env.GH_TOKEN, 'shell-token');
   assert.equal(env.GIT_CONFIG_COUNT, '1');
   assert.equal(env.GIT_CONFIG_KEY_0, 'http.https://github.com/.extraheader');
+});
+
+test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', () => {
+  const mainRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-auth-main-'));
+  const worktreeRoot = `${mainRoot}-worktree`;
+  try {
+    spawnSync('git', ['init', '-b', 'main'], { cwd: mainRoot, encoding: 'utf8', stdio: 'pipe' });
+    spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: mainRoot });
+    spawnSync('git', ['config', 'user.name', 'Test User'], { cwd: mainRoot });
+    fs.writeFileSync(path.join(mainRoot, 'README.md'), '# test\n');
+    fs.writeFileSync(path.join(mainRoot, '.env.local'), 'GH_TOKEN=main-token # comment\n');
+    spawnSync('git', ['add', 'README.md'], { cwd: mainRoot, encoding: 'utf8', stdio: 'pipe' });
+    spawnSync('git', ['commit', '-m', 'init'], { cwd: mainRoot, encoding: 'utf8', stdio: 'pipe' });
+    const worktree = spawnSync('git', ['worktree', 'add', worktreeRoot, '-b', 'test/worktree'], {
+      cwd: mainRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    assert.equal(worktree.status, 0, worktree.stderr);
+
+    const candidates = getProjectEnvLocalCandidates({ repoRoot: worktreeRoot, cwd: worktreeRoot });
+    assert.ok(candidates.includes(path.join(worktreeRoot, '.env.local')));
+    assert.ok(candidates.includes(path.join(mainRoot, '.env.local')));
+
+    const env = {};
+    const token = loadProjectGitHubToken({ repoRoot: worktreeRoot, cwd: worktreeRoot, env });
+    assert.equal(token, 'main-token');
+    assert.equal(env.GH_TOKEN, 'main-token');
+  } finally {
+    spawnSync('git', ['worktree', 'remove', '--force', worktreeRoot], {
+      cwd: mainRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    fs.rmSync(worktreeRoot, { recursive: true, force: true });
+    fs.rmSync(mainRoot, { recursive: true, force: true });
+  }
 });

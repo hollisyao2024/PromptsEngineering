@@ -42,12 +42,13 @@
 | `/env check <env>` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` | `pnpm env:check -- --env=<env>` |
 | `/env status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | `pnpm env:status` |
 | `/restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | `pnpm dev:restart` |
+| `/restart --target <profile>` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart --target=<profile>` | `pnpm dev:restart -- --target=<profile>` |
 
 **命令说明**：
 - `/ci run`、`/ci status`：由 `agent.config.json devops.commands.ciRun/ciStatus` 定义具体命令；未配置时输出 `STATUS=BLOCKED`
 - `/env check <env>`、`/env status`：由 `agent.config.json devops.commands.envCheck/envStatus` 或 `devops.healthCheck` 定义具体命令；未配置时输出 `STATUS=BLOCKED`
 
-**本地服务管理**：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs` 均指向 `devops-run.js --action=dev-*`，实际命令由 `agent.config.json devServer.commands` 或环境变量配置。Agent 文件不硬编码端口、服务名和日志路径。
+**本地服务管理**：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs` 均指向 `devops-run.js --action=dev-*`。多本地服务 profile 必须显式传 `--target=<profile>`，并在 `agent.config.json devServer.commands.<action>.<profile>` 中声明；禁止把 profile 写成 `/restart <profile>` 这类位置参数。Agent 文件不硬编码端口、服务名和日志路径。
 
 脚本路径参考详见 Playbook §脚本路径参考。
 

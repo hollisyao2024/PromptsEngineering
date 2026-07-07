@@ -144,8 +144,9 @@
 | `env:check` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` | |
 | `env:status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | |
 | `dev:restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | |
+| `dev:restart -- --target=<profile>` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart --target=<profile>` | 多本地服务 profile 必须显式传 target |
 
-`devops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际部署脚本须由目标项目在 `agent.config.json` 中声明，并包含环境检查、构建、部署、冒烟验证四个阶段。
+`devops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际部署脚本须由目标项目在 `agent.config.json` 中声明，并包含环境检查、构建、部署、冒烟验证四个阶段。多本地服务可用 `devServer.commands.<action>.<profile>` 声明，调用时使用 `--target=<profile>`，不要使用位置参数。
 
 ---
 

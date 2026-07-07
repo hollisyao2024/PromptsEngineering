@@ -468,18 +468,19 @@ function createOrResumeWorktree(options = {}) {
     return { branch, worktreePath: existing.path, config, mainRoot, bootstrap, resumed: true };
   }
 
-  runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
-
   const worktreesDir = resolveContainerPath(config, mainRoot, 'worktrees');
-  ensureDir(worktreesDir);
   const worktreeName = buildWorktreeName(cli, branch);
   const requestedPath = path.join(worktreesDir, worktreeName);
   const worktreePath = uniqueWorktreePath(requestedPath);
-  const baseRef = getBaseRef(mainRoot, config);
+  let baseRef = getBaseRef(mainRoot, config);
 
   if (cli.dryRun) {
     return { branch, worktreePath, config, mainRoot, baseRef, dryRun: true };
   }
+
+  runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
+  baseRef = getBaseRef(mainRoot, config);
+  ensureDir(worktreesDir);
 
   if (branchExists(mainRoot, branch)) {
     runGit(['worktree', 'add', worktreePath, branch], { cwd: mainRoot });

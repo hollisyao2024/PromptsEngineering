@@ -24,16 +24,19 @@ const CONFIG = {
   taskDependencyMatrixPath: path.join(__dirname, '../../../docs/data/task-dependency-matrix.md'),
 };
 
-// 主 TASK 必需章节
-const REQUIRED_SECTIONS = [
-  '## 1. 项目概述',
-  '## 2. 全局里程碑',
-  '## 3. WBS（工作分解结构）',
-  '## 4. 依赖关系',
-  '## 5. 关键路径',
-  '## 6. 资源与时间线',
-  '## 7. 风险登记',
-  '## 8. Story → Task 映射',
+// 主 TASK 必需章节。aliases 覆盖大型模块化模板中的历史标题。
+const REQUIRED_SECTION_GROUPS = [
+  { label: '## 1. 项目概述', aliases: ['## 1. 项目概述'] },
+  { label: '## 2. 全局里程碑', aliases: ['## 2. 全局里程碑', '## 3. 全局里程碑（跨模块）'] },
+  { label: '## 3. WBS（工作分解结构）', aliases: ['## 3. WBS（工作分解结构）', '## 2. 模块任务索引'] },
+  { label: '## 4. 依赖关系', aliases: ['## 4. 依赖关系', '## 4. 跨模块依赖关系'] },
+  { label: '## 5. 关键路径', aliases: ['## 5. 关键路径', '## 5. 全局关键路径（CPM）'] },
+  {
+    label: '## 6. 资源与时间线',
+    aliases: ['## 6. 资源与时间线', '## 7. 基础设施任务（INFRA）', '**整体时间线（Phase 1）**'],
+  },
+  { label: '## 7. 风险登记', aliases: ['## 7. 风险登记', '## 6. 全局风险与缓解'] },
+  { label: '## 8. Story → Task 映射', aliases: ['## 8. Story → Task 映射'] },
 ];
 
 // Task ID 格式正则（TASK-MODULE-NNN）
@@ -75,13 +78,7 @@ function checkMainTaskSections() {
   log('\n📋 检查主 TASK 章节完整性...', 'cyan');
 
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
-  const missingSections = [];
-
-  REQUIRED_SECTIONS.forEach(section => {
-    if (!taskContent.includes(section)) {
-      missingSections.push(section);
-    }
-  });
+  const { missingSections } = checkRequiredSections(taskContent);
 
   if (missingSections.length === 0) {
     log('✅ 主 TASK 包含所有必需章节', 'green');
@@ -93,6 +90,14 @@ function checkMainTaskSections() {
     });
     return false;
   }
+}
+
+function checkRequiredSections(taskContent) {
+  const missingSections = REQUIRED_SECTION_GROUPS
+    .filter(group => !group.aliases.some(alias => taskContent.includes(alias)))
+    .map(group => group.label);
+
+  return { missingSections };
 }
 
 // 检查 Task ID 格式
@@ -361,5 +366,6 @@ module.exports = {
   checkTaskEffortEstimation,
   checkTaskAssignee,
   checkDependencyFormat,
-  checkModuleTaskFiles
+  checkModuleTaskFiles,
+  checkRequiredSections
 };

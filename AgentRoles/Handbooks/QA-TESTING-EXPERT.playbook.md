@@ -314,14 +314,14 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 `pnpm run qa:merge` 脚本执行以下步骤：
 
 1. 加载项目级 GH_TOKEN（脚本内置；手动 GitHub/gh 命令必须通过 `node infra/scripts/shared/github-auth-run.js -- <command>` 执行）
-2. 确保 gh CLI 可用
+2. 初始化 GitHub backend：优先使用 gh CLI；gh CLI 不可用但 `.env.local` 有 `GH_TOKEN` 时使用 GitHub API fallback
 3. 工作区干净检查（无未提交变更）
 4. 分支验证（不能在主干分支）
 5. 查找当前分支对应的 open PR
 6. **自动 rebase**（脚本内认证 fetch origin/main → 检测落后提交 → rebase + force-push；冲突时中止并提示手动解决）
 7. PR 合并状态复查（rebase 后重新检测 `mergeable`）
 8. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
-9. **双策略合并**：优先 `gh pr merge --squash`，权限不足时自动降级为本地 squash merge
+9. **双策略合并**：优先 gh/GitHub API squash merge，权限不足时自动降级为本地 squash merge
 10. 防竞态检测（gh 超时但实际已完成的情况）
 11. **同步本地 main**（脚本内认证 fetch + ff-only merge；禁止手动裸 pull）
 12. **清理 worktree**（检测并安全移除对应 worktree，无 worktree 则跳过）

@@ -307,7 +307,8 @@ function validateQaFile(filePath) {
     result.warnings.push('未检测到二级章节（##）');
   }
 
-  const storyIds = Array.from(uniqueMatches(content, /\bUS-[A-Z]+-\d{3}\b/g));
+  // Module IDs may include digits, for example E2E, V3, or K8S.
+  const storyIds = Array.from(uniqueMatches(content, /\bUS-[A-Z0-9]+-\d{3}\b/g));
   const testCaseIds = Array.from(uniqueMatches(content, /\bTC-[A-Z0-9]+-[A-Z0-9]+\b/g));
   result.stats.storyCount = storyIds.length;
   result.stats.testCaseCount = testCaseIds.length;
@@ -319,7 +320,7 @@ function validateQaFile(filePath) {
     result.warnings.push('未检测到 Test Case ID（TC-XXX-001）');
   }
 
-  const invalidTcIds = testCaseIds.filter((id) => !/^TC-[A-Z]+-\d{3}$/.test(id));
+  const invalidTcIds = testCaseIds.filter((id) => !/^TC-[A-Z0-9]+-\d{3}$/.test(id));
   if (invalidTcIds.length > 0) {
     result.errors.push(`Test Case ID 格式异常: ${invalidTcIds.join(', ')}`);
   }
@@ -334,7 +335,7 @@ function validateQaFile(filePath) {
     return result;
   }
 
-  const prdStories = uniqueMatches(prdContent, /\bUS-[A-Z]+-\d{3}\b/g);
+  const prdStories = uniqueMatches(prdContent, /\bUS-[A-Z0-9]+-\d{3}\b/g);
   if (prdStories.size === 0) {
     result.warnings.push('模块 PRD 未检测到 Story ID，跳过覆盖率统计');
     return result;

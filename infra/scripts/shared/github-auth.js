@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { getMainRepoRoot, resolveRepoRoot } = require('./config');
 
 const REMOTE_GIT_COMMANDS = new Set(['fetch', 'pull', 'push', 'ls-remote']);
 const GIT_OPTIONS_WITH_VALUES = new Set([
@@ -26,7 +27,11 @@ const GIT_OPTIONS_WITH_VALUES = new Set([
 ]);
 
 function stripOptionalQuotes(value) {
-  const trimmed = String(value || '').trim();
+  let trimmed = String(value || '').trim();
+  const commentIndex = trimmed.search(/\s#/);
+  if (commentIndex >= 0) {
+    trimmed = trimmed.slice(0, commentIndex).trim();
+  }
   if (trimmed.length >= 2) {
     const quote = trimmed[0];
     if ((quote === '"' || quote === "'") && trimmed[trimmed.length - 1] === quote) {
@@ -60,14 +65,31 @@ function readEnvFile(filePath) {
   }
 }
 
-function tokenFromRepoEnv(repoRoot) {
-  if (!repoRoot) return '';
-  const envLocal = readEnvFile(path.join(repoRoot, '.env.local'));
-  return envLocal.GH_TOKEN || '';
+function tokenFromRepoEnv(repoRoot, cwd = process.cwd()) {
+  for (const candidate of getProjectEnvLocalCandidates({ repoRoot, cwd })) {
+    const envLocal = readEnvFile(candidate);
+    if (envLocal.GH_TOKEN) return envLocal.GH_TOKEN;
+  }
+  return '';
 }
 
-function getProjectGitHubToken({ repoRoot = '', env = process.env } = {}) {
-  return tokenFromRepoEnv(repoRoot) || env.GH_TOKEN || '';
+function getProjectEnvLocalCandidates({
+  repoRoot = resolveRepoRoot({ cwd: process.cwd(), warn: false }),
+  cwd = process.cwd(),
+} = {}) {
+  const roots = [repoRoot];
+  for (const candidate of [cwd, repoRoot]) {
+    try {
+      roots.push(getMainRepoRoot(candidate));
+    } catch {
+      // ignore non-worktree paths
+    }
+  }
+  return [...new Set(roots.filter(Boolean).map((root) => path.join(root, '.env.local')))];
+}
+
+function getProjectGitHubToken({ repoRoot = '', cwd = process.cwd(), env = process.env } = {}) {
+  return tokenFromRepoEnv(repoRoot || cwd, cwd) || env.GH_TOKEN || '';
 }
 
 function withProjectGitHubToken(env, token) {
@@ -78,8 +100,8 @@ function withProjectGitHubToken(env, token) {
   };
 }
 
-function loadProjectGitHubToken({ repoRoot = '', env = process.env } = {}) {
-  const token = getProjectGitHubToken({ repoRoot, env });
+function loadProjectGitHubToken({ repoRoot = '', cwd = process.cwd(), env = process.env } = {}) {
+  const token = getProjectGitHubToken({ repoRoot, cwd, env });
   if (token) {
     env.GH_TOKEN = token;
   }
@@ -165,7 +187,7 @@ function buildGitHubGitEnv({
   args = [],
   env = process.env,
 } = {}) {
-  const token = getProjectGitHubToken({ repoRoot, env });
+  const token = getProjectGitHubToken({ repoRoot, cwd, env });
   if (!token) return env;
   if (!shouldInjectGitHubAuth({ cwd, args, env })) return env;
   return appendGitConfigEnv(
@@ -180,7 +202,7 @@ function buildGitHubShellEnv({
   cwd = process.cwd(),
   env = process.env,
 } = {}) {
-  const token = getProjectGitHubToken({ repoRoot, env });
+  const token = getProjectGitHubToken({ repoRoot, cwd, env });
   if (!token) return env;
   const tokenEnv = withProjectGitHubToken(env, token);
   if (!shouldInjectGitHubAuth({ cwd, args: ['fetch', 'origin'], env: tokenEnv })) return tokenEnv;
@@ -196,6 +218,7 @@ module.exports = {
   buildGitHubGitEnv,
   buildGitHubShellEnv,
   firstRemoteTarget,
+  getProjectEnvLocalCandidates,
   getProjectGitHubToken,
   isGitHubRemoteUrl,
   loadProjectGitHubToken,

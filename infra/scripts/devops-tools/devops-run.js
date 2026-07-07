@@ -29,6 +29,16 @@ const ENV_ALIASES = {
   production: 'production',
 };
 
+const DEV_TARGET_ALIASES = {
+  default: 'default',
+  dev: 'default',
+  local: 'default',
+  saas: 'default',
+  private: 'private',
+  priv: 'private',
+  enterprise: 'private',
+};
+
 const DEV_ACTIONS = {
   'dev-start': 'start',
   'dev-restart': 'restart',
@@ -43,20 +53,59 @@ function normalizeEnv(env) {
   return ENV_ALIASES[String(env).toLowerCase()] || String(env).toLowerCase();
 }
 
+function normalizeDevTarget(target) {
+  if (!target) return '';
+  const normalized = String(target).toLowerCase();
+  return DEV_TARGET_ALIASES[normalized] || normalized;
+}
+
 function envLabel(env) {
   return env === 'production' ? 'prod' : env;
 }
 
-function readCommand(value, env) {
+function readCommand(value, selector, options = {}) {
+  const { fallbackDefault = false } = options;
   if (!value) return '';
   if (typeof value === 'string') return value;
-  if (env && typeof value === 'object') return value[env] || value[envLabel(env)] || '';
+  if (typeof value === 'object') {
+    if (selector) return value[selector] || value[envLabel(selector)] || '';
+    if (fallbackDefault) return value.default || value.saas || value.dev || '';
+  }
   return '';
+}
+
+function collectPositionals(argv = []) {
+  const positionals = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const raw = argv[i];
+    if (raw === '--') {
+      positionals.push(...argv.slice(i + 1));
+      break;
+    }
+    if (raw.startsWith('--')) {
+      if (!raw.includes('=') && argv[i + 1] && !argv[i + 1].startsWith('--')) i += 1;
+      continue;
+    }
+    positionals.push(raw);
+  }
+  return positionals;
 }
 
 function templateCommand(command, vars) {
   return command.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
     return Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : '';
+  });
+}
+
+function quoteShellArg(value) {
+  const text = String(value || '');
+  if (/^[A-Za-z0-9_/@%+=:,.;\\.-]+$/.test(text)) return text;
+  return `"${text.replace(/"/g, '\\"')}"`;
+}
+
+function resolveRuntimeCommand(command, runtime = process.execPath) {
+  return String(command || '').replace(/^(\s*)node(?:\.exe)?(?=\s)/i, (_, leading) => {
+    return `${leading}${quoteShellArg(runtime)}`;
   });
 }
 
@@ -78,7 +127,7 @@ function block(reason, nextManualAction, meta = {}) {
   process.exit(1);
 }
 
-function commandForAction(config, cli, action, env) {
+function commandForAction(config, cli, action, env, devTarget = '') {
   const commands = (config.devops && config.devops.commands) || {};
   const workflows = (config.devops && config.devops.workflows) || {};
   const healthCheck = (config.devops && config.devops.healthCheck) || {};
@@ -94,7 +143,7 @@ function commandForAction(config, cli, action, env) {
   if (Object.prototype.hasOwnProperty.call(DEV_ACTIONS, action)) {
     const devCommand = DEV_ACTIONS[action];
     return (
-      readCommand(devServerCommands[devCommand]) ||
+      readCommand(devServerCommands[devCommand], devTarget, { fallbackDefault: true }) ||
       (devCommand === 'restart' ? config.devServer && config.devServer.command : '') ||
       ''
     );
@@ -113,9 +162,16 @@ function actionRequiresDeployEnabled(action) {
 }
 
 function main() {
-  const cli = parseCliArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const cli = parseCliArgs(argv);
   const action = String(cli.action || '').toLowerCase();
-  const env = normalizeEnv(cli.env || cli.environment || cli.target);
+  const isDevAction = Object.prototype.hasOwnProperty.call(DEV_ACTIONS, action);
+  const positionals = collectPositionals(argv);
+  const positionalTarget = positionals.find((value) => value && !String(value).startsWith('-'));
+  const devTarget = isDevAction
+    ? normalizeDevTarget(cli.devTarget || cli.target || cli.edition || cli.profile)
+    : '';
+  const env = normalizeEnv(cli.env || cli.environment || (isDevAction ? '' : cli.target));
   const quick = Boolean(cli.quick || cli['quick']);
   const mainRoot = getMainRepoRoot(process.cwd());
   const repoRoot = getWorktreeRoot(process.cwd());
@@ -145,28 +201,40 @@ function main() {
     );
   }
 
-  const rawCommand = commandForAction(config, cli, action, env);
-  if (!rawCommand) {
+  if (isDevAction && positionalTarget) {
     block(
-      `no command configured for ${action}${env ? `:${env}` : ''}`,
-      'Add the command under agent.config.json devops.commands or devServer.commands.',
-      { action, env, run_dir: runDir }
+      'dev action positional targets are not supported',
+      'Use an explicit target flag, e.g. node infra/scripts/devops-tools/devops-run.js --action=dev-restart --target=private.',
+      { action, target: normalizeDevTarget(positionalTarget), run_dir: runDir }
     );
   }
 
-  const command = templateCommand(rawCommand, {
+  const rawCommand = commandForAction(config, cli, action, env, devTarget);
+  if (!rawCommand) {
+    const suffix = isDevAction && devTarget ? `:${devTarget}` : env ? `:${env}` : '';
+    block(
+      `no command configured for ${action}${suffix}`,
+      'Add the command under agent.config.json devops.commands or devServer.commands.',
+      { action, env, target: devTarget, run_dir: runDir }
+    );
+  }
+
+  const command = resolveRuntimeCommand(templateCommand(rawCommand, {
     action,
     env,
+    target: devTarget,
     env_short: envLabel(env),
+    target_short: devTarget,
     repo: repoRoot,
     main_repo: mainRoot,
     artifacts: resolveContainerPath(config, mainRoot, 'artifacts'),
     tmp: resolveContainerPath(config, mainRoot, 'tmp'),
-  });
+  }));
 
   const result = {
     action,
     env,
+    target: devTarget,
     command,
     cwd: repoRoot,
     run_dir: runDir,
@@ -178,6 +246,7 @@ function main() {
   console.log(result.dry_run ? 'STATUS=DRY_RUN' : 'STATUS=RUNNING');
   console.log(`ACTION=${action}`);
   if (env) console.log(`ENV=${env}`);
+  if (devTarget) console.log(`TARGET=${devTarget}`);
   console.log(`RUN_DIR=${runDir}`);
   console.log(`CWD=${repoRoot}`);
   console.log(`COMMAND=${command}`);
@@ -192,6 +261,7 @@ function main() {
       ...process.env,
       AGENT_DEVOPS_ACTION: action,
       AGENT_ENV: env,
+      AGENT_TARGET: devTarget,
       AGENT_QUICK: quick ? '1' : '0',
       SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
       AGENT_RUN_DIR: runDir,
@@ -211,6 +281,7 @@ function main() {
     block(`command exited with ${spawned.status}`, 'Inspect RUN_DIR and the command output, then fix configuration or target environment.', {
       action,
       env,
+      target: devTarget,
       run_dir: runDir,
     });
   }
@@ -218,4 +289,12 @@ function main() {
   console.log('STATUS=OK');
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = {
+  collectPositionals,
+  commandForAction,
+  normalizeDevTarget,
+  readCommand,
+  resolveRuntimeCommand,
+};

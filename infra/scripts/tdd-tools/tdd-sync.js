@@ -22,6 +22,25 @@ function parseScope(argv) {
   return scope === 'project' ? 'project' : 'session';
 }
 
+function isHelp(argv) {
+  return argv.includes('--help') || argv.includes('-h');
+}
+
+function printHelp() {
+  console.log(`Usage: node infra/scripts/tdd-tools/tdd-sync.js [options]
+
+Synchronize TDD task/document state after implementation.
+
+Options:
+  --scope <session|project>   Sync scope. Defaults to session.
+  --project                   Alias for --scope project.
+  --base <ref>                Base ref passed to Schema-Doc Sync Gate.
+  --quiet                     Reduce gate output where supported.
+  --skip-schema-doc-sync      Skip Schema-Doc Sync Gate when policy allows it.
+  -h, --help                  Show this help message.
+`);
+}
+
 function runSchemaDocSyncCheck(argv) {
   const checkScript = path.join(__dirname, 'check-schema-doc-sync.js');
   const scriptArgs = [];
@@ -40,7 +59,7 @@ function runSchemaDocSyncCheck(argv) {
       scriptArgs.push(arg);
     }
   }
-  const result = spawnSync('node', [checkScript, ...scriptArgs], {
+  const result = spawnSync(process.execPath, [checkScript, ...scriptArgs], {
     encoding: 'utf8',
     stdio: 'inherit',
   });
@@ -49,6 +68,11 @@ function runSchemaDocSyncCheck(argv) {
 
 function main() {
   const argv = process.argv.slice(2);
+  if (isHelp(argv)) {
+    printHelp();
+    return;
+  }
+
   const scope = parseScope(argv);
 
   // Step 1.7：Schema-Doc Sync Gate（强制硬门禁，TDD-EXPERT.md §B.10）
@@ -59,7 +83,7 @@ function main() {
   }
 
   const tickScript = path.join(__dirname, 'tdd-tick.js');
-  const result = spawnSync('node', [tickScript, `--scope=${scope}`], {
+  const result = spawnSync(process.execPath, [tickScript, `--scope=${scope}`], {
     encoding: 'utf8',
     stdio: 'inherit'
   });
@@ -72,7 +96,7 @@ function main() {
   // tdd-tick 成功后自动生成 Codebase Map（非阻塞）
   if (result.status === 0) {
     const codemapScript = path.join(__dirname, 'generate-codemap.js');
-    const codemapResult = spawnSync('node', [codemapScript, `--scope=${scope}`], {
+    const codemapResult = spawnSync(process.execPath, [codemapScript, `--scope=${scope}`], {
       encoding: 'utf8',
       stdio: 'inherit'
     });

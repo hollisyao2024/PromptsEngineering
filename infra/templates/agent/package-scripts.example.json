@@ -29,6 +29,7 @@
     "tdd:sync": "node infra/scripts/tdd-tools/tdd-sync.js",
     "tdd:push": "node infra/scripts/tdd-tools/tdd-push.js",
     "tdd:review-gate": "node infra/scripts/tdd-tools/tdd-review-gate.js",
+    "tdd:completion-guard": "node infra/scripts/tdd-tools/tdd-completion-guard.js",
     "tdd:resume": "node infra/scripts/tdd-tools/tdd-resume.js",
     "tdd:new-worktree": "node infra/scripts/tdd-tools/tdd-new-worktree.js",
     "tdd:worktree-list": "node infra/scripts/tdd-tools/tdd-worktree-list.js",
