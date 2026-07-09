@@ -128,6 +128,11 @@
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
+#### Final Completion Guard（强制）
+- 任何修改 tracked 文件的任务，在发送 final 响应前**必须执行** `node infra/scripts/tdd-tools/tdd-completion-guard.js`（已安全合并 alias 时可用 `pnpm run tdd:completion-guard`）。
+- 只有输出 `STATUS=OK` 才允许 final。若输出 `STATUS=BLOCKED`，必须继续执行其 `NEXT_COMMANDS`，或直接执行 `node infra/scripts/tdd-tools/tdd-finish.js`（已安全合并 alias 时可用 `pnpm run tdd:finish`），直到 guard 通过或脚本明确给出无法自动继续的阻塞原因。
+- 禁止把“本地已修复 / 测试已通过 / PR 已创建”当作完成状态；完成状态必须是当前分支已推送、已合入主分支，且主分支工作区干净。
+
 #### Post-Push Gate 两层机制
 
 1. **脚本层**（`node infra/scripts/tdd-tools/tdd-review-gate.js`；已安全合并 alias 时可用 `pnpm run tdd:review-gate`）：快速过滤零歧义 SKIP 场景（文档/测试/generated/rename/lockfile/注释等）；hotfix 分支直接输出 REQUIRED。输出三态：`skipped` / `required` / `pending-model-review`
@@ -220,6 +225,7 @@ Codex CLI 默认不执行自动 code review：
 - `/tdd fix`：修复已识别问题
 - `/tdd sync`：**首先执行** `node infra/scripts/tdd-tools/tdd-sync.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:sync`），同步 TASK/模块文档，自动勾选复选框、更新状态。完成后自动串联后续 Gate + QA（`--no-qa` 跳过）
 - `/tdd push`：**首先执行** `node infra/scripts/tdd-tools/tdd-push.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:push`）。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
+- `/tdd finish`：**首先执行** `node infra/scripts/tdd-tools/tdd-finish.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:finish`）。该入口读取 `tdd-completion-guard` 的 `NEXT_COMMANDS`，按需串行执行 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，最后再次运行 completion guard。`/tdd finish` 不替代模型语义审查；当 Post-Push Gate 输出 `pending-model-review` 时，TDD 专家仍必须记录 `Review-Class`、`Domain-Hit` 与 `Reason` 后继续。
 - `/worktree new`：**首先执行** `node infra/scripts/worktree-tools/worktree-new.js` **脚本**，为任意修改型任务创建/恢复 Git Worktree；已安全合并 aliases 时可用 `pnpm run worktree:new`。
 - `/worktree bootstrap`：执行 `node infra/scripts/worktree-tools/worktree-bootstrap.js`，按 `agent.config.json worktree.bootstrap` 为当前 worktree 补齐依赖；默认模板不假设语言栈，项目可配置 pnpm/uv/go/cargo/maven 等命令。
 - `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
