@@ -14,7 +14,7 @@
 
 **核心原则**：
 1. 所有专家的**只读排查**可在 `repo/` 或当前 worktree 中执行；任何会修改 tracked 文件的任务必须先进入专属 worktree。
-2. 跨 worktree 可共享的产物（按内容哈希去重、或单槽位资源）外置到容器层；per-worktree 强耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。
+2. 跨 worktree 可共享的产物（按内容哈希去重、或单槽位资源）外置到容器层；per-worktree 强耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。**严禁**把任一 worktree 的 `node_modules`（含子包 `node_modules`、`.pnpm`）以 symlink、junction 或其他 reparse point 指向主仓库或另一 worktree；依赖只能通过 `/worktree bootstrap` 在当前 worktree 独立建立，包内容复用交给包管理器 store。
 3. 需要外置时由脚本/配置按主 `repo/` 解析容器层路径；Node 脚本使用 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()`，禁止在 linked worktree 中手写 `../tmp`。
 4. 手动创建的 worktree 通过 `/worktree remove` 清理；`/qa merge` 或外部 agent 的收尾流程应在合并后清理当前任务 worktree。
 5. 模板文件应尽量整体复制到实际项目后即可工作；项目差异集中放在 `agent.config.json`、环境变量或 CLI 参数中，避免改动 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 等模板文件。
@@ -227,7 +227,7 @@ Codex CLI 默认不执行自动 code review：
 - `/tdd push`：**首先执行** `node infra/scripts/tdd-tools/tdd-push.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:push`）。若当前分支工作区存在未提交改动，脚本默认自动执行 `git add -A` + 自动生成 commit message + `git commit`，随后继续推代码 + 自动创建当前分支 PR + review necessity check。若结果为 `REVIEW_REQUIRED`，进入 Post-Push Gate；在 Codex CLI 下，Post-Push Gate 记录 `Codex review skipped by policy` 后不阻断后续 QA。若结果为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后可直接串联 QA（`--no-qa` 跳过）
 - `/tdd finish`：**首先执行** `node infra/scripts/tdd-tools/tdd-finish.js` **脚本**（已安全合并 alias 时可用 `pnpm run tdd:finish`）。该入口读取 `tdd-completion-guard` 的 `NEXT_COMMANDS`，按需串行执行 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，最后再次运行 completion guard。`/tdd finish` 不替代模型语义审查；当 Post-Push Gate 输出 `pending-model-review` 时，TDD 专家仍必须记录 `Review-Class`、`Domain-Hit` 与 `Reason` 后继续。
 - `/worktree new`：**首先执行** `node infra/scripts/worktree-tools/worktree-new.js` **脚本**，为任意修改型任务创建/恢复 Git Worktree；已安全合并 aliases 时可用 `pnpm run worktree:new`。
-- `/worktree bootstrap`：执行 `node infra/scripts/worktree-tools/worktree-bootstrap.js`，按 `agent.config.json worktree.bootstrap` 为当前 worktree 补齐依赖；默认模板不假设语言栈，项目可配置 pnpm/uv/go/cargo/maven 等命令。
+- `/worktree bootstrap`：执行 `node infra/scripts/worktree-tools/worktree-bootstrap.js`，按 `agent.config.json worktree.bootstrap` 为当前 worktree 独立补齐依赖；默认模板不假设语言栈，项目可配置 pnpm/uv/go/cargo/maven 等命令。不得为节省安装时间而链接主仓库或其他 worktree 的 `node_modules`；pnpm 等包管理器应通过自身全局 store 安全复用包内容。
 - `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
 - `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
 - `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。

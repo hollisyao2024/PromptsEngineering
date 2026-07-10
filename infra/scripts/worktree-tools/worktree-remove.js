@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
-const path = require('path');
 const {
   findWorktreeByBranch,
   getMainRepoRoot,
   getWorktreeRoot,
-  hasUncommittedChanges,
+  isSamePath,
+  listWorktrees,
   parseCliArgs,
+  removeWorktreeSafely,
   removeSession,
-  runGit,
+  resolveContainerPath,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
 
@@ -24,24 +25,28 @@ function main() {
 
     const mainRoot = getMainRepoRoot(process.cwd());
     const config = loadConfig({ repoRoot: getWorktreeRoot(process.cwd()), cli });
-    const found = findWorktreeByBranch(mainRoot, target);
-    const worktreePath = found
-      ? found.path
-      : path.isAbsolute(target)
-        ? target
-        : path.resolve(mainRoot, target);
-
-    if (!force && hasUncommittedChanges(worktreePath)) {
-      throw new Error(`worktree has uncommitted changes: ${worktreePath}`);
+    const entries = listWorktrees(mainRoot);
+    const found = findWorktreeByBranch(mainRoot, target)
+      || entries.find((entry) => isSamePath(entry.path, target));
+    if (!found || !found.path) {
+      throw new Error(`target is not a registered worktree branch or path: ${target}`);
     }
 
-    runGit(['worktree', 'remove', ...(force ? ['--force'] : []), worktreePath], { cwd: mainRoot });
-    runGit(['worktree', 'prune'], { cwd: mainRoot, allowFailure: true });
+    const worktreesRoot = resolveContainerPath(config, mainRoot, 'worktrees');
+    const result = removeWorktreeSafely({
+      mainRoot,
+      worktreePath: found.path,
+      worktreesRoot,
+      force,
+    });
     if (found && found.branch) removeSession(config, mainRoot, found.branch);
 
     console.log('STATUS=REMOVED');
-    console.log(`WORKTREE_PATH=${worktreePath}`);
+    console.log(`WORKTREE_PATH=${result.path}`);
     if (found && found.branch) console.log(`BRANCH_NAME=${found.branch}`);
+    console.log(`REMOVED_FILES=${result.removedFiles}`);
+    console.log(`REMOVED_DIRECTORIES=${result.removedDirectories}`);
+    console.log(`REMOVED_LINKS=${result.removedLinks}`);
   } catch (error) {
     console.error('STATUS=BLOCKED');
     console.error(`REASON=${error.message}`);

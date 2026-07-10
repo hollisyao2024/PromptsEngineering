@@ -15,6 +15,13 @@ const {
   resolveFromRepo,
 } = require('../shared/config');
 const { buildGitHubGitEnv } = require('../shared/github-auth');
+const {
+  isPathInside,
+  isSamePath,
+  parseWorktreePorcelain,
+  removeWorktreeSafely,
+  safeRemoveTreeNoFollow,
+} = require('./worktree-safe-remove');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -192,19 +199,42 @@ function setupSymlinkIfPresent(mainRoot, worktreePath, relativePath) {
   return true;
 }
 
-function setupSharedLinks(mainRoot, worktreePath, config) {
-  const linked = [];
+function validateSharedLinkRelativePath(relativePath) {
+  const value = String(relativePath || '').trim();
+  const normalized = value.replace(/\\/gu, '/');
+  const segments = normalized.split('/').filter(Boolean);
+  if (!value || path.isAbsolute(value) || segments.includes('..')) {
+    throw new Error(`shared worktree link must be a relative path inside the repo: ${relativePath}`);
+  }
+  const forbidden = segments.find((segment) => (
+    segment.toLowerCase() === 'node_modules'
+    || segment.toLowerCase() === '.pnpm'
+    || segment.toLowerCase() === '.git'
+  ));
+  if (forbidden) {
+    throw new Error(`forbidden shared worktree link path '${forbidden}': ${relativePath}`);
+  }
+  return value;
+}
+
+function validateSharedLinkConfig(config) {
   const candidates = [
     ...((config.worktree && config.worktree.envSymlinks) || []),
     ...((config.worktree && config.worktree.sharedConfigSymlinks) || []),
   ];
-  for (const relativePath of candidates) {
+  return candidates.map(validateSharedLinkRelativePath);
+}
+
+function setupSharedLinks(mainRoot, worktreePath, config) {
+  const linked = [];
+  const candidates = validateSharedLinkConfig(config);
+  for (const safeRelativePath of candidates) {
     try {
-      if (setupSymlinkIfPresent(mainRoot, worktreePath, relativePath)) {
-        linked.push(relativePath);
+      if (setupSymlinkIfPresent(mainRoot, worktreePath, safeRelativePath)) {
+        linked.push(safeRelativePath);
       }
     } catch (error) {
-      console.log(`WARN symlink skipped ${relativePath}: ${error.message}`);
+      console.log(`WARN symlink skipped ${safeRelativePath}: ${error.message}`);
     }
   }
   return linked;
@@ -440,6 +470,8 @@ function createOrResumeWorktree(options = {}) {
   const mainRoot = getMainRepoRoot(cwd);
   const configRoot = getWorktreeRoot(cwd);
   const config = loadConfig({ repoRoot: configRoot, cli });
+  // Validate before fetch, branch creation, worktree registration, session writes, or links.
+  validateSharedLinkConfig(config);
   const branch = cli.branch || buildBranchName(cli);
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
@@ -529,16 +561,22 @@ module.exports = {
   getWorktreeRoot,
   hasUncommittedChanges,
   inferPhaseFromBranch,
+  isPathInside,
+  isSamePath,
   isMainBranch,
   listWorktrees,
   parseCliArgs,
+  parseWorktreePorcelain,
   readSessions,
+  removeWorktreeSafely,
   removeSession,
   resolveContainerPath,
   run,
   runGit,
   runWorktreeBootstrap,
+  safeRemoveTreeNoFollow,
   setupSharedLinks,
   slugify,
+  validateSharedLinkConfig,
   writeSession,
 };

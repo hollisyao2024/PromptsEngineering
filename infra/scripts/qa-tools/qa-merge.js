@@ -25,8 +25,14 @@ const {
   getMainRepoRoot: sharedGetMainRepoRoot,
 } = require('../shared/config');
 const {
+  isPathInside,
+  isSamePath,
+  parseWorktreePorcelain,
   readSessions,
+  removeWorktreeSafely,
   removeSession,
+  resolveContainerPath,
+  safeRemoveTreeNoFollow,
 } = require('../worktree-tools/worktree-core');
 const defectBlockerCheckers = require('./check-defect-blockers');
 const {
@@ -810,118 +816,167 @@ function deleteLocalBranch(branchName, cwd = repoRoot) {
 // ==================== Worktree 清理 ====================
 
 function cleanupWorktree(featureBranch, mainRepoRoot) {
-  try {
-    const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
-      cwd: mainRepoRoot,
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    if (result.status !== 0) return;
-
-    let currentPath = null;
-    let found = false;
-    for (const line of result.stdout.split('\n')) {
-      if (line.startsWith('worktree ')) {
-        currentPath = line.slice(9).trim();
-      } else if (line.startsWith('branch ')) {
-        const branchName = line.slice(7).trim().replace('refs/heads/', '');
-        if (branchName === featureBranch && currentPath !== mainRepoRoot) {
-          found = true;
-          break;
-        }
-      }
-    }
-
-    if (!found || !currentPath) return;
-
-    if (process.cwd().startsWith(currentPath)) {
-      try {
-        console.log(`\x1b[36m释放当前 worktree 对分支 ${featureBranch} 的占用...\x1b[0m`);
-        runGit(['switch', '--detach', 'origin/main'], { cwd: currentPath });
-      } catch (err) {
-        console.log(`\x1b[33m  切换为 detached HEAD 失败（${err.message}），继续尝试清理\x1b[0m`);
-      }
-    }
-
-    console.log(`\x1b[36m清理 worktree: ${currentPath}\x1b[0m`);
-    spawnSync('git', ['worktree', 'remove', '--force', currentPath], {
-      cwd: mainRepoRoot,
-      encoding: 'utf8',
-      stdio: 'inherit',
-    });
-    spawnSync('git', ['worktree', 'prune'], {
-      cwd: mainRepoRoot,
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    console.log('\x1b[32m  Worktree 已清理\x1b[0m');
-
-    try {
-      const config = loadConfig({ repoRoot: mainRepoRoot });
-      removeSession(config, mainRepoRoot, featureBranch);
-    } catch (sessionErr) {
-      console.log(`\x1b[33m  Session 文件清理跳过（${sessionErr.message}）\x1b[0m`);
-    }
-
-    const cwd = process.cwd();
-    if (cwd.startsWith(currentPath)) {
-      console.log('');
-      console.log(`\x1b[33m提示：当前目录对应的 worktree 已被清理，请切回主目录：\x1b[0m`);
-      console.log(`  cd ${mainRepoRoot}`);
-    }
-  } catch (err) {
-    console.log(`\x1b[33m  Worktree 清理跳过（${err.message}）\x1b[0m`);
-  }
-}
-
-function cleanupOrphanWorktreeDirs(mainRepoRoot) {
-  // 容器级 worktrees/ 目录（与 repo/ 同级，Scalar 风格）
-  const worktreesDir = path.resolve(mainRepoRoot, '..', 'worktrees');
-  if (!fs.existsSync(worktreesDir)) return [];
-
-  const result = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+  const listResult = spawnSync('git', ['worktree', 'list', '--porcelain'], {
     cwd: mainRepoRoot,
     encoding: 'utf8',
     stdio: 'pipe',
   });
-
-  const validPaths = new Set();
-  if (result.status === 0) {
-    for (const line of result.stdout.split('\n')) {
-      if (line.startsWith('worktree ')) {
-        validPaths.add(path.resolve(line.slice(9).trim()));
-      }
-    }
+  if (listResult.error) throw listResult.error;
+  if (listResult.status !== 0) {
+    throw new Error(
+      `cannot list worktrees before cleanup (exit ${listResult.status}): ${(listResult.stderr || '').trim()}`
+    );
   }
 
-  const removed = [];
-  for (const entry of fs.readdirSync(worktreesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const candidate = path.join(worktreesDir, entry.name);
-    if (validPaths.has(path.resolve(candidate))) continue;
-
-    try {
-      fs.rmSync(candidate, { recursive: true, force: true });
-      removed.push(candidate);
-    } catch (err) {
-      console.log(`\x1b[33m  孤儿 worktree 目录清理失败（${candidate}: ${err.message}）\x1b[0m`);
-    }
+  const entry = parseWorktreePorcelain(listResult.stdout || '')
+    .find((item) => item.branch === featureBranch);
+  if (!entry || !entry.path) return { removed: false, reason: 'not-found' };
+  if (isSamePath(entry.path, mainRepoRoot)) {
+    throw new Error(`refusing to clean the main worktree for branch ${featureBranch}`);
   }
 
+  const cwdBefore = process.cwd();
+  const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
+  const config = loadConfig({ repoRoot: mainRepoRoot });
+  const worktreesRoot = resolveContainerPath(config, mainRepoRoot, 'worktrees');
+
+  console.log(`\x1b[36m安全清理 worktree: ${entry.path}\x1b[0m`);
+  const cleanup = removeWorktreeSafely({
+    mainRoot: mainRepoRoot,
+    worktreePath: entry.path,
+    worktreesRoot,
+    force: true,
+  });
+
+  // Session state is removed only after physical deletion, prune, and registry verification all pass.
+  removeSession(config, mainRepoRoot, featureBranch);
+  console.log(
+    `\x1b[32m  Worktree 已安全清理（files=${cleanup.removedFiles}, dirs=${cleanup.removedDirectories}, links=${cleanup.removedLinks}）\x1b[0m`
+  );
+  if (wasInsideTarget) {
+    console.log(`\x1b[36m  当前进程已切换到主仓库: ${mainRepoRoot}\x1b[0m`);
+  }
+  return cleanup;
+}
+
+function normalizePathKey(input) {
+  const resolved = path.resolve(input);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function hasManagedGitMarker(candidate, mainRepoRoot) {
+  const markerPath = path.join(candidate, '.git');
+  let stat;
   try {
-    if (fs.existsSync(worktreesDir) && fs.readdirSync(worktreesDir).length === 0) {
-      fs.rmdirSync(worktreesDir);
+    stat = fs.lstatSync(markerPath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) return false;
+  const match = fs.readFileSync(markerPath, 'utf8').match(/^gitdir:\s*(.+)$/mu);
+  if (!match) return false;
+  const gitDir = path.isAbsolute(match[1].trim())
+    ? path.resolve(match[1].trim())
+    : path.resolve(candidate, match[1].trim());
+  return isPathInside(path.join(mainRepoRoot, '.git', 'worktrees'), gitDir);
+}
+
+function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
+  const removed = [];
+  const skipped = [];
+  const loadCfg = opts.loadConfig || loadConfig;
+  const readSess = opts.readSessions || readSessions;
+  const runListPorcelain = opts.runListPorcelain || (() => spawnSync(
+    'git',
+    ['worktree', 'list', '--porcelain'],
+    { cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe' }
+  ));
+
+  let config;
+  try {
+    config = opts.config || loadCfg({ repoRoot: mainRepoRoot });
+  } catch (error) {
+    return { removed, skipped: [{ reason: 'config-failed', error: error.message }] };
+  }
+  const worktreesDir = opts.worktreesRoot
+    || resolveContainerPath(config, mainRepoRoot, 'worktrees');
+
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(worktreesDir);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return { removed, skipped };
+    throw error;
+  }
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    return { removed, skipped: [{ path: worktreesDir, reason: 'unsafe-worktrees-root' }] };
+  }
+
+  const listResult = runListPorcelain();
+  if (listResult.error || listResult.status !== 0) {
+    return {
+      removed,
+      skipped: [{
+        reason: 'git-list-failed',
+        error: listResult.error
+          ? listResult.error.message
+          : (listResult.stderr || `exit ${listResult.status}`).trim(),
+      }],
+    };
+  }
+  const validPaths = new Set(
+    parseWorktreePorcelain(listResult.stdout || '').map((entry) => normalizePathKey(entry.path))
+  );
+
+  let sessions;
+  try {
+    sessions = readSess(config, mainRepoRoot) || [];
+  } catch (error) {
+    return { removed, skipped: [{ reason: 'session-list-failed', error: error.message }] };
+  }
+  const managedPaths = new Set(
+    sessions
+      .filter((session) => session && typeof session.worktree === 'string')
+      .map((session) => normalizePathKey(session.worktree))
+  );
+
+  for (const name of fs.readdirSync(worktreesDir)) {
+    const candidate = path.join(worktreesDir, name);
+    const key = normalizePathKey(candidate);
+    if (validPaths.has(key)) continue;
+
+    const hasSession = managedPaths.has(key);
+    let hasGitMarker = false;
+    try {
+      hasGitMarker = hasManagedGitMarker(candidate, mainRepoRoot);
+    } catch (error) {
+      skipped.push({ path: candidate, reason: 'provenance-check-failed', error: error.message });
+      continue;
     }
-  } catch {
-    // ignore
+    if (!hasGitMarker) {
+      skipped.push({
+        path: candidate,
+        reason: hasSession ? 'session-without-git-marker' : 'unmanaged',
+      });
+      continue;
+    }
+
+    safeRemoveTreeNoFollow(candidate, { allowedRoot: worktreesDir });
+    removed.push(candidate);
   }
 
   if (removed.length > 0) {
-    console.log('\x1b[32m  已清理孤儿 worktree 目录:\x1b[0m');
+    // These candidates were absent from Git's registry, so no global prune is
+    // needed. Avoid touching metadata for unrelated worktrees.
+    console.log('\x1b[32m  已安全清理有来源记录的孤儿 worktree 目录:\x1b[0m');
     removed.forEach((item) => console.log(`    - ${item}`));
   }
+  if (skipped.some((item) => item.reason === 'unmanaged')) {
+    console.log('\x1b[33m  已跳过无托管来源的未知 worktree 目录\x1b[0m');
+  }
 
-  return removed;
+  return { removed, skipped };
 }
 
 function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
@@ -942,14 +997,10 @@ function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
   }
 
   const result = runListPorcelain();
-  const validPaths = new Set();
-  if (result && result.status === 0 && result.stdout) {
-    for (const line of result.stdout.split('\n')) {
-      if (line.startsWith('worktree ')) {
-        validPaths.add(path.resolve(line.slice(9).trim()));
-      }
-    }
-  }
+  if (!result || result.error || result.status !== 0) return [];
+  const validPaths = new Set(
+    parseWorktreePorcelain(result.stdout || '').map((entry) => normalizePathKey(entry.path))
+  );
 
   let sessions;
   try {
@@ -961,7 +1012,7 @@ function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
   const removed = [];
   for (const sess of sessions) {
     if (!sess || !sess.branch) continue;
-    if (sess.worktree && validPaths.has(path.resolve(sess.worktree))) continue;
+    if (sess.worktree && validPaths.has(normalizePathKey(sess.worktree))) continue;
     try {
       removeSess(config, mainRepoRoot, sess.branch);
       removed.push(sess.branch);
@@ -1497,5 +1548,7 @@ module.exports = {
   parseGitHubRepoSlug,
   repoApiPath,
   tryGhMerge,
+  cleanupWorktree,
+  cleanupOrphanWorktreeDirs,
   cleanupOrphanSessions,
 };
