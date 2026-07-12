@@ -153,6 +153,22 @@ function uniqueMatches(content, regex) {
   return new Set(content.match(regex) || []);
 }
 
+function collectAllPrdStories() {
+  const modulesRoot = path.resolve(repoRoot, CONFIG.paths.prdModulesDir);
+  const stories = new Set();
+  if (!fs.existsSync(modulesRoot)) return stories;
+
+  for (const entry of fs.readdirSync(modulesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const content = readFile(path.posix.join(CONFIG.paths.prdModulesDir, entry.name, 'PRD.md'));
+    for (const storyId of uniqueMatches(content, new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g'))) {
+      stories.add(storyId);
+    }
+  }
+
+  return stories;
+}
+
 function parseModuleFromQaPath(filePath) {
   const normalized = normalizePath(filePath);
   const match = normalized.match(/^docs\/qa-modules\/([^/]+)\/QA\.md$/i);
@@ -345,7 +361,10 @@ function validateQaFile(filePath) {
     return result;
   }
 
-  const invalidStoryRefs = storyIds.filter((id) => !prdStories.has(id));
+  // Cross-module aggregate QA files may reference Stories owned by sibling modules.
+  // Validate references against the global PRD set while keeping coverage module-local.
+  const allPrdStories = collectAllPrdStories();
+  const invalidStoryRefs = storyIds.filter((id) => !allPrdStories.has(id));
   if (invalidStoryRefs.length > 0) {
     result.errors.push(`引用了 PRD 不存在的 Story: ${invalidStoryRefs.join(', ')}`);
   }
