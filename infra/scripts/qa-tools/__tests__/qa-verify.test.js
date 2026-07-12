@@ -41,3 +41,45 @@ test('validateQaFile accepts module IDs that contain digits and multiple segment
   assert.equal(result.stats.validStoryRefCount, 2);
   assert.equal(result.stats.storyCoverage, 100);
 });
+
+test('validateQaFile accepts cross-module Story references without inflating local coverage', (t) => {
+  const fixtureId = `${process.pid}-${Date.now()}`;
+  const moduleDir = `cross-module-source-${fixtureId}`;
+  const siblingModuleDir = `cross-module-target-${fixtureId}`;
+  const prdDir = path.join(repoRoot, 'docs', 'prd-modules', moduleDir);
+  const siblingPrdDir = path.join(repoRoot, 'docs', 'prd-modules', siblingModuleDir);
+  const qaDir = path.join(repoRoot, 'docs', 'qa-modules', moduleDir);
+  const qaRelPath = path.posix.join('docs/qa-modules', moduleDir, 'QA.md');
+
+  fs.mkdirSync(prdDir, { recursive: true });
+  fs.mkdirSync(siblingPrdDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  t.after(() => {
+    fs.rmSync(prdDir, { recursive: true, force: true });
+    fs.rmSync(siblingPrdDir, { recursive: true, force: true });
+    fs.rmSync(qaDir, { recursive: true, force: true });
+  });
+
+  fs.writeFileSync(
+    path.join(prdDir, 'PRD.md'),
+    ['# PRD', '', '## Stories', '- US-SOURCE-001: local story', '- US-SOURCE-002: uncovered local story'].join('\n'),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(siblingPrdDir, 'PRD.md'),
+    ['# PRD', '', '## Stories', '- US-TARGET-001: cross-module dependency'].join('\n'),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(qaDir, 'QA.md'),
+    ['# QA', '', '## Coverage', '- US-SOURCE-001 -> TC-SOURCE-001', '- US-TARGET-001 -> TC-TARGET-001'].join('\n'),
+    'utf8'
+  );
+
+  const result = validateQaFile(qaRelPath);
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.stats.storyCount, 2);
+  assert.equal(result.stats.validStoryRefCount, 1);
+  assert.equal(result.stats.storyCoverage, 50);
+});
