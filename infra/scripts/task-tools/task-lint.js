@@ -126,20 +126,44 @@ function checkTaskIdFormat() {
   }
 }
 
+function extractCanonicalTaskRows(taskContent) {
+  const rowPattern = new RegExp(`^\\s*\\|\\s*(${TASK_ID_SOURCE})\\s*\\|(.+)$`);
+  const rows = [];
+  let inTaskTable = false;
+
+  for (const line of taskContent.split(/\r?\n/)) {
+    if (!/^\s*\|/.test(line)) {
+      inTaskTable = false;
+      continue;
+    }
+
+    if (/Task\s*ID/i.test(line)) {
+      inTaskTable = /(?:Owner|负责人)/i.test(line) && /(?:Effort|工时|估算)/i.test(line);
+      continue;
+    }
+
+    if (!inTaskTable || /^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(line)) {
+      continue;
+    }
+
+    const match = line.match(rowPattern);
+    if (match) {
+      rows.push({ id: match[1], line });
+    }
+  }
+
+  return rows;
+}
+
 // 检查任务工作量估算
 function checkTaskEffortEstimation() {
   log('\n🔍 检查任务工作量估算...', 'cyan');
 
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
 
-  // 查找所有任务章节（包含 Task ID 的行）
-  const taskRegex = new RegExp(`(${TASK_ID_SOURCE})([^\\n]+)`, 'g');
   const tasksWithoutEffort = [];
-  let match;
 
-  while ((match = taskRegex.exec(taskContent)) !== null) {
-    const taskId = match[1];
-    const taskLine = match[2];
+  for (const { id: taskId, line: taskLine } of extractCanonicalTaskRows(taskContent)) {
 
     // 检查是否包含工作量标记（如：3d、5人天、2周等）
     const hasEffort = /\d+\s*(d|天|day|人天|week|周|h|hour|小时)/i.test(taskLine);
@@ -172,14 +196,9 @@ function checkTaskAssignee() {
 
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
 
-  // 查找所有任务行
-  const taskRegex = new RegExp(`(${TASK_ID_SOURCE})([^\\n]+)`, 'g');
   const tasksWithoutAssignee = [];
-  let match;
 
-  while ((match = taskRegex.exec(taskContent)) !== null) {
-    const taskId = match[1];
-    const taskLine = match[2];
+  for (const { id: taskId, line: taskLine } of extractCanonicalTaskRows(taskContent)) {
 
     // 检查是否包含负责人标记（如：@username、负责人：xxx）
     const hasAssignee = /@\w+|负责人[：:]\s*\w+/i.test(taskLine);
@@ -396,6 +415,7 @@ module.exports = {
   checkDependencyFormat,
   checkModuleTaskFiles,
   checkRequiredSections,
+  extractCanonicalTaskRows,
   hasModuleTaskStructure,
   isValidTaskId,
 };
