@@ -24,7 +24,7 @@
 2. 脚本读取 PRD/ARCH/TASK，解析 Story → AC → Test Case 映射
 3. 生成或更新主 QA 总纲、模块清单与全部模块 QA 文档
 4. 更新追溯矩阵（`docs/data/traceability-matrix.md`）
-5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/qa-plan-session.json`
+5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/worktree-sessions/qa-plan/<worktree-name>-<worktree-path-hash>.json`；同一 worktree 稳定复用，不同并行 worktree 相互隔离
 
 ### 第 1.5 步：编写测试代码（/qa plan 之后）
 

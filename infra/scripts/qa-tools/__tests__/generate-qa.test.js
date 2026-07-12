@@ -2,10 +2,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
 const {
   generateModuleList,
   generateProjectOverview,
+  getQaPlanSessionStatePath,
   validateUpstreamModuleAlignment,
 } = require('../generate-qa');
 
@@ -40,4 +42,49 @@ test('QA generation detects upstream module set drift', () => {
   assert.deepEqual(result.extraArch, ['orphan']);
   assert.deepEqual(result.missingTask, ['auth']);
   assert.deepEqual(result.extraTask, []);
+});
+
+test('QA plan session state defaults to the container worktree session directory', () => {
+  const mainRoot = '/workspace/project/repo';
+  const worktreeRoot = '/workspace/project/worktrees/fix-a';
+  const statePath = getQaPlanSessionStatePath({
+    env: {},
+    mainRoot,
+    worktreeRoot,
+    config: { worktree: { sessionDir: '../tmp/worktree-sessions' } },
+  });
+
+  assert.equal(path.dirname(statePath), '/workspace/project/tmp/worktree-sessions/qa-plan');
+  assert.match(path.basename(statePath), /^fix-a-[a-f0-9]{12}\.json$/);
+});
+
+test('QA plan session state is stable per worktree and isolated across worktrees', () => {
+  const options = {
+    env: {},
+    mainRoot: '/workspace/project/repo',
+    config: { worktree: { sessionDir: '../tmp/worktree-sessions' } },
+  };
+  const first = getQaPlanSessionStatePath({
+    ...options,
+    worktreeRoot: '/workspace/project/worktrees/fix-a',
+  });
+  const firstAgain = getQaPlanSessionStatePath({
+    ...options,
+    worktreeRoot: '/workspace/project/worktrees/fix-a',
+  });
+  const second = getQaPlanSessionStatePath({
+    ...options,
+    worktreeRoot: '/workspace/project/worktrees/fix-b',
+  });
+
+  assert.equal(firstAgain, first);
+  assert.notEqual(second, first);
+});
+
+test('QA plan session state path keeps the explicit environment override', () => {
+  const statePath = getQaPlanSessionStatePath({
+    env: { QA_PLAN_SESSION_STATE_PATH: '/custom/qa-session.json' },
+  });
+
+  assert.equal(statePath, '/custom/qa-session.json');
 });

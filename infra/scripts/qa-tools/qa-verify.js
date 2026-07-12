@@ -230,8 +230,7 @@ function resolveExplicitTargets(args, moduleEntries) {
   };
 }
 
-function resolveTargetsFromQaPlanState() {
-  const statePath = getQaPlanSessionStatePath();
+function resolveTargetsFromQaPlanState(statePath = getQaPlanSessionStatePath()) {
   const state = readJson(statePath);
   if (!state || state.scope !== 'session' || !Array.isArray(state.touchedFiles) || state.touchedFiles.length === 0) return null;
 
@@ -516,6 +515,7 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  resolveTargetsFromQaPlanState,
   resolveSessionTargets,
   validateQaFile,
 };
