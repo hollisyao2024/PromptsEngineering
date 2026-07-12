@@ -153,9 +153,10 @@ function inspectModuleLayout(modulesDir, moduleListPath) {
   if (!fs.existsSync(moduleListPath)) return { valid: false, reason: 'module-list.md missing', moduleDirs: [] };
   const moduleDirs = fs.readdirSync(modulesDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter((entry) => fs.existsSync(path.join(modulesDir, entry.name, 'PRD.md')))
     .map((entry) => entry.name)
     .sort();
-  if (moduleDirs.length === 0) return { valid: false, reason: 'no module directories', moduleDirs };
+  if (moduleDirs.length === 0) return { valid: false, reason: 'no canonical module documents', moduleDirs };
   return { valid: true, reason: '', moduleDirs };
 }
 
@@ -210,36 +211,27 @@ function checkStoryIdFormat() {
 }
 
 // 检查 Given-When-Then 格式
+function findStoriesMissingGwt(prdContent) {
+  const storyHeadingPattern = new RegExp(
+    `^#{2,3}\\s+(${STORY_ID_SOURCE}):[^\\n]*(?:\\n|$)`,
+    'gm'
+  );
+  const headings = Array.from(prdContent.matchAll(storyHeadingPattern));
+
+  return headings.flatMap((heading, index) => {
+    const storyContentStart = heading.index + heading[0].length;
+    const storyContentEnd = headings[index + 1]?.index ?? prdContent.length;
+    const storyContent = prdContent.slice(storyContentStart, storyContentEnd);
+    const missing = GWT_KEYWORDS.filter((keyword) => !storyContent.includes(keyword));
+    return missing.length > 0 ? [{ id: heading[1], missing }] : [];
+  });
+}
+
 function checkGivenWhenThen() {
   log('\n🧪 检查验收标准 Given-When-Then 格式...', 'cyan');
 
   const prdContent = getModulePrdPaths().map((filePath) => fs.readFileSync(filePath, 'utf-8')).join('\n');
-
-  // 查找所有用户故事章节
-  const storyRegex = /###?\s+(US-[A-Z]+-\d{3}):([^#]+)/g;
-  const stories = [];
-  let match;
-
-  while ((match = storyRegex.exec(prdContent)) !== null) {
-    const storyId = match[1];
-    const storyContent = match[2];
-
-    // 检查是否包含 GWT 关键词
-    const hasGiven = storyContent.includes('Given');
-    const hasWhen = storyContent.includes('When');
-    const hasThen = storyContent.includes('Then');
-
-    if (!hasGiven || !hasWhen || !hasThen) {
-      stories.push({
-        id: storyId,
-        missing: [
-          !hasGiven && 'Given',
-          !hasWhen && 'When',
-          !hasThen && 'Then'
-        ].filter(Boolean)
-      });
-    }
-  }
+  const stories = findStoriesMissingGwt(prdContent);
 
   if (stories.length === 0) {
     log('✅ 所有用户故事的验收标准使用 Given-When-Then 格式', 'green');
@@ -316,6 +308,7 @@ module.exports = {
   checkGivenWhenThen,
   checkMainPrdSections,
   checkStoryIdFormat,
+  findStoriesMissingGwt,
   isValidStoryId,
   inspectModuleLayout,
 };

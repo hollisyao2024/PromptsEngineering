@@ -235,6 +235,12 @@ function checkDependencyFormat() {
   }
 }
 
+function hasModuleTaskStructure(content) {
+  const hasTaskId = new RegExp(TASK_ID_SOURCE).test(content);
+  const hasWbsSection = /##\s+\d+\.\s+(?:模块\s+)?WBS/i.test(content);
+  return hasTaskId || hasWbsSection;
+}
+
 // 检查模块 TASK 文件（如果存在）
 function checkModuleTaskFiles() {
   log('\n📂 检查模块 TASK 文件...', 'cyan');
@@ -250,7 +256,9 @@ function checkModuleTaskFiles() {
   }
 
   const entries = fs.readdirSync(CONFIG.taskModulesDir, { withFileTypes: true });
-  const moduleDirs = entries.filter(entry => entry.isDirectory());
+  const moduleDirs = entries.filter(
+    entry => entry.isDirectory() && fs.existsSync(path.join(CONFIG.taskModulesDir, entry.name, 'TASK.md'))
+  );
 
   if (moduleDirs.length === 0) {
     log('❌ 未找到模块 TASK 文件；至少需要一个模块', 'red');
@@ -284,10 +292,7 @@ function checkModuleTaskFiles() {
     const content = fs.readFileSync(filePath, 'utf-8');
 
     // 检查基本结构
-    const hasTaskIdSection = new RegExp(TASK_ID_SOURCE).test(content);
-    const hasWbsSection = /##\s+\d+\.\s+(?:模块\s+)?WBS/i.test(content);
-
-    if (!hasTaskIdSection || !hasWbsSection) {
+    if (!hasModuleTaskStructure(content)) {
       log(`⚠️  ${dir.name}/TASK.md: 缺少 Task ID 或 WBS 章节`, 'yellow');
       allValid = false;
     }
@@ -391,5 +396,6 @@ module.exports = {
   checkDependencyFormat,
   checkModuleTaskFiles,
   checkRequiredSections,
+  hasModuleTaskStructure,
   isValidTaskId,
 };

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { checkRequiredSections, isValidTaskId } = require('../task-lint');
+const { checkRequiredSections, hasModuleTaskStructure, isValidTaskId } = require('../task-lint');
 const { generateTaskMarkdown, validateModuleAlignment } = require('../generate-task');
 
 test('task lint accepts modular TASK document section aliases', () => {
@@ -55,4 +55,10 @@ test('task lint accepts numeric and multi-segment module names', () => {
   assert.equal(isValidTaskId('TASK-MODEL-CONFIG-021'), true);
   assert.equal(isValidTaskId('TASK-AGENT-V3-001'), true);
   assert.equal(isValidTaskId('TASK-MODEL-CONFIG-21'), false);
+});
+
+test('module TASK indexes may provide a WBS section before task IDs are planned', () => {
+  assert.equal(hasModuleTaskStructure('## 2. WBS（工作分解结构）\n\n待规划'), true);
+  assert.equal(hasModuleTaskStructure('TASK-AUTH-001'), true);
+  assert.equal(hasModuleTaskStructure('仅有说明，没有 WBS 或 Task ID'), false);
 });

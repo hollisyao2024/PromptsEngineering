@@ -237,10 +237,10 @@ function collectModuleDescriptors() {
   }
 
   const descriptors = fs.readdirSync(ARCH_MODULES_DIR, { withFileTypes: true })
-    .filter(dirent => dirent.isDirectory())
+    .filter(dirent => dirent.isDirectory() && fs.existsSync(path.join(ARCH_MODULES_DIR, dirent.name, 'ARCH.md')))
     .map(dirent => {
       const archPath = path.join(ARCH_MODULES_DIR, dirent.name, 'ARCH.md');
-      return { name: dirent.name, archPath, exists: fs.existsSync(archPath) };
+      return { name: dirent.name, archPath, exists: true };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
