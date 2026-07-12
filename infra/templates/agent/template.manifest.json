@@ -85,6 +85,8 @@
     { "path": "infra/scripts/task-tools", "strategy": "overwrite" },
     { "path": "infra/scripts/qa-tools", "strategy": "overwrite" },
     { "path": "infra/scripts/tdd-tools", "strategy": "overwrite" },
+    { "path": "infra/scripts/qa-tools/qa-merge-github-token.test.js", "strategy": "remove" },
+    { "path": "infra/scripts/tdd-tools/__tests__/tdd-push-github-token.test.js", "strategy": "remove" },
 
     { "path": "docs/AGENT_STATE.md", "source": "docs/data/templates/core/AGENT_STATE-TEMPLATE.md", "strategy": "init-if-missing" },
     { "path": "docs/data/README.md", "strategy": "init-if-missing" },

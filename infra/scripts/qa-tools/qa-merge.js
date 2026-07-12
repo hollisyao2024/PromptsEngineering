@@ -1093,6 +1093,109 @@ function bumpPatchVersion(version) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
+function normalizeConfiguredReleasePath(relPath) {
+  if (!relPath || typeof relPath !== 'string') {
+    throw new Error('release.versionSyncFiles entry 缺少 path');
+  }
+  if (path.isAbsolute(relPath)) {
+    throw new Error(`release.versionSyncFiles path 必须是相对路径: ${relPath}`);
+  }
+  const normalized = path.normalize(relPath);
+  if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) {
+    throw new Error(`release.versionSyncFiles path 不能指向仓库外: ${relPath}`);
+  }
+  return normalized;
+}
+
+function setJsonField(obj, field, value, relPath) {
+  const segments = String(field || 'version').split('.').filter(Boolean);
+  if (segments.length === 0) {
+    throw new Error(`release.versionSyncFiles JSON field 无效: ${relPath}`);
+  }
+  let target = obj;
+  for (const segment of segments.slice(0, -1)) {
+    if (!target[segment] || typeof target[segment] !== 'object' || Array.isArray(target[segment])) {
+      target[segment] = {};
+    }
+    target = target[segment];
+  }
+  const last = segments[segments.length - 1];
+  if (target[last] === value) return false;
+  target[last] = value;
+  return true;
+}
+
+function syncJsonReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const obj = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+  if (!setJsonField(obj, entry.field || 'version', version, relPath)) return '';
+  fs.writeFileSync(fullPath, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
+  return relPath;
+}
+
+function syncCargoPackageReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const text = fs.readFileSync(fullPath, 'utf8');
+  const re = /^(\s*version\s*=\s*)"([^"]+)"/m;
+  const match = text.match(re);
+  if (!match) {
+    throw new Error(`release.versionSyncFiles 未在 ${relPath} 找到 [package] version`);
+  }
+  if (match[2] === version) return '';
+  fs.writeFileSync(fullPath, text.replace(re, `$1"${version}"`), 'utf8');
+  return relPath;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function syncCargoLockPackageReleaseVersion(mainWorkspacePath, entry, version) {
+  const relPath = normalizeConfiguredReleasePath(entry.path);
+  const packageName = entry.package;
+  if (!packageName || typeof packageName !== 'string') {
+    throw new Error(`release.versionSyncFiles cargo-lock-package 缺少 package: ${relPath}`);
+  }
+  const fullPath = path.join(mainWorkspacePath, relPath);
+  const text = fs.readFileSync(fullPath, 'utf8');
+  const lineBreak = '\\r?\\n';
+  const re = new RegExp(
+    `(\\[\\[package\\]\\]${lineBreak}name = "${escapeRegExp(packageName)}"${lineBreak}(?:source = "[^"]+"${lineBreak})?version = )"([^"]+)"`,
+    'm'
+  );
+  const match = text.match(re);
+  if (!match) {
+    throw new Error(`release.versionSyncFiles 未在 ${relPath} 找到 [[package]] name="${packageName}"`);
+  }
+  if (match[2] === version) return '';
+  fs.writeFileSync(fullPath, text.replace(re, `$1"${version}"`), 'utf8');
+  return relPath;
+}
+
+function syncConfiguredVersionFiles(mainWorkspacePath, versionSyncFiles, version) {
+  if (!version || !Array.isArray(versionSyncFiles) || versionSyncFiles.length === 0) {
+    return [];
+  }
+  const changed = [];
+  for (const entry of versionSyncFiles) {
+    const format = entry && entry.format;
+    let relPath = '';
+    if (format === 'json') {
+      relPath = syncJsonReleaseVersion(mainWorkspacePath, entry, version);
+    } else if (format === 'cargo-package') {
+      relPath = syncCargoPackageReleaseVersion(mainWorkspacePath, entry, version);
+    } else if (format === 'cargo-lock-package') {
+      relPath = syncCargoLockPackageReleaseVersion(mainWorkspacePath, entry, version);
+    } else {
+      throw new Error(`release.versionSyncFiles format 不支持: ${format || '(empty)'}`);
+    }
+    if (relPath) changed.push(relPath);
+  }
+  return changed;
+}
+
 function insertChangelogEntry(mainRepoRoot, targetVersion, note, changelogFile = 'CHANGELOG.md') {
   const changelogPath = path.join(mainRepoRoot, changelogFile);
   const raw = fs.readFileSync(changelogPath, 'utf8');
@@ -1467,7 +1570,16 @@ async function main() {
       pkg.version = newVersion;
       fs.writeFileSync(versionFilePath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
       releaseFiles.push(versionFile);
+      const syncedVersionFiles = syncConfiguredVersionFiles(
+        mainWorkspacePath,
+        releaseConfig.versionSyncFiles,
+        newVersion
+      );
+      releaseFiles.push(...syncedVersionFiles.filter((file) => !releaseFiles.includes(file)));
       console.log(`\x1b[32m  版本递增: ${currentVersion} → ${newVersion}\x1b[0m`);
+      if (syncedVersionFiles.length > 0) {
+        console.log(`\x1b[32m  版本同步文件: ${syncedVersionFiles.join(', ')}\x1b[0m`);
+      }
     } else {
       console.log('\x1b[36m  跳过版本递增（release.bumpVersion=false；可用 --bump-version 开启）\x1b[0m');
     }
@@ -1551,4 +1663,5 @@ module.exports = {
   cleanupWorktree,
   cleanupOrphanWorktreeDirs,
   cleanupOrphanSessions,
+  syncConfiguredVersionFiles,
 };
