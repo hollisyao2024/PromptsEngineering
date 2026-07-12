@@ -38,7 +38,14 @@ const REQUIRED_SECTION_GROUPS = [
 ];
 
 // Task ID 格式正则（TASK-MODULE-NNN）
-const TASK_ID_PATTERN = /TASK-[A-Z]+-\d{3}/;
+const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
+const TASK_ID_SOURCE = `TASK-${MODULE_ID_SOURCE}-\\d{3}`;
+const TASK_ID_PATTERN = new RegExp(`^${TASK_ID_SOURCE}$`);
+const TASK_ID_SEARCH_PATTERN = new RegExp(`${TASK_ID_SOURCE}(?!\\d)`, 'g');
+
+function isValidTaskId(id) {
+  return TASK_ID_PATTERN.test(id);
+}
 
 // 颜色输出
 const colors = {
@@ -103,9 +110,9 @@ function checkTaskIdFormat() {
   log('\n🔍 检查 Task ID 格式规范...', 'cyan');
 
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
-  const taskIdMatches = taskContent.match(/TASK-[A-Z0-9]+-\d+/g) || [];
+  const taskIdMatches = taskContent.match(TASK_ID_SEARCH_PATTERN) || [];
 
-  const invalidIds = taskIdMatches.filter(id => !TASK_ID_PATTERN.test(id));
+  const invalidIds = taskIdMatches.filter(id => !isValidTaskId(id));
 
   if (invalidIds.length === 0) {
     log(`✅ 所有 Task ID 格式规范（共 ${taskIdMatches.length} 个）`, 'green');
@@ -126,7 +133,7 @@ function checkTaskEffortEstimation() {
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
 
   // 查找所有任务章节（包含 Task ID 的行）
-  const taskRegex = /(TASK-[A-Z]+-\d{3})([^\n]+)/g;
+  const taskRegex = new RegExp(`(${TASK_ID_SOURCE})([^\\n]+)`, 'g');
   const tasksWithoutEffort = [];
   let match;
 
@@ -166,7 +173,7 @@ function checkTaskAssignee() {
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
 
   // 查找所有任务行
-  const taskRegex = /(TASK-[A-Z]+-\d{3})([^\n]+)/g;
+  const taskRegex = new RegExp(`(${TASK_ID_SOURCE})([^\\n]+)`, 'g');
   const tasksWithoutAssignee = [];
   let match;
 
@@ -205,7 +212,7 @@ function checkDependencyFormat() {
   const taskContent = fs.readFileSync(CONFIG.mainTaskPath, 'utf-8');
 
   // 查找依赖关系标记（如：依赖：TASK-xxx、→、Depends on:）
-  const dependencyRegex = /(?:依赖[：:]|→|Depends\s+on[：:])\s*(TASK-[A-Z0-9]+-\d+)/gi;
+  const dependencyRegex = new RegExp(`(?:依赖[：:]|→|Depends\\s+on[：:])\\s*(${TASK_ID_SOURCE})`, 'gi');
   const dependencies = [];
   let match;
 
@@ -214,7 +221,7 @@ function checkDependencyFormat() {
   }
 
   // 检查依赖的 Task ID 格式
-  const invalidDeps = dependencies.filter(dep => !TASK_ID_PATTERN.test(dep));
+  const invalidDeps = dependencies.filter(dep => !isValidTaskId(dep));
 
   if (invalidDeps.length === 0) {
     log(`✅ 所有依赖关系格式规范（共 ${dependencies.length} 个）`, 'green');
@@ -277,7 +284,7 @@ function checkModuleTaskFiles() {
     const content = fs.readFileSync(filePath, 'utf-8');
 
     // 检查基本结构
-    const hasTaskIdSection = /TASK-[A-Z]+-\d{3}/.test(content);
+    const hasTaskIdSection = new RegExp(TASK_ID_SOURCE).test(content);
     const hasWbsSection = /##\s+\d+\.\s+(?:模块\s+)?WBS/i.test(content);
 
     if (!hasTaskIdSection || !hasWbsSection) {
@@ -383,5 +390,6 @@ module.exports = {
   checkTaskAssignee,
   checkDependencyFormat,
   checkModuleTaskFiles,
-  checkRequiredSections
+  checkRequiredSections,
+  isValidTaskId,
 };

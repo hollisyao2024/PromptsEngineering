@@ -48,7 +48,14 @@ const MODULE_SECTION_PATTERNS = [
 ];
 
 // Story ID 格式正则
-const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/;
+const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
+const STORY_ID_SOURCE = `US-${MODULE_ID_SOURCE}-\\d{3}`;
+const STORY_ID_PATTERN = new RegExp(`^${STORY_ID_SOURCE}$`);
+const STORY_ID_SEARCH_PATTERN = new RegExp(`${STORY_ID_SOURCE}(?!\\d)`, 'g');
+
+function isValidStoryId(id) {
+  return STORY_ID_PATTERN.test(id);
+}
 
 // Given-When-Then 关键词
 const GWT_KEYWORDS = ['Given', 'When', 'Then'];
@@ -186,9 +193,9 @@ function checkStoryIdFormat() {
   log('\n🔍 检查 Story ID 格式规范...', 'cyan');
 
   const prdContent = getModulePrdPaths().map((filePath) => fs.readFileSync(filePath, 'utf-8')).join('\n');
-  const storyIdMatches = prdContent.match(/US-[A-Z0-9]+-\d+/g) || [];
+  const storyIdMatches = prdContent.match(STORY_ID_SEARCH_PATTERN) || [];
 
-  const invalidIds = storyIdMatches.filter(id => !STORY_ID_PATTERN.test(id));
+  const invalidIds = storyIdMatches.filter(id => !isValidStoryId(id));
 
   if (invalidIds.length === 0) {
     log(`✅ 所有 Story ID 格式规范（共 ${storyIdMatches.length} 个）`, 'green');
@@ -309,5 +316,6 @@ module.exports = {
   checkGivenWhenThen,
   checkMainPrdSections,
   checkStoryIdFormat,
+  isValidStoryId,
   inspectModuleLayout,
 };

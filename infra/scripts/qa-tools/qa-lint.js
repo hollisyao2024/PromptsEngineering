@@ -52,13 +52,33 @@ const REQUIRED_MODULE_SECTIONS = [
 ];
 
 // Test Case ID 格式正则（TC-MODULE-NNN）
-const TC_ID_PATTERN = /TC-[A-Z]+-\d{3}/;
+const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
+const TC_ID_SOURCE = `TC-${MODULE_ID_SOURCE}-\\d{3}`;
+const TC_ID_PATTERN = new RegExp(`^${TC_ID_SOURCE}$`);
 
 // 缺陷 ID 格式正则（BUG-MODULE-NNN）
-const BUG_ID_PATTERN = /BUG-[A-Z]+-\d{3}/;
+const BUG_ID_SOURCE = `BUG-${MODULE_ID_SOURCE}-\\d{3}`;
+const BUG_ID_PATTERN = new RegExp(`^${BUG_ID_SOURCE}$`);
 
 // Story ID 格式正则（US-MODULE-NNN）
-const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/;
+const STORY_ID_SOURCE = `US-${MODULE_ID_SOURCE}-\\d{3}`;
+const STORY_ID_PATTERN = new RegExp(`^${STORY_ID_SOURCE}$`);
+
+function extractIds(content, source) {
+  return content.match(new RegExp(`${source}(?!\\d)`, 'g')) || [];
+}
+
+function isValidTestCaseId(id) {
+  return TC_ID_PATTERN.test(id);
+}
+
+function isValidDefectId(id) {
+  return BUG_ID_PATTERN.test(id);
+}
+
+function isValidStoryId(id) {
+  return STORY_ID_PATTERN.test(id);
+}
 
 // 颜色输出
 const colors = {
@@ -190,9 +210,9 @@ function checkTestCaseIdFormat() {
   // 检查主 QA
   if (fs.existsSync(CONFIG.mainQAPath)) {
     const mainQAContent = fs.readFileSync(CONFIG.mainQAPath, 'utf-8');
-    const matches = mainQAContent.match(/TC-[A-Z0-9]+-[A-Z0-9]+/g) || [];
+    const matches = extractIds(mainQAContent, TC_ID_SOURCE);
     matches.forEach(id => {
-      if (!TC_ID_PATTERN.test(id)) {
+      if (!isValidTestCaseId(id)) {
         invalidIds.push({ file: 'QA.md', id });
       } else {
         testCaseIds.push(id);
@@ -209,9 +229,9 @@ function checkTestCaseIdFormat() {
       const qaFilePath = path.join(CONFIG.qaModulesDir, dir.name, 'QA.md');
       if (fs.existsSync(qaFilePath)) {
         const moduleQAContent = fs.readFileSync(qaFilePath, 'utf-8');
-        const matches = moduleQAContent.match(/TC-[A-Z0-9]+-[A-Z0-9]+/g) || [];
+        const matches = extractIds(moduleQAContent, TC_ID_SOURCE);
         matches.forEach(id => {
-          if (!TC_ID_PATTERN.test(id)) {
+          if (!isValidTestCaseId(id)) {
             invalidIds.push({ file: `qa-modules/${dir.name}/QA.md`, id });
           } else {
             testCaseIds.push(id);
@@ -243,9 +263,9 @@ function checkDefectIdFormat() {
   // 检查主 QA
   if (fs.existsSync(CONFIG.mainQAPath)) {
     const mainQAContent = fs.readFileSync(CONFIG.mainQAPath, 'utf-8');
-    const matches = mainQAContent.match(/BUG-[A-Z0-9]+-[A-Z0-9]+/g) || [];
+    const matches = extractIds(mainQAContent, BUG_ID_SOURCE);
     matches.forEach(id => {
-      if (!BUG_ID_PATTERN.test(id)) {
+      if (!isValidDefectId(id)) {
         invalidIds.push({ file: 'QA.md', id });
       } else {
         defectIds.push(id);
@@ -262,9 +282,9 @@ function checkDefectIdFormat() {
       const qaFilePath = path.join(CONFIG.qaModulesDir, dir.name, 'QA.md');
       if (fs.existsSync(qaFilePath)) {
         const moduleQAContent = fs.readFileSync(qaFilePath, 'utf-8');
-        const matches = moduleQAContent.match(/BUG-[A-Z0-9]+-[A-Z0-9]+/g) || [];
+        const matches = extractIds(moduleQAContent, BUG_ID_SOURCE);
         matches.forEach(id => {
-          if (!BUG_ID_PATTERN.test(id)) {
+          if (!isValidDefectId(id)) {
             invalidIds.push({ file: `qa-modules/${dir.name}/QA.md`, id });
           } else {
             defectIds.push(id);
@@ -303,11 +323,11 @@ function checkGivenWhenThenFormat() {
         const moduleQAContent = fs.readFileSync(qaFilePath, 'utf-8');
 
         // 查找所有 Test Case
-        const tcMatches = moduleQAContent.match(/TC-[A-Z]+-\d{3}:[^\n]+/g) || [];
+        const tcMatches = moduleQAContent.match(new RegExp(`${TC_ID_SOURCE}:[^\\n]+`, 'g')) || [];
 
         tcMatches.forEach(tcLine => {
-          const tcId = tcLine.match(/TC-[A-Z]+-\d{3}/)[0];
-          const tcTitle = tcLine.replace(/TC-[A-Z]+-\d{3}:\s*/, '');
+          const tcId = tcLine.match(new RegExp(TC_ID_SOURCE))[0];
+          const tcTitle = tcLine.replace(new RegExp(`${TC_ID_SOURCE}:\\s*`), '');
 
           // 查找该 TC 后面的内容，检查是否有 Given-When-Then
           const tcIndex = moduleQAContent.indexOf(tcLine);
@@ -371,11 +391,11 @@ function checkStoryIdAssociation() {
         const moduleQAContent = fs.readFileSync(qaFilePath, 'utf-8');
 
         // 查找所有 Test Case
-        const tcMatches = moduleQAContent.match(/TC-[A-Z]+-\d{3}:[^\n]+/g) || [];
+        const tcMatches = moduleQAContent.match(new RegExp(`${TC_ID_SOURCE}:[^\\n]+`, 'g')) || [];
 
         tcMatches.forEach(tcLine => {
-          const tcId = tcLine.match(/TC-[A-Z]+-\d{3}/)[0];
-          const tcTitle = tcLine.replace(/TC-[A-Z]+-\d{3}:\s*/, '');
+          const tcId = tcLine.match(new RegExp(TC_ID_SOURCE))[0];
+          const tcTitle = tcLine.replace(new RegExp(`${TC_ID_SOURCE}:\\s*`), '');
 
           // 查找该 TC 后面的内容，检查是否有 Story ID
           const tcIndex = moduleQAContent.indexOf(tcLine);
@@ -385,7 +405,7 @@ function checkStoryIdAssociation() {
             nextTCIndex > 0 ? nextTCIndex : moduleQAContent.length
           );
 
-          const hasStoryId = STORY_ID_PATTERN.test(tcContent);
+          const hasStoryId = new RegExp(STORY_ID_SOURCE).test(tcContent);
 
           if (!hasStoryId) {
             unassociatedTCs.push({
@@ -497,4 +517,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { checkFileExists, checkTestCaseIdFormat, checkDefectIdFormat };
+module.exports = {
+  checkFileExists,
+  checkTestCaseIdFormat,
+  checkDefectIdFormat,
+  isValidTestCaseId,
+  isValidDefectId,
+  isValidStoryId,
+};
