@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { inspectModuleLayout } = require('../check-completeness');
+const { inspectModuleLayout, isValidStoryId } = require('../check-completeness');
 
 test('PRD completeness requires module-list and at least one module directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prd-modular-layout-'));
@@ -23,4 +23,12 @@ test('PRD completeness requires module-list and at least one module directory', 
     reason: '',
     moduleDirs: ['auth'],
   });
+});
+
+test('PRD story IDs accept numeric and multi-segment module names', () => {
+  assert.equal(isValidStoryId('US-E2E-001'), true);
+  assert.equal(isValidStoryId('US-MODEL-CONFIG-001'), true);
+  assert.equal(isValidStoryId('US-AGENTPLATFORM-004'), true);
+  assert.equal(isValidStoryId('US-MODEL-CONFIG-01'), false);
+  assert.equal(isValidStoryId('US-model-config-001'), false);
 });

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { checkRequiredSections } = require('../task-lint');
+const { checkRequiredSections, isValidTaskId } = require('../task-lint');
 const { generateTaskMarkdown, validateModuleAlignment } = require('../generate-task');
 
 test('task lint accepts modular TASK document section aliases', () => {
@@ -48,4 +48,11 @@ test('task generator rejects PRD and ARCH module set drift', () => {
 
   assert.deepEqual(result.missingArch, ['billing']);
   assert.deepEqual(result.extraArch, ['orphan']);
+});
+
+test('task lint accepts numeric and multi-segment module names', () => {
+  assert.equal(isValidTaskId('TASK-E2E-001'), true);
+  assert.equal(isValidTaskId('TASK-MODEL-CONFIG-021'), true);
+  assert.equal(isValidTaskId('TASK-AGENT-V3-001'), true);
+  assert.equal(isValidTaskId('TASK-MODEL-CONFIG-21'), false);
 });

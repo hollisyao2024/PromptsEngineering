@@ -21,6 +21,9 @@ const {
 const { resolveRepoRoot } = require('../shared/config');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
+const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
+const STORY_ID_SOURCE = `US-${MODULE_ID_SOURCE}-\\d{3}`;
+const TEST_CASE_ID_SOURCE = `TC-${MODULE_ID_SOURCE}-\\d{3}`;
 
 const CONFIG = {
   paths: {
@@ -307,9 +310,9 @@ function validateQaFile(filePath) {
     result.warnings.push('未检测到二级章节（##）');
   }
 
-  // Module IDs may include digits, for example E2E, V3, or K8S.
-  const storyIds = Array.from(uniqueMatches(content, /\bUS-[A-Z0-9]+-\d{3}\b/g));
-  const testCaseIds = Array.from(uniqueMatches(content, /\bTC-[A-Z0-9]+-[A-Z0-9]+\b/g));
+  // Module IDs may include digits and multiple uppercase segments, such as E2E or MODEL-CONFIG.
+  const storyIds = Array.from(uniqueMatches(content, new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g')));
+  const testCaseIds = Array.from(uniqueMatches(content, new RegExp(`\\b${TEST_CASE_ID_SOURCE}\\b`, 'g')));
   result.stats.storyCount = storyIds.length;
   result.stats.testCaseCount = testCaseIds.length;
 
@@ -320,7 +323,8 @@ function validateQaFile(filePath) {
     result.warnings.push('未检测到 Test Case ID（TC-XXX-001）');
   }
 
-  const invalidTcIds = testCaseIds.filter((id) => !/^TC-[A-Z0-9]+-\d{3}$/.test(id));
+  const validTestCaseId = new RegExp(`^${TEST_CASE_ID_SOURCE}$`);
+  const invalidTcIds = testCaseIds.filter((id) => !validTestCaseId.test(id));
   if (invalidTcIds.length > 0) {
     result.errors.push(`Test Case ID 格式异常: ${invalidTcIds.join(', ')}`);
   }
@@ -335,7 +339,7 @@ function validateQaFile(filePath) {
     return result;
   }
 
-  const prdStories = uniqueMatches(prdContent, /\bUS-[A-Z0-9]+-\d{3}\b/g);
+  const prdStories = uniqueMatches(prdContent, new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g'));
   if (prdStories.size === 0) {
     result.warnings.push('模块 PRD 未检测到 Story ID，跳过覆盖率统计');
     return result;
