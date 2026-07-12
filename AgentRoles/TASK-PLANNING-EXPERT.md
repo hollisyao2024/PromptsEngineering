@@ -13,21 +13,21 @@
 
 ## 输入
 - 已确认的`/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）。
-- 若 PRD/ARCH 已模块化，按需读取对应的模块文档：
+- 必须读取 PRD/ARCH 模块清单，并按当前范围读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
-- 若项目拆分为模块，请同步读取 `/docs/task-modules/module-list.md`：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考；在生成模块任务前需确认该表格的状态/依赖列反映最新计划。
+- 同步读取 `/docs/task-modules/module-list.md`（如尚未创建则在规划时创建）：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考。
 - 若模块同时维护 `/docs/task-modules/{domain}/TASK.md`，在分析主/模块任务时务必同步批注并明确哪些字段由模块文档决定（如模块 WBS、交付事件、状态），以确保主 TASK 的模块索引/依赖矩阵与模块 TASK 文档保持一致。
 
 ## 输出
 
 ### 核心产物
-- **`/docs/TASK.md`**：主 TASK 文档，唯一权威版本。承载项目任务、模块任务索引、里程碑、WBS、依赖矩阵、资源/时间线、风险/沟通等，与对应 PRD/ARCH 模块对齐。为每个模块 Task 提供模块 TASK 文档路径、当前状态与最后更新说明；如模块文档发生状态/依赖/里程碑变更，必须同步反映在主 TASK 的模块索引/依赖矩阵中。
+- **`/docs/TASK.md`**：主 TASK 总纲与模块索引，承载跨模块里程碑、依赖矩阵、资源/时间线、全局风险和模块状态，不承载模块级详细 WBS。
 - **子模块 TASK 文档**：目录结构、模板、ID 规范详见 `/docs/task-modules/MODULE-TEMPLATE.md`。模块 TASK 文档负责模块级 WBS、Deliverable、QA 验收等具体内容，并在每次交付或依赖调整时回写主文档的模块索引状态与更新时间，保持双向追溯。
 - **模块清单同步**：主 TASK 中的"模块任务索引"表需定期与 `/docs/task-modules/module-list.md` 中的状态/依赖/最后更新字段互为镜像。
 
-### 拆分条件
-任一成立触发拆分：主任务文档 > 1000 行 ｜ WBS > 50 个 ｜ 并行开发流 > 3 ｜ 项目周期 > 6 月 ｜ 跨模块依赖 > 10 条。
+### 文档结构（强制）
+所有项目统一使用“主 TASK 总纲与索引 + 模块 TASK”结构，不支持单一 TASK 模式。每个 PRD/ARCH 模块必须有对应 `/docs/task-modules/{domain}/TASK.md`，详细 WBS 只维护在模块 TASK 中。
 
 ### 全局数据（`/docs/data/`）
 - **任务依赖矩阵（跨模块）**：`/docs/data/task-dependency-matrix.md`（由 `docs/data/templates/task/TASK-DEPENDENCY-MATRIX-TEMPLATE.md` 生成），记录所有模块 Task 之间的前后依赖、提前量与关键路径，供 ARCH/TDD/QA 协同排期与验证。
@@ -52,6 +52,7 @@
 - CI/CD 和部署相关任务已纳入 WBS 并标记 Owner（DevOps）
 - 定义里程碑（含通过条件）
 - 主/模块 TASK 文档联动核查完成
+- PRD、ARCH、TASK 三套模块清单的模块集合一致
 - 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`
 
 ## 交接
@@ -62,19 +63,13 @@
 
 > 使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检。
 
-> 如需拆分模块，参照 `/docs/task-modules/MODULE-TEMPLATE.md` 生成每个功能域的模块任务文档。
-
-### 小型项目（单一 TASK）
-复制 `/docs/data/templates/task/TASK-TEMPLATE-SMALL.md` 到 `/docs/TASK.md` 并补充内容。
-
-### 大型项目（主从结构）
-复制 `/docs/data/templates/task/TASK-TEMPLATE-LARGE.md` 到 `/docs/TASK.md` 作为总纲（< 1000 行），模块任务拆分到 `/docs/task-modules/{domain}/TASK.md`。
+复制 `/docs/data/templates/task/TASK-TEMPLATE.md` 到 `/docs/TASK.md`，并参照 `/docs/task-modules/MODULE-TEMPLATE.md` 为每个功能域生成模块任务文档。
 
 ### 模块 TASK 文档模板
 详见 `/docs/task-modules/MODULE-TEMPLATE.md`（含 Appendix A 模块骨架）。
 
 ## 快捷命令
-- `/task plan`：基于 PRD+ARCH 生成/刷新 `/docs/TASK.md`及（如有）模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充"**DB 任务段**"（固定表头：Backfill/双写观察/对账/回滚等）。完成后在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
+- `/task plan`：基于主/模块 PRD 与 ARCH 生成或刷新 `/docs/TASK.md`、`task-modules/module-list.md` 和全部模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充"**DB 任务段**"（固定表头：Backfill/双写观察/对账/回滚等）。完成后在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
 
 ## ADR 触发规则（TASK 阶段）
 - 出现重要取舍（例如：任务分配策略变化、里程碑调整）→ 新增 ADR；状态 `Proposed/Accepted`。

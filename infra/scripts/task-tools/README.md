@@ -22,7 +22,7 @@ chmod +x infra/scripts/task-tools/*.js
 
 ### 0. TASK 自动生成 ⭐ 新增（v1.12 增强）
 
-从 PRD + ARCHITECTURE 自动生成 TASK.md，包含 WBS、依赖矩阵、关键路径、里程碑、风险。**大型项目自动拆分为模块文档**。
+从主/模块 PRD 与 ARCHITECTURE 自动生成主 TASK 总纲、模块清单和模块 TASK 文档。
 
 ```bash
 pnpm run task:generate
@@ -33,8 +33,8 @@ pnpm run task:generate
 - ✅ 从 ARCHITECTURE 提取 Component 依赖，自动生成任务依赖矩阵
 - ✅ 计算关键路径（CPM 算法）
 - ✅ 生成 Story → Task 映射表
-- ✅ **智能检测项目规模，自动决定单文件 vs 模块化拆分**
-- ✅ **大型项目自动创建模块任务文档（`task-modules/{domain}/TASK.md`）**
+- ✅ **校验 PRD 与 ARCH 模块集合一致**
+- ✅ **始终创建模块任务文档（`task-modules/{domain}/TASK.md`）**
 - ✅ **自动生成跨模块依赖关系表**
 - ✅ 支持增量更新（保留人工标注的 Owner、优先级、风险备注）
 
@@ -42,35 +42,9 @@ pnpm run task:generate
 - **首次生成**：TASK.md 不存在时，从零自动生成完整任务计划
 - **增量更新**：PRD/ARCH 变更后，刷新 WBS/依赖/关键路径，保留人工调整
 - **快速原型**：新项目启动时，快速生成初始任务分解
-- **大型项目**：自动拆分为主文档（总纲）+ 模块文档（详细 WBS）
+- **所有项目**：主文档维护总纲，模块文档维护详细 WBS
 
-**示例输出（小型项目）**：
-```
-============================================================
-TASK 自动生成工具 v1.0
-============================================================
-✅ 读取 PRD 与 ARCHITECTURE...
-📋 解析 Story 与 Component...
-   - 找到 25 个 Story
-   - 找到 12 个 Component
-🔧 生成 WBS...
-   - 生成 78 个 Task
-   - 项目规模：小型（单文件）
-📝 生成 TASK.md...
-✅ 已生成：/docs/TASK.md
-
-==============================
-✅ TASK.md 自动生成完成！
-
-接下来建议：
-1. 检查生成的 TASK.md：cat docs/TASK.md
-2. 运行质量检查：pnpm run task:lint
-3. 验证关键路径：pnpm run task:check-critical-path
-4. 同步 PRD ↔ TASK ID：pnpm run task:sync
-5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED
-```
-
-**示例输出（大型项目 - v1.12 新增）**：
+**示例输出**：
 ```
 ============================================================
 TASK 自动生成工具 v1.0
@@ -81,23 +55,23 @@ TASK 自动生成工具 v1.0
    - 找到 35 个 Component
 🔧 生成 WBS...
    - 生成 320 个 Task
-   - 项目规模：大型（需拆分）
+   - 文档模式：模块化（4 个模块）
 📝 生成 TASK.md...
 ✅ 已生成：/docs/TASK.md
 
-📂 项目规模较大，自动创建模块化任务文档...
+📂 创建模块化任务文档...
    ✅ 创建模块文档：user/TASK.md (85 个任务)
    ✅ 创建模块文档：payment/TASK.md (92 个任务)
    ✅ 创建模块文档：notification/TASK.md (68 个任务)
    ✅ 创建模块文档：infra/TASK.md (75 个任务)
    ✅ 更新模块索引：task-modules/module-list.md
 ✅ 已创建 4 个模块任务文档
-✅ 主 TASK.md 已转换为总纲结构（< 500 行）
+✅ 主 TASK.md 为总纲结构
 
 ==============================
 ✅ TASK.md 自动生成完成！
 
-📋 大型项目已完成模块化拆分：
+📋 模块化任务文档已生成：
    - 主文档：docs/TASK.md（总纲与索引）
    - 模块文档：docs/task-modules/{domain}/TASK.md
    - 模块索引：docs/task-modules/module-list.md
@@ -111,15 +85,10 @@ TASK 自动生成工具 v1.0
 5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED
 ```
 
-**拆分条件（自动判断）**：
-- 主文档预估 > 1000 行
-- 工作包 > 50 个
-- 并行模块 ≥ 3 个
-
 **注意事项**：
 - 生成工具会根据 PRD/ARCH 的实际格式智能解析，可能需要调整正则表达式
 - 人工标注（Owner、优先级、完成状态）在再次执行时会自动保留
-- **大型项目自动拆分后**，主 TASK.md 转为总纲（< 500 行），详细 WBS 存放在模块文档中
+- 主 TASK.md 始终是总纲，详细 WBS 只存放在模块文档中
 
 ---
 

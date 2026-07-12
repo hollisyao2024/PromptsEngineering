@@ -18,6 +18,7 @@ const path = require('path');
 const CONFIG = {
   mainPrdPath: path.join(__dirname, '../../../docs/PRD.md'),
   prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
+  moduleListPath: path.join(__dirname, '../../../docs/prd-modules/module-list.md'),
   traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
   globalDependencyGraphPath: path.join(__dirname, '../../../docs/data/global-dependency-graph.md'),
   moduleTemplatePath: path.join(__dirname, '../../../docs/prd-modules/MODULE-TEMPLATE.md'),
@@ -38,16 +39,13 @@ const MAIN_SECTION_PATTERNS = [
 
 const MODULE_SECTION_PATTERNS = [
   { label: '## 1. 模块概述', pattern: /^##\s*1\.\s*模块概述/m },
-  { label: '## 2. 用户故事与验收标准', pattern: /^##\s*2\.\s*用户故事/m },
-  { label: '## 3. 模块级非功能需求', pattern: /^##\s*3\.\s*模块级非功能需求/m },
-  { label: '## 4. 接口与依赖', pattern: /^##\s*4\.\s*(接口与依赖|依赖与接口)/m },
-  { label: '## 5. 数据模型', pattern: /^##\s*5\.\s*数据模型/m },
-  { label: '## 6. 风险与约束', pattern: /^##\s*6\.\s*风险与约束/m },
-  { label: '## 7. 模块版本与变更记录', pattern: /^##\s*7\.\s*(模块版本与变更记录|附录)/m },
-  { label: '## 8. 相关文档', pattern: /^##\s*8\.\s*相关文档/m },
+  { label: '## 2. 范围与约束', pattern: /^##\s*2\.\s*(范围与约束|用户故事)/m },
+  { label: '## 3. 用户故事与验收', pattern: /^##\s*3\.\s*(用户故事|模块级非功能需求)/m },
+  { label: '## 4. 非功能需求', pattern: /^##\s*4\.\s*(非功能需求|接口与依赖|依赖与接口)/m },
+  { label: '## 5. 依赖与风险', pattern: /^##\s*5\.\s*(依赖与风险|数据模型)/m },
+  { label: '## 6. 里程碑与 Gate', pattern: /^##\s*6\.\s*(里程碑|风险与约束)/m },
+  { label: '## 7. 追溯矩阵与验证', pattern: /^##\s*7\.\s*(追溯矩阵|模块版本与变更记录|附录)/m },
 ];
-
-const MASTER_INDICATORS = ['主 PRD', '总纲', '文档导航'];
 
 // Story ID 格式正则
 const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/;
@@ -75,7 +73,7 @@ function checkFileExists(filePath, description) {
     if (description === '主 PRD') {
       log(`ℹ️  主 PRD 尚未创建`, 'cyan');
       log(`   提示：PRD.md 为模板文件，请使用 PRD 专家按需生成`, 'cyan');
-      log(`   参考：docs/data/templates/prd/PRD-TEMPLATE-SMALL.md 或 PRD-TEMPLATE-LARGE.md`, 'cyan');
+      log(`   参考：docs/data/templates/prd/PRD-TEMPLATE.md`, 'cyan');
       return false;
     }
     log(`❌ ${description} 不存在: ${filePath}`, 'red');
@@ -85,11 +83,12 @@ function checkFileExists(filePath, description) {
   return true;
 }
 
-function detectMainPrdMode(content) {
-  if (MASTER_INDICATORS.some(indicator => content.includes(indicator))) {
-    return 'master';
-  }
-  return 'single';
+function getModulePrdPaths() {
+  if (!fs.existsSync(CONFIG.prdModulesDir)) return [];
+  return fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(CONFIG.prdModulesDir, entry.name, 'PRD.md'))
+    .filter((filePath) => fs.existsSync(filePath));
 }
 
 // 检查主 PRD 章节完整性
@@ -98,16 +97,12 @@ function checkMainPrdSections() {
 
   const prdContent = fs.readFileSync(CONFIG.mainPrdPath, 'utf-8');
   const missingSections = [];
-  const mode = detectMainPrdMode(prdContent);
-  log(`ℹ️  检测到主 PRD 类型：${mode === 'master' ? '主从总纲模式' : '单文件模式'}`, 'cyan');
+  log('ℹ️  主 PRD 类型：模块化总纲与索引', 'cyan');
 
-  const requiredPatterns = [...MAIN_SECTION_PATTERNS];
-  if (mode === 'master') {
-    requiredPatterns.push({
-      label: '## 文档导航',
-      pattern: /^##\s*文档导航/m,
-    });
-  }
+  const requiredPatterns = [...MAIN_SECTION_PATTERNS, {
+    label: '模块导航或功能域索引',
+    pattern: /^##\s*(?:\d+\.\s*)?(?:文档导航|功能域索引)/m,
+  }];
 
   requiredPatterns.forEach(entry => {
     if (!entry.pattern.test(prdContent)) {
@@ -146,26 +141,29 @@ function checkSingleModuleStructure(moduleName, modulePrdPath) {
   return false;
 }
 
+function inspectModuleLayout(modulesDir, moduleListPath) {
+  if (!fs.existsSync(modulesDir)) return { valid: false, reason: 'modules directory missing', moduleDirs: [] };
+  if (!fs.existsSync(moduleListPath)) return { valid: false, reason: 'module-list.md missing', moduleDirs: [] };
+  const moduleDirs = fs.readdirSync(modulesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  if (moduleDirs.length === 0) return { valid: false, reason: 'no module directories', moduleDirs };
+  return { valid: true, reason: '', moduleDirs };
+}
+
 function checkModuleStructures() {
   log('\n🏗️  检查模块 PRD 结构（参照 MODULE-TEMPLATE）...', 'cyan');
 
-  if (!fs.existsSync(CONFIG.prdModulesDir)) {
-    log('ℹ️  未找到 docs/prd-modules 目录，说明当前为单一 PRD 项目。', 'cyan');
-    return true;
-  }
-
-  const entries = fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true });
-  const moduleDirs = entries.filter(entry => entry.isDirectory());
-
-  if (moduleDirs.length === 0) {
-    log('ℹ️  当前未拆分模块，若先前拆分请参考 MODULE-TEMPLATE.md 创建目录。', 'cyan');
-    return true;
+  const layout = inspectModuleLayout(CONFIG.prdModulesDir, CONFIG.moduleListPath);
+  if (!layout.valid) {
+    log(`❌ PRD 模块结构无效：${layout.reason}`, 'red');
+    return false;
   }
 
   let allPassing = true;
 
-  moduleDirs.forEach(dir => {
-    const moduleName = dir.name;
+  layout.moduleDirs.forEach(moduleName => {
     const modulePrdPath = path.join(CONFIG.prdModulesDir, moduleName, 'PRD.md');
 
     if (!fs.existsSync(modulePrdPath)) {
@@ -187,7 +185,7 @@ function checkModuleStructures() {
 function checkStoryIdFormat() {
   log('\n🔍 检查 Story ID 格式规范...', 'cyan');
 
-  const prdContent = fs.readFileSync(CONFIG.mainPrdPath, 'utf-8');
+  const prdContent = getModulePrdPaths().map((filePath) => fs.readFileSync(filePath, 'utf-8')).join('\n');
   const storyIdMatches = prdContent.match(/US-[A-Z0-9]+-\d+/g) || [];
 
   const invalidIds = storyIdMatches.filter(id => !STORY_ID_PATTERN.test(id));
@@ -208,7 +206,7 @@ function checkStoryIdFormat() {
 function checkGivenWhenThen() {
   log('\n🧪 检查验收标准 Given-When-Then 格式...', 'cyan');
 
-  const prdContent = fs.readFileSync(CONFIG.mainPrdPath, 'utf-8');
+  const prdContent = getModulePrdPaths().map((filePath) => fs.readFileSync(filePath, 'utf-8')).join('\n');
 
   // 查找所有用户故事章节
   const storyRegex = /###?\s+(US-[A-Z]+-\d{3}):([^#]+)/g;
@@ -306,4 +304,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { checkFileExists, checkMainPrdSections, checkStoryIdFormat, checkGivenWhenThen };
+module.exports = {
+  checkFileExists,
+  checkGivenWhenThen,
+  checkMainPrdSections,
+  checkStoryIdFormat,
+  inspectModuleLayout,
+};

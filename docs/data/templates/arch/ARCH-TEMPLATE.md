@@ -1,7 +1,6 @@
-# 系统架构文档（总纲）
+# 系统架构文档（主总纲与模块索引）
 
-> **说明**：本模板供大型项目使用，复制到 `/docs/ARCH.md` 作为总纲与索引（< 1000 行）。详细架构设计见各功能域模块文档。
-> 小型项目请使用 `ARCH-TEMPLATE-SMALL.md`。
+> **说明**：所有项目统一使用本模板生成 `/docs/ARCH.md`。主文档只维护全局视图与模块索引，详细架构设计必须写入各功能域模块文档；即使只有一个功能域，也必须创建 `arch-modules/module-list.md` 和对应模块 ARCH。
 
 **日期**：YYYY-MM-DD
 **版本**：v1.0
@@ -84,7 +83,7 @@ graph LR
 - Doc Sync Gate 除了主 PRD 的变更摘要，也需列出每个模块 PRD 的当前状态/版本与是否已同频更新，避免某个模块因旧 PRD 而在架构中被错标为完成。
   | 版本 | 日期 | 触发类型 | 影响功能域 | 审查人 | Traceability/QA 状态 | 说明 |
   | ---- | ---- | -------- | -------- | ------ | ------------------- | ---- |
-  | v1.0 | YYYY-MM-DD | 模块重构 | 支付 + 通知 | @architect | Traceability ×，QA Review ✔ | 从单一文件迁移到模块化架构 |
+  | v1.0 | YYYY-MM-DD | 模块重构 | 支付 + 通知 | @architect | Traceability ×，QA Review ✔ | 调整模块边界与跨模块依赖 |
   | v1.1 | YYYY-MM-DD | 合规更新 | 通知服务审计 | @security | Traceability ✔，QA Pending | 补齐审计日志 + DR 计划 |
 - 更新记录应同时更新 `/docs/data/doc-snapshots.md` 或 `AGENT_STATE` Note，包含审核人签字、Doc Sync Gate 结果（如是否已触发 `ARCHITECTURE_DEFINED`）、以及所有相关 traceability/QA 任务的完成状态，便于后续阶段查证。
 

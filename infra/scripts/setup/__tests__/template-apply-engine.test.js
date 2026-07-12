@@ -11,6 +11,7 @@ const {
   deepMerge,
   isPlainObject,
   mergeJson,
+  removePath,
 } = require('../template-apply-engine');
 
 function mkTmpDir(prefix) {
@@ -225,6 +226,38 @@ test('applyRule still routes other strategies normally (regression)', () => {
   const second = applyRule(sourceRoot, targetRoot, rule, true, new Set());
   assert.equal(second[0].status, 'skipped');
   assert.match(second[0].reason, /target exists/);
+});
+
+test('removePath reports and removes only the manifest target file', () => {
+  const targetRoot = mkTmpDir('remove-target');
+  const legacyPath = 'docs/data/templates/prd/PRD-TEMPLATE-SMALL.md';
+  const absoluteLegacyPath = path.join(targetRoot, legacyPath);
+  fs.mkdirSync(path.dirname(absoluteLegacyPath), { recursive: true });
+  fs.writeFileSync(absoluteLegacyPath, 'legacy');
+
+  const dryRun = removePath(targetRoot, { path: legacyPath, strategy: 'remove' }, false);
+  assert.equal(dryRun[0].status, 'removed');
+  assert.equal(fs.existsSync(absoluteLegacyPath), true, 'dry-run preserves target');
+
+  const writeRun = applyRule('', targetRoot, { path: legacyPath, strategy: 'remove' }, true, new Set());
+  assert.equal(writeRun[0].status, 'removed');
+  assert.equal(fs.existsSync(absoluteLegacyPath), false);
+
+  const missingRun = removePath(targetRoot, { path: legacyPath, strategy: 'remove' }, true);
+  assert.equal(missingRun[0].status, 'unchanged');
+  assert.match(missingRun[0].reason, /target missing/);
+});
+
+test('removePath rejects traversal and directory removal', () => {
+  const targetRoot = mkTmpDir('remove-guard');
+  const traversal = removePath(targetRoot, { path: '../outside.md', strategy: 'remove' }, true);
+  assert.equal(traversal[0].status, 'blocked');
+  assert.match(traversal[0].reason, /escapes target root/);
+
+  fs.mkdirSync(path.join(targetRoot, 'legacy-dir'));
+  const directory = removePath(targetRoot, { path: 'legacy-dir', strategy: 'remove' }, true);
+  assert.equal(directory[0].status, 'blocked');
+  assert.match(directory[0].reason, /directory removal/);
 });
 
 const {

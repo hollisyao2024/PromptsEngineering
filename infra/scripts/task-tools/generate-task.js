@@ -7,7 +7,7 @@
  * - 从 PRD + ARCHITECTURE 自动生成 TASK.md
  * - 支持增量更新（保留人工标注）
  * - 生成 WBS、依赖矩阵、关键路径、里程碑、风险、DB 任务表
- * - 大型项目自动拆分为模块化任务文档
+ * - 始终生成主 TASK 总纲、模块索引与模块 TASK 文档
  *
  * 用法：
  *   pnpm run task:generate -- [--init] [--update-only] [--preserve-manual-annotations]
@@ -19,19 +19,12 @@ const path = require('path');
 // 配置
 const CONFIG = {
   prdPath: path.join(__dirname, '../../../docs/PRD.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
   archPath: path.join(__dirname, '../../../docs/ARCH.md'),
+  archModulesDir: path.join(__dirname, '../../../docs/arch-modules'),
   taskPath: path.join(__dirname, '../../../docs/TASK.md'),
   taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
   stateFile: path.join(__dirname, '../../../docs/AGENT_STATE.md'),
-
-  // 拆分条件
-  splitThresholds: {
-    lines: 1000,
-    workPackages: 50,
-    parallelStreams: 3,
-    projectMonths: 6,
-    dependencies: 10,
-  },
 
   // Task 粒度约束（单位：天）
   taskSizeConstraints: {
@@ -62,6 +55,27 @@ function toDomainDirectory(name) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'general';
+}
+
+function listModuleDocuments(baseDir, fileName) {
+  if (!fs.existsSync(baseDir)) return [];
+  return fs.readdirSync(baseDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      moduleDir: entry.name,
+      filePath: path.join(baseDir, entry.name, fileName),
+    }))
+    .filter((entry) => fs.existsSync(entry.filePath))
+    .sort((a, b) => a.moduleDir.localeCompare(b.moduleDir));
+}
+
+function validateModuleAlignment(prdModules, archModules) {
+  const prdSet = new Set(prdModules.map((entry) => entry.moduleDir));
+  const archSet = new Set(archModules.map((entry) => entry.moduleDir));
+  return {
+    missingArch: Array.from(prdSet).filter((moduleDir) => !archSet.has(moduleDir)).sort(),
+    extraArch: Array.from(archSet).filter((moduleDir) => !prdSet.has(moduleDir)).sort(),
+  };
 }
 
 // 解析 PRD，提取 Story 信息
@@ -165,6 +179,10 @@ function generateTaskId(modulePrefix, index) {
   return `TASK-${modulePrefix}-${String(index + 1).padStart(3, '0')}`;
 }
 
+function moduleCodeFromDirectory(moduleDir) {
+  return String(moduleDir || 'general').replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'GENERAL';
+}
+
 // 创建 WBS（工作分解结构）
 function createWBS(stories, components) {
   const tasks = [];
@@ -186,6 +204,7 @@ function createWBS(stories, components) {
       complexity: story.complexity,
       story: story.id,
       module: modulePrefix,
+      moduleDir: story.moduleDir || toDomainDirectory(modulePrefix),
     });
 
     // Feature 级任务（前端、后端、DB）
@@ -200,6 +219,7 @@ function createWBS(stories, components) {
         dependencies: [tasks[tasks.length - 1].id],
         story: story.id,
         module: modulePrefix,
+        moduleDir: story.moduleDir || toDomainDirectory(modulePrefix),
       };
       tasks.push(backendTask);
 
@@ -213,6 +233,7 @@ function createWBS(stories, components) {
         dependencies: [backendTask.id],
         story: story.id,
         module: modulePrefix,
+        moduleDir: story.moduleDir || toDomainDirectory(modulePrefix),
       });
     }
   });
@@ -220,15 +241,18 @@ function createWBS(stories, components) {
   // 从 Component 生成基础设施任务
   components.forEach((comp, idx) => {
     if (comp.id.match(/INFRA|DEPLOY|MONITOR|SECURITY/i)) {
+      const moduleDir = comp.moduleDir || 'infrastructure';
+      const modulePrefix = comp.module || moduleCodeFromDirectory(moduleDir);
       tasks.push({
-        id: `TASK-INFRA-${String(idx + 1).padStart(3, '0')}`,
+        id: `TASK-${modulePrefix}-${String(idx + 1).padStart(3, '0')}`,
         title: `Infrastructure: ${comp.title}`,
         type: 'Infrastructure',
         owner: comp.team,
         effort: 5,
         priority: 'P0',
         dependencies: [],
-        module: 'INFRA',
+        module: modulePrefix,
+        moduleDir,
       });
     }
   });
@@ -270,17 +294,6 @@ function calculateCriticalPath(tasks) {
   return { criticalPath, criticalTasks };
 }
 
-// 检测拆分需要
-function shouldSplit(tasks, stories, components) {
-  const wbsLines = tasks.length * 3; // 粗估每个 Task 占 3 行
-  const modules = new Set(tasks.map(t => t.module || 'GENERAL'));
-  const parallelModules = modules.size;
-
-  return wbsLines > CONFIG.splitThresholds.lines ||
-         tasks.length > CONFIG.splitThresholds.workPackages ||
-         parallelModules >= CONFIG.splitThresholds.parallelStreams;
-}
-
 // 提取跨模块依赖关系
 function extractCrossModuleDependencies(tasks) {
   const crossModuleDeps = [];
@@ -307,22 +320,23 @@ function extractCrossModuleDependencies(tasks) {
 }
 
 // 生成模块任务文档
-function generateModuleTaskFiles(tasks, stories, components) {
-  // 按模块分组
-  const modules = Array.from(new Set(tasks.map(t => t.module || 'GENERAL')));
-  const moduleFileCount = modules.length;
+function generateModuleTaskFiles(tasks, stories, components, requiredModuleDirs = []) {
+  const moduleDirs = requiredModuleDirs.length > 0
+    ? Array.from(new Set(requiredModuleDirs)).sort()
+    : Array.from(new Set(tasks.map((task) => task.moduleDir || toDomainDirectory(task.module || 'GENERAL')))).sort();
+  const moduleFileCount = moduleDirs.length;
 
   // 确保 task-modules 目录存在
   if (!fs.existsSync(CONFIG.taskModulesDir)) {
     fs.mkdirSync(CONFIG.taskModulesDir, { recursive: true });
   }
 
-  modules.forEach(module => {
-    const moduleTasks = tasks.filter(t => t.module === module);
-    const moduleStories = stories.filter(s => s.module === module);
-    const moduleMarkdown = generateModuleMarkdown(module, moduleTasks, moduleStories, tasks);
+  moduleDirs.forEach(moduleDir => {
+    const moduleTasks = tasks.filter((task) => (task.moduleDir || toDomainDirectory(task.module)) === moduleDir);
+    const moduleStories = stories.filter((story) => (story.moduleDir || toDomainDirectory(story.module)) === moduleDir);
+    const moduleName = moduleStories[0]?.module || moduleCodeFromDirectory(moduleDir);
+    const moduleMarkdown = generateModuleMarkdown(moduleName, moduleDir, moduleTasks, moduleStories, tasks);
 
-    const moduleDir = toDomainDirectory(module);
     const moduleFile = path.join(CONFIG.taskModulesDir, moduleDir, 'TASK.md');
     fs.mkdirSync(path.dirname(moduleFile), { recursive: true });
     fs.writeFileSync(moduleFile, moduleMarkdown);
@@ -330,16 +344,15 @@ function generateModuleTaskFiles(tasks, stories, components) {
   });
 
   // 更新 task-modules/module-list.md
-  updateTaskModulesReadme(modules, tasks, stories);
+  updateTaskModulesReadme(moduleDirs, tasks, stories);
 
   return moduleFileCount;
 }
 
 // 生成单个模块的任务文档
-function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks) {
+function generateModuleMarkdown(moduleName, moduleDir, moduleTasks, moduleStories, allTasks) {
   const today = new Date().toISOString().split('T')[0];
   const totalEffort = moduleTasks.reduce((sum, t) => sum + (t.effort || 0), 0);
-  const moduleDir = toDomainDirectory(moduleName);
 
   let md = `# ${moduleName} 模块任务计划\n\n`;
   md += `> **说明**：本文档为 ${moduleName} 模块的详细任务计划，由 TASK 专家自动生成。\n\n`;
@@ -464,7 +477,7 @@ function generateModuleMarkdown(moduleName, moduleTasks, moduleStories, allTasks
 }
 
 // 更新 task-modules/module-list.md
-function updateTaskModulesReadme(modules, tasks, stories) {
+function updateTaskModulesReadme(moduleDirs, tasks, stories) {
   const readmePath = path.join(CONFIG.taskModulesDir, 'module-list.md');
   const today = new Date().toISOString().split('T')[0];
 
@@ -477,10 +490,10 @@ function updateTaskModulesReadme(modules, tasks, stories) {
   md += `| 模块名称 | 任务数量 | 关联 Story | 文档链接 | 状态 |\n`;
   md += `|---------|---------|----------|---------|------|\n`;
 
-  modules.forEach(module => {
-    const moduleTasks = tasks.filter(t => t.module === module);
-    const moduleStories = stories.filter(s => s.module === module);
-    const moduleDir = toDomainDirectory(module);
+  moduleDirs.forEach(moduleDir => {
+    const moduleTasks = tasks.filter((task) => (task.moduleDir || toDomainDirectory(task.module)) === moduleDir);
+    const moduleStories = stories.filter((story) => (story.moduleDir || toDomainDirectory(story.module)) === moduleDir);
+    const module = moduleStories[0]?.module || moduleCodeFromDirectory(moduleDir);
     const moduleFile = `${moduleDir}/TASK.md`;
     md += `| ${module} | ${moduleTasks.length} | ${moduleStories.length} | [${moduleFile}](${moduleFile}) | 📝 待确认 |\n`;
   });
@@ -492,132 +505,17 @@ function updateTaskModulesReadme(modules, tasks, stories) {
   log(`   ✅ 更新模块索引：task-modules/module-list.md`, 'green');
 }
 
-// 生成主 TASK.md（小型项目：完整结构；大型项目：总纲结构）
-function generateTaskMarkdown(tasks, stories, components, isSplit = false) {
+// 生成主 TASK.md 总纲；详细 WBS 始终写入模块文档。
+function generateTaskMarkdown(tasks, stories, components, requiredModuleDirs = []) {
   const totalEffort = tasks.reduce((sum, t) => sum + (t.effort || 0), 0);
   const { criticalPath, criticalTasks } = calculateCriticalPath(tasks);
-
-  if (isSplit) {
-    // === 大型项目：生成总纲结构 ===
-    return generateLargeProjectOverview(tasks, stories, components, totalEffort, criticalPath, criticalTasks);
-  } else {
-    // === 小型项目：生成完整结构 ===
-    return generateSmallProjectMarkdown(tasks, stories, components, totalEffort, criticalPath, criticalTasks);
-  }
+  return generateProjectOverview(tasks, stories, components, totalEffort, criticalPath, criticalTasks, requiredModuleDirs);
 }
 
-// 小型项目：生成完整的 TASK.md（包含详细 WBS）
-function generateSmallProjectMarkdown(tasks, stories, components, totalEffort, criticalPath, criticalTasks) {
-  let md = `# 任务计划（WBS）\n\n`;
-  md += `> **说明**：本文档由 TASK 专家通过 \`/task plan\` 命令自动生成，基于 PRD + ARCHITECTURE。\n`;
-  md += `> 人工调整后，再次执行 \`/task plan --update-only\` 时，工具会保留你的手工标注，仅刷新自动生成部分。\n\n`;
-  md += `**日期**：${new Date().toISOString().split('T')[0]}\n`;
-  md += `**版本**：v0\n`;
-  md += `**状态**：📝 待启动\n\n`;
-  md += `---\n\n`;
-
-  // 项目概述
-  md += `## 1. 项目概述\n\n`;
-  md += `- **Story 总数**：${stories.length}\n`;
-  md += `- **Component 总数**：${components.length}\n`;
-  md += `- **Task 总数**：${tasks.length}\n`;
-  md += `- **预计周期**：${Math.ceil(totalEffort / 5)} 周（假设每周 5 人日）\n\n`;
-
-  // 里程碑
-  md += `## 2. 里程碑\n\n`;
-  md += `| 里程碑 ID | 里程碑名称 | 目标日期 | 状态 |\n`;
-  md += `|----------|----------|---------|------|\n`;
-  md += `| M1 | MVP 发布 | TBD | 📝 待定 |\n`;
-  md += `| M2 | 功能完善 | TBD | 📝 待定 |\n`;
-  md += `| M3 | 正式上线 | TBD | 📝 待定 |\n\n`;
-
-  // WBS
-  md += `## 3. WBS（工作分解结构）\n\n`;
-  md += `| Task ID | 任务名称 | 类型 | Owner | 估时 | 优先级 | 依赖 | 状态 |\n`;
-  md += `|---------|---------|------|-------|------|--------|------|------|\n`;
-
-  tasks.forEach(task => {
-    const deps = task.dependencies && task.dependencies.length > 0
-      ? task.dependencies.join(', ')
-      : '-';
-    const effort = task.effort ? `${task.effort}d` : 'TBD';
-    md += `| ${task.id} | ${task.title} | ${task.type} | ${task.owner} | ${effort} | ${task.priority} | ${deps} | 📝 待开始 |\n`;
-  });
-  md += `\n`;
-
-  // 关键路径
-  md += `## 4. 关键路径（CPM）\n\n`;
-  md += `**关键路径总长**：${criticalPath} 天\n\n`;
-  md += `**关键任务**：\n`;
-  criticalTasks.slice(0, 10).forEach(taskId => {
-    md += `- ${taskId}\n`;
-  });
-  if (criticalTasks.length > 10) {
-    md += `- ...（共 ${criticalTasks.length} 个关键任务）\n`;
-  }
-  md += `\n`;
-
-  // 依赖矩阵
-  md += `## 5. 依赖关系矩阵\n\n`;
-  md += `| Task | 依赖 Task | 类型 |\n`;
-  md += `|------|-----------|------|\n`;
-  const tasksWithDeps = tasks.filter(t => t.dependencies && t.dependencies.length > 0);
-  if (tasksWithDeps.length > 0) {
-    tasksWithDeps.slice(0, 20).forEach(task => {
-      task.dependencies.forEach(dep => {
-        md += `| ${task.id} | ${dep} | FS |\n`;
-      });
-    });
-    if (tasksWithDeps.length > 20) {
-      md += `| ... | ... | ... |\n`;
-    }
-  } else {
-    md += `| - | - | - |\n`;
-  }
-  md += `\n`;
-
-  // 风险
-  md += `## 6. 风险登记\n\n`;
-  md += `| 风险 ID | 风险描述 | 概率 | 影响 | 缓解措施 | 负责人 |\n`;
-  md += `|---------|---------|------|------|---------|--------|\n`;
-  md += `| RISK-001 | 需求变更频繁 | 中 | 高 | 冻结需求基线、变更控制流程 | TBD |\n`;
-  md += `| RISK-002 | 第三方 API 不稳定 | 中 | 中 | 增加重试机制、备用方案 | TBD |\n`;
-  md += `| RISK-003 | 关键人员不足 | 低 | 高 | 提前招聘、知识共享 | TBD |\n\n`;
-
-  // DB 任务
-  md += `## 7. DB 任务（固定表头）\n\n`;
-  md += `| ID | 类别 | 目标 | Backfill 方案 | 双写观察指标 | 对账规则 | 回滚方案 | Owner | 估时 | 依赖 |\n`;
-  md += `|---|---|---|---|---|---|---|---|---|---|\n`;
-  md += `| T-DB-001 | Expand | （待填写） | - | - | - | - | TBD | 1h | - |\n\n`;
-
-  // Story → Task 映射
-  md += `## 8. Story → Task 映射\n\n`;
-  md += `| Story ID | Story Title | Related Task IDs |\n`;
-  md += `|----------|-------------|------------------|\n`;
-  stories.forEach(story => {
-    const relatedTasks = tasks.filter(t => t.story === story.id).map(t => t.id).join(', ');
-    md += `| ${story.id} | ${story.title} | ${relatedTasks || '-'} |\n`;
-  });
-  md += `\n`;
-
-  // 相关文档
-  md += `## 9. 相关文档\n\n`;
-  md += `- **PRD 文档**：[PRD.md](PRD.md)\n`;
-  md += `- **架构文档**：[ARCH.md](ARCH.md)\n`;
-  md += `- **测试计划**：[QA.md](QA.md)\n`;
-  md += `- **追溯矩阵**：[data/traceability-matrix.md](data/traceability-matrix.md)\n`;
-
-  md += `\n---\n\n`;
-  md += `> **维护说明**：本文档由 TASK 专家的 \`/task plan\` 命令自动生成。\n`;
-  md += `> 人工调整后，再次执行 \`/task plan --update-only\` 时，工具会保留你的手工标注，仅刷新自动生成部分。\n`;
-
-  return md;
-}
-
-// 大型项目：生成总纲结构（不包含详细 WBS，指向模块文档）
-function generateLargeProjectOverview(tasks, stories, components, totalEffort, criticalPath, criticalTasks) {
+// 生成总纲结构（不包含详细 WBS，指向模块文档）
+function generateProjectOverview(tasks, stories, components, totalEffort, criticalPath, criticalTasks, requiredModuleDirs = []) {
   let md = `# 任务计划（总纲）\n\n`;
-  md += `> **说明**：本文档为大型项目任务计划总纲，由 TASK 专家通过 \`/task plan\` 命令自动生成。\n`;
+  md += `> **说明**：本文档为任务计划总纲，由 TASK 专家通过 \`/task plan\` 命令自动生成。\n`;
   md += `> 详细的模块任务计划请查看 \`task-modules/\` 目录下的各模块文档。\n\n`;
   md += `**日期**：${new Date().toISOString().split('T')[0]}\n`;
   md += `**版本**：v0\n`;
@@ -631,8 +529,10 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   md += `- **Task 总数**：${tasks.length}\n`;
   md += `- **预计周期**：${Math.ceil(totalEffort / 5)} 周（假设每周 5 人日）\n`;
 
-  const modules = Array.from(new Set(tasks.map(t => t.module || 'GENERAL')));
-  md += `- **模块数量**：${modules.length}\n\n`;
+  const moduleDirs = requiredModuleDirs.length > 0
+    ? Array.from(new Set(requiredModuleDirs)).sort()
+    : Array.from(new Set(tasks.map((task) => task.moduleDir || toDomainDirectory(task.module || 'GENERAL')))).sort();
+  md += `- **模块数量**：${moduleDirs.length}\n\n`;
 
   // 2. 模块任务索引
   md += `## 2. 模块任务索引\n\n`;
@@ -640,9 +540,9 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   md += `|---------|---------|---------|---------|------|----------|\n`;
 
   const today = new Date().toISOString().split('T')[0];
-  modules.forEach(module => {
-    const moduleTasks = tasks.filter(t => t.module === module);
-    const moduleDir = toDomainDirectory(module);
+  moduleDirs.forEach(moduleDir => {
+    const moduleTasks = tasks.filter((task) => (task.moduleDir || toDomainDirectory(task.module)) === moduleDir);
+    const module = moduleTasks[0]?.module || moduleCodeFromDirectory(moduleDir);
     const moduleFile = `${moduleDir}/TASK.md`;
     md += `| ${module} | ${moduleTasks.length} | TBD | [${moduleFile}](task-modules/${moduleFile}) | 📝 待确认 | ${today} |\n`;
   });
@@ -694,10 +594,12 @@ function generateLargeProjectOverview(tasks, stories, components, totalEffort, c
   md += `|---------|---------|---------|------|------|---------|--------|\n`;
   md += `| RISK-GLOBAL-001 | 跨模块集成复杂度高 | 全局 | 中 | 高 | 定义清晰接口契约、早期集成测试 | TBD |\n`;
   md += `| RISK-GLOBAL-002 | 需求变更影响多模块 | 全局 | 中 | 高 | 变更控制委员会、影响分析流程 | TBD |\n`;
-  md += `| RISK-GLOBAL-003 | 关键路径资源冲突 | ${modules.slice(0, 2).join(', ')} | 低 | 高 | 提前资源规划、备用人力 | TBD |\n\n`;
+  md += `| RISK-GLOBAL-003 | 关键路径资源冲突 | ${moduleDirs.slice(0, 2).join(', ')} | 低 | 高 | 提前资源规划、备用人力 | TBD |\n\n`;
 
-  // 相关文档
-  md += `## 7. 相关文档\n\n`;
+  // 模块同步与相关文档
+  md += `## 7. 模块同步与相关文档\n\n`;
+  md += `- PRD、ARCH、TASK、QA 的模块清单必须保持同一模块集合。\n`;
+  md += `- 模块状态、依赖或里程碑变化时，同步主 TASK 与 \`task-modules/module-list.md\`。\n`;
   md += `- **PRD 文档**：[PRD.md](PRD.md)\n`;
   md += `- **架构文档**：[ARCH.md](ARCH.md)\n`;
   md += `- **模块任务索引**：[task-modules/module-list.md](task-modules/module-list.md)\n`;
@@ -730,13 +632,27 @@ function main() {
   }
 
   log(`✅ 读取 PRD 与 ARCHITECTURE...`, 'green');
-  const prdContent = fs.readFileSync(CONFIG.prdPath, 'utf-8');
-  const archContent = fs.readFileSync(CONFIG.archPath, 'utf-8');
-
+  const prdModules = listModuleDocuments(CONFIG.prdModulesDir, 'PRD.md');
+  const archModules = listModuleDocuments(CONFIG.archModulesDir, 'ARCH.md');
+  if (prdModules.length === 0) {
+    log('❌ 未找到 docs/prd-modules/{domain}/PRD.md；模块化结构是强制要求', 'red');
+    process.exit(1);
+  }
+  const alignment = validateModuleAlignment(prdModules, archModules);
+  if (alignment.missingArch.length > 0 || alignment.extraArch.length > 0) {
+    log(`❌ PRD/ARCH 模块集合不一致：missingArch=${alignment.missingArch.join(',') || '-'} extraArch=${alignment.extraArch.join(',') || '-'}`, 'red');
+    process.exit(1);
+  }
   // 解析
   log(`📋 解析 Story 与 Component...`, 'cyan');
-  const stories = parsePRD(prdContent);
-  const components = parseArchitecture(archContent);
+  const stories = prdModules.flatMap((entry) => parsePRD(fs.readFileSync(entry.filePath, 'utf-8'))
+    .map((story) => ({ ...story, moduleDir: entry.moduleDir })));
+  const components = archModules.flatMap((entry) => parseArchitecture(fs.readFileSync(entry.filePath, 'utf-8'))
+    .map((component) => ({
+      ...component,
+      module: moduleCodeFromDirectory(entry.moduleDir),
+      moduleDir: entry.moduleDir,
+    })));
 
   log(`   - 找到 ${stories.length} 个 Story`, 'cyan');
   log(`   - 找到 ${components.length} 个 Component`, 'cyan');
@@ -752,39 +668,31 @@ function main() {
   const tasks = createWBS(stories, components);
   log(`   - 生成 ${tasks.length} 个 Task`, 'cyan');
 
-  // 检查是否需要拆分
-  const needsSplit = shouldSplit(tasks, stories, components);
-  log(`   - 项目规模：${needsSplit ? '大型（需拆分）' : '小型（单文件）'}`, 'cyan');
+  log(`   - 文档模式：模块化（${prdModules.length} 个模块）`, 'cyan');
 
   // 生成 TASK.md
   log(`📝 生成 TASK.md...`, 'cyan');
-  const taskMarkdown = generateTaskMarkdown(tasks, stories, components, needsSplit);
+  const requiredModuleDirs = prdModules.map((entry) => entry.moduleDir);
+  const taskMarkdown = generateTaskMarkdown(tasks, stories, components, requiredModuleDirs);
   fs.writeFileSync(CONFIG.taskPath, taskMarkdown);
   log(`✅ 已生成：${CONFIG.taskPath}`, 'green');
 
-  // 大型项目拆分处理（自动创建模块文件）
-  if (needsSplit) {
-    log(`\n📂 项目规模较大，自动创建模块化任务文档...`, 'cyan');
-    const moduleCount = generateModuleTaskFiles(tasks, stories, components);
-    log(`✅ 已创建 ${moduleCount} 个模块任务文档`, 'green');
-    log(`✅ 主 TASK.md 已转换为总纲结构（< 500 行）`, 'green');
-  }
+  log(`\n📂 创建模块化任务文档...`, 'cyan');
+  const moduleCount = generateModuleTaskFiles(tasks, stories, components, requiredModuleDirs);
+  log(`✅ 已创建 ${moduleCount} 个模块任务文档`, 'green');
+  log(`✅ 主 TASK.md 为总纲结构`, 'green');
 
   log(`\n${'='.repeat(30)}`, 'green');
   log(`✅ TASK.md 自动生成完成！`, 'green');
 
-  if (needsSplit) {
-    log(`\n📋 大型项目已完成模块化拆分：`, 'cyan');
-    log(`   - 主文档：docs/TASK.md（总纲与索引）`, 'cyan');
-    log(`   - 模块文档：docs/task-modules/{domain}/TASK.md`, 'cyan');
-    log(`   - 模块索引：docs/task-modules/module-list.md`, 'cyan');
-  }
+  log(`\n📋 模块化任务文档已生成：`, 'cyan');
+  log(`   - 主文档：docs/TASK.md（总纲与索引）`, 'cyan');
+  log(`   - 模块文档：docs/task-modules/{domain}/TASK.md`, 'cyan');
+  log(`   - 模块索引：docs/task-modules/module-list.md`, 'cyan');
 
   log(`\n接下来建议：`, 'yellow');
   log(`1. 检查生成的 TASK.md：cat docs/TASK.md`, 'yellow');
-  if (needsSplit) {
-    log(`   检查模块文档：ls docs/task-modules/`, 'yellow');
-  }
+  log(`   检查模块文档：ls docs/task-modules/`, 'yellow');
   log(`2. 运行质量检查：pnpm run task:lint`, 'yellow');
   log(`3. 验证关键路径：pnpm run task:check-critical-path`, 'yellow');
   log(`4. 同步 PRD ↔ TASK ID：pnpm run task:sync`, 'yellow');
@@ -803,4 +711,12 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parsePRD, parseArchitecture, createWBS, generateTaskMarkdown };
+module.exports = {
+  createWBS,
+  generateTaskMarkdown,
+  listModuleDocuments,
+  moduleCodeFromDirectory,
+  parseArchitecture,
+  parsePRD,
+  validateModuleAlignment,
+};

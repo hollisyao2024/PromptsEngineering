@@ -63,7 +63,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 | 示例：支付系统 | [payment-system/TASK.md](payment-system/TASK.md) | @team-payment | [prd-modules/payment-system/PRD.md](../prd-modules/payment-system/PRD.md) | [arch-modules/payment-system/ARCH.md](../arch-modules/payment-system/ARCH.md) | 🔄 进行中 | 2025-11-05 |
 | （待补充） | - | - | - | - | - | - |
 
-该表格仅作为模板，实际模块清单信息由 TASK 专家根据以上表格生成到`module-list.md`，每次 TASK 模块变化都更新`module-list.md`。
+该表格仅作为模板，实际模块清单信息由 TASK 专家根据 PRD/ARCH 模块清单生成到 `module-list.md`；每次 TASK 模块变化都更新 `module-list.md`，且模块集合必须与 PRD/ARCH 对齐。
 
 ## 3. 标准模块 TASK 文档结构
 

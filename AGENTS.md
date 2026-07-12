@@ -18,6 +18,7 @@
 3. 需要外置时由脚本/配置按主 `repo/` 解析容器层路径；Node 脚本使用 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()`，禁止在 linked worktree 中手写 `../tmp`。
 4. 手动创建的 worktree 通过 `/worktree remove` 清理；`/qa merge` 或外部 agent 的收尾流程应在合并后清理当前任务 worktree。
 5. 模板文件应尽量整体复制到实际项目后即可工作；项目差异集中放在 `agent.config.json`、环境变量或 CLI 参数中，避免改动 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 等模板文件。
+6. PRD、ARCH、TASK、QA 只支持模块化文档结构：主文档是总纲与模块索引，`docs/{prd|arch|task|qa}-modules/module-list.md` 是模块清单，每个功能域在对应 `{domain}/` 下维护详细文档；不支持单一文档模式，也不按项目规模决定是否拆分。
 
 ## 可整体复制配置原则
 - **模板文件可升级**：`AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 不写具体业务项目逻辑，后续可以整体覆盖升级。

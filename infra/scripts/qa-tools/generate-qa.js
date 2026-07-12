@@ -20,12 +20,10 @@ const CONFIG = {
     qa: 'docs/QA.md',
     traceabilityMatrix: 'docs/data/traceability-matrix.md',
     prdModulesDir: 'docs/prd-modules',
+    archModulesDir: 'docs/arch-modules',
+    taskModulesDir: 'docs/task-modules',
     qaModulesDir: 'docs/qa-modules',
-  },
-  splitThresholds: {
-    minStories: 50,
-    minTestCases: 100,
-    minDomains: 3,
+    qaModuleList: 'docs/qa-modules/module-list.md',
   },
 };
 
@@ -270,18 +268,6 @@ function parseTraceabilityMatrix(content) {
   return { mappings };
 }
 
-function shouldSplit(prdData) {
-  const storyCount = prdData.stories.length;
-  const domainCount = prdData.domains.length;
-  const estimatedTestCases = storyCount * 3;
-
-  return (
-    storyCount > CONFIG.splitThresholds.minStories ||
-    estimatedTestCases > CONFIG.splitThresholds.minTestCases ||
-    domainCount >= CONFIG.splitThresholds.minDomains
-  );
-}
-
 function prettifyModuleName(moduleDir) {
   return moduleDir
     .split('-')
@@ -299,10 +285,7 @@ function extractModuleNameFromPRD(prdContent, moduleDir) {
 
 function buildModuleEntries() {
   const prdModuleDirs = listDirsWithRequiredFile(CONFIG.paths.prdModulesDir, 'PRD.md');
-  const qaModuleDirs = listDirsWithRequiredFile(CONFIG.paths.qaModulesDir, 'QA.md');
-  const moduleSet = new Set([...prdModuleDirs, ...qaModuleDirs]);
-
-  return Array.from(moduleSet)
+  return prdModuleDirs
     .sort()
     .map((moduleDir) => {
       const prdPath = path.join(CONFIG.paths.prdModulesDir, moduleDir, 'PRD.md');
@@ -318,6 +301,18 @@ function buildModuleEntries() {
         stories: prdData.stories,
       };
     });
+}
+
+function validateUpstreamModuleAlignment(moduleEntries, archModuleDirs, taskModuleDirs) {
+  const expected = new Set(moduleEntries.map((entry) => entry.moduleDir));
+  const archSet = new Set(archModuleDirs);
+  const taskSet = new Set(taskModuleDirs);
+  return {
+    missingArch: Array.from(expected).filter((moduleDir) => !archSet.has(moduleDir)).sort(),
+    extraArch: Array.from(archSet).filter((moduleDir) => !expected.has(moduleDir)).sort(),
+    missingTask: Array.from(expected).filter((moduleDir) => !taskSet.has(moduleDir)).sort(),
+    extraTask: Array.from(taskSet).filter((moduleDir) => !expected.has(moduleDir)).sort(),
+  };
 }
 
 function escapeRegex(source) {
@@ -510,21 +505,21 @@ ${generateTestCasesTable(moduleEntry.stories, moduleTag)}
 `;
 }
 
-function generateLargeProjectOverview(moduleEntries, prdData) {
+function generateProjectOverview(moduleEntries) {
   const today = new Date().toISOString().split('T')[0];
   const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
 
   return `# 测试与质量保证文档（总纲）
 日期：${today}   版本：v0.1.0
 
-> 本文档由 \`/qa plan --project\` 自动生成，作为大型项目测试总纲与模块索引。
+> 本文档由 \`/qa plan --project\` 自动生成，作为测试总纲与模块索引。
 
-## 1. 测试概览
-- **项目规模**：大型（${totalStories} 个 Story，${moduleEntries.length} 个模块）
+## 1. QA 概览
+- **文档结构**：模块化（${totalStories} 个 Story，${moduleEntries.length} 个模块）
 - **测试目标**：确保所有功能模块质量达标
 - **测试范围**：${moduleEntries.map((entry) => entry.moduleName).join('、')}
 
-## 2. 模块测试计划索引
+## 2. 模块索引
 
 | 模块名称 | 负责团队 | 文档链接 | Story 数 | 状态 | 最后更新 |
 |---------|---------|---------|---------|------|---------|
@@ -553,11 +548,32 @@ ${moduleEntries
 - **需求覆盖率**：≥ 85%
 - **缺陷密度**：< 1 个/KLOC
 
-## 4. 发布建议
+## 4. 跨模块整合与集成测试
+- **集成路径**：依据 ARCH 跨模块依赖逐项补充。
+- **契约与降级**：引用模块 QA 的契约、事件和故障注入用例。
+
+## 5. 全局执行矩阵与指标
+| 指标 | 目标 | 当前值 | 状态 |
+|------|------|--------|------|
+| P0 通过率 | 100% | 待执行 | 📝 |
+| 总通过率 | ≥ 90% | 待执行 | 📝 |
+| 需求覆盖率 | ≥ 85% | 待执行 | 📝 |
+
+## 6. 全局缺陷汇总与回流
+- 当前无已登记缺陷；执行后按模块汇总 P0/P1/P2 和回流阶段。
+
+## 7. 模块 QA 总览
+${moduleEntries.map((entry) => `- [${entry.moduleName}](qa-modules/${entry.moduleDir}/QA.md)：${entry.stories.length} 个 Story`).join('\n')}
+
+## 8. 发布建议
 - **结论**：📝 待测试执行
 - **前置条件**：所有模块 QA 验证通过
 
-## 5. 附录
+## 9. 部署记录
+- 部署前：待补充目标环境与候选版本。
+- 部署后：由 DevOps 回写部署记录与冒烟结果。
+
+## 10. 追溯 & 附录
 - **PRD 文档**：[PRD.md](PRD.md)
 - **追溯矩阵**：[traceability-matrix.md](data/traceability-matrix.md)
 
@@ -566,51 +582,21 @@ ${moduleEntries
 > **生成信息**：
 > - 生成时间：${today}
 > - 生成方式：自动生成（\`pnpm run qa:generate -- --project\`）
-> - Story 总数（根 PRD）：${prdData.stories.length}
+> - Story 总数（全部模块）：${totalStories}
 `;
 }
 
-function generateSmallProjectQA(prdData, archData, taskData) {
+function generateModuleList(moduleEntries) {
   const today = new Date().toISOString().split('T')[0];
-  const storyCount = prdData.stories.length;
-  const estimatedTestCases = storyCount * 3;
+  return `# QA 模块清单
 
-  return `# 测试与质量保证文档
-日期：${today}   版本：v0.1.0
+> 本清单由 \`/qa plan --project\` 自动生成，模块集合以 \`docs/prd-modules/*/PRD.md\` 为准。
 
-> 本文档由 \`/qa plan --project\` 自动生成，基于 PRD、ARCH、TASK 文档。
+## 模块清单
 
-## 1. 测试概述
-- **测试目标**：确保所有用户故事（共 ${storyCount} 个）的验收标准得到验证
-- **测试范围**：${prdData.domains.join('、')}
-
-## 2. 测试策略
-
-### 2.1 测试类型覆盖
-| 测试类型 | 优先级 | 覆盖目标 | 自动化要求 |
-|---------|--------|---------|-----------|
-| 功能测试 | P0/P1 | 100% Story 覆盖 | ≥ 80% |
-| 集成测试 | P0/P1 | 所有模块内集成点 | ≥ 70% |
-| E2E 测试 | P0 | 核心用户旅程 | ≥ 90% |
-
-## 3. 测试用例概览
-预计测试用例：~${estimatedTestCases} 条
-
-${generateTestCasesTable(prdData.stories, 'GEN')}
-
-## 4. 执行统计
-- **用例总数**：${estimatedTestCases} 条（预估）
-- **测试通过率**：N/A（待执行）
-
-## 5. 发布建议
-- **结论**：📝 待测试执行
-
----
-
-> **生成信息**：
-> - 生成时间：${today}
-> - 架构组件数：${archData.components.length}
-> - 任务里程碑数：${taskData.milestones.length}
+| 模块名称 | 模块目录 | QA 文档 | Story 数 | 状态 | 最后更新 |
+|---------|---------|---------|---------|------|---------|
+${moduleEntries.map((entry) => `| ${entry.moduleName} | ${entry.moduleDir} | [${entry.moduleDir}/QA.md](${entry.moduleDir}/QA.md) | ${entry.stories.length} | 📝 待测试 | ${today} |`).join('\n')}
 `;
 }
 
@@ -660,31 +646,27 @@ function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
   };
 }
 
-function runProjectPlan(moduleEntries, prdData, archData, taskData, dryRun) {
+function runProjectPlan(moduleEntries, dryRun) {
   log('🧭 作用域：project（全项目刷新）', 'cyan');
-
-  const needsSplit = shouldSplit(prdData);
   const touched = [];
 
-  if (needsSplit) {
-    log(`✅ 大型项目（${prdData.stories.length} 个 Story）→ 生成主 QA + 模块 QA`, 'green');
-    const mainQA = generateLargeProjectOverview(moduleEntries, prdData);
-    if (!dryRun) writeFile(CONFIG.paths.qa, mainQA);
-    touched.push(CONFIG.paths.qa);
-    log(`   ✅ 已${dryRun ? '预览' : '生成'}主 QA: ${CONFIG.paths.qa}`, 'green');
+  const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
+  log(`✅ 模块化项目（${totalStories} 个 Story，${moduleEntries.length} 个模块）→ 生成主 QA + 模块 QA`, 'green');
+  const mainQA = generateProjectOverview(moduleEntries);
+  if (!dryRun) writeFile(CONFIG.paths.qa, mainQA);
+  touched.push(CONFIG.paths.qa);
+  log(`   ✅ 已${dryRun ? '预览' : '生成'}主 QA: ${CONFIG.paths.qa}`, 'green');
 
-    for (const entry of moduleEntries) {
-      const content = generateModuleQA(entry);
-      if (!dryRun) writeFile(entry.qaPath, content);
-      touched.push(entry.qaPath);
-      log(`   ✅ 已${dryRun ? '预览' : '生成'}模块 QA: ${entry.qaPath}`, 'green');
-    }
-  } else {
-    log(`✅ 小型项目（${prdData.stories.length} 个 Story）→ 生成单一 QA`, 'green');
-    const qa = generateSmallProjectQA(prdData, archData, taskData);
-    if (!dryRun) writeFile(CONFIG.paths.qa, qa);
-    touched.push(CONFIG.paths.qa);
-    log(`   ✅ 已${dryRun ? '预览' : '生成'} QA: ${CONFIG.paths.qa}`, 'green');
+  const moduleList = generateModuleList(moduleEntries);
+  if (!dryRun) writeFile(CONFIG.paths.qaModuleList, moduleList);
+  touched.push(CONFIG.paths.qaModuleList);
+  log(`   ✅ 已${dryRun ? '预览' : '生成'}模块清单: ${CONFIG.paths.qaModuleList}`, 'green');
+
+  for (const entry of moduleEntries) {
+    const content = generateModuleQA(entry);
+    if (!dryRun) writeFile(entry.qaPath, content);
+    touched.push(entry.qaPath);
+    log(`   ✅ 已${dryRun ? '预览' : '生成'}模块 QA: ${entry.qaPath}`, 'green');
   }
 
   return touched;
@@ -708,15 +690,16 @@ function main() {
     process.exit(1);
   }
 
-  const prdData = parsePRD(prdContent);
+  const rootPrdData = parsePRD(prdContent);
   const archData = parseARCH(archContent);
   const taskData = parseTASK(taskContent);
   const matrixData = parseTraceabilityMatrix(matrixContent);
   const moduleEntries = buildModuleEntries();
 
-  log(`   - Story 数: ${prdData.stories.length}`, 'gray');
-  log(`   - 功能域数: ${prdData.domains.length}`, 'gray');
-  log(`   - 模块数（PRD/QA 目录）: ${moduleEntries.length}`, 'gray');
+  const moduleStoryCount = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
+  log(`   - Story 数（模块）: ${moduleStoryCount}`, 'gray');
+  log(`   - 根 PRD 索引 Story 数: ${rootPrdData.stories.length}`, 'gray');
+  log(`   - 模块数（PRD 目录）: ${moduleEntries.length}`, 'gray');
   log(`   - 架构组件数: ${archData.components.length}`, 'gray');
   log(`   - 追溯映射数: ${matrixData.mappings.length}`, 'gray');
   if (cli.modules.length > 0) {
@@ -724,7 +707,17 @@ function main() {
   }
 
   if (moduleEntries.length === 0) {
-    log('❌ 未找到任何模块（docs/prd-modules/*/PRD.md 或 docs/qa-modules/*/QA.md）', 'red');
+    log('❌ 未找到任何模块（docs/prd-modules/*/PRD.md）；模块化结构是强制要求', 'red');
+    process.exit(1);
+  }
+
+  const alignment = validateUpstreamModuleAlignment(
+    moduleEntries,
+    listDirsWithRequiredFile(CONFIG.paths.archModulesDir, 'ARCH.md'),
+    listDirsWithRequiredFile(CONFIG.paths.taskModulesDir, 'TASK.md')
+  );
+  if (Object.values(alignment).some((entries) => entries.length > 0)) {
+    log(`❌ PRD/ARCH/TASK 模块集合不一致：${JSON.stringify(alignment)}`, 'red');
     process.exit(1);
   }
 
@@ -738,7 +731,7 @@ function main() {
     if (cli.modules.length > 0) {
       log('ℹ️ --modules 仅在 session 模式生效；当前 project 模式将忽略该参数。', 'yellow');
     }
-    touched = runProjectPlan(moduleEntries, prdData, archData, taskData, cli.dryRun);
+    touched = runProjectPlan(moduleEntries, cli.dryRun);
   } else {
     const sessionResult = runSessionPlan(moduleEntries, cli.dryRun, cli.modules);
     touched = sessionResult.touched;
@@ -798,9 +791,11 @@ module.exports = {
   parseARCH,
   parseTASK,
   parseTraceabilityMatrix,
-  shouldSplit,
   buildModuleEntries,
+  generateModuleList,
+  generateProjectOverview,
   inferSessionModules,
   resolveExplicitModules,
+  validateUpstreamModuleAlignment,
   getQaPlanSessionStatePath,
 };

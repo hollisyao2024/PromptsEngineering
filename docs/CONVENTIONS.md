@@ -9,7 +9,7 @@
 - `agent.config.json`：目标项目覆盖配置；可选择本地忽略或由团队提交，优先级高于模板 example。
 - `infra/templates/agent/config.example.json`：template-owned 默认配置，集中声明 base branch、命令、容器层目录、外部 agent 默认 executor 等默认值。
 - `infra/templates/agent/package-scripts.example.json`：可选 package scripts 清单；只能通过安全合并脚本追加到目标项目 `package.json`，禁止复制模板 `package.json` 覆盖项目文件。
-- `infra/templates/agent/template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`init-if-missing`、`merge-json`、`merge-jsonc`、`append-block`、`merge-package-scripts`、`project-owned`、`generated`、`exclude` 等策略（详见下方「Manifest 策略一览」）。
+- `infra/templates/agent/template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`remove`、`init-if-missing`、`merge-json`、`merge-jsonc`、`append-block`、`merge-package-scripts`、`project-owned`、`generated`、`exclude` 等策略（详见下方「Manifest 策略一览」）。
 - `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
 - `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
 - `apps/`：所有可独立运行的应用（web、mobile、desktop、server 等），详见「项目目录结构（Monorepo）」章节。
@@ -43,14 +43,16 @@
 
 各专家的主要工作成果，是项目的核心知识资产。频繁访问和更新，结构化、模块化，作为其他阶段的输入依据。
 
-- `docs/PRD.md`：产品需求文档（小项目时是单一 PRD.md，大项目时是主 PRD，作为总纲与索引）。
-- `docs/prd-modules/`：按功能域拆分的详细 PRD，由 PRD 专家根据 `docs/prd-modules/MODULE-INVENTORY.md` 动态生成。
+- `docs/PRD.md`：产品需求主总纲与模块索引，不承载模块级详细 Story。
+- `docs/prd-modules/`：强制的模块 PRD 目录；`module-list.md` 维护模块清单，各 `{domain}/PRD.md` 维护详细需求。
 - `docs/ARCH.md`：架构文档（主架构文档，作为总纲与索引）。
-- `docs/arch-modules/`：按功能域拆分的详细架构，由 ARCH 专家根据 `docs/arch-modules/MODULE-INVENTORY.md` 动态生成。
-- `docs/TASK.md`：任务计划（主任务文档，作为总纲与索引，含 WBS/依赖/里程碑/风险）。
-- `docs/task-modules/`：按功能域拆分的详细任务计划，由 TASK 专家根据 `docs/task-modules/MODULE-INVENTORY.md` 动态生成。
+- `docs/arch-modules/`：强制的模块 ARCH 目录；`module-list.md` 维护模块清单，各 `{domain}/ARCH.md` 维护详细设计。
+- `docs/TASK.md`：任务计划主总纲与模块索引，维护跨模块依赖、里程碑和全局风险。
+- `docs/task-modules/`：强制的模块 TASK 目录；`module-list.md` 维护模块清单，各 `{domain}/TASK.md` 维护详细 WBS。
 - `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
-- `docs/qa-modules/`：按功能域拆分的详细测试计划，由 QA 专家根据 `docs/qa-modules/MODULE-INVENTORY.md` 动态生成。
+- `docs/qa-modules/`：强制的模块 QA 目录；`module-list.md` 维护模块清单，各 `{domain}/QA.md` 维护详细测试计划与执行记录。
+
+> PRD、ARCH、TASK、QA 不提供单一文档模式。即使项目只有一个功能域，也必须保留主总纲、`module-list.md` 与对应模块文档。
 - `docs/AGENT_STATE.md`：阶段状态勾选清单。
 - `CHANGELOG.md`（项目根）：主变更记录，仅保存最近 1~2 个主版本条目。
 - `docs/changelogs/`：历史分卷目录，存放归档的旧 CHANGELOG 文件，并包含 `README.md` 记录分卷规则与索引。
@@ -160,6 +162,7 @@ git rev-parse --show-toplevel
 | 策略 | 适用文件 | target 不存在 | target 存在 |
 |---|---|---|---|
 | `overwrite` | template-owned 文件（AGENTS.md、AgentRoles/、infra/scripts/、docs/CONVENTIONS.md 等） | 创建 | 完全覆盖 |
+| `remove` | 已废弃且由 manifest 精确登记的 template-owned 文件 | 无操作 | 删除单个文件；拒绝目录和越界路径 |
 | `init-if-missing` | 项目方初始化后会持续编辑、无字段补齐需求的文件（README、占位状态文档等） | 复制 source | 完全跳过 |
 | `merge-json` | 标准 JSON 配置文件（如 `agent.config.json`） | 复制 source | 字段级深度合并：双方都是 plain object 时递归补齐缺失键；标量/数组/已存在键值始终保留 target；类型冲突路径记入 `conflicts` 由人工审视。**如需"禁用"模板默认值，将字段显式设为 `false` / `""` / `null`，不要删除字段**——删除会在下次 update-template 时被重新补回 |
 | `merge-jsonc` | 含 `//` 行注释或 `/* */` 块注释的 JSONC 配置文件（如 `.gemini/settings.json`） | 复制 source | 与 `merge-json` 相同的"项目优先"语义，但保留 target 文件中的注释：仅把 source 中**顶层**缺失键以纯 JSON 形态 append 到末尾闭合花括号之前；嵌套缺失键（如 `permissions.newKey`）仅记入 `manual-sync` 提示，**不写入文件**，由人工对照 `*.template.json` 手动同步。类型冲突进 `conflicts` |

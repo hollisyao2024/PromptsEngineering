@@ -21,18 +21,24 @@ const path = require('path');
 const CONFIG = {
   mainQAPath: path.join(__dirname, '../../../docs/QA.md'),
   qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
+  qaModuleListPath: path.join(__dirname, '../../../docs/qa-modules/module-list.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
   traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
   qaReportsDir: path.join(__dirname, '../../../docs/data/qa-reports'),
 };
 
 // 主 QA 必需章节
 const REQUIRED_SECTIONS = [
-  '## 1. 测试概述',
-  '## 2. 全局测试策略',
-  '## 3. 跨模块集成测试',
-  '## 4. 全局缺陷汇总',
-  '## 5. 测试环境',
-  '## 6. 发布建议',
+  '## 1. QA 概览',
+  '## 2. 模块索引',
+  '## 3. 全局测试策略',
+  '## 4. 跨模块整合与集成测试',
+  '## 5. 全局执行矩阵与指标',
+  '## 6. 全局缺陷汇总与回流',
+  '## 7. 模块 QA 总览',
+  '## 8. 发布建议',
+  '## 9. 部署记录',
+  '## 10. 追溯 & 附录',
 ];
 
 // 模块 QA 必需章节
@@ -114,16 +120,34 @@ function checkModuleQADocs() {
   log('\n🔍 检查模块 QA 文档...', 'cyan');
 
   if (!fs.existsSync(CONFIG.qaModulesDir)) {
-    log('⚠️  qa-modules/ 目录不存在，跳过模块 QA 检查', 'yellow');
-    return true;
+    log('❌ qa-modules/ 目录不存在；模块化结构是强制要求', 'red');
+    return false;
+  }
+
+  if (!fs.existsSync(CONFIG.qaModuleListPath)) {
+    log('❌ qa-modules/module-list.md 不存在', 'red');
+    return false;
   }
 
   const entries = fs.readdirSync(CONFIG.qaModulesDir, { withFileTypes: true });
   const moduleDirs = entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
 
   if (moduleDirs.length === 0) {
-    log('ℹ️  未找到模块 QA 文档（小型项目可能不需要模块化）', 'cyan');
-    return true;
+    log('❌ 未找到模块 QA 文档；至少需要一个模块', 'red');
+    return false;
+  }
+
+  const prdModuleDirs = fs.existsSync(CONFIG.prdModulesDir)
+    ? fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(CONFIG.prdModulesDir, entry.name, 'PRD.md')))
+      .map((entry) => entry.name)
+    : [];
+  const qaModuleNames = moduleDirs.map((entry) => entry.name);
+  const missingQA = prdModuleDirs.filter((moduleName) => !qaModuleNames.includes(moduleName));
+  const extraQA = qaModuleNames.filter((moduleName) => !prdModuleDirs.includes(moduleName));
+  if (prdModuleDirs.length === 0 || missingQA.length > 0 || extraQA.length > 0) {
+    log(`❌ PRD/QA 模块集合不一致：missing=${missingQA.join(',') || '-'} extra=${extraQA.join(',') || '-'}`, 'red');
+    return false;
   }
 
   log(`✅ 找到 ${moduleDirs.length} 个模块 QA 文档:`);

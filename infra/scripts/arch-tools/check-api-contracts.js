@@ -26,6 +26,7 @@ const isJsonMode = args.includes('--json');
 // 存储 API 引用和定义
 const apiReferences = []; // { module, api, method, source }
 const apiDefinitions = new Map(); // module -> Set<api>
+let moduleStructureMissing = false;
 
 /**
  * 提取主架构中的 API 引用
@@ -90,16 +91,18 @@ function extractAPIReferences() {
  */
 function extractAPIDefinitions() {
   if (!fs.existsSync(ARCH_MODULES_DIR)) {
+    moduleStructureMissing = true;
     if (!isJsonMode) {
-      console.log('⚠️  Architecture modules directory not found:');
+      console.log('❌ Architecture modules directory not found:');
       console.log('   ' + ARCH_MODULES_DIR);
-      console.log('   This is a single-file architecture (no modules)\n');
+      console.log('   Modular architecture is required\n');
     }
     return;
   }
 
   const moduleDirs = fs.readdirSync(ARCH_MODULES_DIR, { withFileTypes: true })
     .filter(entry => entry.isDirectory());
+  if (moduleDirs.length === 0) moduleStructureMissing = true;
 
   for (const dir of moduleDirs) {
     const modulePath = path.join(ARCH_MODULES_DIR, dir.name, 'ARCH.md');
@@ -145,6 +148,9 @@ function extractAPIDefinitions() {
  * 验证 API 契约一致性
  */
 function validateAPIContracts() {
+  if (moduleStructureMissing) {
+    return { passed: false, missing: [], reason: 'module architecture missing' };
+  }
   if (apiReferences.length === 0) {
     if (!isJsonMode) {
       console.log('✅ PASS: No cross-module API references to validate\n');
