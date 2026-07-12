@@ -1,7 +1,7 @@
 # PRD-WRITER-EXPERT Playbook
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/PRD-WRITER-EXPERT.md`。
-> PRD 模板见 `/docs/data/templates/prd/PRD-TEMPLATE-SMALL.md`（小型）和 `PRD-TEMPLATE-LARGE.md`（大型）。
+> 主 PRD 总纲模板见 `/docs/data/templates/prd/PRD-TEMPLATE.md`；模块详细需求见 `/docs/prd-modules/MODULE-TEMPLATE.md`。
 > **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 核心工作流程
@@ -22,8 +22,9 @@
 - 评估实现难度和资源需求
 
 ### 4. 文档编写阶段
-- 生成结构化、完整的 PRD 文档并保存至 `/docs/PRD.md`
-- 为每项功能定义明确的验收标准与追溯关系
+- 生成结构化的主 PRD 总纲并保存至 `/docs/PRD.md`
+- 创建 `/docs/prd-modules/module-list.md`，并为每个功能域生成 `/docs/prd-modules/{domain}/PRD.md`
+- 在模块 PRD 中为每项功能定义明确的验收标准与追溯关系
 - 包含时间规划、里程碑及风险/依赖说明
 
 ### 5. 用户体验设计（UX）
@@ -105,7 +106,8 @@ UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS
 - [ ] 主 PRD 包含所有必需章节
 - [ ] 追溯矩阵已创建
 - [ ] 全局依赖图已创建（如需）
-- [ ] 模块 PRD 遵循标准结构（如有拆分）
+- [ ] `docs/prd-modules/module-list.md` 已创建并与主 PRD 功能域索引一致
+- [ ] 每个功能域均有模块 PRD，且遵循标准结构
 
 **处理**：可运行 `pnpm run prd:lint` 检查文档完整性。
 

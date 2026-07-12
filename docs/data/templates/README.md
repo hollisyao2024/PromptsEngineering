@@ -19,8 +19,7 @@ templates/
 
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
-| `PRD-TEMPLATE-SMALL.md` | 小型项目主 PRD 模板 | 用户故事 < 20，单一业务域 |
-| `PRD-TEMPLATE-LARGE.md` | 大型项目主 PRD 模板 | 用户故事 > 50，多业务域 |
+| `PRD-TEMPLATE.md` | 主 PRD 总纲与模块索引模板 | 所有项目 |
 | `UX-SPECIFICATIONS-TEMPLATE.md` | UX 规范文档模板 | 有前端界面的项目 |
 | `PERSONA-STORY-MATRIX-TEMPLATE.md` | 角色-故事矩阵模板 | 验证功能覆盖完整性 |
 | `TRACEABILITY-MATRIX-TEMPLATE.md` | 追溯矩阵模板 | Story → AC → Test Case 映射 |
@@ -30,7 +29,7 @@ templates/
 
 **注意**：
 - 模块级 PRD 文档使用 `/docs/prd-modules/MODULE-TEMPLATE.md`（核心模板，非本目录）
-- PRD 拆分条件：主 PRD > 1000 行 ｜ 用户故事 > 50 个 ｜ 业务域 > 3
+- 所有项目都必须创建 `docs/prd-modules/module-list.md` 和至少一个模块 PRD
 
 ---
 
@@ -38,8 +37,7 @@ templates/
 
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
-| `ARCH-TEMPLATE-SMALL.md` | 小型项目架构文档模板 | 单体应用，简单架构 |
-| `ARCH-TEMPLATE-LARGE.md` | 大型项目架构文档模板 | 微服务/分布式，复杂架构 |
+| `ARCH-TEMPLATE.md` | 主 ARCH 总纲与模块索引模板 | 所有项目 |
 | `ERD-TEMPLATE.md` | 实体关系图模板 | 数据库设计，数据模型 |
 | `dictionary-TEMPLATE.md` | 数据字典模板 | 字段定义、枚举值说明 |
 | `COMPONENT-DEPENDENCY-GRAPH-TEMPLATE.md` | 组件依赖图模板 | 模块间依赖关系 |
@@ -49,6 +47,7 @@ templates/
 
 **注意**：
 - 模块级 ARCH 文档使用 `/docs/arch-modules/MODULE-TEMPLATE.md`
+- 所有 PRD 模块必须有对应 ARCH 模块
 - ADR（架构决策记录）使用 `/docs/adr/` 目录单独管理
 
 ---
@@ -57,8 +56,7 @@ templates/
 
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
-| `TASK-TEMPLATE-SMALL.md` | 小型项目任务规划模板 | 单人/小团队，简单项目 |
-| `TASK-TEMPLATE-LARGE.md` | 大型项目任务规划模板 | 多团队并行，复杂项目 |
+| `TASK-TEMPLATE.md` | 主 TASK 总纲与模块索引模板 | 所有项目 |
 | `TASK-DEPENDENCY-MATRIX-TEMPLATE.md` | 任务依赖矩阵模板 | WBS 任务依赖关系 |
 
 **注意**：
@@ -71,8 +69,7 @@ templates/
 
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
-| `QA-TEMPLATE-SMALL.md` | 小型项目 QA 文档模板 | 简单测试策略 |
-| `QA-TEMPLATE-LARGE.md` | 大型项目 QA 文档模板 | 复杂测试策略，多层次测试 |
+| `QA-TEMPLATE.md` | 主 QA 总纲与模块索引模板 | 所有项目 |
 | `TEST-STRATEGY-MATRIX-TEMPLATE.md` | 测试策略矩阵模板 | 测试类型、覆盖范围 |
 | `TEST-PRIORITY-MATRIX-TEMPLATE.md` | 测试优先级矩阵模板 | P0/P1/P2 测试用例分级 |
 | `TEST-RISK-MATRIX-TEMPLATE.md` | 测试风险矩阵模板 | 风险识别、缓解措施 |
@@ -103,18 +100,16 @@ templates/
 
 ## 使用指南
 
-### 1. 选择合适的模板
+### 1. 使用统一模板
 
-**项目规模判断**：
-- **小型项目**：单一业务域，< 20 个 Story，单人/小团队 → 使用 `*-TEMPLATE-SMALL.md`
-- **大型项目**：多业务域，> 50 个 Story，多团队并行 → 使用 `*-TEMPLATE-LARGE.md`
+PRD、ARCH、TASK、QA 均使用无尺寸后缀的 `*-TEMPLATE.md` 主总纲模板，并配合对应 `docs/*-modules/MODULE-TEMPLATE.md`。不再根据项目规模选择模板。
 
 ### 2. 复制模板
 
 **手动复制**：
 ```bash
 # 创建主 PRD
-cp docs/data/templates/prd/PRD-TEMPLATE-SMALL.md docs/PRD.md
+cp docs/data/templates/prd/PRD-TEMPLATE.md docs/PRD.md
 
 # 创建模块级 PRD
 cp docs/prd-modules/MODULE-TEMPLATE.md docs/prd-modules/user-management/PRD.md
@@ -139,12 +134,13 @@ pnpm run arch:lint
 
 ```
 PRD 模板 → PRD.md
-  ↓
+  ↓ + prd-modules/{domain}/PRD.md
 ARCH 模板 → ARCH.md （引用 PRD 中的 Story ID）
-  ↓
+  ↓ + arch-modules/{domain}/ARCH.md
 TASK 模板 → TASK.md （引用 ARCH 中的 Component ID）
-  ↓
+  ↓ + task-modules/{domain}/TASK.md
 QA 模板 → QA.md （引用 TASK 中的任务 ID）
+  ↓ + qa-modules/{domain}/QA.md
   ↓
 部署记录模板 → deployment-records/YYYY-MM-DD-vX.Y.Z-<env>.md
 ```
@@ -154,7 +150,7 @@ QA 模板 → QA.md （引用 TASK 中的任务 ID）
 ## 模板命名规范
 
 ### 文件命名
-- **主模板**：`{DOCTYPE}-TEMPLATE-{SIZE}.md`（如 `PRD-TEMPLATE-SMALL.md`）
+- **主模板**：`{DOCTYPE}-TEMPLATE.md`（如 `PRD-TEMPLATE.md`）
 - **辅助模板**：`{PURPOSE}-TEMPLATE.md`（如 `ERD-TEMPLATE.md`）
 
 ### 大小写规范

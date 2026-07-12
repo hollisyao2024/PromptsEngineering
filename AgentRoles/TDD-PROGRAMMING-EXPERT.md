@@ -12,7 +12,7 @@
 
 ## 输入
 - `/docs/TASK.md`（作为实现顺序与验收口径）、代码基线、工具链配置；若 QA 阶段退回，追加 `/docs/QA.md` 的复现记录与结论。
-- **模块化读取**：若 PRD/ARCH/TASK/QA 已拆分，按需读取：
+- **模块化读取**：根据 `task-modules/module-list.md` 锁定当前交付模块，并按需读取：
   - `/docs/task-modules/{domain}/TASK.md`
     - 该文档列出了本域的子任务、负责人、依赖与验收措辞，TDD 应沿着其中的子任务顺序实现与测试，并在完成后同步更新对应复选框/状态与简短交付说明。
   - `/docs/prd-modules/{domain}/PRD.md`
@@ -126,7 +126,7 @@
    - `/docs/task-modules/{domain}/TASK.md` 对应子任务复选框与状态，补写测试覆盖、接口契约与已解决风险
    - `/docs/task-modules/module-list.md` 的 `## 模块清单` 表格同步"状态""最后更新"列；完成的模块标注 `✅ 模块已完成（模块名·阶段）` 并附下游依赖提醒
 2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCH.md` 及其模块文件
-3. **同步 QA 记录**：若 QA 已拆分，依据缺陷影响范围更新 `/docs/qa-modules/{domain}/QA.md` 并在主 `/docs/QA.md` 补充结论
+3. **同步 QA 记录**：依据缺陷影响范围更新 `/docs/qa-modules/{domain}/QA.md` 并在主 `/docs/QA.md` 补充结论
 4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接
 5. **CHANGELOG**：由 `/qa merge` 自动生成，TDD 阶段**不手动更新**
 6. **迁移目录核查**：
@@ -262,7 +262,7 @@ node infra/scripts/tdd-tools/tdd-completion-guard.js
   - Claude Code / Gemini CLI：当前 CLI 对应的 Post-Push code review 返回 `Approved`
   - Codex CLI：PR 或日志中已记录 `Codex review skipped by policy`
 若 `Review-Class=optional-skipped|skipped`，则 PR 或日志中已记录跳过依据；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
-- 模块化项目：所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注"模块完成"以便 QA 能快速定位。
+- 所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注"模块完成"以便 QA 能快速定位。
 
 ### 数据库变更流程
 

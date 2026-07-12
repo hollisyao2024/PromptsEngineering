@@ -17,14 +17,15 @@
 ## 输出
 
 ### 核心产物
-- **`/docs/PRD.md`**：主 PRD 文档，唯一权威版本。小项目时是唯一 PRD 文档，大项目时作为总纲和索引。当拆分条件触发时按模板拆分。
-- **模块 PRD 文档**：所有模块目录结构、模块模板、ID 规范等均在 `/docs/prd-modules/MODULE-TEMPLATE.md` 详解。
+- **`/docs/PRD.md`**：主 PRD 总纲与模块索引，只维护项目级目标、全局范围、跨模块依赖、里程碑和 Gate，不承载模块级详细 Story。
+- **`/docs/prd-modules/module-list.md`**：模块清单与状态索引，必须创建并与主 PRD 的功能域索引保持一致。
+- **模块 PRD 文档**：每个功能域必须创建 `/docs/prd-modules/{domain}/PRD.md`；目录结构、模块模板、ID 规范见 `/docs/prd-modules/MODULE-TEMPLATE.md`。
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 - **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。
 - **UX 规范文档**：`/docs/data/ux-specifications.md`（全局）或 `/docs/prd-modules/{domain}/ux-specifications.md`（模块级），由 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md` 生成。
 
-### 拆分条件
-**拆分触发条件**（任一成立）：主 PRD > 1000 行 ｜ 用户故事 > 50 个 ｜ 业务域 > 3 ｜ 多团队并行开发。
+### 文档结构（强制）
+所有项目统一使用“主 PRD 总纲与索引 + 模块 PRD”结构，不再按项目规模判断是否拆分，也不支持单一 PRD 模式。即使当前只有一个功能域，也必须创建一个模块目录并把详细 Story、AC、NFR 和模块依赖维护在模块 PRD 中。
 
 ### 全局数据（存放在 `/docs/data/`）
 
@@ -41,9 +42,9 @@
 
 ## 完成定义（DoD）
 - PRD 含：目标、范围/非范围、角色与场景、用户故事、**验收标准（Given-When-Then）**、NFR（性能/安全/可用性/合规/数据保留与隐私）、依赖与风险、里程碑、开放问题。
-- **可追溯表**：`User Story → 验收标准 → 测试用例 ID`（小型项目可内嵌在主 PRD，大型项目独立维护在 `/docs/data/traceability-matrix.md`）。
+- **可追溯表**：`User Story → 验收标准 → 测试用例 ID` 必须独立维护在 `/docs/data/traceability-matrix.md`。
 - **追溯矩阵初始化**：若 `/docs/data/traceability-matrix.md` 尚不存在，PRD 专家需参照 `/docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 创建初始文件，并先填入 Story/AC ID，供后续 QA 补充 Test Case 和状态；
-- **拆分决策**：评估项目规模，若满足拆分条件，采用主从 PRD 结构；否则维护单一 `/docs/PRD.md`。
+- **模块化结构完整**：`/docs/PRD.md`、`/docs/prd-modules/module-list.md`、至少一个 `/docs/prd-modules/{domain}/PRD.md` 和 `/docs/data/traceability-matrix.md` 同时存在且互相链接。
 - **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、响应式断点矩阵定义、设计系统 Token 列表、设计-开发交接文档就绪。Playbook §8 用户体验验证清单逐项通过。
 - 与干系人达成一致，在 `/docs/AGENT_STATE.md` 勾选 `PRD_CONFIRMED`。
 
@@ -54,11 +55,8 @@
 
 > 使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（Shift-Left 清单等）。
 
-### 小型项目（单一 PRD）
-复制 `/docs/data/templates/prd/PRD-TEMPLATE-SMALL.md` 到 `/docs/PRD.md` 并补充内容。
-
-### 大型项目（主从结构）
-复制 `/docs/data/templates/prd/PRD-TEMPLATE-LARGE.md` 到 `/docs/PRD.md` 作为总纲（< 1000 行），模块需求拆分到 `/docs/prd-modules/{domain}/PRD.md`。
+### 主 PRD 总纲
+复制 `/docs/data/templates/prd/PRD-TEMPLATE.md` 到 `/docs/PRD.md`，详细需求必须写入 `/docs/prd-modules/{domain}/PRD.md`。
 
 ### 模块 PRD 文档模板
 详见 `/docs/prd-modules/MODULE-TEMPLATE.md`（含模块骨架），填充示例见 `/docs/prd-modules/MODULE-EXAMPLE.md`。

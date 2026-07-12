@@ -2,7 +2,7 @@
 
 > 本文档整合了模块目录约定、模板结构、协作规范与自动化脚本，是模块化需求治理的唯一权威参考。
 >
-> 拆分后各模块 `/docs/prd-modules/{domain}/PRD.md` 均按此模板生成，并在开头引用主 `/docs/PRD.md`。
+> 各模块 `/docs/prd-modules/{domain}/PRD.md` 均按此模板生成，并在开头引用主 `/docs/PRD.md`。模块化结构对所有项目强制适用。
 > 完整填充示例见 `/docs/prd-modules/MODULE-EXAMPLE.md`（用户管理域）。
 
 **维护者**：PRD 专家
@@ -31,7 +31,7 @@
 **文件说明**：
 | 文件 | 用途 | 创建时机 |
 |------|------|---------|
-| `PRD.md` | 模块 PRD 文档 | 拆分初期必建 |
+| `PRD.md` | 模块 PRD 文档 | 模块建立时必建 |
 | `dependency-graph.md` | 可视化模块内 Story 依赖（Mermaid），参照 `DEPENDENCY-GRAPH-TEMPLATE.md` 生成 | Story > 10 或依赖复杂 |
 | `nfr-tracking.md` | 量化 NFR（ID/Story/目标值/验证/状态/负责人），参照 `NFR-TRACKING-TEMPLATE.md` 生成 | 有关键 NFR 时 |
 | `priority-matrix.md` | 量化评分模型调整优先级，参照 `PRIORITY-MATRIX-TEMPLATE.md` 生成 | 优先级冲突或资源紧张 |
@@ -52,7 +52,7 @@
 |---------|--------|---------|----------|------|
 | （待添加） | - | - | - | - |
 
-实际模块清单由 PRD 专家生成到 `module-list.md`。每次拆分、状态变更或交付调整，同步更新 `module-list.md` 并在主 PRD 模块索引段落镜像。
+实际模块清单由 PRD 专家生成到 `module-list.md`。每次新增、合并、移除模块或调整交付状态时，同步更新 `module-list.md` 并在主 PRD 模块索引段落镜像。
 
 ## 3. 标准模块 PRD 文档结构
 
@@ -69,7 +69,7 @@
 
 | 角色 | 职责 |
 |------|------|
-| PRD | 拆分决策、模块规划、内容编写、一致性检查（主 PRD ↔ 模块 PRD ↔ 追溯矩阵） |
+| PRD | 模块规划、内容编写、一致性检查（主 PRD ↔ 模块 PRD ↔ 追溯矩阵） |
 | ARCH | 基于主/模块 PRD 产出架构视图，保持 Story 与组件追溯 |
 | TASK | 依据模块 PRD 拆解 WBS，同步关键依赖和里程碑 |
 | QA | 覆盖追溯矩阵中的 Story/AC/Test Case，及时更新状态 |

@@ -1,6 +1,6 @@
-# 产品需求文档（PRD）— 大型项目主文档模板
+# 产品需求文档（PRD）— 主总纲与模块索引模板
 
-> 本模板供大型项目使用，复制到 `/docs/PRD.md` 作为**总纲与索引**，保持 < 1000 行，避免详细需求。模块级需求拆分到 `/docs/prd-modules/{domain}/PRD.md`。
+> 所有项目统一使用本模板生成 `/docs/PRD.md`。主文档只作为**总纲与索引**，保持精简，不承载模块级详细 Story。即使只有一个功能域，也必须创建 `/docs/prd-modules/module-list.md` 与 `/docs/prd-modules/{domain}/PRD.md`。
 
 日期：YYYY-MM-DD   版本：v1.0
 

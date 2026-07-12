@@ -2,6 +2,18 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v2.0.0] - 2026-07-12
+
+### Breaking Changes
+- PRD、ARCH、TASK、QA 仅保留“主总纲与索引 + module-list + 模块文档”结构，删除单一文档模式及规模阈值分支。
+- 主模板统一重命名为 `PRD-TEMPLATE.md`、`ARCH-TEMPLATE.md`、`TASK-TEMPLATE.md`、`QA-TEMPLATE.md`。
+- 模板升级会通过受控 `remove` 策略删除目标项目中 8 个废弃的 `SMALL/LARGE` template-owned 文件。
+
+### 更新
+- TASK 生成器聚合主/模块 PRD 与 ARCH，校验模块集合一致后固定生成模块 TASK。
+- QA 全项目生成固定产出主 QA、模块清单和全部模块 QA。
+- PRD、ARCH、TASK、QA lint 在缺少模块目录、模块清单或模块文档时失败。
+
 ## [v1.18.12] - 2026-04-20
 
 ### 更新

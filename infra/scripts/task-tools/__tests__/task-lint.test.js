@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { checkRequiredSections } = require('../task-lint');
+const { generateTaskMarkdown, validateModuleAlignment } = require('../generate-task');
 
 test('task lint accepts modular TASK document section aliases', () => {
   const content = [
@@ -13,9 +14,38 @@ test('task lint accepts modular TASK document section aliases', () => {
     '## 4. 跨模块依赖关系',
     '## 5. 全局关键路径（CPM）',
     '## 6. 全局风险与缓解',
-    '## 7. 基础设施任务（INFRA）',
-    '## 8. Story → Task 映射',
+    '## 7. 模块同步与相关文档',
   ].join('\n\n');
 
   assert.deepEqual(checkRequiredSections(content).missingSections, []);
+});
+
+test('task generator always emits a modular project overview', () => {
+  const tasks = [{
+    id: 'TASK-AUTH-001',
+    title: 'Implement auth',
+    type: 'feature',
+    module: 'AUTH',
+    owner: '@team',
+    effort: 2,
+    priority: 'P0',
+    dependencies: [],
+    story: 'US-AUTH-001',
+    moduleDir: 'user-access',
+  }];
+  const markdown = generateTaskMarkdown(tasks, [{ id: 'US-AUTH-001', title: 'Auth' }], [], ['user-access']);
+
+  assert.match(markdown, /## 2\. 模块任务索引/);
+  assert.match(markdown, /task-modules\/user-access\/TASK\.md/);
+  assert.doesNotMatch(markdown, /## 3\. WBS（工作分解结构）/);
+});
+
+test('task generator rejects PRD and ARCH module set drift', () => {
+  const result = validateModuleAlignment(
+    [{ moduleDir: 'auth' }, { moduleDir: 'billing' }],
+    [{ moduleDir: 'auth' }, { moduleDir: 'orphan' }]
+  );
+
+  assert.deepEqual(result.missingArch, ['billing']);
+  assert.deepEqual(result.extraArch, ['orphan']);
 });

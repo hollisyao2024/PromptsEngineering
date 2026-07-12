@@ -20,6 +20,7 @@ const PROJECT_ROOT = resolveRepoRoot({ scriptDir: __dirname });
 const ARCH_FILE = path.join(PROJECT_ROOT, 'docs/ARCH.md');
 const ARCH_MODULES_LIST = path.join(PROJECT_ROOT, 'docs/arch-modules/module-list.md');
 const ARCH_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/arch-modules');
+const PRD_MODULES_DIR = path.join(PROJECT_ROOT, 'docs/prd-modules');
 
 // 必需章节列表
 const REQUIRED_SECTIONS = [
@@ -172,26 +173,17 @@ function checkLinks(content) {
   }
 }
 
-// 5. 模块化项目检查
-function checkModularArchitecture(content) {
-  // 检测是否为模块化架构（查找功能域索引关键字）
-  const isModular = /功能域.*架构.*索引|arch-modules/i.test(content);
-
-  if (!isModular) {
-    printResult('PASS', 'Single-file architecture (no modularization needed)', 'modular_architecture');
-    return;
-  }
-
-  // 模块化项目：检查 module-list.md
+// 5. 强制模块化架构检查
+function checkModularArchitecture() {
   if (!fs.existsSync(ARCH_MODULES_LIST)) {
-    printResult('FAIL', 'Modular architecture detected but module-list.md not found: ' + ARCH_MODULES_LIST, 'modular_architecture');
+    printResult('FAIL', 'Required module-list.md not found: ' + ARCH_MODULES_LIST, 'modular_architecture');
     return;
   }
 
   const readmeContent = fs.readFileSync(ARCH_MODULES_LIST, 'utf8');
 
   // 检查模块清单表格
-  const moduleTableRegex = /\|\s*功能域\s*\|.*\|[\s\S]*?\|\s*[-:]+\s*\|/;
+  const moduleTableRegex = /\|\s*(?:功能域|模块名称)\s*\|.*\|[\s\S]*?\|\s*[-:]+\s*\|/;
   if (!moduleTableRegex.test(readmeContent)) {
     printResult('FAIL', 'Module inventory table not found in module-list.md', 'modular_architecture');
     return;
@@ -202,7 +194,7 @@ function checkModularArchitecture(content) {
   if (tableRows > 0) {
     printResult('PASS', `Modular architecture validated (${tableRows} modules registered)`, 'modular_architecture');
   } else {
-    printResult('WARN', 'Module inventory table is empty', 'modular_architecture');
+    printResult('FAIL', 'Module inventory table is empty', 'modular_architecture');
   }
 }
 
@@ -255,18 +247,38 @@ function collectModuleDescriptors() {
   return descriptors;
 }
 
+function collectModuleNames(baseDir, fileName) {
+  if (!fs.existsSync(baseDir)) return [];
+  return fs.readdirSync(baseDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(baseDir, entry.name, fileName)))
+    .map((entry) => entry.name)
+    .sort();
+}
+
 function checkModuleArtifacts() {
   const moduleDescriptors = collectModuleDescriptors();
+  const prdModules = collectModuleNames(PRD_MODULES_DIR, 'PRD.md');
+  const archModules = moduleDescriptors.filter((descriptor) => descriptor.exists).map((descriptor) => descriptor.name);
+
+  const missingArch = prdModules.filter((moduleName) => !archModules.includes(moduleName));
+  const extraArch = archModules.filter((moduleName) => !prdModules.includes(moduleName));
+  if (prdModules.length === 0) {
+    printResult('FAIL', '未找到任何模块 PRD，无法建立模块架构集合', 'module_alignment');
+  } else if (missingArch.length > 0 || extraArch.length > 0) {
+    printResult('FAIL', `PRD/ARCH 模块集合不一致：missing=${missingArch.join(',') || '-'} extra=${extraArch.join(',') || '-'}`, 'module_alignment');
+  } else {
+    printResult('PASS', `PRD/ARCH 模块集合一致（${prdModules.length} 个模块）`, 'module_alignment');
+  }
 
   if (moduleDescriptors.length === 0) {
-    printResult('PASS', '未检测到模块化 ARCH 目录，无需额外校验', 'module_artifacts');
+    printResult('FAIL', '未找到任何模块 ARCH；模块化结构是强制要求', 'module_artifacts');
     return;
   }
 
   const missingDocs = moduleDescriptors.filter(desc => !desc.exists);
   if (missingDocs.length > 0) {
     const missingPaths = missingDocs.map(desc => `docs/arch-modules/${desc.name}`);
-    printResult('WARN', `以下模块缺少 ARCH.md：${missingPaths.join(', ')}`, 'module_artifacts_presence');
+    printResult('FAIL', `以下模块缺少 ARCH.md：${missingPaths.join(', ')}`, 'module_artifacts_presence');
   }
 
   const validModules = moduleDescriptors.filter(desc => desc.exists);
@@ -332,7 +344,7 @@ function main() {
   checkLinks(content);
 
   // 5. 模块化检查
-  checkModularArchitecture(content);
+  checkModularArchitecture();
   checkModuleArtifacts();
 
   // 输出结果

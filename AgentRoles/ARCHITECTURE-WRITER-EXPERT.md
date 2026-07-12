@@ -12,7 +12,7 @@
 - Worktree Gate：只读评审不创建 worktree；若要创建或修改 `/docs/ARCH.md`、模块 ARCH、ADR、架构数据视图等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=arch --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
 
 ## 输入
-- 已确认的 `/docs/PRD.md`（作为总纲）。若 PRD 已模块化，按需读取 `/docs/prd-modules/{domain}/PRD.md`。
+- 已确认的 `/docs/PRD.md`（作为总纲）、`/docs/prd-modules/module-list.md` 和当前任务涉及的 `/docs/prd-modules/{domain}/PRD.md`。
 - PRD 阶段产出的追溯与前置验证素材（`/docs/data/traceability-matrix.md`、`global-dependency-graph.md`、`goal-story-mapping.md`、`persona-story-matrix.md`），用于核对架构对齐与缓解策略。
 - 激活时先锁定主 PRD 版本与状态，列出所有关联模块 PRD（路径、负责团队、最新更新、Story/AC 映射）。
 - **DevOps 反馈**：标注了 `[需 ARCH 同步]` 的 ADR 及相关部署记录（`/docs/data/deployments/`），作为运维视图更新的输入。
@@ -20,12 +20,13 @@
 ## 输出
 
 ### 核心产物
-- **`/docs/ARCH.md`**：主 ARCH 文档，唯一权威版本。小项目时是唯一 ARCH 文档；大项目时作为总纲/索引。每个视图或关键章节旁附带对应的主 PRD Story/AC 及模块 PRD 条目引用，便于 TDD/QA 追溯需求来源。
-- **模块 ARCH 文档**：目录结构、模板、ID 规范详见 `/docs/arch-modules/MODULE-TEMPLATE.md`。模块文档需明确依赖的模块 PRD（Story ID、对应主 PRD 链接），在决策脚注注明"来源 PRD"。
+- **`/docs/ARCH.md`**：主 ARCH 总纲与模块索引，只维护系统边界、全局视图、横切关注点、跨模块依赖和全局 ADR。
+- **`/docs/arch-modules/module-list.md`**：模块架构清单与状态索引，必须与 PRD 模块清单对齐。
+- **模块 ARCH 文档**：每个 PRD 模块必须有对应 `/docs/arch-modules/{domain}/ARCH.md`。目录结构、模板、ID 规范见 `/docs/arch-modules/MODULE-TEMPLATE.md`。
 - **ADR**：`/docs/adr/NNN-arch-{module}-{decision}.md` 或 `NNN-arch-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录。
 
-### 拆分条件
-任一成立触发拆分：主 ARCH > 1000 行 ｜ 子系统/服务 > 8 ｜ 业务域 > 3 ｜ 多团队并行 ｜ 数据模型 > 30 实体表。
+### 文档结构（强制）
+所有项目统一使用“主 ARCH 总纲与索引 + 模块 ARCH”结构，不再按项目规模判断是否拆分，也不支持单一 ARCH 模式。只有一个功能域时仍须创建对应模块 ARCH。
 
 ### 全局数据（`/docs/data/`）
 
@@ -58,6 +59,7 @@
   - **安全与合规**（认证授权、审计、脱敏、合规清单）
 - **技术选型表**（方案对比→决策→影响→ADR 链接）。
 - **角色覆盖与依赖一致性**：参考 `persona-story-matrix.md`，保持跨模块依赖与 `global-dependency-graph.md` 同步。
+- **模块结构完整**：主 ARCH、`arch-modules/module-list.md` 与全部 PRD 模块对应的模块 ARCH 均存在，且模块集合一致。
 - 在 `/docs/AGENT_STATE.md` 勾选 `ARCHITECTURE_DEFINED`。
 
 ## 交接
@@ -67,13 +69,7 @@
 
 > 使用时先按照模板写出章节，再回到 Playbook 做完整性/质量自检（架构对齐、技术选型、风险/依赖列表、架构验证前置等）。
 
-> 如需拆分模块，参照 `/docs/arch-modules/MODULE-TEMPLATE.md` 生成每个功能域的模块架构文档。
-
-### 小型项目（单一 ARCH）
-复制 `/docs/data/templates/arch/ARCH-TEMPLATE-SMALL.md` 到 `/docs/ARCH.md` 并补充内容。
-
-### 大型项目（主从结构）
-复制 `/docs/data/templates/arch/ARCH-TEMPLATE-LARGE.md` 到 `/docs/ARCH.md` 作为总纲（< 1000 行），模块架构拆分到 `/docs/arch-modules/{domain}/ARCH.md`。
+复制 `/docs/data/templates/arch/ARCH-TEMPLATE.md` 到 `/docs/ARCH.md`，并参照 `/docs/arch-modules/MODULE-TEMPLATE.md` 为每个功能域生成模块架构文档。
 
 ### 模块 ARCH 文档模板
 详见 `/docs/arch-modules/MODULE-TEMPLATE.md`（含 Appendix A 模块骨架）。

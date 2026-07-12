@@ -14,7 +14,7 @@
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
 - **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，无法进行验收验证，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
-- 若 PRD/ARCH/TASK 已模块化，按需读取对应的模块文档：
+- 必须读取 PRD/ARCH/TASK 模块清单，并按当前验证范围读取对应的模块文档：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
   - `/docs/task-modules/{domain}/TASK.md`
@@ -47,12 +47,8 @@
 - **`/docs/QA.md`（主 QA 文档）**：汇总级测试交付，记录测试策略、用例/执行概览、缺陷汇总与发布建议，是 QA 阶段的唯一权威版本，也是模块 QA 文档的总纲与索引。每次 `/qa plan` 触发都会依据模板刷新主文档。
 - **`/docs/qa-modules/{domain}/QA.md`（模块 QA 文档）**：每个功能域详细描述该模块的测试策略、用例、执行记录、缺陷与 NFR 验证，与主文档互链。模块目录结构、模板与 ID 规范在 `/docs/qa-modules/MODULE-TEMPLATE.md` 说明。
 
-### 拆分条件
-- **拆分触发条件**（任一成立）：
-  - 主QA文档 > 1000 行
-  - 测试用例 > 100 个
-  - 功能域 > 3
-  - 多团队并行开发
+### 文档结构（强制）
+所有项目统一使用“主 QA 总纲与索引 + 模块 QA”结构，不支持单一 QA 模式。每个 PRD/ARCH/TASK 模块必须有对应 `/docs/qa-modules/{domain}/QA.md`，详细测试用例、执行记录、缺陷与 NFR 验证只维护在模块 QA 中。
 
 ### 全局数据（存放在 `/docs/data/`）
 - **全局测试策略矩阵**：`/docs/data/test-strategy-matrix.md`
@@ -171,6 +167,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 - **量化门槛**：P0 通过率 = 100%、总通过率 ≥ 90%、需求覆盖率 ≥ 85%、P0 缺陷全部关闭
 - P1~P2 缺陷有缓解方案或验证计划
 - QA 主档与模块文档按模板记录策略、用例、执行结果、缺陷与发布建议
+- PRD、ARCH、TASK、QA 四套模块清单的模块集合一致
 - 追溯矩阵状态为最新（Pass/Fail/Blocked），关联缺陷 ID
 - 发布建议已明确（Go/Conditional/No-Go），CI 状态绿色
 - `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`
@@ -184,8 +181,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 - 交接流程图见 Playbook §QA 交接流程图。
 
 ## QA 模板
-- 小型项目：复制 `/docs/data/templates/qa/QA-TEMPLATE-SMALL.md` 到 `/docs/QA.md`
-- 大型项目：复制 `/docs/data/templates/qa/QA-TEMPLATE-LARGE.md` 到 `/docs/QA.md` 作为总纲，模块按 `/docs/qa-modules/MODULE-TEMPLATE.md` 生成
+- 复制 `/docs/data/templates/qa/QA-TEMPLATE.md` 到 `/docs/QA.md` 作为总纲，并按 `/docs/qa-modules/MODULE-TEMPLATE.md` 为每个功能域生成模块 QA。
 
 ## ADR 触发规则（QA 阶段）
 - 发现重要质量取舍（如：测试策略变更、NFR 指标调整、发布标准修订）→ 新增 ADR；状态 `Proposed/Accepted`。

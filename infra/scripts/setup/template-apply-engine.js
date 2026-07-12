@@ -107,6 +107,22 @@ function initIfMissing(sourceRoot, targetRoot, rule, write) {
   }));
 }
 
+function removePath(targetRoot, rule, write) {
+  const root = path.resolve(targetRoot);
+  const targetPath = path.resolve(root, rule.path);
+  if (targetPath === root || !targetPath.startsWith(`${root}${path.sep}`)) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: 'path escapes target root' }];
+  }
+  if (!pathExists(targetPath)) {
+    return [{ status: 'unchanged', path: rule.path, strategy: rule.strategy, reason: 'target missing' }];
+  }
+  if (isDirectory(targetPath)) {
+    return [{ status: 'blocked', path: rule.path, strategy: rule.strategy, reason: 'directory removal is not supported' }];
+  }
+  if (write) fs.unlinkSync(targetPath);
+  return [{ status: 'removed', path: rule.path, strategy: rule.strategy }];
+}
+
 function markerBlock(marker, content) {
   const body = content.endsWith('\n') ? content.trimEnd() : content;
   return `# >>> ${marker}\n${body}\n# <<< ${marker}\n`;
@@ -462,6 +478,7 @@ function applyRule(sourceRoot, targetRoot, rule, write, includeGroups) {
   if (rule.strategy === 'merge-jsonc') return mergeJsonc(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'append-block') return appendBlock(sourceRoot, targetRoot, rule, write);
   if (rule.strategy === 'merge-package-scripts') return mergePackageScripts(sourceRoot, targetRoot, rule, write);
+  if (rule.strategy === 'remove') return removePath(targetRoot, rule, write);
   if (rule.strategy === 'project-owned') {
     return [{ status: 'skipped', path: rule.path, strategy: rule.strategy, reason: 'target-owned' }];
   }
@@ -535,5 +552,6 @@ module.exports = {
   isPlainObject,
   mergeJson,
   mergeJsonc,
+  removePath,
   stripJsonComments,
 };

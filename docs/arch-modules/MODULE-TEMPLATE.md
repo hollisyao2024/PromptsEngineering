@@ -2,12 +2,12 @@
 
 > 本文档整合了模块目录约定、模板结构、协作规范等要素，是模块化需求治理的唯一权威参考。
 >
-> **提醒**：ARCH 专家在评估拆分前，请先梳理本文件的目录与模板规范；拆分后各模块的 `/docs/arch-modules/{domain}/ARCH.md` 均按此模板生成，并在开头引用主 `/docs/ARCH.md`，确保模块文档与主文档保持追溯与协同。
+> **提醒**：模块化架构对所有项目强制适用。ARCH 专家先读取 PRD 模块清单，再按本模板为每个功能域生成 `/docs/arch-modules/{domain}/ARCH.md`，并在开头引用主 `/docs/ARCH.md`。
 
 **维护者**：ARCH 专家
 **创建日期**：2025-11-05
 **最后更新**：2025-11-06
-**模板版本**：v1.0（ARCH 模块化拆分，如有变更请更新此字段）
+**模板版本**：v1.0（模块结构如有变更请更新此字段）
 **功能域**：{domain}（复制模板时替换为具体模块名称以保持一致）
 
 ---
@@ -73,7 +73,7 @@
 - 重大变更需在主 ARCH 的“变更记录”章节同步，并补齐必要 ADR
 
 ## 4. 支撑产物说明
-- **组件/服务清单**：记录模块可交付的服务、数据库、缓存、任务等组件，包含 ID、职责、技术栈、部署环境、SLO 与负责人，便于同步 `component-dependency-graph.md` 及大项目的组件依赖表。
+- **组件/服务清单**：记录模块可交付的服务、数据库、缓存、任务等组件，包含 ID、职责、技术栈、部署环境、SLO 与负责人，便于同步 `component-dependency-graph.md` 及全局组件依赖表。
 - **接口契约矩阵**：集中描述模块提供与依赖的 API/gRPC/Event 接口（路径/方法、输入输出、错误码、版本、SLA、降级策略），并标明覆盖的 PRD Story ID，支持 `arch-prd-traceability.md` 与 TASK 的接口依赖核对。
 - **数据资产表**：列出核心实体/表、字段摘要、索引策略、事务边界、容量/留存/增长、脱敏与备份流程，作为 `/docs/data/ERD.md` 与 `dictionary.md` 的数据原件。
 - **风险与验证表**：列出架构验证前置中识别的技术、合规、性能、依赖风险（描述、影响、缓解、责任人、状态），并引用对应 ADR（`NNN-arch-{module}-{decision}.md`），确保 Gate review 有据可查。
@@ -112,7 +112,7 @@
 - 重大架构变更必须产出 ADR（`NNN-arch-{module}-{decision}.md` 或 `NNN-arch-global-{decision}.md`）并在主 ARCH、模块文档及 `/docs/adr/CHANGELOG.md` 中说明影响。
 
 ### 6.4 文件创建与更新时机
-- ARCH 模块化启动：在 PRD 确定拆分后立即创建 `{domain}/ARCH.md`、组件清单、接口契约与支持表格，且在 `module-list.md` 中注册。
+- ARCH 阶段启动：依据 PRD 模块清单立即创建每个 `{domain}/ARCH.md`、组件清单、接口契约与支持表格，且在 `module-list.md` 中注册。
 - 开发前：完成数据资产、风险/验证、Story/Component 追溯表格，并同步 `arch-prd-traceability` 及依赖图；如发现未覆盖 Story/Component，立刻补充 ARCH 或 ADR。
 - 持续迭代：每个 Sprint 更新接口契约、数据表与风险表，并在回写 Gate 中核对 `component-dependency-graph` 与 `ERD` 的一致性。
 

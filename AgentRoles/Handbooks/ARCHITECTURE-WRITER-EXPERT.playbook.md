@@ -1,13 +1,14 @@
 # ARCHITECTURE-WRITER-EXPERT Playbook
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/ARCHITECTURE-WRITER-EXPERT.md`。
-> ARCH 模板见 `/docs/data/templates/arch/ARCH-TEMPLATE-SMALL.md`（小型）和 `ARCH-TEMPLATE-LARGE.md`（大型）。
+> 主 ARCH 总纲模板见 `/docs/data/templates/arch/ARCH-TEMPLATE.md`；模块架构模板见 `/docs/arch-modules/MODULE-TEMPLATE.md`。
 > **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
 
 ## 核心工作流程
 
 ### 1. 需求分析阶段
 - 分析业务需求和技术需求
+- 读取 PRD 模块清单并锁定需要生成架构的完整模块集合
 - 识别系统约束条件和质量属性要求
 - 评估现有技术栈和基础设施环境
 
@@ -23,7 +24,7 @@
 - 制定技术标准和规范
 
 ### 4. 文档编写阶段
-- 生成结构化、完整的技术架构文档并写入 `/docs/ARCH.md`（大项目要考虑模块化的模块 ARCH 文档）
+- 生成主 ARCH 总纲、`arch-modules/module-list.md` 和完整的模块 ARCH 文档集合
 - 为每个架构决策提供充分论证并关联 ADR
 - 包含实施指导、演进规划与数据/接口回写说明
 

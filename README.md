@@ -1,4 +1,4 @@
-# Agents Router 模板（v1.18.12 · 2026-04-22）
+# Agents Router 模板（v2.0.0 · 2026-07-12）
 
 这是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家提示词工程模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
 
@@ -15,7 +15,7 @@
 - 最小上下文：专家文件与 Handbooks 分离，只有当前阶段需要的内容进入上下文。
 - 状态驱动：以 `docs/AGENT_STATE.md` 记录 PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED 六阶段进度。
 - 产物驱动：PRD → 架构 → 任务 → TDD → QA → DevOps 串行交接，以 `/docs` 下的产物文件作为阶段输入与唯一真相来源。
-- 模块化扩展：大型项目可按功能域拆分 PRD / ARCH / TASK / QA 文档，主文档保留总纲，模块文档按需加载。
+- 模块化唯一结构：所有项目均按功能域维护 PRD / ARCH / TASK / QA；主文档只保留总纲与模块索引，详细内容按需加载模块文档。
 - 可整体复制：项目差异集中在 `agent.config.json`、环境变量或 CLI 参数中，模板文件尽量不需要在实际项目中修改。
 - 工程闭环：内置脚本入口、Review Gate、QA Gate、worktree 管理和部署命令约定；`package.json` 只通过安全合并脚本追加缺失 aliases，不覆盖项目自有内容。
 
@@ -24,10 +24,10 @@
 - `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。
 - `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
 - `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CONVENTIONS.md` 及数据资料。
-  - `docs/prd-modules/`：大型项目 PRD 模块化目录，按功能域拆分详细需求。
-  - `docs/arch-modules/`：大型项目架构模块化目录，按功能域拆分系统设计。
-  - `docs/task-modules/`：大型项目任务模块化目录，按功能域拆分任务计划。
-  - `docs/qa-modules/`：大型项目 QA 模块化目录，按功能域拆分测试计划。
+  - `docs/prd-modules/`：所有功能域的详细需求与模块清单。
+  - `docs/arch-modules/`：所有功能域的详细系统设计与模块清单。
+  - `docs/task-modules/`：所有功能域的详细任务计划与模块清单。
+  - `docs/qa-modules/`：所有功能域的详细测试计划与模块清单。
   - `docs/data/traceability-matrix.md`：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
 - `docs/adr/`：架构决策记录（ADR）模板目录。
 - `infra/scripts/`：PRD / ARCH / TASK / TDD / QA / DevOps 自动化脚本。
@@ -65,6 +65,7 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 
 应用策略：
 - `overwrite`：模板协议和核心脚本，可覆盖升级。
+- `remove`：只删除 manifest 明确登记的废弃 template-owned 文件，不支持目录删除，也不能越出目标仓库。
 - `init-if-missing`：目标没有才创建，例如 `docs/AGENT_STATE.md`、`agent.config.json`。
 - `append-block`：用 managed block 合并，例如 `.gitignore`、`.envrc`。
 - `merge-package-scripts`：只向 `package.json` 追加缺失 scripts，已有 scripts 永不覆盖。
@@ -174,15 +175,15 @@ node infra/scripts/tdd-tools/tdd-new-branch.js --explicit --task TASK-USER-001 -
 
 ## 阶段化工作流
 1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
-   - 自动评估是否需要拆分 PRD（> 1000 行 或 50+ 用户故事 或 3+ 业务域），采用主从结构（主 PRD + 模块 PRD + 追溯矩阵）。
+   - 始终生成主 PRD 总纲、模块清单、模块 PRD 与追溯矩阵。
    - 支持企业级需求管理工具链（见下文）
 2. **架构专家**：输出 C4 架构视图（上下文/容器/组件）、数据/接口/运维/安全视图与技术选型；同步 ADR。
-   - 自动评估是否需要拆分架构（> 1000 行 或 8+ 子系统 或 3+ 业务域），采用主从结构（主 ARCH + 模块 ARCH）。
+   - 始终生成主 ARCH 总纲、模块清单与模块 ARCH。
 3. **任务规划专家**：拆解 WBS、依赖矩阵、关键路径（CPM）、里程碑与风险，沉淀到 `/docs/TASK.md`。
-   - 自动评估是否需要拆分任务（> 1000 行 或 50+ 工作包 或 3+ 并行开发流），采用主从结构（主 TASK + 模块 TASK）。
+   - 始终生成主 TASK 总纲、模块清单与模块 TASK；详细 WBS 只保存在模块文档。
 4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写并移交 QA；版本、CHANGELOG、tag 由 `release.*` 配置控制。
 5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
-   - 自动评估是否需要拆分测试计划（> 1000 行 或 100+ 测试用例 或 3+ 功能域），采用主从结构（主 QA + 模块 QA + 追溯矩阵）。
+   - 始终生成主 QA 总纲、模块清单、模块 QA 与追溯矩阵。
 6. **DevOps 专家**：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
 
 ---

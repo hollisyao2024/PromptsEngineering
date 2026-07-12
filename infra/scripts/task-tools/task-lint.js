@@ -20,23 +20,21 @@ const path = require('path');
 const CONFIG = {
   mainTaskPath: path.join(__dirname, '../../../docs/TASK.md'),
   taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
+  taskModuleListPath: path.join(__dirname, '../../../docs/task-modules/module-list.md'),
+  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
   storyTaskMappingPath: path.join(__dirname, '../../../docs/data/story-task-mapping.md'),
   taskDependencyMatrixPath: path.join(__dirname, '../../../docs/data/task-dependency-matrix.md'),
 };
 
-// 主 TASK 必需章节。aliases 覆盖大型模块化模板中的历史标题。
+// 主 TASK 只允许总纲结构；详细 WBS 位于模块 TASK。
 const REQUIRED_SECTION_GROUPS = [
   { label: '## 1. 项目概述', aliases: ['## 1. 项目概述'] },
-  { label: '## 2. 全局里程碑', aliases: ['## 2. 全局里程碑', '## 3. 全局里程碑（跨模块）'] },
-  { label: '## 3. WBS（工作分解结构）', aliases: ['## 3. WBS（工作分解结构）', '## 2. 模块任务索引'] },
-  { label: '## 4. 依赖关系', aliases: ['## 4. 依赖关系', '## 4. 跨模块依赖关系'] },
-  { label: '## 5. 关键路径', aliases: ['## 5. 关键路径', '## 5. 全局关键路径（CPM）'] },
-  {
-    label: '## 6. 资源与时间线',
-    aliases: ['## 6. 资源与时间线', '## 7. 基础设施任务（INFRA）', '**整体时间线（Phase 1）**'],
-  },
-  { label: '## 7. 风险登记', aliases: ['## 7. 风险登记', '## 6. 全局风险与缓解'] },
-  { label: '## 8. Story → Task 映射', aliases: ['## 8. Story → Task 映射'] },
+  { label: '## 2. 模块任务索引', aliases: ['## 2. 模块任务索引'] },
+  { label: '## 3. 全局里程碑（跨模块）', aliases: ['## 3. 全局里程碑（跨模块）'] },
+  { label: '## 4. 跨模块依赖关系', aliases: ['## 4. 跨模块依赖关系'] },
+  { label: '## 5. 全局关键路径（CPM）', aliases: ['## 5. 全局关键路径（CPM）'] },
+  { label: '## 6. 全局风险与缓解', aliases: ['## 6. 全局风险与缓解'] },
+  { label: '## 7. 模块同步与相关文档', aliases: ['## 7. 模块同步与相关文档'] },
 ];
 
 // Task ID 格式正则（TASK-MODULE-NNN）
@@ -235,16 +233,34 @@ function checkModuleTaskFiles() {
   log('\n📂 检查模块 TASK 文件...', 'cyan');
 
   if (!fs.existsSync(CONFIG.taskModulesDir)) {
-    log('ℹ️  task-modules 目录不存在，跳过模块检查', 'cyan');
-    return true;
+    log('❌ task-modules 目录不存在；模块化结构是强制要求', 'red');
+    return false;
+  }
+
+  if (!fs.existsSync(CONFIG.taskModuleListPath)) {
+    log('❌ task-modules/module-list.md 不存在', 'red');
+    return false;
   }
 
   const entries = fs.readdirSync(CONFIG.taskModulesDir, { withFileTypes: true });
   const moduleDirs = entries.filter(entry => entry.isDirectory());
 
   if (moduleDirs.length === 0) {
-    log('ℹ️  未找到模块 TASK 文件，跳过模块检查', 'cyan');
-    return true;
+    log('❌ 未找到模块 TASK 文件；至少需要一个模块', 'red');
+    return false;
+  }
+
+  const prdModuleDirs = fs.existsSync(CONFIG.prdModulesDir)
+    ? fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(CONFIG.prdModulesDir, entry.name, 'PRD.md')))
+      .map((entry) => entry.name)
+    : [];
+  const taskModuleNames = moduleDirs.map((entry) => entry.name);
+  const missingTask = prdModuleDirs.filter((moduleName) => !taskModuleNames.includes(moduleName));
+  const extraTask = taskModuleNames.filter((moduleName) => !prdModuleDirs.includes(moduleName));
+  if (prdModuleDirs.length === 0 || missingTask.length > 0 || extraTask.length > 0) {
+    log(`❌ PRD/TASK 模块集合不一致：missing=${missingTask.join(',') || '-'} extra=${extraTask.join(',') || '-'}`, 'red');
+    return false;
   }
 
   log(`📋 找到 ${moduleDirs.length} 个模块 TASK 文件`, 'cyan');
@@ -316,13 +332,13 @@ function main() {
     results.taskDependencyMatrixExists,
     results.sectionsComplete,
     results.taskIdValid,
+    results.moduleFilesValid,
   ];
 
   const warningChecks = [
     results.effortEstimation,
     results.assigneeSpecified,
     results.dependencyValid,
-    results.moduleFilesValid,
   ];
 
   const allCriticalPassed = criticalChecks.every(result => result === true);
