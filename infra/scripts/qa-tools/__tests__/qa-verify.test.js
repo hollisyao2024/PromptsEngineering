@@ -3,9 +3,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
-const { validateQaFile } = require('../qa-verify');
+const { resolveTargetsFromQaPlanState, validateQaFile } = require('../qa-verify');
 
 const repoRoot = path.resolve(__dirname, '../../../..');
 
@@ -82,4 +83,29 @@ test('validateQaFile accepts cross-module Story references without inflating loc
   assert.equal(result.stats.storyCount, 2);
   assert.equal(result.stats.validStoryRefCount, 1);
   assert.equal(result.stats.storyCoverage, 50);
+});
+
+test('QA verification reads only the selected worktree session state file', (t) => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-session-isolation-'));
+  const currentStatePath = path.join(fixtureDir, 'current-worktree.json');
+  const foreignStatePath = path.join(fixtureDir, 'foreign-worktree.json');
+  t.after(() => fs.rmSync(fixtureDir, { recursive: true, force: true }));
+
+  fs.writeFileSync(currentStatePath, JSON.stringify({
+    scope: 'session',
+    modules: ['current-module'],
+    touchedFiles: ['docs/qa-modules/current-module/QA.md'],
+  }), 'utf8');
+  fs.writeFileSync(foreignStatePath, JSON.stringify({
+    scope: 'session',
+    modules: ['foreign-module'],
+    touchedFiles: ['docs/qa-modules/foreign-module/QA.md'],
+  }), 'utf8');
+
+  const result = resolveTargetsFromQaPlanState(currentStatePath);
+
+  assert.deepEqual(result.modules, ['current-module']);
+  assert.deepEqual(result.files, ['docs/qa-modules/current-module/QA.md']);
+  assert.match(result.source, /current-worktree\.json/);
+  assert.doesNotMatch(result.source, /foreign-worktree\.json/);
 });

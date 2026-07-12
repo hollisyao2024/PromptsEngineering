@@ -7,10 +7,16 @@
  */
 
 const fs = require('fs');
-const os = require('os');
+const crypto = require('crypto');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { writeInProgressFields } = require('../tdd-tools/agent-state-utils');
+const {
+  getMainRepoRoot,
+  getWorktreeRoot,
+  loadConfig,
+  resolveFromRepo,
+} = require('../shared/config');
 
 const CONFIG = {
   paths: {
@@ -117,10 +123,28 @@ function writeJsonFile(filePath, payload) {
   writeFile(filePath, JSON.stringify(payload, null, 2) + '\n');
 }
 
-function getQaPlanSessionStatePath() {
-  const customPath = process.env.QA_PLAN_SESSION_STATE_PATH;
+function getQaPlanSessionStatePath(options = {}) {
+  const env = options.env || process.env;
+  const customPath = env.QA_PLAN_SESSION_STATE_PATH;
   if (customPath && customPath.trim()) return customPath.trim();
-  return path.join(os.tmpdir(), 'agent-qa-plan-session.json');
+
+  const cwd = options.cwd || process.cwd();
+  const worktreeRoot = options.worktreeRoot || getWorktreeRoot(cwd);
+  const mainRoot = options.mainRoot || getMainRepoRoot(cwd);
+  const config = options.config || loadConfig({ repoRoot: worktreeRoot, env, argv: [] });
+  const configuredSessionDir = config.worktree && config.worktree.sessionDir;
+  const sessionDir = resolveFromRepo(mainRoot, configuredSessionDir || '../tmp/worktree-sessions');
+  const worktreeName = path.basename(worktreeRoot)
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'repo';
+  const worktreeHash = crypto
+    .createHash('sha256')
+    .update(path.resolve(worktreeRoot))
+    .digest('hex')
+    .slice(0, 12);
+
+  return path.join(sessionDir, 'qa-plan', `${worktreeName}-${worktreeHash}.json`);
 }
 
 function runGit(args, { allowFailure = false } = {}) {
