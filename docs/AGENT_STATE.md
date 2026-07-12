@@ -16,4 +16,4 @@
 <!-- 脚本维护，勿手动编辑 -->
 branch: 
 
-- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-07-12; PR #26, commit 110a664
+- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-07-12; PR #28, commit 678fdd8
