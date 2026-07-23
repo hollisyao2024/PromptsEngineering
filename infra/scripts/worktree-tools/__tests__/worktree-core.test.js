@@ -17,6 +17,20 @@ const {
   writeManagedMarker,
   MANAGED_MARKER,
 } = require('../worktree-core');
+const { retryWritable: retryRemoveOperation } = require('../worktree-safe-remove');
+
+test('safe removal retries transient non-empty directories without weakening permission handling', () => {
+  let attempts = 0;
+  retryRemoveOperation('/unused', () => {
+    attempts += 1;
+    if (attempts < 3) {
+      const error = new Error('directory changed during traversal');
+      error.code = 'ENOTEMPTY';
+      throw error;
+    }
+  });
+  assert.equal(attempts, 3);
+});
 
 test('managed worktree marker records ownership and stays excluded from Git status', (t) => {
   const tempRoot = fs.realpathSync(os.tmpdir());

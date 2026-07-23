@@ -35,12 +35,26 @@ function lstatOrNull(targetPath) {
 }
 
 function retryWritable(targetPath, action) {
-  try {
-    action();
-  } catch (error) {
-    if (!error || !['EACCES', 'EPERM'].includes(error.code)) throw error;
-    fs.chmodSync(targetPath, 0o700);
-    action();
+  let permissionRetried = false;
+  let nonEmptyRetries = 0;
+  while (true) {
+    try {
+      action();
+      return;
+    } catch (error) {
+      if (error && ['EACCES', 'EPERM'].includes(error.code) && !permissionRetried) {
+        fs.chmodSync(targetPath, 0o700);
+        permissionRetried = true;
+        continue;
+      }
+      // macOS can report ENOTEMPTY for a directory immediately after a large
+      // node_modules traversal. Retry the same no-follow removal a few times.
+      if (error && error.code === 'ENOTEMPTY' && nonEmptyRetries < 3) {
+        nonEmptyRetries += 1;
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
@@ -272,6 +286,7 @@ function removeWorktreeSafely(options = {}) {
 
 module.exports = {
   isPathInside,
+  retryWritable,
   isSamePath,
   parseWorktreePorcelain,
   removeWorktreeSafely,
