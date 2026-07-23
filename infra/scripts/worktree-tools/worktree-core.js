@@ -24,6 +24,7 @@ const {
 } = require('./worktree-safe-remove');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
+const MANAGED_MARKER = '.agent-worktree.json';
 
 function run(command, args, options = {}) {
   const cwd = options.cwd || process.cwd();
@@ -178,6 +179,17 @@ function getBaseRef(mainRoot, config) {
   return 'HEAD';
 }
 
+function shouldSkipFetch(cli = {}, env = process.env) {
+  const envValue = String(env.AGENT_WORKTREE_SKIP_FETCH || '').trim().toLowerCase();
+  return Boolean(
+    cli['skip-fetch'] ||
+    cli.skipFetch ||
+    envValue === '1' ||
+    envValue === 'true' ||
+    envValue === 'yes'
+  );
+}
+
 function uniqueWorktreePath(basePath) {
   if (!fs.existsSync(basePath)) return basePath;
   const suffix = shortHash(basePath);
@@ -260,6 +272,18 @@ function writeSession(config, mainRoot, payload) {
   return filePath;
 }
 
+function writeManagedMarker(mainRoot, worktreePath, branch) {
+  fs.writeFileSync(path.join(worktreePath, MANAGED_MARKER), JSON.stringify({
+    version: 1,
+    mainRoot: path.resolve(mainRoot),
+    branch,
+  }) + '\n');
+  const excludePath = path.join(mainRoot, '.git', 'info', 'exclude');
+  const rule = `/${MANAGED_MARKER}`;
+  const existing = fs.existsSync(excludePath) ? fs.readFileSync(excludePath, 'utf8') : '';
+  if (!existing.split(/\r?\n/).includes(rule)) fs.appendFileSync(excludePath, `${existing.endsWith('\n') || !existing ? '' : '\n'}${rule}\n`);
+}
+
 function readSessions(config, mainRoot) {
   const configured = config.worktree && config.worktree.sessionDir;
   const dir = resolveFromRepo(mainRoot, configured || '../tmp/worktree-sessions');
@@ -293,6 +317,87 @@ function normalizeBootstrapMode(value, fallback = 'skip') {
 
 function bootstrapConfig(config) {
   return (config.worktree && config.worktree.bootstrap) || {};
+}
+
+function normalizeReusablePath(entry) {
+  const value = typeof entry === 'string' ? entry : entry && entry.path;
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!normalized || path.posix.isAbsolute(normalized) || normalized.split('/').includes('..')) {
+    throw new Error(`reusable path must be relative and stay inside the repo: ${value || '(empty)'}`);
+  }
+  const segments = normalized.toLowerCase().split('/');
+  if (segments.includes('.git') || segments.includes('node_modules') || segments.includes('.pnpm')) {
+    throw new Error(`forbidden reusable dependency or Git path: ${normalized}`);
+  }
+  return normalized;
+}
+
+function assertReusableLinksStayInsideRoot(rootPath, allowedRoot) {
+  function visit(currentPath, ancestorDirectories) {
+    const linkStat = fs.lstatSync(currentPath);
+    const resolvedPath = linkStat.isSymbolicLink() ? fs.realpathSync(currentPath) : currentPath;
+    if (linkStat.isSymbolicLink() && !isPathInside(allowedRoot, resolvedPath)) {
+      throw new Error(`reusable source link escapes the main repo: ${currentPath} -> ${resolvedPath}`);
+    }
+
+    const stat = linkStat.isSymbolicLink() ? fs.statSync(currentPath) : linkStat;
+    if (!stat.isDirectory()) return;
+
+    const realDirectory = fs.realpathSync(resolvedPath);
+    if (ancestorDirectories.has(realDirectory)) {
+      throw new Error(`reusable source contains a directory link cycle: ${currentPath}`);
+    }
+    const nextAncestors = new Set(ancestorDirectories);
+    nextAncestors.add(realDirectory);
+    for (const entry of fs.readdirSync(resolvedPath)) {
+      visit(path.join(resolvedPath, entry), nextAncestors);
+    }
+  }
+
+  visit(rootPath, new Set());
+}
+
+function materializeReusablePaths(options = {}) {
+  const mainRoot = path.resolve(options.mainRoot || '');
+  const worktreePath = path.resolve(options.worktreePath || '');
+  const entries = Array.isArray(options.entries) ? options.entries : [];
+  const reusedPaths = [];
+  const existingPaths = [];
+  const missingPaths = [];
+  if (!options.mainRoot || !options.worktreePath || isSamePath(mainRoot, worktreePath)) {
+    return { reusedPaths, existingPaths, missingPaths };
+  }
+
+  for (const entry of entries) {
+    const relativePath = normalizeReusablePath(entry);
+    const sourcePath = path.resolve(mainRoot, relativePath);
+    const targetPath = path.resolve(worktreePath, relativePath);
+    if (!isPathInside(mainRoot, sourcePath) || !isPathInside(worktreePath, targetPath)) {
+      throw new Error(`reusable path must be relative and stay inside the repo: ${relativePath}`);
+    }
+    if (fs.existsSync(targetPath)) {
+      existingPaths.push(relativePath);
+      continue;
+    }
+    if (!fs.existsSync(sourcePath)) {
+      missingPaths.push(relativePath);
+      continue;
+    }
+
+    assertReusableLinksStayInsideRoot(sourcePath, mainRoot);
+    ensureDir(path.dirname(targetPath));
+    const temporaryPath = `${targetPath}.reuse-${process.pid}-${Date.now()}`;
+    try {
+      fs.cpSync(sourcePath, temporaryPath, { recursive: true, force: true, dereference: true });
+      fs.renameSync(temporaryPath, targetPath);
+    } catch (error) {
+      fs.rmSync(temporaryPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      throw error;
+    }
+    reusedPaths.push(relativePath);
+  }
+
+  return { reusedPaths, existingPaths, missingPaths };
 }
 
 function bootstrapMode(config, cli = {}, defaultMode = '') {
@@ -346,7 +451,7 @@ function acquireLock(lockDir, lockName, timeoutMs = 600000) {
           nextManualAction: `Remove stale lock if safe: ${lockPath}`,
         });
       }
-      spawnSync('sleep', ['1'], { stdio: 'ignore' });
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
     }
   }
 }
@@ -387,13 +492,23 @@ function runWorktreeBootstrap(options = {}) {
   if (!worktreePath) {
     return { status: 'SKIPPED', mode, reason: 'missing worktree path' };
   }
+  const reuse = materializeReusablePaths({
+    mainRoot: mainRoot || getMainRepoRoot(worktreePath),
+    worktreePath,
+    entries: settings.reuseFromMain,
+  });
   if (mode === 'skip') {
-    return { status: 'SKIPPED', mode, reason: 'bootstrap disabled' };
+    return {
+      status: reuse.reusedPaths.length > 0 ? 'REUSED' : 'SKIPPED',
+      mode,
+      reason: 'dependency bootstrap disabled',
+      ...reuse,
+    };
   }
 
   const check = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
   if (check.configured && check.ok) {
-    return { status: 'READY', mode, checkCommand };
+    return { status: 'READY', mode, checkCommand, ...reuse };
   }
 
   if (mode === 'check') {
@@ -403,6 +518,7 @@ function runWorktreeBootstrap(options = {}) {
       reason: check.configured ? `check command exited ${check.status}` : 'no checkCommand configured',
       checkCommand,
       nextManualAction: nextBootstrapAction(command, worktreePath),
+      ...reuse,
     };
   }
 
@@ -461,7 +577,7 @@ function runWorktreeBootstrap(options = {}) {
     });
   }
 
-  return { status: 'READY', mode, command, checkCommand };
+  return { status: 'READY', mode, command, checkCommand, ...reuse };
 }
 
 function createOrResumeWorktree(options = {}) {
@@ -475,6 +591,7 @@ function createOrResumeWorktree(options = {}) {
   const branch = cli.branch || buildBranchName(cli);
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
+    writeManagedMarker(mainRoot, existing.path, branch);
     writeSession(config, mainRoot, {
       phase: cli.phase || inferPhaseFromBranch(branch),
       branch,
@@ -510,7 +627,10 @@ function createOrResumeWorktree(options = {}) {
     return { branch, worktreePath, config, mainRoot, baseRef, dryRun: true };
   }
 
-  runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
+  const fetchSkipped = shouldSkipFetch(cli);
+  if (!fetchSkipped) {
+    runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
+  }
   baseRef = getBaseRef(mainRoot, config);
   ensureDir(worktreesDir);
 
@@ -522,6 +642,7 @@ function createOrResumeWorktree(options = {}) {
   }
 
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
+  writeManagedMarker(mainRoot, worktreePath, branch);
   writeSession(config, mainRoot, {
     phase: cli.phase || inferPhaseFromBranch(branch),
     branch,
@@ -546,7 +667,7 @@ function createOrResumeWorktree(options = {}) {
     linked,
     bootstrap,
   });
-  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, resumed: false };
+  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, resumed: false, fetchSkipped };
 }
 
 module.exports = {
@@ -565,6 +686,7 @@ module.exports = {
   isSamePath,
   isMainBranch,
   listWorktrees,
+  materializeReusablePaths,
   parseCliArgs,
   parseWorktreePorcelain,
   readSessions,
@@ -575,8 +697,11 @@ module.exports = {
   runGit,
   runWorktreeBootstrap,
   safeRemoveTreeNoFollow,
+  shouldSkipFetch,
   setupSharedLinks,
   slugify,
   validateSharedLinkConfig,
   writeSession,
+  writeManagedMarker,
+  MANAGED_MARKER,
 };

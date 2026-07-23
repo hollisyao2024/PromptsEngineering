@@ -16,8 +16,13 @@ test('reconciler distinguishes merged, equivalent, and unique heads', () => {
 });
 
 test('reconciler requires an explicit opt-in for mutations', () => {
-  assert.deepEqual(parseArgs([]), { apply: false, removeWorktrees: false, json: false });
-  assert.deepEqual(parseArgs(['--apply', '--remove-worktrees', '--json']), { apply: true, removeWorktrees: true, json: true });
+  assert.deepEqual(parseArgs([]), { apply: false, removeWorktrees: false, removeOrphans: false, json: false });
+  assert.deepEqual(parseArgs(['--apply', '--remove-worktrees', '--remove-orphans', '--json']), {
+    apply: true,
+    removeWorktrees: true,
+    removeOrphans: true,
+    json: true,
+  });
 });
 
 test('summary preserves every classification count', () => {

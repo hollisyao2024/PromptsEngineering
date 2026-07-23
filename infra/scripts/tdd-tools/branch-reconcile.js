@@ -2,12 +2,17 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const {
   getMainRepoRoot,
   listWorktrees,
   removeSession,
   removeWorktreeSafely,
   resolveContainerPath,
+  safeRemoveTreeNoFollow,
+  readSessions,
+  MANAGED_MARKER,
 } = require('../worktree-tools/worktree-core');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 
@@ -17,8 +22,29 @@ function parseArgs(argv) {
   return {
     apply: argv.includes('--apply'),
     removeWorktrees: argv.includes('--remove-worktrees'),
+    removeOrphans: argv.includes('--remove-orphans'),
     json: argv.includes('--json'),
   };
+}
+
+function collectManagedOrphans(repoRoot, config) {
+  const root = resolveContainerPath(config, repoRoot, 'worktrees');
+  const registered = new Set(listWorktrees(repoRoot).map((entry) => path.resolve(entry.path)));
+  const sessions = new Set(readSessions(config, repoRoot).map((session) => session.worktree && path.resolve(session.worktree)));
+  if (!fs.existsSync(root)) return { root, orphans: [], untrusted: [] };
+  const orphans = []; const untrusted = [];
+  for (const name of fs.readdirSync(root)) {
+    const candidate = path.join(root, name);
+    if (!fs.lstatSync(candidate).isDirectory() || registered.has(path.resolve(candidate))) continue;
+    const markerPath = path.join(candidate, MANAGED_MARKER);
+    if (!fs.existsSync(markerPath)) { untrusted.push(candidate); continue; }
+    try {
+      const marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+      if (marker.mainRoot === path.resolve(repoRoot) && !sessions.has(path.resolve(candidate))) orphans.push(candidate);
+      else untrusted.push(candidate);
+    } catch { untrusted.push(candidate); }
+  }
+  return { root, orphans, untrusted };
 }
 
 function runGit(repoRoot, args, allowFailure = false) {
@@ -94,7 +120,8 @@ function main() {
   const baseRef = `origin/${config.baseBranch || 'main'}`;
   const entries = collectBranches(mainRoot, baseRef);
   const summary = summarize(entries);
-  const result = { baseRef, summary, entries, removed: [], deferred: [] };
+  const orphanAudit = collectManagedOrphans(mainRoot, config);
+  const result = { baseRef, summary, entries, removed: [], deferred: [], managedOrphans: orphanAudit.orphans, untrustedDirectories: orphanAudit.untrusted };
 
   if (options.apply) {
     for (const entry of entries) {
@@ -102,6 +129,9 @@ function main() {
       if (action === 'removed') result.removed.push(entry.branch);
       if (action === 'needs-worktree-removal') result.deferred.push(entry.branch);
     }
+  }
+  if (options.apply && options.removeOrphans) {
+    for (const orphan of orphanAudit.orphans) safeRemoveTreeNoFollow(orphan, { allowedRoot: orphanAudit.root });
   }
 
   if (options.json) {
@@ -121,4 +151,4 @@ if (require.main === module) {
   try { main(); } catch (error) { console.error(`STATUS=BLOCKED\nREASON=${error.message}`); process.exit(1); }
 }
 
-module.exports = { classifyBranch, parseArgs, summarize };
+module.exports = { classifyBranch, parseArgs, summarize, collectManagedOrphans };

@@ -10,10 +10,106 @@ const { spawnSync } = require('child_process');
 const {
   createOrResumeWorktree,
   isPathInside,
+  materializeReusablePaths,
   removeWorktreeSafely,
   safeRemoveTreeNoFollow,
   setupSharedLinks,
+  writeManagedMarker,
+  MANAGED_MARKER,
 } = require('../worktree-core');
+
+test('managed worktree marker records ownership and stays excluded from Git status', (t) => {
+  const tempRoot = fs.realpathSync(os.tmpdir());
+  const container = fs.mkdtempSync(path.join(tempRoot, 'worktree-managed-marker-'));
+  const mainRoot = path.join(container, 'repo');
+  const worktreePath = path.join(container, 'worktree');
+  fs.mkdirSync(path.join(mainRoot, '.git', 'info'), { recursive: true });
+  fs.mkdirSync(worktreePath, { recursive: true });
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: tempRoot }));
+
+  writeManagedMarker(mainRoot, worktreePath, 'fix/managed-marker');
+
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(worktreePath, MANAGED_MARKER), 'utf8')), {
+    version: 1,
+    mainRoot: path.resolve(mainRoot),
+    branch: 'fix/managed-marker',
+  });
+  assert.match(fs.readFileSync(path.join(mainRoot, '.git', 'info', 'exclude'), 'utf8'), /\/.agent-worktree\.json/);
+});
+
+test('reusable generated resources are copied from main without creating links', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-runtime-'));
+  const mainRoot = path.join(root, 'repo');
+  const worktreePath = path.join(root, 'worktree');
+  const relativePath = 'apps/desktop/resources/kb-model-runtime';
+  fs.mkdirSync(path.join(mainRoot, relativePath), { recursive: true });
+  fs.mkdirSync(worktreePath, { recursive: true });
+  fs.writeFileSync(path.join(mainRoot, relativePath, 'runtime.js'), 'ready\n');
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+
+  const result = materializeReusablePaths({
+    mainRoot,
+    worktreePath,
+    entries: [relativePath],
+  });
+
+  const copied = path.join(worktreePath, relativePath, 'runtime.js');
+  assert.deepEqual(result.reusedPaths, [relativePath]);
+  assert.equal(fs.readFileSync(copied, 'utf8'), 'ready\n');
+  assert.equal(fs.lstatSync(path.dirname(copied)).isSymbolicLink(), false);
+});
+
+test('reusable generated resources dereference links that stay inside main', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-link-'));
+  const mainRoot = path.join(root, 'repo');
+  const worktreePath = path.join(root, 'worktree');
+  const relativePath = 'generated/runtime';
+  const packageStore = path.join(mainRoot, relativePath, '.store', 'runtime-package');
+  const packageLink = path.join(mainRoot, relativePath, 'node_modules', 'runtime-package');
+  fs.mkdirSync(packageStore, { recursive: true });
+  fs.mkdirSync(path.dirname(packageLink), { recursive: true });
+  fs.mkdirSync(worktreePath, { recursive: true });
+  fs.writeFileSync(path.join(packageStore, 'index.js'), 'runtime\n');
+  fs.symlinkSync(packageStore, packageLink, process.platform === 'win32' ? 'junction' : 'dir');
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+
+  const result = materializeReusablePaths({ mainRoot, worktreePath, entries: [relativePath] });
+  const copiedPackage = path.join(worktreePath, relativePath, 'node_modules', 'runtime-package');
+
+  assert.deepEqual(result.reusedPaths, [relativePath]);
+  assert.equal(fs.readFileSync(path.join(copiedPackage, 'index.js'), 'utf8'), 'runtime\n');
+  assert.equal(fs.lstatSync(copiedPackage).isSymbolicLink(), false);
+});
+
+test('reusable generated resources reject links that escape main', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-escape-'));
+  const mainRoot = path.join(root, 'repo');
+  const worktreePath = path.join(root, 'worktree');
+  const outside = path.join(root, 'outside');
+  const relativePath = 'generated/runtime';
+  const sourcePath = path.join(mainRoot, relativePath);
+  fs.mkdirSync(sourcePath, { recursive: true });
+  fs.mkdirSync(worktreePath, { recursive: true });
+  fs.mkdirSync(outside, { recursive: true });
+  fs.symlinkSync(outside, path.join(sourcePath, 'outside'), process.platform === 'win32' ? 'junction' : 'dir');
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+
+  assert.throws(
+    () => materializeReusablePaths({ mainRoot, worktreePath, entries: [relativePath] }),
+    /link escapes the main repo/i,
+  );
+});
+
+test('reusable generated resources reject dependency and escaping paths', () => {
+  assert.throws(
+    () => materializeReusablePaths({ mainRoot: 'C:/repo', worktreePath: 'C:/worktree', entries: ['node_modules'] }),
+    /forbidden.*node_modules/i,
+  );
+  assert.throws(
+    () => materializeReusablePaths({ mainRoot: 'C:/repo', worktreePath: 'C:/worktree', entries: ['../outside'] }),
+    /relative.*inside/i,
+  );
+});
 
 function runGit(cwd, args) {
   const result = spawnSync('git', args, {
@@ -249,5 +345,29 @@ test('invalid shared-link config is rejected before Git or filesystem mutation',
   assert.doesNotMatch(runGit(repo, ['worktree', 'list', '--porcelain']), /reject-dangerous-shared-links/u);
   assert.equal(runGit(repo, ['branch', '--list', 'fix/reject-dangerous-shared-links']), '');
   assert.equal(fs.existsSync(path.join(container, 'worktrees')), false);
+  assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
+});
+
+test('skip-fetch creates a worktree without contacting origin', () => {
+  const repo = initRepo();
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-core-remote-'));
+  runGit(remote, ['init', '--bare']);
+  runGit(repo, ['remote', 'add', 'origin', remote]);
+  runGit(repo, ['push', '-u', 'origin', 'main']);
+  fs.rmSync(path.join(repo, '.git', 'FETCH_HEAD'), { force: true });
+
+  const result = createOrResumeWorktree({
+    cwd: repo,
+    cli: {
+      'skip-fetch': true,
+      phase: 'tdd',
+      kind: 'fix',
+      desc: 'local fast path',
+    },
+  });
+
+  assert.equal(result.fetchSkipped, true);
+  assert.equal(result.branch, 'fix/local-fast-path');
+  assert.equal(fs.existsSync(result.worktreePath), true);
   assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
 });
