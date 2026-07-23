@@ -31,6 +31,7 @@
     "tdd:push": "node infra/scripts/tdd-tools/tdd-push.js",
     "tdd:review-gate": "node infra/scripts/tdd-tools/tdd-review-gate.js",
     "tdd:completion-guard": "node infra/scripts/tdd-tools/tdd-completion-guard.js",
+    "tdd:reconcile": "node infra/scripts/tdd-tools/branch-reconcile.js",
     "tdd:finish": "node infra/scripts/tdd-tools/tdd-finish.js",
     "tdd:resume": "node infra/scripts/tdd-tools/tdd-resume.js",
     "tdd:new-worktree": "node infra/scripts/tdd-tools/tdd-new-worktree.js",

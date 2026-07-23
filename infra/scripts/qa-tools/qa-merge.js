@@ -1526,6 +1526,9 @@ async function main() {
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     cleanupWorktree(currentBranch, mainRepoRoot);
+    // A session may also exist for a legacy non-worktree branch; cleanup is a
+    // completion invariant, not merely a worktree side effect.
+    removeSession(config, mainRepoRoot, currentBranch);
 
     // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
     if (isInWorktree) {
@@ -1535,9 +1538,16 @@ async function main() {
     // Step 14: 清理本地 feature 分支（两种策略都需要）
     const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
     if (branchDeleteResult.reason === 'failed') {
-      console.log(
-        `\x1b[33m  本地分支 ${currentBranch} 删除失败（可手动执行）: ${branchDeleteResult.error}\x1b[0m`
-      );
+      throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
+    }
+    if (localBranchExists(currentBranch, mainWorkspacePath)) {
+      throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    }
+    if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
+      throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    }
+    if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
+      throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);

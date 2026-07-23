@@ -3,7 +3,8 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 const { writeInProgressFields } = require('./agent-state-utils');
-const { resolveRepoRoot } = require('../shared/config');
+const { getMainRepoRoot, writeSession } = require('../worktree-tools/worktree-core');
+const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
@@ -415,6 +416,17 @@ function main() {
       } catch {
         // 写入失败不阻断流程
       }
+      const mainRoot = getMainRepoRoot(repoRoot);
+      const config = loadConfig({ repoRoot: mainRoot });
+      writeSession(config, mainRoot, {
+        phase: 'tdd',
+        branch,
+        worktree: repoRoot,
+        status: 'in_progress',
+        step: 'pushed',
+        pr: `#${currentPr.number}`,
+        head: runGit(['rev-parse', 'HEAD'], { capture: true }).trim(),
+      });
     }
 
     console.log(`\u001b[32m/tdd push 完成：代码已推送到远端。\u001b[0m`);
