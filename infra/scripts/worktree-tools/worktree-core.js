@@ -332,6 +332,17 @@ function reclaimMergedManagedWorktrees(options = {}) {
     || resolveContainerPath(config, mainRoot, 'worktrees');
   const baseRef = options.baseRef || getBaseRef(mainRoot, config);
   const result = { removed: [], retained: [] };
+  // A linked worktree starts at baseRef, so Git alone reports a freshly
+  // created, still-active worktree as "merged" until its first commit.  In
+  // concurrent task creation that made one task reclaim another before the
+  // latter had a chance to do any work.  A durable in-progress session is the
+  // explicit ownership signal; completion flows remove that session before
+  // this best-effort reclaimer is allowed to delete the worktree.
+  const activeSessions = new Set(
+    readSessions(config, mainRoot)
+      .filter((session) => session && session.status === 'in_progress' && session.branch)
+      .map((session) => session.branch)
+  );
 
   const listing = spawnSync('git', ['worktree', 'list', '--porcelain'], {
     cwd: mainRoot,
@@ -345,6 +356,10 @@ function reclaimMergedManagedWorktrees(options = {}) {
 
   for (const entry of parseWorktreePorcelain(listing.stdout || '')) {
     if (!entry.path || !entry.branch || !isPathInside(worktreesRoot, entry.path)) continue;
+    if (activeSessions.has(entry.branch)) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'active-session' });
+      continue;
+    }
     if (entry.locked) {
       result.retained.push({ branch: entry.branch, path: entry.path, reason: 'locked' });
       continue;
