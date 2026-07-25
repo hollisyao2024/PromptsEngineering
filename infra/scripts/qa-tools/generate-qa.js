@@ -242,6 +242,17 @@ function parsePRD(content) {
   return { stories, domains: Array.from(domainSet) };
 }
 
+function isTemplateRepository(root = process.cwd()) {
+  const manifestPath = path.join(root, 'infra', 'templates', 'agent', 'template.manifest.json');
+  const packagePath = path.join(root, 'package.json');
+  if (!fs.existsSync(manifestPath) || !fs.existsSync(packagePath)) return false;
+  try {
+    return JSON.parse(fs.readFileSync(packagePath, 'utf8')).name === 'prompts-engineering-agents-router';
+  } catch {
+    return false;
+  }
+}
+
 function parseARCH(content) {
   if (!content) return { components: [], isMicroservice: false };
 
@@ -703,6 +714,11 @@ function main() {
   log('QA 文档自动生成工具 v1.2.0', 'cyan');
   log('='.repeat(60), 'cyan');
 
+  if (isTemplateRepository()) {
+    log('模板源仓库：跳过业务 PRD/QA 计划门禁。', 'yellow');
+    process.exit(0);
+  }
+
   log('📖 读取输入文件...', 'cyan');
   const prdContent = readFile(CONFIG.paths.prd);
   const archContent = readFile(CONFIG.paths.arch);
@@ -809,6 +825,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isTemplateRepository,
   parseCliArgs,
   parseModuleList,
   parsePRD,
