@@ -101,7 +101,14 @@ function createWindowsCmdInvocation(bin, args, options = {}, platform = process.
       options: { ...commandOptions, shell: true, windowsHide: true },
     };
   }
-  return { bin, args, options: commandOptions };
+  // Native executables (for example cargo.exe in the Windows GNU Tauri
+  // runner) create a console unless this flag is also propagated.  The .cmd
+  // branch above already hides its shell, but it does not cover cargo.exe.
+  return {
+    bin,
+    args,
+    options: platform === 'win32' ? { ...commandOptions, windowsHide: true } : commandOptions,
+  };
 }
 
 function createCmdCommandLine(bin, args = []) {

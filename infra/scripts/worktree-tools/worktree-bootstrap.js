@@ -27,6 +27,9 @@ function main() {
     console.log(`BOOTSTRAP_STATUS=${bootstrap.status}`);
     if (bootstrap.mode) console.log(`BOOTSTRAP_MODE=${bootstrap.mode}`);
     if (bootstrap.reason) console.log(`BOOTSTRAP_REASON=${bootstrap.reason}`);
+    if (bootstrap.reusedPaths && bootstrap.reusedPaths.length > 0) {
+      console.log(`REUSED_PATHS=${bootstrap.reusedPaths.join(',')}`);
+    }
     if (bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${bootstrap.nextManualAction}`);
   } catch (error) {
     console.error('STATUS=BLOCKED');

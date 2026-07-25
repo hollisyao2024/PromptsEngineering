@@ -1568,7 +1568,7 @@ async function main() {
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
     if (cleanupResult.deferred) {
-      console.log('\\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\\x1b[0m');
+      console.log('\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\x1b[0m');
       return;
     }
     // A session may also exist for a legacy non-worktree branch; cleanup is a
