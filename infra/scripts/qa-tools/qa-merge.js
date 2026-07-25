@@ -35,6 +35,7 @@ const {
   safeRemoveTreeNoFollow,
 } = require('../worktree-tools/worktree-core');
 const defectBlockerCheckers = require('./check-defect-blockers');
+const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
@@ -837,6 +838,18 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
 
   const cwdBefore = process.cwd();
   const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
+  if (wasInsideTarget) {
+    const worker = path.resolve(__dirname, '../worktree-tools/deferred-worktree-cleanup.js');
+    const child = spawn(process.execPath, [worker, mainRepoRoot, featureBranch, entry.path], {
+      cwd: mainRepoRoot, detached: true, windowsHide: true, stdio: 'ignore',
+    });
+    child.unref();
+    console.log(`\x1b[33m  当前 worktree 已合并，已安排后台安全清理: ${entry.path}\x1b[0m`);
+    return { removed: false, deferred: true, path: entry.path };
+  }
+  // Never attempt to remove the current worktree from a process whose cwd is
+  // still inside it. This also makes the failure mode explicit for callers
+  // that invoke /qa merge from a linked worktree on Windows.
   const config = loadConfig({ repoRoot: mainRepoRoot });
   const worktreesRoot = resolveContainerPath(config, mainRepoRoot, 'worktrees');
 
@@ -880,6 +893,17 @@ function hasManagedGitMarker(candidate, mainRepoRoot) {
     ? path.resolve(match[1].trim())
     : path.resolve(candidate, match[1].trim());
   return isPathInside(path.join(mainRepoRoot, '.git', 'worktrees'), gitDir);
+}
+
+function isEmptyRealDirectory(candidate) {
+  let stat;
+  try {
+    stat = fs.lstatSync(candidate);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+  return stat.isDirectory() && !stat.isSymbolicLink() && fs.readdirSync(candidate).length === 0;
 }
 
 function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
@@ -954,7 +978,13 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
       skipped.push({ path: candidate, reason: 'provenance-check-failed', error: error.message });
       continue;
     }
-    if (!hasGitMarker) {
+    // On Windows, a shell whose current directory is the worktree can make the
+    // final rmdir fail with EBUSY after the contents (including .git) were
+    // already removed. The session is durable provenance for that exact path;
+    // an empty, real directory therefore remains safe to reclaim on the next
+    // cleanup pass without broadening removal to unknown user directories.
+    const isSessionOwnedEmptyDirectory = hasSession && isEmptyRealDirectory(candidate);
+    if (!hasGitMarker && !isSessionOwnedEmptyDirectory) {
       skipped.push({
         path: candidate,
         reason: hasSession ? 'session-without-git-marker' : 'unmanaged',
@@ -1506,18 +1536,29 @@ async function main() {
 
     // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
+    let mainSyncError = null;
+    const syncMainAfterMerge = () => {
+      try {
+        syncLocalMain(mainWorkspacePath);
+      } catch (error) {
+        // Remote merge is already durable. Do not strand the linked worktree
+        // merely because a transient fetch/TLS error prevents local sync.
+        mainSyncError = error;
+        console.warn(`\x1b[33m主仓库同步延后：${error.message}\x1b[0m`);
+      }
+    };
     const ghMerged = await tryGhMerge(pr.number);
 
     if (ghMerged) {
       strategy = 'gh';
-      syncLocalMain(mainWorkspacePath);
+      syncMainAfterMerge();
     } else {
       // 防竞态：gh 可能超时但实际已完成合并
       const prState = await checkPrState(pr.number);
       if (prState === 'MERGED') {
         console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
         strategy = 'gh';
-        syncLocalMain(mainWorkspacePath);
+        syncMainAfterMerge();
       } else {
         strategy = 'local';
         await localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
@@ -1525,7 +1566,11 @@ async function main() {
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
-    cleanupWorktree(currentBranch, mainRepoRoot);
+    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
+    if (cleanupResult.deferred) {
+      console.log('\\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\\x1b[0m');
+      return;
+    }
     // A session may also exist for a legacy non-worktree branch; cleanup is a
     // completion invariant, not merely a worktree side effect.
     removeSession(config, mainRepoRoot, currentBranch);
@@ -1555,6 +1600,15 @@ async function main() {
     // 容器层 worktrees/ 此时是稳定状态，一次扫描足够。
     cleanupOrphanWorktreeDirs(mainRepoRoot);
     cleanupOrphanSessions(mainRepoRoot);
+    const containerCleanup = cleanupContainerStorage({ cwd: mainWorkspacePath, options: { apply: true } });
+    console.log(`  容器层清理：已移除 ${containerCleanup.remove.length} 个过期临时/发布产物`);
+
+    if (mainSyncError) {
+      throw new Error(
+        `PR 已合并且 worktree 已清理，但本地 main 同步失败：${mainSyncError.message}。` +
+        '请稍后在主仓库重试 github-auth-run git fetch --prune origin。'
+      );
+    }
 
     // Step 15: 可选版本递增 / CHANGELOG / AGENT_STATE / tag
     const releaseConfig = config.release || {};

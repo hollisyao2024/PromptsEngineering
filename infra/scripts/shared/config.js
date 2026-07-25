@@ -20,6 +20,11 @@ const DEFAULT_CONFIG = {
     cache: '../cache',
     artifacts: '../artifacts',
   },
+  containerRetention: {
+    tmpDays: 7,
+    privateReleaseKeep: 2,
+    prArtifactDays: 7,
+  },
   commands: {
     lint: 'pnpm run lint',
     typecheck: 'pnpm run type-check',

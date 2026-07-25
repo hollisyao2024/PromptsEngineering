@@ -129,6 +129,8 @@
 4. 执行 `/qa verify`（验收验证）
 5. 执行 `/qa merge`（合并 PR + 更新状态）
 
+`/qa merge` 成功清理 worktree 后，必须自动执行容器层保留策略：清除超过 `containerRetention.tmpDays` 的非运行态 `tmp` 条目、关闭 PR 的过期产物，并仅保留最新 `containerRetention.privateReleaseKeep` 组企业版发布产物。不得清理 `cache/`、`worktree-sessions/`、`agent-locks/`、运行中服务目录或 `private-edition/backups/`；手动巡检先执行 `pnpm container:cleanup`（dry-run），确认后才加 `--apply`。
+
 #### Final Completion Guard（强制）
 - 任何修改 tracked 文件的任务，在发送 final 响应前**必须执行** `node infra/scripts/tdd-tools/tdd-completion-guard.js`（已安全合并 alias 时可用 `pnpm run tdd:completion-guard`）。
 - 只有输出 `STATUS=OK` 才允许 final。若输出 `STATUS=BLOCKED`，必须继续执行其 `NEXT_COMMANDS`，或直接执行 `node infra/scripts/tdd-tools/tdd-finish.js`（已安全合并 alias 时可用 `pnpm run tdd:finish`），直到 guard 通过或脚本明确给出无法自动继续的阻塞原因。
