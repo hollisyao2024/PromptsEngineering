@@ -16,6 +16,7 @@ const {
   safeRemoveTreeNoFollow,
   setupSharedLinks,
   writeManagedMarker,
+  writeSession,
   MANAGED_MARKER,
 } = require('../worktree-core');
 const { retryWritable: retryRemoveOperation } = require('../worktree-safe-remove');
@@ -67,6 +68,52 @@ test('reclaims only a clean, merged worktree owned by this repository', (t) => {
   assert.deepEqual(result.removed.map((item) => item.branch), ['fix/merged-cleanup']);
   assert.equal(fs.existsSync(worktreePath), false);
   assert.equal(runGit(repo, ['branch', '--list', 'fix/merged-cleanup']), '');
+});
+
+test('retains a freshly created worktree while its session is in progress', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-active-session-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const worktreePath = path.join(worktreesRoot, 'active');
+  const config = {
+    baseBranch: 'main',
+    worktree: { sessionDir: path.join(container, 'sessions') },
+  };
+  fs.mkdirSync(repo, { recursive: true });
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
+  runGit(repo, ['add', 'README.md']);
+  runGit(repo, ['commit', '-m', 'init']);
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  runGit(repo, ['worktree', 'add', '-b', 'fix/active-session', worktreePath]);
+  writeManagedMarker(repo, worktreePath, 'fix/active-session');
+  writeSession(config, repo, {
+    phase: 'tdd',
+    branch: 'fix/active-session',
+    worktree: worktreePath,
+    status: 'in_progress',
+    step: 'created',
+  });
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+  });
+
+  const result = reclaimMergedManagedWorktrees({
+    mainRoot: repo,
+    config,
+    worktreesRoot,
+    baseRef: 'main',
+  });
+
+  assert.deepEqual(result.removed, []);
+  assert.equal(fs.existsSync(worktreePath), true);
+  assert.equal(result.retained.length, 1);
+  assert.equal(result.retained[0].branch, 'fix/active-session');
+  assert.equal(result.retained[0].reason, 'active-session');
+  assert.equal(path.resolve(result.retained[0].path), path.resolve(worktreePath));
 });
 
 test('retains a dirty owned worktree even when its branch is merged', (t) => {

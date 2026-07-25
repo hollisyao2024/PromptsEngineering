@@ -234,6 +234,7 @@ Codex CLI 默认不执行自动 code review：
 - `/worktree bootstrap`：执行 `node infra/scripts/worktree-tools/worktree-bootstrap.js`，按 `agent.config.json worktree.bootstrap` 为当前 worktree 独立补齐依赖；默认模板不假设语言栈，项目可配置 pnpm/uv/go/cargo/maven 等命令。不得为节省安装时间而链接主仓库或其他 worktree 的 `node_modules`；pnpm 等包管理器应通过自身全局 store 安全复用包内容。
 - `/worktree list`：**首先执行** `node infra/scripts/worktree-tools/worktree-list.js` **脚本**，列出当前所有活跃 worktree；已安全合并 aliases 时可用 `pnpm run worktree:list`。
 - `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
+- `/worktree cancel <branch>`：仅在用户明确取消任务后执行 `node infra/scripts/worktree-tools/worktree-cancel.js --branch <branch> --force`；该入口会丢弃未提交改动、删除已注册 worktree、本地分支与会话，避免取消任务遗留目录。没有 `--force` 时必须阻断。
 - `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。
 - `/tdd new-branch`：默认阻断并提示使用 worktree；仅当用户明确要求单槽轻量模式时，执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` 创建普通 branch。该模式不具备并行隔离能力，不合并到目标项目 package aliases；自动化与外部 agent 默认必须使用 worktree。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容入口，内部调用 `worktree:*` 公共脚本。
