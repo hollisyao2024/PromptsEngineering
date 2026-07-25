@@ -305,6 +305,95 @@ function removeSession(config, mainRoot, branch) {
   if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
 }
 
+function hasOwnedWorktreeMarker(mainRoot, worktreePath, branch) {
+  try {
+    const marker = JSON.parse(fs.readFileSync(path.join(worktreePath, MANAGED_MARKER), 'utf8'));
+    return marker
+      && marker.version === 1
+      && marker.branch === branch
+      && typeof marker.mainRoot === 'string'
+      && isSamePath(marker.mainRoot, mainRoot);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reclaim only worktrees that are provably complete: they must be owned by this
+ * repository, clean, and already reachable from the configured base branch.
+ *
+ * This is deliberately best-effort. A failed proof or cleanup is reported and
+ * retained rather than blocking a new task or deleting potentially useful work.
+ */
+function reclaimMergedManagedWorktrees(options = {}) {
+  const mainRoot = options.mainRoot || getMainRepoRoot(process.cwd());
+  const config = options.config || loadConfig({ repoRoot: mainRoot });
+  const worktreesRoot = options.worktreesRoot
+    || resolveContainerPath(config, mainRoot, 'worktrees');
+  const baseRef = options.baseRef || getBaseRef(mainRoot, config);
+  const result = { removed: [], retained: [] };
+
+  const listing = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (listing.error || listing.status !== 0) {
+    result.retained.push({ reason: 'worktree-list-failed' });
+    return result;
+  }
+
+  for (const entry of parseWorktreePorcelain(listing.stdout || '')) {
+    if (!entry.path || !entry.branch || !isPathInside(worktreesRoot, entry.path)) continue;
+    if (entry.locked) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'locked' });
+      continue;
+    }
+    if (!hasOwnedWorktreeMarker(mainRoot, entry.path, entry.branch)) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'unmanaged' });
+      continue;
+    }
+    if (isSamePath(process.cwd(), entry.path) || isPathInside(entry.path, process.cwd())) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'current-working-directory' });
+      continue;
+    }
+
+    const merged = spawnSync('git', ['merge-base', '--is-ancestor', entry.branch, baseRef], {
+      cwd: mainRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (merged.error || merged.status !== 0) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'not-merged' });
+      continue;
+    }
+
+    try {
+      removeWorktreeSafely({
+        mainRoot,
+        worktreePath: entry.path,
+        worktreesRoot,
+        force: false,
+      });
+      removeSession(config, mainRoot, entry.branch);
+      const branchDelete = spawnSync('git', ['branch', '-D', entry.branch], {
+        cwd: mainRoot,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+      result.removed.push({
+        branch: entry.branch,
+        path: entry.path,
+        branchDeleted: branchDelete.status === 0,
+      });
+    } catch (error) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: error.message });
+    }
+  }
+
+  return result;
+}
+
 function hasExplicitBootstrapMode(cli = {}) {
   return Boolean(cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap);
 }
@@ -632,6 +721,7 @@ function createOrResumeWorktree(options = {}) {
     runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
   }
   baseRef = getBaseRef(mainRoot, config);
+  const reclaimed = reclaimMergedManagedWorktrees({ mainRoot, config, baseRef });
   ensureDir(worktreesDir);
 
   if (branchExists(mainRoot, branch)) {
@@ -667,7 +757,7 @@ function createOrResumeWorktree(options = {}) {
     linked,
     bootstrap,
   });
-  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, resumed: false, fetchSkipped };
+  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, reclaimed, resumed: false, fetchSkipped };
 }
 
 module.exports = {
@@ -688,6 +778,7 @@ module.exports = {
   listWorktrees,
   materializeReusablePaths,
   parseCliArgs,
+  reclaimMergedManagedWorktrees,
   parseWorktreePorcelain,
   readSessions,
   removeWorktreeSafely,

@@ -23,10 +23,19 @@ function main() {
     if (result.linked && result.linked.length > 0) {
       console.log(`LINKED=${result.linked.join(',')}`);
     }
+    if (result.fetchSkipped) {
+      console.log('FETCH_SKIPPED=true');
+    }
+    if (result.reclaimed && result.reclaimed.removed.length > 0) {
+      console.log(`RECLAIMED_MERGED_WORKTREES=${result.reclaimed.removed.map((item) => item.branch).join(',')}`);
+    }
     if (result.bootstrap) {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
       if (result.bootstrap.mode) console.log(`BOOTSTRAP_MODE=${result.bootstrap.mode}`);
       if (result.bootstrap.reason) console.log(`BOOTSTRAP_REASON=${result.bootstrap.reason}`);
+      if (result.bootstrap.reusedPaths && result.bootstrap.reusedPaths.length > 0) {
+        console.log(`REUSED_PATHS=${result.bootstrap.reusedPaths.join(',')}`);
+      }
       if (result.bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${result.bootstrap.nextManualAction}`);
     }
     console.log('');

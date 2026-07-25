@@ -1499,7 +1499,8 @@ async function main() {
     }
 
     // Step 9: 运行发布门禁检查
-    if (!args.skipChecks) {
+    const skipBusinessQaChecks = config.template && config.template.role === 'source';
+    if (!args.skipChecks && !skipBusinessQaChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
         throw new Error(
@@ -1509,7 +1510,8 @@ async function main() {
       }
       console.log('\x1b[32m发布门禁检查通过\x1b[0m');
     } else {
-      console.log('\x1b[33m跳过发布门禁检查 (--skip-checks)\x1b[0m');
+      const reason = skipBusinessQaChecks ? '模板源仓库跳过业务 QA 门禁' : '--skip-checks';
+      console.log(`\x1b[33m跳过发布门禁检查 (${reason})\x1b[0m`);
     }
 
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
@@ -1568,7 +1570,7 @@ async function main() {
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
     if (cleanupResult.deferred) {
-      console.log('\\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\\x1b[0m');
+      console.log('\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\x1b[0m');
       return;
     }
     // A session may also exist for a legacy non-worktree branch; cleanup is a

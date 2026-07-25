@@ -34,6 +34,16 @@ function lstatOrNull(targetPath) {
   }
 }
 
+function isRecoverablePartialWorktree(worktreePath) {
+  const rootStat = lstatOrNull(worktreePath);
+  if (!rootStat || rootStat.isSymbolicLink() || !rootStat.isDirectory()) return false;
+  // A failed Windows rmdir can leave a registered worktree whose no-follow
+  // cleanup already removed its .git pointer and every child. It is no longer a
+  // Git working tree, but an empty real directory is safe to reclaim.
+  if (lstatOrNull(path.join(worktreePath, '.git'))) return false;
+  return fs.readdirSync(worktreePath).length === 0;
+}
+
 function retryWritable(targetPath, action) {
   let permissionRetried = false;
   let nonEmptyRetries = 0;
@@ -79,6 +89,7 @@ function safeRemoveTreeNoFollow(rootPath, options = {}) {
     removedDirectories: 0,
     removedLinks: 0,
   };
+  const maxNonEmptyRescans = options.maxNonEmptyRescans ?? 5;
   const allowedRootStat = lstatOrNull(allowedRoot);
   if (!allowedRootStat || allowedRootStat.isSymbolicLink() || !allowedRootStat.isDirectory()) {
     throw new Error(`allowed container root must be an existing real directory, not a link: ${allowedRoot}`);
@@ -131,8 +142,25 @@ function safeRemoveTreeNoFollow(rootPath, options = {}) {
       fs.unlinkSync(item.targetPath);
       counts.removedLinks += 1;
     } else if (finalStat.isDirectory()) {
-      retryWritable(item.targetPath, () => fs.rmdirSync(item.targetPath));
-      counts.removedDirectories += 1;
+      try {
+        retryWritable(item.targetPath, () => fs.rmdirSync(item.targetPath));
+        counts.removedDirectories += 1;
+      } catch (error) {
+        // A package manager or Finder can add an entry after readdirSync() but
+        // before this final rmdirSync(). Re-run the same no-follow traversal so
+        // that late entry is inspected and removed instead of leaving a
+        // de-registered worktree directory behind.
+        const rescanCount = item.rescanCount || 0;
+        if (error && error.code === 'ENOTEMPTY' && rescanCount < maxNonEmptyRescans) {
+          stack.push({
+            targetPath: item.targetPath,
+            expanded: false,
+            rescanCount: rescanCount + 1,
+          });
+          continue;
+        }
+        throw error;
+      }
     } else {
       retryWritable(item.targetPath, () => fs.unlinkSync(item.targetPath));
       counts.removedFiles += 1;
@@ -239,7 +267,8 @@ function removeWorktreeSafely(options = {}) {
     throw new Error(`refusing to prune unrelated prunable worktree metadata: ${prunePreview.trim()}`);
   }
 
-  if (!force) {
+  const recoverablePartial = isRecoverablePartialWorktree(worktreePath);
+  if (!force && !recoverablePartial) {
     const status = runGitStrict(worktreePath, ['status', '--porcelain']);
     if (status.trim()) throw new Error(`worktree has uncommitted changes: ${worktreePath}`);
   }

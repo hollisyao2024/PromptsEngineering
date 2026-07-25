@@ -18,7 +18,8 @@ const {
   resolveExplicitModules,
   getQaPlanSessionStatePath,
 } = require('./generate-qa');
-const { resolveRepoRoot } = require('../shared/config');
+const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
@@ -441,15 +442,14 @@ function runProjectVerify(args) {
   let requiredFailed = false;
   for (const check of checks) {
     log(`\n▶ 运行 ${check.name}`, 'cyan');
-    const result = spawnSync('pnpm', ['run', check.name], {
+    const invocation = createPnpmRunInvocation(check.name, {
       cwd: repoRoot,
-      stdio: 'inherit',
-      encoding: 'utf8',
       env: {
         ...process.env,
         QA_WRITE_REPORTS: args.writeReports ? '1' : '0',
       },
     });
+    const result = spawnSync(invocation.bin, invocation.args, invocation.options);
     if (result.status === 0) {
       log(`✅ ${check.name} 通过`, 'green');
     } else {
@@ -465,6 +465,24 @@ function runProjectVerify(args) {
 
   log('\n发布建议: ✅ Go / ⚠️ Conditional（请结合覆盖率报告）', 'green');
   return 0;
+}
+
+function createPnpmRunInvocation(scriptName, options = {}) {
+  const platform = options.platform || process.platform;
+  const env = options.env || process.env;
+  const pnpmBin = options.pnpmBin || resolvePnpmBin(platform, env);
+  return createWindowsCmdInvocation(
+    pnpmBin,
+    ['run', scriptName],
+    {
+      cwd: options.cwd || repoRoot,
+      stdio: 'inherit',
+      encoding: 'utf8',
+      env,
+    },
+    platform,
+    env,
+  );
 }
 
 function runSessionVerify(args) {
@@ -501,6 +519,12 @@ function runSessionVerify(args) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  const config = loadConfig({ repoRoot });
+  if (config.template && config.template.role === 'source') {
+    log('ℹ️ 模板源仓库跳过业务 QA 验收门禁。', 'yellow');
+    process.exit(0);
+  }
+
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');
   log('============================================================', 'cyan');
@@ -530,6 +554,7 @@ if (require.main === module) {
 
 module.exports = {
   isTemplateRepository,
+  createPnpmRunInvocation,
   parseArgs,
   resolveTargetsFromQaPlanState,
   resolveSessionTargets,

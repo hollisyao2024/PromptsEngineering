@@ -53,6 +53,9 @@ function main() {
       console.log(`BOOTSTRAP_STATUS=${bootstrap.status}`);
       if (bootstrap.mode) console.log(`BOOTSTRAP_MODE=${bootstrap.mode}`);
       if (bootstrap.reason) console.log(`BOOTSTRAP_REASON=${bootstrap.reason}`);
+      if (bootstrap.reusedPaths && bootstrap.reusedPaths.length > 0) {
+        console.log(`REUSED_PATHS=${bootstrap.reusedPaths.join(',')}`);
+      }
       if (bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${bootstrap.nextManualAction}`);
       return;
     }
@@ -66,6 +69,9 @@ function main() {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
       if (result.bootstrap.mode) console.log(`BOOTSTRAP_MODE=${result.bootstrap.mode}`);
       if (result.bootstrap.reason) console.log(`BOOTSTRAP_REASON=${result.bootstrap.reason}`);
+      if (result.bootstrap.reusedPaths && result.bootstrap.reusedPaths.length > 0) {
+        console.log(`REUSED_PATHS=${result.bootstrap.reusedPaths.join(',')}`);
+      }
       if (result.bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${result.bootstrap.nextManualAction}`);
     }
   } catch (error) {

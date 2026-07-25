@@ -12,6 +12,7 @@ const {
   isPathInside,
   materializeReusablePaths,
   removeWorktreeSafely,
+  reclaimMergedManagedWorktrees,
   safeRemoveTreeNoFollow,
   setupSharedLinks,
   writeManagedMarker,
@@ -30,6 +31,88 @@ test('safe removal retries transient non-empty directories without weakening per
     }
   });
   assert.equal(attempts, 3);
+});
+
+test('reclaims only a clean, merged worktree owned by this repository', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reclaim-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const worktreePath = path.join(worktreesRoot, 'merged');
+  fs.mkdirSync(repo, { recursive: true });
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
+  runGit(repo, ['add', 'README.md']);
+  runGit(repo, ['commit', '-m', 'init']);
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  runGit(repo, ['worktree', 'add', '-b', 'fix/merged-cleanup', worktreePath]);
+  writeManagedMarker(repo, worktreePath, 'fix/merged-cleanup');
+  fs.writeFileSync(path.join(worktreePath, 'done.txt'), 'done\n');
+  runGit(worktreePath, ['add', 'done.txt']);
+  runGit(worktreePath, ['commit', '-m', 'done']);
+  runGit(repo, ['merge', '--ff-only', 'fix/merged-cleanup']);
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+  });
+
+  const result = reclaimMergedManagedWorktrees({
+    mainRoot: repo,
+    config: { baseBranch: 'main' },
+    worktreesRoot,
+    baseRef: 'main',
+  });
+
+  assert.deepEqual(result.removed.map((item) => item.branch), ['fix/merged-cleanup']);
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.equal(runGit(repo, ['branch', '--list', 'fix/merged-cleanup']), '');
+});
+
+test('retains a dirty owned worktree even when its branch is merged', (t) => {
+  const fixture = initLinkedWorktreeFixture();
+  writeManagedMarker(fixture.repo, fixture.worktreePath, 'fix/junction-case');
+  fs.writeFileSync(path.join(fixture.worktreePath, 'uncommitted.txt'), 'keep\n');
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    spawnSync('git', ['worktree', 'prune', '--expire', 'now'], { cwd: fixture.repo, stdio: 'pipe' });
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+  });
+
+  const result = reclaimMergedManagedWorktrees({
+    mainRoot: fixture.repo,
+    config: { baseBranch: 'main' },
+    worktreesRoot: fixture.worktreesRoot,
+    baseRef: 'main',
+  });
+
+  assert.deepEqual(result.removed, []);
+  assert.equal(fs.existsSync(fixture.worktreePath), true);
+  assert.match(result.retained[0].reason, /uncommitted changes/i);
+});
+
+test('safe removal rescans a directory when a late file makes the final rmdir non-empty', (t) => {
+  const tempRoot = fs.realpathSync(os.tmpdir());
+  const root = fs.mkdtempSync(path.join(tempRoot, 'worktree-late-child-'));
+  const originalRmdirSync = fs.rmdirSync;
+  let injected = false;
+  t.after(() => {
+    fs.rmdirSync = originalRmdirSync;
+    if (fs.existsSync(root)) safeRemoveTreeNoFollow(root, { allowedRoot: tempRoot });
+  });
+
+  fs.rmdirSync = (targetPath, ...args) => {
+    if (!injected && path.resolve(targetPath) === path.resolve(root)) {
+      injected = true;
+      fs.writeFileSync(path.join(root, 'late-child.txt'), 'late write\n');
+    }
+    return originalRmdirSync(targetPath, ...args);
+  };
+
+  safeRemoveTreeNoFollow(root, { allowedRoot: tempRoot });
+
+  assert.equal(injected, true);
+  assert.equal(fs.existsSync(root), false);
 });
 
 test('managed worktree marker records ownership and stays excluded from Git status', (t) => {
@@ -223,6 +306,28 @@ test('safe worktree removal never follows an external node_modules junction', (t
   assert.equal(fs.readFileSync(path.join(fixture.externalTarget, 'sentinel.txt'), 'utf8'), 'DO NOT DELETE\n');
   assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /junction-case/);
   runGit(fixture.repo, ['branch', '-D', 'fix/junction-case']);
+});
+
+test('safe removal recovers an empty registered worktree after a Windows partial cleanup', (t) => {
+  const fixture = initLinkedWorktreeFixture();
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+  });
+
+  fs.rmSync(path.join(fixture.worktreePath, '.git'), { force: true });
+  fs.rmSync(path.join(fixture.worktreePath, '.gitignore'), { force: true });
+  fs.rmSync(path.join(fixture.worktreePath, 'README.md'), { force: true });
+
+  const result = removeWorktreeSafely({
+    mainRoot: fixture.repo,
+    worktreePath: fixture.worktreePath,
+    worktreesRoot: fixture.worktreesRoot,
+  });
+
+  assert.equal(result.removed, true);
+  assert.equal(fs.existsSync(fixture.worktreePath), false);
+  assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /junction-case/);
 });
 
 test('safe no-follow removal unlinks broken links without traversing their targets', (t) => {

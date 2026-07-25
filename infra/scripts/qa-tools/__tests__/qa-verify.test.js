@@ -6,9 +6,22 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { resolveTargetsFromQaPlanState, validateQaFile } = require('../qa-verify');
+const { createPnpmRunInvocation, resolveTargetsFromQaPlanState, validateQaFile } = require('../qa-verify');
 
 const repoRoot = path.resolve(__dirname, '../../../..');
+
+test('project verification invokes pnpm through hidden Node on Windows instead of relying on PATH', () => {
+  const invocation = createPnpmRunInvocation('qa:lint', {
+    platform: 'win32',
+    env: { Path: 'C:\\Windows\\System32' },
+    pnpmBin: 'C:\\tools\\pnpm.mjs',
+  });
+
+  assert.equal(invocation.bin, process.execPath);
+  assert.deepEqual(invocation.args, ['C:\\tools\\pnpm.mjs', 'run', 'qa:lint']);
+  assert.equal(invocation.options.windowsHide, true);
+  assert.equal(invocation.options.shell, undefined);
+});
 
 test('validateQaFile accepts module IDs that contain digits and multiple segments', (t) => {
   const moduleDir = `digit-id-fixture-${process.pid}`;
