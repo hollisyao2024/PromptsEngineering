@@ -13,6 +13,8 @@ const {
   materializeReusablePaths,
   removeWorktreeSafely,
   reclaimMergedManagedWorktrees,
+  reclaimRemoteMergedSessionWorktrees,
+  readSessions,
   safeRemoveTreeNoFollow,
   setupSharedLinks,
   writeManagedMarker,
@@ -114,6 +116,79 @@ test('retains a freshly created worktree while its session is in progress', (t) 
   assert.equal(result.retained[0].branch, 'fix/active-session');
   assert.equal(result.retained[0].reason, 'active-session');
   assert.equal(path.resolve(result.retained[0].path), path.resolve(worktreePath));
+});
+
+test('reclaims a clean pushed session only after its matching remote PR is proven merged', (t) => {
+  const realTmp = fs.realpathSync(os.tmpdir());
+  const container = fs.mkdtempSync(path.join(realTmp, 'worktree-remote-merged-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const worktreePath = path.join(worktreesRoot, 'remote-merged');
+  const config = { baseBranch: 'main', worktree: { sessionDir: path.join(container, 'sessions') } };
+  fs.mkdirSync(repo, { recursive: true });
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
+  runGit(repo, ['add', 'README.md']);
+  runGit(repo, ['commit', '-m', 'init']);
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  runGit(repo, ['worktree', 'add', '-b', 'fix/remote-merged', worktreePath]);
+  writeManagedMarker(repo, worktreePath, 'fix/remote-merged');
+  writeSession(config, repo, {
+    phase: 'tdd', branch: 'fix/remote-merged', worktree: worktreePath,
+    status: 'in_progress', step: 'pushed', pr: '#42',
+  });
+  t.after(() => {
+    process.chdir(realTmp);
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: realTmp });
+  });
+
+  const result = reclaimRemoteMergedSessionWorktrees({
+    mainRoot: repo, config, worktreesRoot,
+    queryPullRequest: (_root, pr) => pr === 42 ? { state: 'MERGED', headRefName: 'fix/remote-merged' } : null,
+  });
+
+  assert.deepEqual(result.removed.map((item) => item.branch), ['fix/remote-merged']);
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.equal(readSessions(config, repo).length, 0);
+});
+
+test('retains a pushed session when remote PR proof is absent or the worktree is dirty', (t) => {
+  const realTmp = fs.realpathSync(os.tmpdir());
+  const container = fs.mkdtempSync(path.join(realTmp, 'worktree-remote-dirty-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const worktreePath = path.join(worktreesRoot, 'remote-dirty');
+  const config = { baseBranch: 'main', worktree: { sessionDir: path.join(container, 'sessions') } };
+  fs.mkdirSync(repo, { recursive: true });
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
+  runGit(repo, ['add', 'README.md']);
+  runGit(repo, ['commit', '-m', 'init']);
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  runGit(repo, ['worktree', 'add', '-b', 'fix/remote-dirty', worktreePath]);
+  writeManagedMarker(repo, worktreePath, 'fix/remote-dirty');
+  writeSession(config, repo, {
+    phase: 'tdd', branch: 'fix/remote-dirty', worktree: worktreePath,
+    status: 'in_progress', step: 'pushed', pr: '7',
+  });
+  fs.writeFileSync(path.join(worktreePath, 'uncommitted.txt'), 'keep\n');
+  t.after(() => {
+    process.chdir(realTmp);
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: realTmp });
+  });
+
+  const result = reclaimRemoteMergedSessionWorktrees({
+    mainRoot: repo, config, worktreesRoot,
+    queryPullRequest: () => ({ state: 'MERGED', headRefName: 'fix/remote-dirty' }),
+  });
+
+  assert.deepEqual(result.removed, []);
+  assert.equal(fs.existsSync(worktreePath), true);
+  assert.equal(result.retained[0].reason, 'uncommitted-changes');
 });
 
 test('retains a dirty owned worktree even when its branch is merged', (t) => {

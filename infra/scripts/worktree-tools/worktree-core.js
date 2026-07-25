@@ -14,7 +14,7 @@ const {
   resolveContainerPath,
   resolveFromRepo,
 } = require('../shared/config');
-const { buildGitHubGitEnv } = require('../shared/github-auth');
+const { buildGitHubGitEnv, buildGitHubShellEnv } = require('../shared/github-auth');
 const {
   isPathInside,
   isSamePath,
@@ -409,6 +409,75 @@ function reclaimMergedManagedWorktrees(options = {}) {
   return result;
 }
 
+function queryMergedPullRequest(mainRoot, prNumber) {
+  const result = spawnSync('gh', ['pr', 'view', String(prNumber), '--json', 'state,headRefName'], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    env: buildGitHubShellEnv({ repoRoot: mainRoot, cwd: mainRoot, env: process.env }),
+  });
+  if (result.error || result.status !== 0) return null;
+  try {
+    return JSON.parse(result.stdout || '{}');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A PR may be merged directly in GitHub, bypassing the local /qa merge
+ * process that normally clears its session.  Only reclaim a worktree when the
+ * remote PR is provably merged, points at the same branch, and the owned
+ * worktree is clean.  Any failed proof deliberately leaves it untouched.
+ */
+function reclaimRemoteMergedSessionWorktrees(options = {}) {
+  const mainRoot = options.mainRoot || getMainRepoRoot(process.cwd());
+  const config = options.config || loadConfig({ repoRoot: mainRoot });
+  const worktreesRoot = options.worktreesRoot
+    || resolveContainerPath(config, mainRoot, 'worktrees');
+  const queryPullRequest = options.queryPullRequest || queryMergedPullRequest;
+  const result = { removed: [], retained: [] };
+  const byBranch = new Map(listWorktrees(mainRoot)
+    .filter((entry) => entry.branch && entry.path)
+    .map((entry) => [entry.branch, entry]));
+
+  for (const session of readSessions(config, mainRoot)) {
+    const prNumber = Number(String((session && session.pr) || '').replace(/^#/, ''));
+    if (!session || session.status !== 'in_progress' || session.step !== 'pushed' || !session.branch || !Number.isInteger(prNumber) || prNumber <= 0) continue;
+    const entry = byBranch.get(session.branch);
+    if (!entry || !isPathInside(worktreesRoot, entry.path)) {
+      result.retained.push({ branch: session.branch, reason: 'worktree-not-found' });
+      continue;
+    }
+    if (!hasOwnedWorktreeMarker(mainRoot, entry.path, session.branch)) {
+      result.retained.push({ branch: session.branch, path: entry.path, reason: 'unmanaged' });
+      continue;
+    }
+    if (isSamePath(process.cwd(), entry.path) || isPathInside(entry.path, process.cwd())) {
+      result.retained.push({ branch: session.branch, path: entry.path, reason: 'current-working-directory' });
+      continue;
+    }
+    if (hasUncommittedChanges(entry.path)) {
+      result.retained.push({ branch: session.branch, path: entry.path, reason: 'uncommitted-changes' });
+      continue;
+    }
+    const pullRequest = queryPullRequest(mainRoot, prNumber);
+    if (!pullRequest || pullRequest.state !== 'MERGED' || pullRequest.headRefName !== session.branch) {
+      result.retained.push({ branch: session.branch, path: entry.path, reason: 'remote-pr-not-proven-merged' });
+      continue;
+    }
+    try {
+      removeWorktreeSafely({ mainRoot, worktreePath: entry.path, worktreesRoot, force: true });
+      runGit(['branch', '-D', session.branch], { cwd: mainRoot });
+      removeSession(config, mainRoot, session.branch);
+      result.removed.push({ branch: session.branch, pr: prNumber, path: entry.path });
+    } catch (error) {
+      result.retained.push({ branch: session.branch, path: entry.path, reason: `cleanup-failed: ${error.message}` });
+    }
+  }
+  return result;
+}
+
 function hasExplicitBootstrapMode(cli = {}) {
   return Boolean(cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap);
 }
@@ -736,6 +805,9 @@ function createOrResumeWorktree(options = {}) {
     runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
   }
   baseRef = getBaseRef(mainRoot, config);
+  const remoteReclaimed = options.reconcileRemoteMergedSessions
+    ? reclaimRemoteMergedSessionWorktrees({ mainRoot, config })
+    : { removed: [], retained: [] };
   const reclaimed = reclaimMergedManagedWorktrees({ mainRoot, config, baseRef });
   ensureDir(worktreesDir);
 
@@ -772,7 +844,7 @@ function createOrResumeWorktree(options = {}) {
     linked,
     bootstrap,
   });
-  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, reclaimed, resumed: false, fetchSkipped };
+  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, reclaimed, remoteReclaimed, resumed: false, fetchSkipped };
 }
 
 module.exports = {
@@ -794,6 +866,7 @@ module.exports = {
   materializeReusablePaths,
   parseCliArgs,
   reclaimMergedManagedWorktrees,
+  reclaimRemoteMergedSessionWorktrees,
   parseWorktreePorcelain,
   readSessions,
   removeWorktreeSafely,
