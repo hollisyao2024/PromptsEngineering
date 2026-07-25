@@ -5,7 +5,7 @@ const { createOrResumeWorktree, parseCliArgs } = require('./worktree-core');
 function main() {
   try {
     const cli = parseCliArgs(process.argv.slice(2));
-    const result = createOrResumeWorktree({ cli });
+    const result = createOrResumeWorktree({ cli, reconcileRemoteMergedSessions: true });
 
     if (result.dryRun) {
       console.log('STATUS=DRY_RUN');
@@ -28,6 +28,9 @@ function main() {
     }
     if (result.reclaimed && result.reclaimed.removed.length > 0) {
       console.log(`RECLAIMED_MERGED_WORKTREES=${result.reclaimed.removed.map((item) => item.branch).join(',')}`);
+    }
+    if (result.remoteReclaimed && result.remoteReclaimed.removed.length > 0) {
+      console.log(`RECLAIMED_REMOTE_MERGED_WORKTREES=${result.remoteReclaimed.removed.map((item) => item.branch).join(',')}`);
     }
     if (result.bootstrap) {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
