@@ -34,11 +34,10 @@ const CONFIG = {
 };
 
 function isTemplateRepository(root = repoRoot) {
-  const manifestPath = path.join(root, 'infra', 'templates', 'agent', 'template.manifest.json');
-  const packagePath = path.join(root, 'package.json');
-  if (!fs.existsSync(manifestPath) || !fs.existsSync(packagePath)) return false;
+  const configPath = path.join(root, 'agent.config.json');
+  if (!fs.existsSync(configPath)) return false;
   try {
-    return JSON.parse(fs.readFileSync(packagePath, 'utf8')).name === 'prompts-engineering-agents-router';
+    return JSON.parse(fs.readFileSync(configPath, 'utf8')).template?.role === 'source';
   } catch {
     return false;
   }
