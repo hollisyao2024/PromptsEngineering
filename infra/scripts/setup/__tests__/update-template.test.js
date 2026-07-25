@@ -5,8 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const {
+  createBackfillBaseline,
   GH_TOKEN_ENV_BLOCK,
   ensureGhTokenEnvLocal,
 } = require('../update-template');
@@ -14,6 +16,28 @@ const {
 function mkTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `update-template-${prefix}-`));
 }
+
+function git(root, args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+test('createBackfillBaseline snapshots template updates without changing the caller index', () => {
+  const targetRoot = mkTmpDir('baseline');
+  git(targetRoot, ['init']);
+  git(targetRoot, ['config', 'user.name', 'Template Test']);
+  git(targetRoot, ['config', 'user.email', 'template-test@example.invalid']);
+  fs.writeFileSync(path.join(targetRoot, 'AGENTS.md'), 'before\n');
+  git(targetRoot, ['add', 'AGENTS.md']);
+  git(targetRoot, ['commit', '-m', 'initial']);
+
+  fs.writeFileSync(path.join(targetRoot, 'AGENTS.md'), 'after\n');
+  const result = createBackfillBaseline(targetRoot);
+
+  assert.equal(result.status, 'created');
+  assert.equal(git(targetRoot, ['show', 'refs/agent/backfill-baseline:AGENTS.md']), 'after');
+  assert.equal(git(targetRoot, ['diff', '--cached', '--name-only']), '');
+  assert.equal(git(targetRoot, ['diff', '--name-only']), 'AGENTS.md');
+});
 
 test('ensureGhTokenEnvLocal reports create in dry-run without writing', () => {
   const targetRoot = mkTmpDir('dry-create');

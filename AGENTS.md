@@ -180,7 +180,8 @@ Codex CLI 默认不执行自动 code review：
 ### 软触发与别名
 - **短命令**：`/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops`
 - **模板维护命令**：`/update template <target-path>` 必须首先执行 `node infra/scripts/setup/update-template.js <target-path>`；已安全合并 package aliases 时可用 `pnpm agent:update-template -- <target-path>`。目标路径支持相对当前 `repo/` 的相对路径；报告按目标项目主 `repo/` 解析，写入目标容器层 `../tmp/template-apply-reports/`。
-- **模板回灌命令**：`/backfill template <template-repo-path>` 必须首先执行 `node infra/scripts/setup/backfill-template.js <template-repo-path>`；已安全合并 package aliases 时可用 `pnpm agent:backfill-template -- <template-repo-path>`。该命令只把当前项目中 baseline 之后的 template-owned 改动回灌到模板源 worktree；模板源路径也可通过 `AGENT_TEMPLATE_SOURCE_REPO` 或 `agent.config.json template.sourceRepo` 提供。禁止回灌 `agent.config.json`、`.npmrc`、业务脚本、项目文档或 generated 文件。
+- **模板回灌命令**：`/backfill template <template-repo-path>` 必须首先执行 `node infra/scripts/setup/backfill-template.js <template-repo-path>`；已安全合并 package aliases 时可用 `pnpm agent:backfill-template -- <template-repo-path>`。`/update template` 成功写入 Git 项目后会自动创建或刷新该项目本地的 `refs/agent/backfill-baseline` 快照；回灌只处理该 baseline 之后的 template-owned 改动。模板源路径也可通过 `AGENT_TEMPLATE_SOURCE_REPO` 或 `agent.config.json template.sourceRepo` 提供。禁止回灌 `agent.config.json`、`.npmrc`、业务脚本、项目文档或 generated 文件。
+- **模板角色标记**：模板源仓库在项目自有的 `agent.config.json` 设置 `template.role: "source"`；实际项目不设置该值（或设为 `"project"`）。仅模板源仓库跳过业务 PRD/QA 文档门禁；更新和回灌的文件范围仍由 manifest 决定。
 - **中文自然语言**：如"你是 PRD 专家"激活 PRD、"进入架构阶段"激活 ARCH、"进入部署阶段"或"配置 CI"激活 DevOps，依此类推。
 - **停用/切换**：完成某阶段后仅勾选对应状态；若要进入下一阶段，请显式发 `/arch`、`/task` 等或 `[[ACTIVATE: ...]]`。
 - **优先级**：同条消息内若同时包含 `[[ACTIVATE: ...]]` 与别名，以 `[[ACTIVATE: ...]]` 为准；如出现多个角色，以最后一个为准；无明确触发则保持当前阶段。

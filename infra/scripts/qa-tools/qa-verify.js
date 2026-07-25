@@ -33,6 +33,16 @@ const CONFIG = {
   },
 };
 
+function isTemplateRepository(root = repoRoot) {
+  const configPath = path.join(root, 'agent.config.json');
+  if (!fs.existsSync(configPath)) return false;
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8')).template?.role === 'source';
+  } catch {
+    return false;
+  }
+}
+
 const colors = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
@@ -495,6 +505,11 @@ function main() {
   log('QA 验收检查工具 v1.1.0', 'cyan');
   log('============================================================', 'cyan');
 
+  if (isTemplateRepository()) {
+    log('模板源仓库：跳过业务 PRD/QA 验收门禁。', 'yellow');
+    process.exit(0);
+  }
+
   const exitCode = args.scope === 'project' ? runProjectVerify(args) : runSessionVerify(args);
   const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
   writeInProgressFields(agentStatePath, {
@@ -514,6 +529,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isTemplateRepository,
   parseArgs,
   resolveTargetsFromQaPlanState,
   resolveSessionTargets,
