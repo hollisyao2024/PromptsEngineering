@@ -1499,7 +1499,8 @@ async function main() {
     }
 
     // Step 9: 运行发布门禁检查
-    if (!args.skipChecks) {
+    const skipBusinessQaChecks = config.template && config.template.role === 'source';
+    if (!args.skipChecks && !skipBusinessQaChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
         throw new Error(
@@ -1509,7 +1510,8 @@ async function main() {
       }
       console.log('\x1b[32m发布门禁检查通过\x1b[0m');
     } else {
-      console.log('\x1b[33m跳过发布门禁检查 (--skip-checks)\x1b[0m');
+      const reason = skipBusinessQaChecks ? '模板源仓库跳过业务 QA 门禁' : '--skip-checks';
+      console.log(`\x1b[33m跳过发布门禁检查 (${reason})\x1b[0m`);
     }
 
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
