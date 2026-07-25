@@ -18,7 +18,7 @@ const {
   resolveExplicitModules,
   getQaPlanSessionStatePath,
 } = require('./generate-qa');
-const { resolveRepoRoot } = require('../shared/config');
+const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
@@ -518,6 +518,12 @@ function runSessionVerify(args) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  const config = loadConfig({ repoRoot });
+  if (config.template && config.template.role === 'source') {
+    log('ℹ️ 模板源仓库跳过业务 QA 验收门禁。', 'yellow');
+    process.exit(0);
+  }
 
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');

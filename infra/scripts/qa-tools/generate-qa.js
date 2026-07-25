@@ -709,6 +709,12 @@ function runProjectPlan(moduleEntries, dryRun) {
 function main() {
   const cli = parseCliArgs(process.argv.slice(2));
 
+  const config = loadConfig({ repoRoot: getWorktreeRoot() });
+  if (config.template && config.template.role === 'source') {
+    log('ℹ️ 模板源仓库跳过业务 QA 文档生成。', 'yellow');
+    return;
+  }
+
   log('='.repeat(60), 'cyan');
   log('QA 文档自动生成工具 v1.2.0', 'cyan');
   log('='.repeat(60), 'cyan');
