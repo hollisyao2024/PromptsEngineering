@@ -33,12 +33,36 @@ function clearMacOSAttributes(target, platform = process.platform) {
   spawnSync('xattr', ['-cr', target], { stdio: 'ignore' })
 }
 
+function removeTree(target, options = {}) {
+  const platform = options.platform || process.platform
+  if (platform !== 'win32') {
+    return (options.rm || rmSync)(target, REMOVE_OPTIONS)
+  }
+
+  const spawn = options.spawn || spawnSync
+  const exists = options.exists || pathExists
+  const result = spawn('cmd.exe', ['/d', '/c', 'rmdir', '/s', '/q', target], {
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0 && exists(target)) {
+    const error = new Error(`Windows rmdir failed with exit code ${result.status}: ${target}`)
+    error.code = 'EREMOVE'
+    throw error
+  }
+}
+
 function removeTreeWithRetries(target, options = {}) {
   if (!target || typeof target !== 'string') throw new TypeError('remove-tree target is required')
   const exists = options.exists || pathExists
   if (!exists(target)) return
 
-  const remove = options.remove || rmSync
+  const remove = options.remove || ((value) => removeTree(value, {
+    platform: options.platform,
+    exists,
+    spawn: options.spawn,
+  }))
   const sleep = options.sleep || sleepSync
   const clearAttributes = options.clearAttributes || ((value) => clearMacOSAttributes(value, options.platform))
   const maxAttempts = options.maxAttempts || 5
@@ -97,6 +121,7 @@ module.exports = {
   clearMacOSAttributes,
   parseCli,
   pathExists,
+  removeTree,
   removeTreeWithRetries,
   sleepSync,
 }

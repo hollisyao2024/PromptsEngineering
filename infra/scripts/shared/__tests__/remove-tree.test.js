@@ -2,9 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { removeTreeWithRetries } = require('../remove-tree.js')
+const { removeTree, removeTreeWithRetries } = require('../remove-tree.js')
 
 describe('removeTreeWithRetries', () => {
+  it('uses native rmdir for large Windows trees instead of Node recursive deletion', () => {
+    const calls = []
+    removeTree('C:\\runtime\\node_modules\\.pnpm', {
+      platform: 'win32',
+      exists: () => true,
+      spawn: (...args) => {
+        calls.push(args)
+        return { status: 0 }
+      },
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0][0]).toBe('cmd.exe')
+    expect(calls[0][1]).toEqual([
+      '/d',
+      '/c',
+      'rmdir',
+      '/s',
+      '/q',
+      'C:\\runtime\\node_modules\\.pnpm',
+    ])
+    expect(calls[0][2]).toMatchObject({ stdio: 'ignore', windowsHide: true })
+  })
+
   it('restarts a recursive removal after transient ENOTEMPTY failures', () => {
     const attempts = []
     removeTreeWithRetries('/tmp/large-pnpm-tree', {

@@ -29,6 +29,10 @@ const INCLUDE_DIR_PATTERNS = [
   /^packages\/[^/]+\/src\//,
 ];
 
+function normalizePathSeparators(filePath) {
+  return filePath.replace(/\\/g, '/');
+}
+
 // 过滤规则
 const SKIP_PATTERNS = [
   /node_modules/,
@@ -77,7 +81,7 @@ function collectFiles(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
-    const relPath = path.relative(ROOT, fullPath);
+    const relPath = normalizePathSeparators(path.relative(ROOT, fullPath));
 
     if (SKIP_PATTERNS.some((p) => p.test(relPath))) continue;
 
@@ -353,7 +357,7 @@ function generateMap(files) {
     if (!parsed) continue;
 
     indexedFileCount++;
-    const relPath = path.relative(ROOT, filePath);
+    const relPath = normalizePathSeparators(path.relative(ROOT, filePath));
     const section = sections.find(({ config }) => config.match(relPath));
     if (!section) continue;
 
@@ -452,6 +456,7 @@ module.exports = {
   SCAN_DIRS,
   EXTENSIONS,
   INCLUDE_DIR_PATTERNS,
+  normalizePathSeparators,
   parseArgs,
   collectFiles,
   getSessionFiles,

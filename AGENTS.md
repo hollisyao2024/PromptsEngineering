@@ -136,6 +136,16 @@
 - 只有输出 `STATUS=OK` 才允许 final。若输出 `STATUS=BLOCKED`，必须继续执行其 `NEXT_COMMANDS`，或直接执行 `node infra/scripts/tdd-tools/tdd-finish.js`（已安全合并 alias 时可用 `pnpm run tdd:finish`），直到 guard 通过或脚本明确给出无法自动继续的阻塞原因。
 - 禁止把“本地已修复 / 测试已通过 / PR 已创建”当作完成状态；完成状态必须是当前分支已推送、已合入主分支，且主分支工作区干净。
 
+#### Main Merge & Push Proof Gate（强制）
+
+- 除非用户明确要求“不要合并”或“仅创建 PR”，任何修改 tracked 文件的任务在 final 前必须完成 PR 合并、主分支同步与远端推送；不得因 worktree 内代码已提交、PR 已创建或测试已通过而提前宣告完成。
+- 验证必须在主 `repo/` worktree 执行，并且 GitHub 远端命令必须通过鉴权包装器：
+  1. `node infra/scripts/shared/github-auth-run.js -- git fetch origin main`
+  2. `git status --short --branch`（必须位于 `main`，且工作区无改动）
+  3. `git rev-parse HEAD` 与 `git rev-parse origin/main`（两者必须相同）
+  4. `node infra/scripts/tdd-tools/tdd-completion-guard.js`（必须输出 `STATUS=OK`）
+- 最终响应中必须逐项给出 `MAIN_COMMIT=<sha>`、`REMOTE_MAIN_COMMIT=<sha>`、`MERGE_STATUS=MERGED`、`PUSH_STATUS=SYNCED`。任一字段缺失，或任何验证不满足时，禁止使用“已完成”“已合并”“已推送”等完成式表述；必须报告阻塞步骤并继续执行脚本的 `NEXT_COMMANDS`。
+
 #### Post-Push Gate 两层机制
 
 1. **脚本层**（`node infra/scripts/tdd-tools/tdd-review-gate.js`；已安全合并 alias 时可用 `pnpm run tdd:review-gate`）：快速过滤零歧义 SKIP 场景（文档/测试/generated/rename/lockfile/注释等）；hotfix 分支直接输出 REQUIRED。输出三态：`skipped` / `required` / `pending-model-review`

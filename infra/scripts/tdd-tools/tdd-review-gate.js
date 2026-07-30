@@ -4,6 +4,7 @@ const { spawnSync } = require('child_process');
 const { resolveRepoRoot } = require('../shared/config');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
+const GIT_CAPTURE_MAX_BUFFER = 64 * 1024 * 1024;
 
 const GATE_RESULT = {
   SKIPPED:       'skipped',
@@ -27,6 +28,7 @@ function runGit(args, options = {}) {
     cwd: repoRoot,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
+    maxBuffer: options.capture ? GIT_CAPTURE_MAX_BUFFER : undefined,
   });
 
   if (result.error) {

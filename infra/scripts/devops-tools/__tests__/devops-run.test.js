@@ -9,6 +9,7 @@ const {
   collectPositionals,
   commandForAction,
   normalizeDevTarget,
+  resolveBashCommand,
   resolveRuntimeCommand,
 } = require('../devops-run');
 
@@ -57,6 +58,33 @@ test('materializes node-prefixed configured commands with the current runtime', 
   assert.equal(
     resolveRuntimeCommand('pnpm dev:restart', 'C:\\Program Files\\nodejs\\node.exe'),
     'pnpm dev:restart'
+  );
+});
+
+test('uses Git Bash for bash-prefixed commands on Windows', () => {
+  assert.equal(
+    resolveBashCommand('bash infra/scripts/server/deploy-api.sh production', {
+      platform: 'win32',
+      exists: (candidate) => candidate === 'C:\\Program Files\\Git\\bin\\bash.exe',
+    }),
+    '"C:\\Program Files\\Git\\bin\\bash.exe" infra/scripts/server/deploy-api.sh production'
+  );
+});
+
+test('keeps bash-prefixed commands unchanged on macOS', () => {
+  assert.equal(
+    resolveBashCommand('bash infra/scripts/server/deploy-api.sh production', { platform: 'darwin' }),
+    'bash infra/scripts/server/deploy-api.sh production'
+  );
+});
+
+test('reports no Windows Bash command when no compatible runtime is installed', () => {
+  assert.equal(
+    resolveBashCommand('bash infra/scripts/server/deploy-api.sh production', {
+      platform: 'win32',
+      exists: () => false,
+    }),
+    ''
   );
 });
 
