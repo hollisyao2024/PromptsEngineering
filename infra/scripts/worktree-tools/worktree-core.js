@@ -409,10 +409,6 @@ function reclaimMergedManagedWorktrees(options = {}) {
   return result;
 }
 
-function hasExplicitBootstrapMode(cli = {}) {
-  return Boolean(cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap);
-}
-
 function normalizeBootstrapMode(value, fallback = 'skip') {
   const mode = String(value || fallback).trim().toLowerCase();
   if (mode === 'auto' || mode === 'check' || mode === 'skip') return mode;
@@ -590,6 +586,7 @@ function runWorktreeBootstrap(options = {}) {
   const mode = bootstrapMode(config, cli, defaultMode);
   const command = settings.command || '';
   const checkCommand = settings.checkCommand || '';
+  const alwaysRun = settings.alwaysRun === true;
   const timeoutMs = Number(settings.timeoutMs || 600000);
   const lockName = settings.lockName || `${config.projectName || 'project'}-worktree-bootstrap`;
 
@@ -611,7 +608,7 @@ function runWorktreeBootstrap(options = {}) {
   }
 
   const check = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
-  if (check.configured && check.ok) {
+  if ((mode !== 'auto' || !alwaysRun) && check.configured && check.ok) {
     return { status: 'READY', mode, checkCommand, ...reuse };
   }
 
@@ -708,7 +705,6 @@ function createOrResumeWorktree(options = {}) {
       config,
       cli,
       mainRoot,
-      defaultMode: hasExplicitBootstrapMode(cli) ? '' : 'check',
     });
     writeSession(config, mainRoot, {
       phase: cli.phase || inferPhaseFromBranch(branch),

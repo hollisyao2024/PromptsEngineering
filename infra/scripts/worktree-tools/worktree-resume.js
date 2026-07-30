@@ -44,7 +44,6 @@ function main() {
         config,
         cli,
         mainRoot,
-        defaultMode: cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap ? '' : 'check',
       });
       console.log('STATUS=RESUMED');
       console.log(`BRANCH_NAME=${target}`);
