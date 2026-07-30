@@ -109,6 +109,22 @@ function resolveRuntimeCommand(command, runtime = process.execPath) {
   });
 }
 
+function resolveBashCommand(command, options = {}) {
+  const text = String(command || '');
+  if (!/^\s*bash(?=\s)/i.test(text) || (options.platform || process.platform) !== 'win32') return text;
+
+  const exists = options.exists || fs.existsSync;
+  const candidates = [
+    options.bashPath || process.env.BASH_PATH,
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+  ].filter(Boolean);
+  const bashPath = candidates.find((candidate) => exists(candidate));
+  if (!bashPath) return '';
+
+  return text.replace(/^(\s*)bash(?=\s)/i, (_, leading) => `${leading}${quoteShellArg(bashPath)}`);
+}
+
 function ensureRunDir(config, mainRoot) {
   const tmpDir = resolveContainerPath(config, mainRoot, 'tmp');
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`;
@@ -219,7 +235,7 @@ function main() {
     );
   }
 
-  const command = resolveRuntimeCommand(templateCommand(rawCommand, {
+  const runtimeCommand = resolveRuntimeCommand(templateCommand(rawCommand, {
     action,
     env,
     target: devTarget,
@@ -230,6 +246,14 @@ function main() {
     artifacts: resolveContainerPath(config, mainRoot, 'artifacts'),
     tmp: resolveContainerPath(config, mainRoot, 'tmp'),
   }));
+  const command = resolveBashCommand(runtimeCommand);
+  if (!command) {
+    block(
+      'Windows requires a Bash runtime for the configured deployment command',
+      'Install Git for Windows (Git Bash), or set BASH_PATH to a bash.exe path, then rerun the shortcut.',
+      { action, env, target: devTarget, run_dir: runDir }
+    );
+  }
 
   const result = {
     action,
@@ -296,5 +320,6 @@ module.exports = {
   commandForAction,
   normalizeDevTarget,
   readCommand,
+  resolveBashCommand,
   resolveRuntimeCommand,
 };
