@@ -13,6 +13,7 @@ const {
   materializeReusablePaths,
   removeWorktreeSafely,
   reclaimMergedManagedWorktrees,
+  runWorktreeBootstrap,
   safeRemoveTreeNoFollow,
   setupSharedLinks,
   writeManagedMarker,
@@ -536,4 +537,85 @@ test('skip-fetch creates a worktree without contacting origin', () => {
   assert.equal(result.branch, 'fix/local-fast-path');
   assert.equal(fs.existsSync(result.worktreePath), true);
   assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
+});
+
+test('auto bootstrap can always reconcile dependencies even when the readiness check passes', (t) => {
+  const repo = initRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n');
+  runGit(repo, ['add', '.gitignore']);
+  runGit(repo, ['commit', '-m', 'ignore dependencies']);
+  fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'node_modules', 'ready'), 'ready\n');
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: os.tmpdir() }));
+
+  const result = runWorktreeBootstrap({
+    worktreePath: repo,
+    mainRoot: repo,
+    config: {
+      projectName: 'bootstrap-test',
+      worktree: {
+        lockDir: path.join(repo, '.git', 'bootstrap-locks'),
+        bootstrap: {
+          mode: 'auto',
+          alwaysRun: true,
+          command: 'node -e "const fs=require(\'fs\');const p=\'node_modules/bootstrap-count\';const n=fs.existsSync(p)?Number(fs.readFileSync(p,\'utf8\')):0;fs.writeFileSync(p,String(n+1))"',
+          checkCommand: 'node -e "process.exit(require(\'fs\').existsSync(\'node_modules/ready\')?0:1)"',
+        },
+      },
+    },
+  });
+
+  assert.equal(result.status, 'READY');
+  assert.equal(fs.readFileSync(path.join(repo, 'node_modules', 'bootstrap-count'), 'utf8'), '1');
+});
+
+test('resuming an existing worktree honors configured auto bootstrap mode', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-auto-resume-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n');
+  fs.writeFileSync(
+    path.join(repo, 'bootstrap.js'),
+    "const fs=require('fs');fs.mkdirSync('node_modules',{recursive:true});const p='node_modules/count';const n=fs.existsSync(p)?Number(fs.readFileSync(p,'utf8')):0;fs.writeFileSync(p,String(n+1));fs.writeFileSync('node_modules/ready','ready');\n",
+  );
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees' },
+    worktree: {
+      envSymlinks: [],
+      sharedConfigSymlinks: [],
+      sessionDir: '../tmp/sessions',
+      lockDir: '../tmp/locks',
+      bootstrap: {
+        mode: 'auto',
+        alwaysRun: true,
+        command: 'node bootstrap.js',
+        checkCommand: 'node -e "process.exit(require(\'fs\').existsSync(\'node_modules/ready\')?0:1)"',
+      },
+    },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'configure bootstrap']);
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+  });
+
+  const cli = {
+    'skip-fetch': true,
+    phase: 'tdd',
+    kind: 'fix',
+    desc: 'resume dependencies',
+  };
+  const created = createOrResumeWorktree({ cwd: repo, cli });
+  const resumed = createOrResumeWorktree({ cwd: repo, cli });
+
+  assert.equal(created.resumed, false);
+  assert.equal(resumed.resumed, true);
+  assert.equal(created.bootstrap.mode, 'auto');
+  assert.equal(resumed.bootstrap.mode, 'auto');
+  assert.equal(fs.readFileSync(path.join(created.worktreePath, 'node_modules', 'count'), 'utf8'), '2');
 });

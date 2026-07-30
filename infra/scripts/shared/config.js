@@ -58,6 +58,7 @@ const DEFAULT_CONFIG = {
     lockDir: '../tmp/agent-locks',
     bootstrap: {
       mode: 'skip',
+      alwaysRun: false,
       command: '',
       checkCommand: '',
       lockName: 'worktree-bootstrap',
