@@ -25,9 +25,29 @@ function ensureAgentRunDir(config, mainRoot) {
   return dir;
 }
 
-function main() {
+function printHelp() {
+  console.log(`Usage:
+  node infra/scripts/agent-runner/agent-run.js --mode diagnose
+  node infra/scripts/agent-runner/agent-run.js --mode change --phase <phase> --desc <description>
+  node infra/scripts/agent-runner/agent-run.js --mode change --branch <branch>
+
+Change mode requires at least one of --branch, --task, or --desc.
+Use --mode diagnose for read-only work that must not create a worktree.
+
+Options:
+  --executor <name>     External executor name
+  --dry-run             Print the planned worktree without creating it
+  -h, --help            Show this help without changing Git or the filesystem`);
+}
+
+function main(argv = process.argv.slice(2)) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    printHelp();
+    return;
+  }
+
   try {
-    const cli = parseCliArgs(process.argv.slice(2));
+    const cli = parseCliArgs(argv);
     const mode = cli.mode || (cli.diagnose ? 'diagnose' : 'change');
     const mainRoot = getMainRepoRoot(process.cwd());
     const configRoot = getWorktreeRoot(process.cwd());

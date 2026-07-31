@@ -2,9 +2,32 @@
 
 const { createOrResumeWorktree, parseCliArgs } = require('./worktree-core');
 
-function main() {
+function printHelp() {
+  console.log(`Usage:
+  node infra/scripts/worktree-tools/worktree-new.js --phase <phase> --desc <description>
+  node infra/scripts/worktree-tools/worktree-new.js --phase tdd --task <TASK-ID> [--desc <description>]
+  node infra/scripts/worktree-tools/worktree-new.js --branch <branch>
+
+Required identity:
+  Supply at least one of --branch, --task, or --desc. --phase alone is rejected.
+
+Options:
+  --phase <phase>       Expert phase (prd, arch, task, tdd, qa, devops; default: tdd)
+  --kind fix            Create a fix/<description> branch
+  --dry-run             Print the planned branch and path without creating them
+  --skip-fetch          Do not contact origin before creation
+  --skip-bootstrap      Skip configured worktree dependency bootstrap
+  -h, --help            Show this help without changing Git or the filesystem`);
+}
+
+function main(argv = process.argv.slice(2)) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    printHelp();
+    return;
+  }
+
   try {
-    const cli = parseCliArgs(process.argv.slice(2));
+    const cli = parseCliArgs(argv);
     const result = createOrResumeWorktree({ cli, reconcileRemoteMergedSessions: true });
 
     if (result.dryRun) {

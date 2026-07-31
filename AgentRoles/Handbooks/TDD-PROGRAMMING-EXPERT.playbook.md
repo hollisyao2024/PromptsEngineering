@@ -202,7 +202,7 @@ flowchart TD
     D1 -->|否| END0[输出诊断结论]
     D1 -->|是| C["升级为修改型任务"]
     B -->|修改型任务| C
-    C --> W["/worktree new --phase=tdd"]
+    C --> W["/worktree new --phase=tdd --desc 任务主题（或 --task TASK-ID）"]
     W --> W2["进入 WORKTREE_PATH / NEXT_CWD"]
     W2 --> F[编码：TDD 循环]
     F --> G["/tdd sync 文档回写 Gate"]
