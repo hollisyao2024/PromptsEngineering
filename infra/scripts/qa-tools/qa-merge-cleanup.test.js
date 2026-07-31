@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('node:child_process');
 
 const {
   cleanupOrphanWorktreeDirs,
@@ -20,6 +21,42 @@ function makeContainer() {
   fs.mkdirSync(worktreesRoot, { recursive: true });
   return { container, mainRoot, worktreesRoot };
 }
+
+function runGit(cwd, args) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result.stdout.trim();
+}
+
+test('cleanup is synchronous even when qa merge runs inside the target worktree', (t) => {
+  const fixture = makeContainer();
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'README.md'), '# test\n');
+  runGit(fixture.mainRoot, ['add', 'README.md']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const linked = path.join(fixture.worktreesRoot, 'target');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'fix/synchronous-cleanup', linked]);
+  t.after(() => {
+    if (fs.existsSync(fixture.container)) {
+      safeRemoveTreeNoFollow(fixture.container, { allowedRoot: fs.realpathSync(os.tmpdir()) });
+    }
+  });
+  const modulePath = require.resolve('./qa-merge');
+  const child = spawnSync(process.execPath, [
+    '-e',
+    `const { cleanupWorktree } = require(${JSON.stringify(modulePath)});` +
+      `console.log(JSON.stringify(cleanupWorktree('fix/synchronous-cleanup', ${JSON.stringify(fixture.mainRoot)})));`,
+  ], { cwd: linked, encoding: 'utf8', stdio: 'pipe' });
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  const result = JSON.parse(child.stdout.trim().split(/\r?\n/u).at(-1));
+
+  assert.equal(result.removed, true);
+  assert.equal(result.deferred, undefined);
+  assert.equal(fs.existsSync(linked), false);
+  assert.doesNotMatch(fs.readFileSync(require.resolve('./qa-merge'), 'utf8'), /deferred-worktree-cleanup/u);
+});
 
 test('orphan cleanup fails closed when git worktree listing fails', (t) => {
   const fixture = makeContainer();

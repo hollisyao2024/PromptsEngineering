@@ -117,6 +117,109 @@ test('retains a freshly created worktree while its session is in progress', (t) 
   assert.equal(path.resolve(result.retained[0].path), path.resolve(worktreePath));
 });
 
+test('reclaims a clean pushed session after its patch is squash-merged', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-squash-reclaim-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const worktreePath = path.join(worktreesRoot, 'squash-merged');
+  const config = {
+    baseBranch: 'main',
+    worktree: { sessionDir: path.join(container, 'sessions') },
+  };
+  fs.mkdirSync(repo, { recursive: true });
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
+  runGit(repo, ['add', 'README.md']);
+  runGit(repo, ['commit', '-m', 'init']);
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  runGit(repo, ['worktree', 'add', '-b', 'fix/squash-merged', worktreePath]);
+  writeManagedMarker(repo, worktreePath, 'fix/squash-merged');
+  fs.writeFileSync(path.join(worktreePath, 'done.txt'), 'done\n');
+  runGit(worktreePath, ['add', 'done.txt']);
+  runGit(worktreePath, ['commit', '-m', 'done']);
+  writeSession(config, repo, {
+    phase: 'tdd',
+    branch: 'fix/squash-merged',
+    worktree: worktreePath,
+    status: 'in_progress',
+    step: 'pushed',
+  });
+  runGit(repo, ['merge', '--squash', 'fix/squash-merged']);
+  runGit(repo, ['commit', '-m', 'squash merge']);
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+  });
+
+  const result = reclaimMergedManagedWorktrees({
+    mainRoot: repo,
+    config,
+    worktreesRoot,
+    baseRef: 'main',
+  });
+
+  assert.deepEqual(result.removed.map((item) => item.branch), ['fix/squash-merged']);
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.equal(runGit(repo, ['branch', '--list', 'fix/squash-merged']), '');
+});
+
+test('merged PR proof reclaims only the exact pushed head and preserves later commits', (t) => {
+  const fixture = initLinkedWorktreeFixture();
+  const config = {
+    baseBranch: 'main',
+    worktree: { sessionDir: path.join(fixture.container, 'sessions') },
+  };
+  writeManagedMarker(fixture.repo, fixture.worktreePath, 'fix/junction-case');
+  fs.writeFileSync(path.join(fixture.worktreePath, 'unique.txt'), 'not merged\n');
+  runGit(fixture.worktreePath, ['add', 'unique.txt']);
+  runGit(fixture.worktreePath, ['commit', '-m', 'unique work']);
+  writeSession(config, fixture.repo, {
+    phase: 'tdd',
+    branch: 'fix/junction-case',
+    worktree: fixture.worktreePath,
+    status: 'in_progress',
+    step: 'pushed',
+    pr: '#123',
+    head: runGit(fixture.worktreePath, ['rev-parse', 'HEAD']),
+  });
+  fs.writeFileSync(path.join(fixture.worktreePath, 'later.txt'), 'post-push work\n');
+  runGit(fixture.worktreePath, ['add', 'later.txt']);
+  runGit(fixture.worktreePath, ['commit', '-m', 'later work']);
+  t.after(() => {
+    process.chdir(os.tmpdir());
+    spawnSync('git', ['worktree', 'prune', '--expire', 'now'], { cwd: fixture.repo, stdio: 'pipe' });
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+  });
+
+  const result = reclaimMergedManagedWorktrees({
+    mainRoot: fixture.repo,
+    config,
+    worktreesRoot: fixture.worktreesRoot,
+    baseRef: 'main',
+    getPullRequestState: () => ({ merged: true }),
+  });
+
+  assert.deepEqual(result.removed, []);
+  assert.equal(fs.existsSync(fixture.worktreePath), true);
+  assert.equal(result.retained[0].reason, 'session-head-mismatch');
+
+  writeSession(config, fixture.repo, {
+    branch: 'fix/junction-case',
+    head: runGit(fixture.worktreePath, ['rev-parse', 'HEAD']),
+  });
+  const converged = reclaimMergedManagedWorktrees({
+    mainRoot: fixture.repo,
+    config,
+    worktreesRoot: fixture.worktreesRoot,
+    baseRef: 'main',
+    getPullRequestState: () => ({ merged: true }),
+  });
+  assert.deepEqual(converged.removed.map((item) => item.branch), ['fix/junction-case']);
+  assert.equal(fs.existsSync(fixture.worktreePath), false);
+});
+
 test('retains a dirty owned worktree even when its branch is merged', (t) => {
   const fixture = initLinkedWorktreeFixture();
   writeManagedMarker(fixture.repo, fixture.worktreePath, 'fix/junction-case');
@@ -215,6 +318,7 @@ test('reusable generated resources dereference links that stay inside main', (t)
   fs.mkdirSync(path.dirname(packageLink), { recursive: true });
   fs.mkdirSync(worktreePath, { recursive: true });
   fs.writeFileSync(path.join(packageStore, 'index.js'), 'runtime\n');
+  fs.chmodSync(path.join(packageStore, 'index.js'), 0o755);
   fs.symlinkSync(packageStore, packageLink, process.platform === 'win32' ? 'junction' : 'dir');
   t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
 
@@ -224,6 +328,9 @@ test('reusable generated resources dereference links that stay inside main', (t)
   assert.deepEqual(result.reusedPaths, [relativePath]);
   assert.equal(fs.readFileSync(path.join(copiedPackage, 'index.js'), 'utf8'), 'runtime\n');
   assert.equal(fs.lstatSync(copiedPackage).isSymbolicLink(), false);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(path.join(copiedPackage, 'index.js')).mode & 0o777, 0o755);
+  }
 });
 
 test('reusable generated resources reject links that escape main', (t) => {

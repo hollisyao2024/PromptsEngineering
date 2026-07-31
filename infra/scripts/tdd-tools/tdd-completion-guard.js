@@ -3,6 +3,12 @@
 
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const {
+  getBranchIntegrationState,
+  getMainRepoRoot,
+  getPullRequestState,
+  readSessions,
+} = require('../worktree-tools/worktree-core');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -123,7 +129,12 @@ function evaluateCompletionGuard(input) {
     });
   }
 
-  if (!input.headMergedToBase) {
+  const integratedToBase = Boolean(
+    input.headMergedToBase
+    || input.headPatchEquivalentToBase
+    || input.pullRequestMerged
+  );
+  if (!integratedToBase) {
     return block('当前任务分支尚未合入主分支，必须继续 /qa plan -> /qa verify -> /qa merge。', 'unmerged', {
       branch,
       dirty,
@@ -191,12 +202,14 @@ function collectGitState(repoRoot) {
 
   const config = loadConfig({ repoRoot });
   const baseRef = resolveBaseRef(repoRoot, config);
-  const merged = baseRef
-    ? runGit(['merge-base', '--is-ancestor', 'HEAD', baseRef], {
-      cwd: repoRoot,
-      allowFailure: true,
-    }).status === 0
-    : false;
+  const integration = baseRef
+    ? getBranchIntegrationState(repoRoot, 'HEAD', baseRef)
+    : { mergedByAncestry: false, patchEquivalent: false };
+  const mainRoot = getMainRepoRoot(repoRoot);
+  const session = readSessions(config, mainRoot).find((item) => item.branch === branch);
+  const prState = session && session.pr && (!session.head || session.head === head)
+    ? getPullRequestState(mainRoot, session.pr, branch)
+    : { merged: false };
 
   return {
     branch,
@@ -205,7 +218,9 @@ function collectGitState(repoRoot) {
     aheadOfUpstream,
     remoteHeadMatchesHead: Boolean(remoteHead && remoteHead === head),
     baseRef,
-    headMergedToBase: merged,
+    headMergedToBase: integration.mergedByAncestry,
+    headPatchEquivalentToBase: integration.patchEquivalent,
+    pullRequestMerged: prState.merged,
   };
 }
 
