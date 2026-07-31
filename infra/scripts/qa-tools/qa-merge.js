@@ -37,6 +37,10 @@ const {
 const defectBlockerCheckers = require('./check-defect-blockers');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const {
+  isAuthorizedCleanupSession,
+  markCleanupPending,
+} = require('../worktree-tools/deferred-cleanup-state');
+const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
   sanitizeGitHubRemoteUrl,
@@ -679,7 +683,7 @@ function syncLocalMain(mainWorkspacePath) {
   runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
 }
 
-async function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
+async function localSquashMerge(featureBranch, pr, mainWorkspacePath) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
@@ -957,10 +961,10 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
   } catch (error) {
     return { removed, skipped: [{ reason: 'session-list-failed', error: error.message }] };
   }
-  const managedPaths = new Set(
+  const managedSessions = new Map(
     sessions
       .filter((session) => session && typeof session.worktree === 'string')
-      .map((session) => normalizePathKey(session.worktree))
+      .map((session) => [normalizePathKey(session.worktree), session])
   );
 
   for (const name of fs.readdirSync(worktreesDir)) {
@@ -968,7 +972,8 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
     const key = normalizePathKey(candidate);
     if (validPaths.has(key)) continue;
 
-    const hasSession = managedPaths.has(key);
+    const session = managedSessions.get(key);
+    const hasSession = Boolean(session);
     let hasGitMarker = false;
     try {
       hasGitMarker = hasManagedGitMarker(candidate, mainRepoRoot);
@@ -982,7 +987,12 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
     // an empty, real directory therefore remains safe to reclaim on the next
     // cleanup pass without broadening removal to unknown user directories.
     const isSessionOwnedEmptyDirectory = hasSession && isEmptyRealDirectory(candidate);
-    if (!hasGitMarker && !isSessionOwnedEmptyDirectory) {
+    const hasDurableCleanupAuthorization = isAuthorizedCleanupSession(
+      session,
+      mainRepoRoot,
+      worktreesDir,
+    );
+    if (!hasGitMarker && !isSessionOwnedEmptyDirectory && !hasDurableCleanupAuthorization) {
       skipped.push({
         path: candidate,
         reason: hasSession ? 'session-without-git-marker' : 'unmanaged',
@@ -1040,6 +1050,10 @@ function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
   const removed = [];
   for (const sess of sessions) {
     if (!sess || !sess.branch) continue;
+    // cleanup_pending is the durable transaction record. The reconciler removes
+    // it only after the directory, Git registration, branch, and session have
+    // all converged.
+    if (sess.status === 'cleanup_pending') continue;
     if (sess.worktree && validPaths.has(normalizePathKey(sess.worktree))) continue;
     try {
       removeSess(config, mainRepoRoot, sess.branch);
@@ -1352,10 +1366,23 @@ function getResumableBranches(mergedBranch, mainRepoRoot) {
   return { branches, stashes };
 }
 
-function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot) {
+function printSummary(
+  pr,
+  featureBranch,
+  commitHash,
+  strategy,
+  agentStateUpdated,
+  version,
+  mainRepoRoot,
+  cleanupDeferred = false,
+) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
-  console.log('\x1b[32m/qa merge 完成\x1b[0m');
+  console.log(
+    cleanupDeferred
+      ? '\x1b[33m/qa merge 已合并，worktree 清理待主 repo 收敛\x1b[0m'
+      : '\x1b[32m/qa merge 完成\x1b[0m'
+  );
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
   console.log(`  分支:   ${featureBranch} → main`);
@@ -1389,7 +1416,11 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   );
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
-  console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
+  console.log(
+    cleanupDeferred
+      ? '  在主 repo 执行 tdd-completion-guard，恢复并验证持久清理事务'
+      : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)'
+  );
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 
   const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);
@@ -1561,15 +1592,31 @@ async function main() {
         syncMainAfterMerge();
       } else {
         strategy = 'local';
-        await localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
+        await localSquashMerge(currentBranch, pr, mainWorkspacePath);
       }
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
-    cleanupWorktree(currentBranch, mainRepoRoot);
-    // A session may also exist for a legacy non-worktree branch; cleanup is a
-    // completion invariant, not merely a worktree side effect.
-    removeSession(config, mainRepoRoot, currentBranch);
+    // Persist intent before touching the tree. If Windows/macOS blocks a
+    // synchronous delete or this process exits mid-cleanup, a later completion
+    // guard can resume the exact authorized transaction from the main repo.
+    const cleanupPath = findWorktreePathByBranch(currentBranch, mainRepoRoot);
+    if (cleanupPath) {
+      markCleanupPending({
+        config,
+        mainRoot: mainRepoRoot,
+        branch: currentBranch,
+        worktreePath: cleanupPath,
+      });
+    }
+    let cleanupDeferred = false;
+    try {
+      cleanupWorktree(currentBranch, mainRepoRoot);
+    } catch (error) {
+      if (!cleanupPath) throw error;
+      cleanupDeferred = true;
+      console.log(`\x1b[33m  同步清理未收敛，已持久化供主 repo 恢复：${error.message}\x1b[0m`);
+    }
 
     // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
     if (isInWorktree) {
@@ -1577,18 +1624,22 @@ async function main() {
     }
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
-    const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
-    if (branchDeleteResult.reason === 'failed') {
-      throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
-    }
-    if (localBranchExists(currentBranch, mainWorkspacePath)) {
-      throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-    }
-    if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
-      throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-    }
-    if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
-      throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    if (!cleanupDeferred) {
+      const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
+      if (branchDeleteResult.reason === 'failed') {
+        throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
+      }
+      if (localBranchExists(currentBranch, mainWorkspacePath)) {
+        throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
+        throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      // The session is the final transaction record and is removed last.
+      removeSession(config, mainRepoRoot, currentBranch);
+      if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
+        throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
@@ -1681,9 +1732,15 @@ async function main() {
       strategy,
       agentStateUpdated,
       newVersion,
-      mainWorkspacePath
+      mainWorkspacePath,
+      cleanupDeferred
     );
     printCleanupSummary(mainRepoRoot);
+    if (cleanupDeferred) {
+      console.log('STATUS=CLEANUP_PENDING');
+      console.log(`CLEANUP_BRANCH=${currentBranch}`);
+      console.log('NEXT_COMMAND=node infra/scripts/tdd-tools/tdd-completion-guard.js');
+    }
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);
@@ -1699,7 +1756,6 @@ if (require.main === module) {
 
 module.exports = {
   findOpenPR,
-  runPreMergeChecks,
   findWorktreePathByBranch,
   resolveMainWorkspacePath,
   formatGhError,
