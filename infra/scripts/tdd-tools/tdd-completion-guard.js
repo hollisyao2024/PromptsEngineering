@@ -7,8 +7,10 @@ const {
   getBranchIntegrationState,
   getMainRepoRoot,
   getPullRequestState,
+  isSamePath,
   readSessions,
 } = require('../worktree-tools/worktree-core');
+const { reconcilePendingCleanups } = require('../worktree-tools/deferred-cleanup-state');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -65,6 +67,9 @@ function buildCommands(kind) {
       'node infra/scripts/qa-tools/qa-merge.js',
     ];
   }
+  if (kind === 'cleanup-pending') {
+    return ['node infra/scripts/tdd-tools/tdd-completion-guard.js'];
+  }
   return [];
 }
 
@@ -82,11 +87,21 @@ function evaluateCompletionGuard(input) {
   const branch = String(input.branch || '').trim();
   const statusLines = Array.isArray(input.statusLines) ? input.statusLines : [];
   const dirty = statusLines.length > 0;
+  const pendingCleanupCount = Number(input.pendingCleanupCount || 0);
 
   if (!branch) {
     return block('当前不在普通分支上，无法确认 TDD/QA 流水线是否完成。', 'unmerged', {
       branch,
       dirty,
+    });
+  }
+
+  if (pendingCleanupCount > 0) {
+    return block('仍有 worktree 清理尚未收敛，完成门禁拒绝通过。', 'cleanup-pending', {
+      branch,
+      dirty,
+      pendingCleanupCount,
+      pendingCleanupBranches: input.pendingCleanupBranches || [],
     });
   }
 
@@ -241,7 +256,18 @@ function printResult(result) {
 function main() {
   try {
     const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
-    const state = collectGitState(repoRoot);
+    const mainRoot = getMainRepoRoot(repoRoot);
+    const config = loadConfig({ repoRoot: mainRoot });
+    const cleanup = reconcilePendingCleanups({
+      config,
+      mainRoot,
+      skipWorktreePath: isSamePath(repoRoot, mainRoot) ? '' : repoRoot,
+    });
+    const state = {
+      ...collectGitState(repoRoot),
+      pendingCleanupCount: cleanup.pending.length,
+      pendingCleanupBranches: cleanup.pending,
+    };
     const result = evaluateCompletionGuard(state);
     printResult(result);
     process.exit(result.ok ? 0 : 1);

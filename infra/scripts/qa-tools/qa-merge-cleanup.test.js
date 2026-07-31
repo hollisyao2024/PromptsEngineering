@@ -147,6 +147,40 @@ test('orphan cleanup never treats a stale session as deletion authorization', (t
   assert.equal(fs.readFileSync(path.join(reused, 'sentinel.txt'), 'utf8'), 'keep reused\n');
 });
 
+test('orphan cleanup resumes a non-empty partial deletion only with durable cleanup authorization', (t) => {
+  const fixture = makeContainer();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  const managed = path.join(fixture.worktreesRoot, 'cleanup-pending');
+  const external = path.join(fixture.container, 'external-cache');
+  fs.mkdirSync(managed);
+  fs.mkdirSync(external);
+  fs.writeFileSync(path.join(managed, 'remaining.txt'), 'remove me\n');
+  fs.writeFileSync(path.join(external, 'sentinel.txt'), 'keep external\n');
+  fs.symlinkSync(external, path.join(managed, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+
+  const result = cleanupOrphanWorktreeDirs(fixture.mainRoot, {
+    runListPorcelain: () => ({
+      status: 0,
+      stdout: `worktree ${fixture.mainRoot}\nHEAD deadbeef\nbranch refs/heads/main\n\n`,
+      stderr: '',
+    }),
+    readSessions: () => [{
+      worktree: managed,
+      branch: 'fix/cleanup-pending',
+      status: 'cleanup_pending',
+      cleanup: {
+        mainRoot: fixture.mainRoot,
+        worktree: managed,
+        branch: 'fix/cleanup-pending',
+      },
+    }],
+  });
+
+  assert.deepEqual(result.removed, [managed]);
+  assert.equal(fs.existsSync(managed), false);
+  assert.equal(fs.readFileSync(path.join(external, 'sentinel.txt'), 'utf8'), 'keep external\n');
+});
+
 test('orphan session cleanup fails closed when Git worktree listing fails', () => {
   const removedBranches = [];
   const result = cleanupOrphanSessions('C:\\unused-main-root', {
@@ -181,6 +215,27 @@ test('orphan session cleanup preserves active worktrees with normalized Windows 
   assert.deepEqual(removedBranches, []);
 });
 
+test('orphan session cleanup preserves durable cleanup transactions until reconciliation', () => {
+  const removedBranches = [];
+  const result = cleanupOrphanSessions('C:\\unused-main-root', {
+    loadConfig: () => ({}),
+    readSessions: () => [{
+      branch: 'fix/cleanup-pending',
+      worktree: 'C:\\missing',
+      status: 'cleanup_pending',
+    }],
+    removeSession: (_config, _root, branch) => removedBranches.push(branch),
+    runListPorcelain: () => ({
+      status: 0,
+      stdout: 'worktree C:\\repo\nHEAD deadbeef\nbranch refs/heads/main\n\n',
+      stderr: '',
+    }),
+  });
+
+  assert.deepEqual(result, []);
+  assert.deepEqual(removedBranches, []);
+});
+
 test('production cleanup sources never invoke git worktree remove', () => {
   const sources = [
     path.resolve(__dirname, '../worktree-tools/worktree-remove.js'),
@@ -191,4 +246,13 @@ test('production cleanup sources never invoke git worktree remove', () => {
     const text = fs.readFileSync(source, 'utf8');
     assert.doesNotMatch(text, /['"]worktree['"]\s*,\s*['"]remove['"]/u, source);
   }
+});
+
+test('deferred cleanup does not return before post-merge finalization', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
+  assert.doesNotMatch(
+    source,
+    /if\s*\(\s*cleanupResult\.deferred\s*\)\s*\{[^}]*\breturn\s*;/su,
+  );
+  assert.match(source, /STATUS=CLEANUP_PENDING/u);
 });

@@ -47,6 +47,16 @@ test('commandArgs passes skip-checks only to qa merge', () => {
   );
 });
 
+test('commandArgs can resume a durable cleanup through the completion guard', () => {
+  assert.deepEqual(
+    commandArgs(
+      'node infra/scripts/tdd-tools/tdd-completion-guard.js',
+      { scope: 'session', skipChecks: false },
+    ),
+    ['infra/scripts/tdd-tools/tdd-completion-guard.js'],
+  );
+});
+
 test('parseArgs rejects no-qa because finish must merge', () => {
   assert.throws(() => parseArgs(['--no-qa']), /cannot run with --no-qa/);
 });
