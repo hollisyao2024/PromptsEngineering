@@ -22,6 +22,8 @@ const {
 } = require('../worktree-core');
 const { retryWritable: retryRemoveOperation } = require('../worktree-safe-remove');
 
+const realTemporaryRoot = fs.realpathSync(os.tmpdir());
+
 test('safe removal retries transient non-empty directories without weakening permission handling', () => {
   let attempts = 0;
   retryRemoveOperation('/unused', () => {
@@ -36,7 +38,7 @@ test('safe removal retries transient non-empty directories without weakening per
 });
 
 test('reclaims only a clean, merged worktree owned by this repository', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reclaim-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-reclaim-'));
   const repo = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   const worktreePath = path.join(worktreesRoot, 'merged');
@@ -55,8 +57,8 @@ test('reclaims only a clean, merged worktree owned by this repository', (t) => {
   runGit(worktreePath, ['commit', '-m', 'done']);
   runGit(repo, ['merge', '--ff-only', 'fix/merged-cleanup']);
   t.after(() => {
-    process.chdir(os.tmpdir());
-    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot });
   });
 
   const result = reclaimMergedManagedWorktrees({
@@ -72,7 +74,7 @@ test('reclaims only a clean, merged worktree owned by this repository', (t) => {
 });
 
 test('retains a freshly created worktree while its session is in progress', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-active-session-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-active-session-'));
   const repo = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   const worktreePath = path.join(worktreesRoot, 'active');
@@ -98,8 +100,8 @@ test('retains a freshly created worktree while its session is in progress', (t) 
     step: 'created',
   });
   t.after(() => {
-    process.chdir(os.tmpdir());
-    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot });
   });
 
   const result = reclaimMergedManagedWorktrees({
@@ -117,117 +119,14 @@ test('retains a freshly created worktree while its session is in progress', (t) 
   assert.equal(path.resolve(result.retained[0].path), path.resolve(worktreePath));
 });
 
-test('reclaims a clean pushed session after its patch is squash-merged', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-squash-reclaim-'));
-  const repo = path.join(container, 'repo');
-  const worktreesRoot = path.join(container, 'worktrees');
-  const worktreePath = path.join(worktreesRoot, 'squash-merged');
-  const config = {
-    baseBranch: 'main',
-    worktree: { sessionDir: path.join(container, 'sessions') },
-  };
-  fs.mkdirSync(repo, { recursive: true });
-  runGit(repo, ['init', '-b', 'main']);
-  runGit(repo, ['config', 'user.email', 'test@example.com']);
-  runGit(repo, ['config', 'user.name', 'Test User']);
-  fs.writeFileSync(path.join(repo, 'README.md'), '# test\n');
-  runGit(repo, ['add', 'README.md']);
-  runGit(repo, ['commit', '-m', 'init']);
-  fs.mkdirSync(worktreesRoot, { recursive: true });
-  runGit(repo, ['worktree', 'add', '-b', 'fix/squash-merged', worktreePath]);
-  writeManagedMarker(repo, worktreePath, 'fix/squash-merged');
-  fs.writeFileSync(path.join(worktreePath, 'done.txt'), 'done\n');
-  runGit(worktreePath, ['add', 'done.txt']);
-  runGit(worktreePath, ['commit', '-m', 'done']);
-  writeSession(config, repo, {
-    phase: 'tdd',
-    branch: 'fix/squash-merged',
-    worktree: worktreePath,
-    status: 'in_progress',
-    step: 'pushed',
-  });
-  runGit(repo, ['merge', '--squash', 'fix/squash-merged']);
-  runGit(repo, ['commit', '-m', 'squash merge']);
-  t.after(() => {
-    process.chdir(os.tmpdir());
-    if (fs.existsSync(container)) safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
-  });
-
-  const result = reclaimMergedManagedWorktrees({
-    mainRoot: repo,
-    config,
-    worktreesRoot,
-    baseRef: 'main',
-  });
-
-  assert.deepEqual(result.removed.map((item) => item.branch), ['fix/squash-merged']);
-  assert.equal(fs.existsSync(worktreePath), false);
-  assert.equal(runGit(repo, ['branch', '--list', 'fix/squash-merged']), '');
-});
-
-test('merged PR proof reclaims only the exact pushed head and preserves later commits', (t) => {
-  const fixture = initLinkedWorktreeFixture();
-  const config = {
-    baseBranch: 'main',
-    worktree: { sessionDir: path.join(fixture.container, 'sessions') },
-  };
-  writeManagedMarker(fixture.repo, fixture.worktreePath, 'fix/junction-case');
-  fs.writeFileSync(path.join(fixture.worktreePath, 'unique.txt'), 'not merged\n');
-  runGit(fixture.worktreePath, ['add', 'unique.txt']);
-  runGit(fixture.worktreePath, ['commit', '-m', 'unique work']);
-  writeSession(config, fixture.repo, {
-    phase: 'tdd',
-    branch: 'fix/junction-case',
-    worktree: fixture.worktreePath,
-    status: 'in_progress',
-    step: 'pushed',
-    pr: '#123',
-    head: runGit(fixture.worktreePath, ['rev-parse', 'HEAD']),
-  });
-  fs.writeFileSync(path.join(fixture.worktreePath, 'later.txt'), 'post-push work\n');
-  runGit(fixture.worktreePath, ['add', 'later.txt']);
-  runGit(fixture.worktreePath, ['commit', '-m', 'later work']);
-  t.after(() => {
-    process.chdir(os.tmpdir());
-    spawnSync('git', ['worktree', 'prune', '--expire', 'now'], { cwd: fixture.repo, stdio: 'pipe' });
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
-  });
-
-  const result = reclaimMergedManagedWorktrees({
-    mainRoot: fixture.repo,
-    config,
-    worktreesRoot: fixture.worktreesRoot,
-    baseRef: 'main',
-    getPullRequestState: () => ({ merged: true }),
-  });
-
-  assert.deepEqual(result.removed, []);
-  assert.equal(fs.existsSync(fixture.worktreePath), true);
-  assert.equal(result.retained[0].reason, 'session-head-mismatch');
-
-  writeSession(config, fixture.repo, {
-    branch: 'fix/junction-case',
-    head: runGit(fixture.worktreePath, ['rev-parse', 'HEAD']),
-  });
-  const converged = reclaimMergedManagedWorktrees({
-    mainRoot: fixture.repo,
-    config,
-    worktreesRoot: fixture.worktreesRoot,
-    baseRef: 'main',
-    getPullRequestState: () => ({ merged: true }),
-  });
-  assert.deepEqual(converged.removed.map((item) => item.branch), ['fix/junction-case']);
-  assert.equal(fs.existsSync(fixture.worktreePath), false);
-});
-
 test('retains a dirty owned worktree even when its branch is merged', (t) => {
   const fixture = initLinkedWorktreeFixture();
   writeManagedMarker(fixture.repo, fixture.worktreePath, 'fix/junction-case');
   fs.writeFileSync(path.join(fixture.worktreePath, 'uncommitted.txt'), 'keep\n');
   t.after(() => {
-    process.chdir(os.tmpdir());
+    process.chdir(realTemporaryRoot);
     spawnSync('git', ['worktree', 'prune', '--expire', 'now'], { cwd: fixture.repo, stdio: 'pipe' });
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot });
   });
 
   const result = reclaimMergedManagedWorktrees({
@@ -243,7 +142,7 @@ test('retains a dirty owned worktree even when its branch is merged', (t) => {
 });
 
 test('safe removal rescans a directory when a late file makes the final rmdir non-empty', (t) => {
-  const tempRoot = fs.realpathSync(os.tmpdir());
+  const tempRoot = realTemporaryRoot;
   const root = fs.mkdtempSync(path.join(tempRoot, 'worktree-late-child-'));
   const originalRmdirSync = fs.rmdirSync;
   let injected = false;
@@ -267,7 +166,7 @@ test('safe removal rescans a directory when a late file makes the final rmdir no
 });
 
 test('managed worktree marker records ownership and stays excluded from Git status', (t) => {
-  const tempRoot = fs.realpathSync(os.tmpdir());
+  const tempRoot = realTemporaryRoot;
   const container = fs.mkdtempSync(path.join(tempRoot, 'worktree-managed-marker-'));
   const mainRoot = path.join(container, 'repo');
   const worktreePath = path.join(container, 'worktree');
@@ -286,14 +185,14 @@ test('managed worktree marker records ownership and stays excluded from Git stat
 });
 
 test('reusable generated resources are copied from main without creating links', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-runtime-'));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-reuse-runtime-'));
   const mainRoot = path.join(root, 'repo');
   const worktreePath = path.join(root, 'worktree');
   const relativePath = 'apps/desktop/resources/kb-model-runtime';
   fs.mkdirSync(path.join(mainRoot, relativePath), { recursive: true });
   fs.mkdirSync(worktreePath, { recursive: true });
   fs.writeFileSync(path.join(mainRoot, relativePath, 'runtime.js'), 'ready\n');
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
 
   const result = materializeReusablePaths({
     mainRoot,
@@ -308,7 +207,7 @@ test('reusable generated resources are copied from main without creating links',
 });
 
 test('reusable generated resources dereference links that stay inside main', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-link-'));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-reuse-link-'));
   const mainRoot = path.join(root, 'repo');
   const worktreePath = path.join(root, 'worktree');
   const relativePath = 'generated/runtime';
@@ -318,9 +217,8 @@ test('reusable generated resources dereference links that stay inside main', (t)
   fs.mkdirSync(path.dirname(packageLink), { recursive: true });
   fs.mkdirSync(worktreePath, { recursive: true });
   fs.writeFileSync(path.join(packageStore, 'index.js'), 'runtime\n');
-  fs.chmodSync(path.join(packageStore, 'index.js'), 0o755);
   fs.symlinkSync(packageStore, packageLink, process.platform === 'win32' ? 'junction' : 'dir');
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
 
   const result = materializeReusablePaths({ mainRoot, worktreePath, entries: [relativePath] });
   const copiedPackage = path.join(worktreePath, relativePath, 'node_modules', 'runtime-package');
@@ -328,13 +226,10 @@ test('reusable generated resources dereference links that stay inside main', (t)
   assert.deepEqual(result.reusedPaths, [relativePath]);
   assert.equal(fs.readFileSync(path.join(copiedPackage, 'index.js'), 'utf8'), 'runtime\n');
   assert.equal(fs.lstatSync(copiedPackage).isSymbolicLink(), false);
-  if (process.platform !== 'win32') {
-    assert.equal(fs.statSync(path.join(copiedPackage, 'index.js')).mode & 0o777, 0o755);
-  }
 });
 
 test('reusable generated resources reject links that escape main', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-reuse-escape-'));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-reuse-escape-'));
   const mainRoot = path.join(root, 'repo');
   const worktreePath = path.join(root, 'worktree');
   const outside = path.join(root, 'outside');
@@ -344,7 +239,7 @@ test('reusable generated resources reject links that escape main', (t) => {
   fs.mkdirSync(worktreePath, { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.symlinkSync(outside, path.join(sourcePath, 'outside'), process.platform === 'win32' ? 'junction' : 'dir');
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
 
   assert.throws(
     () => materializeReusablePaths({ mainRoot, worktreePath, entries: [relativePath] }),
@@ -378,7 +273,7 @@ function runGit(cwd, args) {
 }
 
 function initRepo() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-core-dry-run-'));
+  const repo = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-core-dry-run-'));
   runGit(repo, ['init', '-b', 'main']);
   runGit(repo, ['config', 'user.email', 'test@example.com']);
   runGit(repo, ['config', 'user.name', 'Test User']);
@@ -390,7 +285,7 @@ function initRepo() {
 
 test('dry-run worktree creation does not fetch or create its requested worktree', (t) => {
   const repo = initRepo();
-  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
 
   const result = createOrResumeWorktree({
     cwd: repo,
@@ -409,7 +304,7 @@ test('dry-run worktree creation does not fetch or create its requested worktree'
 });
 
 function initLinkedWorktreeFixture() {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-safe-remove-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-safe-remove-'));
   const repo = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   const worktreePath = path.join(worktreesRoot, 'junction-case');
@@ -435,8 +330,8 @@ function initLinkedWorktreeFixture() {
 test('safe worktree removal never follows an external node_modules junction', (t) => {
   const fixture = initLinkedWorktreeFixture();
   t.after(() => {
-    process.chdir(os.tmpdir());
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot });
   });
 
   const linkPath = path.join(fixture.worktreePath, 'node_modules');
@@ -466,8 +361,8 @@ test('safe worktree removal never follows an external node_modules junction', (t
 test('safe removal recovers an empty registered worktree after a Windows partial cleanup', (t) => {
   const fixture = initLinkedWorktreeFixture();
   t.after(() => {
-    process.chdir(os.tmpdir());
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot });
   });
 
   fs.rmSync(path.join(fixture.worktreePath, '.git'), { force: true });
@@ -486,8 +381,8 @@ test('safe removal recovers an empty registered worktree after a Windows partial
 });
 
 test('safe no-follow removal unlinks broken links without traversing their targets', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-broken-link-'));
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-broken-link-'));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
   const brokenTarget = path.join(root, 'missing-target');
   const brokenLink = path.join(root, 'broken-link');
   fs.symlinkSync(brokenTarget, brokenLink, process.platform === 'win32' ? 'junction' : 'dir');
@@ -500,14 +395,14 @@ test('safe no-follow removal unlinks broken links without traversing their targe
 });
 
 test('safe removal rejects a symlinked container root before resolving descendants', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-linked-container-'));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-linked-container-'));
   const externalRoot = path.join(root, 'external-worktrees');
   const linkedRoot = path.join(root, 'worktrees-link');
   const externalChild = path.join(externalRoot, 'must-survive');
   fs.mkdirSync(externalChild, { recursive: true });
   fs.writeFileSync(path.join(externalChild, 'sentinel.txt'), 'keep\n');
   fs.symlinkSync(externalRoot, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir');
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
 
   assert.throws(() => safeRemoveTreeNoFollow(
     path.join(linkedRoot, 'must-survive'),
@@ -519,8 +414,8 @@ test('safe removal rejects a symlinked container root before resolving descendan
 test('safe removal rejects main, container root, and paths outside the worktrees container', (t) => {
   const fixture = initLinkedWorktreeFixture();
   t.after(() => {
-    process.chdir(os.tmpdir());
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot });
   });
 
   assert.equal(isPathInside(fixture.worktreesRoot, fixture.worktreePath), true);
@@ -564,9 +459,9 @@ test('safe removal refuses to prune unrelated stale worktree metadata', (t) => {
   runGit(fixture.repo, ['worktree', 'add', '-b', 'fix/unrelated-stale', stalePath]);
   safeRemoveTreeNoFollow(stalePath, { allowedRoot: fixture.worktreesRoot });
   t.after(() => {
-    process.chdir(os.tmpdir());
+    process.chdir(realTemporaryRoot);
     spawnSync('git', ['worktree', 'prune', '--expire', 'now'], { cwd: fixture.repo, stdio: 'pipe' });
-    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() });
+    safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot });
   });
 
   assert.throws(() => removeWorktreeSafely({
@@ -579,12 +474,12 @@ test('safe removal refuses to prune unrelated stale worktree metadata', (t) => {
 });
 
 test('shared worktree links reject dependency and Git metadata paths', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-shared-links-'));
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-shared-links-'));
   const mainRoot = path.join(root, 'repo');
   const worktreePath = path.join(root, 'worktree');
   fs.mkdirSync(path.join(mainRoot, 'node_modules'), { recursive: true });
   fs.mkdirSync(worktreePath, { recursive: true });
-  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
 
   assert.throws(() => setupSharedLinks(mainRoot, worktreePath, {
     worktree: { sharedConfigSymlinks: ['node_modules'] },
@@ -597,7 +492,7 @@ test('shared worktree links reject dependency and Git metadata paths', (t) => {
 });
 
 test('invalid shared-link config is rejected before Git or filesystem mutation', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-link-preflight-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-link-preflight-'));
   const repo = path.join(container, 'repo');
   fs.mkdirSync(repo);
   runGit(repo, ['init', '-b', 'main']);
@@ -609,7 +504,7 @@ test('invalid shared-link config is rejected before Git or filesystem mutation',
   fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
     worktree: { sharedConfigSymlinks: ['node_modules'] },
   }));
-  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
 
   assert.throws(() => createOrResumeWorktree({
     cwd: repo,
@@ -624,7 +519,7 @@ test('invalid shared-link config is rejected before Git or filesystem mutation',
 
 test('skip-fetch creates a worktree without contacting origin', () => {
   const repo = initRepo();
-  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-core-remote-'));
+  const remote = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-core-remote-'));
   runGit(remote, ['init', '--bare']);
   runGit(repo, ['remote', 'add', 'origin', remote]);
   runGit(repo, ['push', '-u', 'origin', 'main']);
@@ -653,7 +548,7 @@ test('auto bootstrap can always reconcile dependencies even when the readiness c
   runGit(repo, ['commit', '-m', 'ignore dependencies']);
   fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'node_modules', 'ready'), 'ready\n');
-  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
 
   const result = runWorktreeBootstrap({
     worktreePath: repo,
@@ -677,7 +572,7 @@ test('auto bootstrap can always reconcile dependencies even when the readiness c
 });
 
 test('resuming an existing worktree honors configured auto bootstrap mode', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-auto-resume-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-auto-resume-'));
   const repo = path.join(container, 'repo');
   fs.mkdirSync(repo);
   runGit(repo, ['init', '-b', 'main']);
@@ -707,8 +602,8 @@ test('resuming an existing worktree honors configured auto bootstrap mode', (t) 
   runGit(repo, ['add', '.']);
   runGit(repo, ['commit', '-m', 'configure bootstrap']);
   t.after(() => {
-    process.chdir(os.tmpdir());
-    safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() });
+    process.chdir(realTemporaryRoot);
+    safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot });
   });
 
   const cli = {

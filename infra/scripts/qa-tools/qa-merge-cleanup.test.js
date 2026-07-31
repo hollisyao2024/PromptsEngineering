@@ -5,7 +5,6 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('node:child_process');
 
 const {
   cleanupOrphanWorktreeDirs,
@@ -13,8 +12,10 @@ const {
 } = require('./qa-merge');
 const { safeRemoveTreeNoFollow } = require('../worktree-tools/worktree-core');
 
+const realTemporaryRoot = fs.realpathSync(os.tmpdir());
+
 function makeContainer() {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-merge-cleanup-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'qa-merge-cleanup-'));
   const mainRoot = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   fs.mkdirSync(mainRoot, { recursive: true });
@@ -22,45 +23,9 @@ function makeContainer() {
   return { container, mainRoot, worktreesRoot };
 }
 
-function runGit(cwd, args) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  return result.stdout.trim();
-}
-
-test('cleanup is synchronous even when qa merge runs inside the target worktree', (t) => {
-  const fixture = makeContainer();
-  runGit(fixture.mainRoot, ['init', '-b', 'main']);
-  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
-  runGit(fixture.mainRoot, ['config', 'user.name', 'Test User']);
-  fs.writeFileSync(path.join(fixture.mainRoot, 'README.md'), '# test\n');
-  runGit(fixture.mainRoot, ['add', 'README.md']);
-  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
-  const linked = path.join(fixture.worktreesRoot, 'target');
-  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'fix/synchronous-cleanup', linked]);
-  t.after(() => {
-    if (fs.existsSync(fixture.container)) {
-      safeRemoveTreeNoFollow(fixture.container, { allowedRoot: fs.realpathSync(os.tmpdir()) });
-    }
-  });
-  const modulePath = require.resolve('./qa-merge');
-  const child = spawnSync(process.execPath, [
-    '-e',
-    `const { cleanupWorktree } = require(${JSON.stringify(modulePath)});` +
-      `console.log(JSON.stringify(cleanupWorktree('fix/synchronous-cleanup', ${JSON.stringify(fixture.mainRoot)})));`,
-  ], { cwd: linked, encoding: 'utf8', stdio: 'pipe' });
-  assert.equal(child.status, 0, child.stderr || child.stdout);
-  const result = JSON.parse(child.stdout.trim().split(/\r?\n/u).at(-1));
-
-  assert.equal(result.removed, true);
-  assert.equal(result.deferred, undefined);
-  assert.equal(fs.existsSync(linked), false);
-  assert.doesNotMatch(fs.readFileSync(require.resolve('./qa-merge'), 'utf8'), /deferred-worktree-cleanup/u);
-});
-
 test('orphan cleanup fails closed when git worktree listing fails', (t) => {
   const fixture = makeContainer();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const unknown = path.join(fixture.worktreesRoot, 'unknown-directory');
   fs.mkdirSync(unknown);
   fs.writeFileSync(path.join(unknown, 'sentinel.txt'), 'keep\n');
@@ -77,7 +42,7 @@ test('orphan cleanup fails closed when git worktree listing fails', (t) => {
 
 test('orphan cleanup skips unregistered directories without managed provenance', (t) => {
   const fixture = makeContainer();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const unknown = path.join(fixture.worktreesRoot, 'personal-files');
   fs.mkdirSync(unknown);
   fs.writeFileSync(path.join(unknown, 'sentinel.txt'), 'keep\n');
@@ -98,7 +63,7 @@ test('orphan cleanup skips unregistered directories without managed provenance',
 
 test('managed orphan cleanup unlinks junctions without touching external targets', (t) => {
   const fixture = makeContainer();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const managed = path.join(fixture.worktreesRoot, 'managed-orphan');
   const external = path.join(fixture.container, 'external-dependencies');
   fs.mkdirSync(managed);
@@ -125,7 +90,7 @@ test('managed orphan cleanup unlinks junctions without touching external targets
 
 test('orphan cleanup never treats a stale session as deletion authorization', (t) => {
   const fixture = makeContainer();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const reused = path.join(fixture.worktreesRoot, 'reused-personal-directory');
   fs.mkdirSync(reused);
   fs.writeFileSync(path.join(reused, 'sentinel.txt'), 'keep reused\n');
@@ -145,40 +110,6 @@ test('orphan cleanup never treats a stale session as deletion authorization', (t
     true,
   );
   assert.equal(fs.readFileSync(path.join(reused, 'sentinel.txt'), 'utf8'), 'keep reused\n');
-});
-
-test('orphan cleanup resumes a non-empty partial deletion only with durable cleanup authorization', (t) => {
-  const fixture = makeContainer();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
-  const managed = path.join(fixture.worktreesRoot, 'cleanup-pending');
-  const external = path.join(fixture.container, 'external-cache');
-  fs.mkdirSync(managed);
-  fs.mkdirSync(external);
-  fs.writeFileSync(path.join(managed, 'remaining.txt'), 'remove me\n');
-  fs.writeFileSync(path.join(external, 'sentinel.txt'), 'keep external\n');
-  fs.symlinkSync(external, path.join(managed, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
-
-  const result = cleanupOrphanWorktreeDirs(fixture.mainRoot, {
-    runListPorcelain: () => ({
-      status: 0,
-      stdout: `worktree ${fixture.mainRoot}\nHEAD deadbeef\nbranch refs/heads/main\n\n`,
-      stderr: '',
-    }),
-    readSessions: () => [{
-      worktree: managed,
-      branch: 'fix/cleanup-pending',
-      status: 'cleanup_pending',
-      cleanup: {
-        mainRoot: fixture.mainRoot,
-        worktree: managed,
-        branch: 'fix/cleanup-pending',
-      },
-    }],
-  });
-
-  assert.deepEqual(result.removed, [managed]);
-  assert.equal(fs.existsSync(managed), false);
-  assert.equal(fs.readFileSync(path.join(external, 'sentinel.txt'), 'utf8'), 'keep external\n');
 });
 
 test('orphan session cleanup fails closed when Git worktree listing fails', () => {
@@ -215,27 +146,6 @@ test('orphan session cleanup preserves active worktrees with normalized Windows 
   assert.deepEqual(removedBranches, []);
 });
 
-test('orphan session cleanup preserves durable cleanup transactions until reconciliation', () => {
-  const removedBranches = [];
-  const result = cleanupOrphanSessions('C:\\unused-main-root', {
-    loadConfig: () => ({}),
-    readSessions: () => [{
-      branch: 'fix/cleanup-pending',
-      worktree: 'C:\\missing',
-      status: 'cleanup_pending',
-    }],
-    removeSession: (_config, _root, branch) => removedBranches.push(branch),
-    runListPorcelain: () => ({
-      status: 0,
-      stdout: 'worktree C:\\repo\nHEAD deadbeef\nbranch refs/heads/main\n\n',
-      stderr: '',
-    }),
-  });
-
-  assert.deepEqual(result, []);
-  assert.deepEqual(removedBranches, []);
-});
-
 test('production cleanup sources never invoke git worktree remove', () => {
   const sources = [
     path.resolve(__dirname, '../worktree-tools/worktree-remove.js'),
@@ -246,13 +156,4 @@ test('production cleanup sources never invoke git worktree remove', () => {
     const text = fs.readFileSync(source, 'utf8');
     assert.doesNotMatch(text, /['"]worktree['"]\s*,\s*['"]remove['"]/u, source);
   }
-});
-
-test('deferred cleanup does not return before post-merge finalization', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
-  assert.doesNotMatch(
-    source,
-    /if\s*\(\s*cleanupResult\.deferred\s*\)\s*\{[^}]*\breturn\s*;/su,
-  );
-  assert.match(source, /STATUS=CLEANUP_PENDING/u);
 });

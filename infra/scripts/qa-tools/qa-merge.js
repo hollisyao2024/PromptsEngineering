@@ -37,10 +37,6 @@ const {
 const defectBlockerCheckers = require('./check-defect-blockers');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const {
-  isAuthorizedCleanupSession,
-  markCleanupPending,
-} = require('../worktree-tools/deferred-cleanup-state');
-const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
   sanitizeGitHubRemoteUrl,
@@ -451,17 +447,10 @@ async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
 /**
  * B2: in-process release-gate check. Replaces the previous spawnSync('pnpm
  * run qa:check-defect-blockers') which incurred 5-15s of node + workspace
- * cold-start every merge. A session PR is not a project release, so it must
- * not be blocked by unrelated modules' historical P0 evidence; the full P0
- * and NFR gate remains mandatory for explicit project/release merges.
+ * cold-start every merge. Behavior is preserved (P0 blockers + NFR check);
+ * release report is intentionally not written here (CLI entry still does).
  */
-function runPreMergeChecks({ scope = 'project', checkers = defectBlockerCheckers } = {}) {
-  if (scope !== 'project') {
-    console.log(
-      '\x1b[36msession 合并：跳过全仓历史发布门禁；仅由本 PR 的测试与审查结果决定。\x1b[0m'
-    );
-    return true;
-  }
+function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
   console.log('\x1b[36m运行发布门禁检查（in-process）...\x1b[0m');
   const defects = checkers.parseDefects();
   const analysis = checkers.analyzeDefects(defects);
@@ -683,7 +672,7 @@ function syncLocalMain(mainWorkspacePath) {
   runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
 }
 
-async function localSquashMerge(featureBranch, pr, mainWorkspacePath) {
+async function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
@@ -849,9 +838,18 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
 
   const cwdBefore = process.cwd();
   const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
-  // removeWorktreeSafely changes this process to mainRepoRoot before touching
-  // the tree. Keep cleanup synchronous so macOS/Windows failures cannot escape
-  // the merge completion invariants below.
+  if (wasInsideTarget) {
+    const worker = path.resolve(__dirname, '../worktree-tools/deferred-worktree-cleanup.js');
+    const child = spawn(process.execPath, [worker, mainRepoRoot, featureBranch, entry.path], {
+      cwd: mainRepoRoot, detached: true, windowsHide: true, stdio: 'ignore',
+    });
+    child.unref();
+    console.log(`\x1b[33m  当前 worktree 已合并，已安排后台安全清理: ${entry.path}\x1b[0m`);
+    return { removed: false, deferred: true, path: entry.path };
+  }
+  // Never attempt to remove the current worktree from a process whose cwd is
+  // still inside it. This also makes the failure mode explicit for callers
+  // that invoke /qa merge from a linked worktree on Windows.
   const config = loadConfig({ repoRoot: mainRepoRoot });
   const worktreesRoot = resolveContainerPath(config, mainRepoRoot, 'worktrees');
 
@@ -961,10 +959,10 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
   } catch (error) {
     return { removed, skipped: [{ reason: 'session-list-failed', error: error.message }] };
   }
-  const managedSessions = new Map(
+  const managedPaths = new Set(
     sessions
       .filter((session) => session && typeof session.worktree === 'string')
-      .map((session) => [normalizePathKey(session.worktree), session])
+      .map((session) => normalizePathKey(session.worktree))
   );
 
   for (const name of fs.readdirSync(worktreesDir)) {
@@ -972,8 +970,7 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
     const key = normalizePathKey(candidate);
     if (validPaths.has(key)) continue;
 
-    const session = managedSessions.get(key);
-    const hasSession = Boolean(session);
+    const hasSession = managedPaths.has(key);
     let hasGitMarker = false;
     try {
       hasGitMarker = hasManagedGitMarker(candidate, mainRepoRoot);
@@ -987,12 +984,7 @@ function cleanupOrphanWorktreeDirs(mainRepoRoot, opts = {}) {
     // an empty, real directory therefore remains safe to reclaim on the next
     // cleanup pass without broadening removal to unknown user directories.
     const isSessionOwnedEmptyDirectory = hasSession && isEmptyRealDirectory(candidate);
-    const hasDurableCleanupAuthorization = isAuthorizedCleanupSession(
-      session,
-      mainRepoRoot,
-      worktreesDir,
-    );
-    if (!hasGitMarker && !isSessionOwnedEmptyDirectory && !hasDurableCleanupAuthorization) {
+    if (!hasGitMarker && !isSessionOwnedEmptyDirectory) {
       skipped.push({
         path: candidate,
         reason: hasSession ? 'session-without-git-marker' : 'unmanaged',
@@ -1050,10 +1042,6 @@ function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
   const removed = [];
   for (const sess of sessions) {
     if (!sess || !sess.branch) continue;
-    // cleanup_pending is the durable transaction record. The reconciler removes
-    // it only after the directory, Git registration, branch, and session have
-    // all converged.
-    if (sess.status === 'cleanup_pending') continue;
     if (sess.worktree && validPaths.has(normalizePathKey(sess.worktree))) continue;
     try {
       removeSess(config, mainRepoRoot, sess.branch);
@@ -1366,23 +1354,10 @@ function getResumableBranches(mergedBranch, mainRepoRoot) {
   return { branches, stashes };
 }
 
-function printSummary(
-  pr,
-  featureBranch,
-  commitHash,
-  strategy,
-  agentStateUpdated,
-  version,
-  mainRepoRoot,
-  cleanupDeferred = false,
-) {
+function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
-  console.log(
-    cleanupDeferred
-      ? '\x1b[33m/qa merge 已合并，worktree 清理待主 repo 收敛\x1b[0m'
-      : '\x1b[32m/qa merge 完成\x1b[0m'
-  );
+  console.log('\x1b[32m/qa merge 完成\x1b[0m');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
   console.log(`  分支:   ${featureBranch} → main`);
@@ -1416,11 +1391,7 @@ function printSummary(
   );
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
-  console.log(
-    cleanupDeferred
-      ? '  在主 repo 执行 tdd-completion-guard，恢复并验证持久清理事务'
-      : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)'
-  );
+  console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 
   const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);
@@ -1530,7 +1501,7 @@ async function main() {
     // Step 9: 运行发布门禁检查
     const skipBusinessQaChecks = config.template && config.template.role === 'source';
     if (!args.skipChecks && !skipBusinessQaChecks) {
-      const checksPassed = runPreMergeChecks({ scope: args.scope });
+      const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
         throw new Error(
           '发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n' +
@@ -1592,31 +1563,19 @@ async function main() {
         syncMainAfterMerge();
       } else {
         strategy = 'local';
-        await localSquashMerge(currentBranch, pr, mainWorkspacePath);
+        await localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
       }
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
-    // Persist intent before touching the tree. If Windows/macOS blocks a
-    // synchronous delete or this process exits mid-cleanup, a later completion
-    // guard can resume the exact authorized transaction from the main repo.
-    const cleanupPath = findWorktreePathByBranch(currentBranch, mainRepoRoot);
-    if (cleanupPath) {
-      markCleanupPending({
-        config,
-        mainRoot: mainRepoRoot,
-        branch: currentBranch,
-        worktreePath: cleanupPath,
-      });
+    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
+    if (cleanupResult.deferred) {
+      console.log('\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\x1b[0m');
+      return;
     }
-    let cleanupDeferred = false;
-    try {
-      cleanupWorktree(currentBranch, mainRepoRoot);
-    } catch (error) {
-      if (!cleanupPath) throw error;
-      cleanupDeferred = true;
-      console.log(`\x1b[33m  同步清理未收敛，已持久化供主 repo 恢复：${error.message}\x1b[0m`);
-    }
+    // A session may also exist for a legacy non-worktree branch; cleanup is a
+    // completion invariant, not merely a worktree side effect.
+    removeSession(config, mainRepoRoot, currentBranch);
 
     // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
     if (isInWorktree) {
@@ -1624,22 +1583,18 @@ async function main() {
     }
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
-    if (!cleanupDeferred) {
-      const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
-      if (branchDeleteResult.reason === 'failed') {
-        throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
-      }
-      if (localBranchExists(currentBranch, mainWorkspacePath)) {
-        throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
-      if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
-        throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
-      // The session is the final transaction record and is removed last.
-      removeSession(config, mainRepoRoot, currentBranch);
-      if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
-        throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
+    const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
+    if (branchDeleteResult.reason === 'failed') {
+      throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
+    }
+    if (localBranchExists(currentBranch, mainWorkspacePath)) {
+      throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    }
+    if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
+      throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    }
+    if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
+      throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
@@ -1732,15 +1687,9 @@ async function main() {
       strategy,
       agentStateUpdated,
       newVersion,
-      mainWorkspacePath,
-      cleanupDeferred
+      mainWorkspacePath
     );
     printCleanupSummary(mainRepoRoot);
-    if (cleanupDeferred) {
-      console.log('STATUS=CLEANUP_PENDING');
-      console.log(`CLEANUP_BRANCH=${currentBranch}`);
-      console.log('NEXT_COMMAND=node infra/scripts/tdd-tools/tdd-completion-guard.js');
-    }
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);

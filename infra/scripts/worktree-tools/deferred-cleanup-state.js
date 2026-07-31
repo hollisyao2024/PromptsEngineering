@@ -8,6 +8,7 @@ const {
   isPathInside,
   isSamePath,
   listWorktrees,
+  parseWorktreePorcelain,
   readSessions,
   removeSession,
   removeWorktreeSafely,
@@ -15,6 +16,53 @@ const {
   safeRemoveTreeNoFollow,
   writeSession,
 } = require('./worktree-core');
+
+function runGitStrict(mainRoot, args) {
+  const result = spawnSync('git', args, {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || `git ${args.join(' ')} failed`).trim());
+  }
+  return result.stdout || '';
+}
+
+function pruneMissingAuthorizedRegistration(mainRoot, worktreePath) {
+  const before = parseWorktreePorcelain(
+    runGitStrict(mainRoot, ['worktree', 'list', '--porcelain']),
+  );
+  const target = before.find((entry) => isSamePath(entry.path, worktreePath));
+  if (!target || !target.prunable) {
+    throw new Error(`missing worktree registration is not explicitly prunable: ${worktreePath}`);
+  }
+  const unrelatedPrunable = before.filter(
+    (entry) => entry.prunable && !isSamePath(entry.path, worktreePath),
+  );
+  if (unrelatedPrunable.length > 0) {
+    throw new Error(
+      `refusing to prune unrelated registrations: ${unrelatedPrunable.map((entry) => entry.path).join(', ')}`,
+    );
+  }
+
+  runGitStrict(mainRoot, ['worktree', 'prune', '--expire', 'now']);
+  const after = parseWorktreePorcelain(
+    runGitStrict(mainRoot, ['worktree', 'list', '--porcelain']),
+  );
+  if (after.some((entry) => isSamePath(entry.path, worktreePath))) {
+    throw new Error(`authorized prunable registration remains: ${worktreePath}`);
+  }
+  const unrelatedRemoved = before
+    .filter((entry) => !isSamePath(entry.path, worktreePath))
+    .filter((entry) => !after.some((candidate) => isSamePath(candidate.path, entry.path)));
+  if (unrelatedRemoved.length > 0) {
+    throw new Error(
+      `prune changed unrelated registrations: ${unrelatedRemoved.map((entry) => entry.path).join(', ')}`,
+    );
+  }
+}
 
 function cleanupPayload(mainRoot, branch, worktreePath, previous = {}, error = '') {
   return {
@@ -120,12 +168,16 @@ function reconcilePendingCleanups(options = {}) {
         throw new Error(`registered branch mismatch: expected ${session.branch}, found ${entry.branch || '(detached)'}`);
       }
       if (entry) {
-        removeRegistered({
-          mainRoot,
-          worktreePath: session.worktree,
-          worktreesRoot,
-          force: true,
-        });
+        if (fs.existsSync(session.worktree)) {
+          removeRegistered({
+            mainRoot,
+            worktreePath: session.worktree,
+            worktreesRoot,
+            force: true,
+          });
+        } else {
+          pruneMissingAuthorizedRegistration(mainRoot, session.worktree);
+        }
       } else if (fs.existsSync(session.worktree)) {
         safeRemoveTreeNoFollow(session.worktree, { allowedRoot: worktreesRoot });
       }
@@ -158,5 +210,6 @@ function reconcilePendingCleanups(options = {}) {
 module.exports = {
   isAuthorizedCleanupSession,
   markCleanupPending,
+  pruneMissingAuthorizedRegistration,
   reconcilePendingCleanups,
 };

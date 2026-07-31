@@ -10,7 +10,6 @@ const KNOWN_COMMANDS = new Map([
   ['node infra/scripts/qa-tools/generate-qa.js', 'infra/scripts/qa-tools/generate-qa.js'],
   ['node infra/scripts/qa-tools/qa-verify.js', 'infra/scripts/qa-tools/qa-verify.js'],
   ['node infra/scripts/qa-tools/qa-merge.js', 'infra/scripts/qa-tools/qa-merge.js'],
-  ['node infra/scripts/tdd-tools/tdd-completion-guard.js', 'infra/scripts/tdd-tools/tdd-completion-guard.js'],
 ]);
 
 function parseArgs(argv) {
