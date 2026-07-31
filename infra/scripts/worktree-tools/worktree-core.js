@@ -49,6 +49,74 @@ function runGit(args, options = {}) {
   return run('git', args, options);
 }
 
+function runGitResult(cwd, args) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.error) throw result.error;
+  return result;
+}
+
+function getBranchIntegrationState(mainRoot, branch, baseRef) {
+  const ancestry = runGitResult(mainRoot, ['merge-base', '--is-ancestor', branch, baseRef]);
+  const cherry = runGitResult(mainRoot, ['cherry', baseRef, branch]);
+  const ahead = runGitResult(mainRoot, ['rev-list', '--count', `${baseRef}..${branch}`]);
+  const patchLines = cherry.status === 0
+    ? (cherry.stdout || '').split(/\r?\n/u).filter(Boolean)
+    : [];
+  const aheadCount = ahead.status === 0 ? Number(ahead.stdout.trim() || 0) : 0;
+  const mergedByAncestry = ancestry.status === 0;
+  const patchEquivalent = aheadCount > 0
+    && patchLines.length > 0
+    && patchLines.every((line) => line.startsWith('-'));
+  return {
+    mergedByAncestry,
+    patchEquivalent,
+    integrated: mergedByAncestry || patchEquivalent,
+    hasUniquePatch: cherry.status !== 0 || patchLines.some((line) => line.startsWith('+')),
+    aheadCount,
+  };
+}
+
+function getPullRequestState(mainRoot, prRef, expectedBranch = '') {
+  const match = String(prRef || '').trim().match(/^#?(\d+)$/u);
+  if (!match) return { known: false, merged: false, state: '', headRefName: '' };
+  const authRunner = path.resolve(__dirname, '../shared/github-auth-run.js');
+  const result = spawnSync(process.execPath, [
+    authRunner,
+    '--',
+    'gh',
+    'pr',
+    'view',
+    match[1],
+    '--json',
+    'state,headRefName',
+  ], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.error || result.status !== 0) {
+    return { known: false, merged: false, state: '', headRefName: '' };
+  }
+  try {
+    const payload = JSON.parse(result.stdout || '{}');
+    const headRefName = String(payload.headRefName || '');
+    const branchMatches = !expectedBranch || headRefName === expectedBranch;
+    return {
+      known: true,
+      merged: payload.state === 'MERGED' && branchMatches,
+      state: String(payload.state || ''),
+      headRefName,
+      branchMatches,
+    };
+  } catch {
+    return { known: false, merged: false, state: '', headRefName: '' };
+  }
+}
+
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
@@ -336,13 +404,15 @@ function reclaimMergedManagedWorktrees(options = {}) {
   // created, still-active worktree as "merged" until its first commit.  In
   // concurrent task creation that made one task reclaim another before the
   // latter had a chance to do any work.  A durable in-progress session is the
-  // explicit ownership signal; completion flows remove that session before
-  // this best-effort reclaimer is allowed to delete the worktree.
-  const activeSessions = new Set(
+  // explicit ownership signal. It may be reclaimed only when the recorded
+  // pushed head is unchanged and either local integration or the exact merged
+  // PR proves completion.
+  const activeSessions = new Map(
     readSessions(config, mainRoot)
       .filter((session) => session && session.status === 'in_progress' && session.branch)
-      .map((session) => session.branch)
+      .map((session) => [session.branch, session])
   );
+  const resolvePullRequestState = options.getPullRequestState || getPullRequestState;
 
   const listing = spawnSync('git', ['worktree', 'list', '--porcelain'], {
     cwd: mainRoot,
@@ -356,10 +426,7 @@ function reclaimMergedManagedWorktrees(options = {}) {
 
   for (const entry of parseWorktreePorcelain(listing.stdout || '')) {
     if (!entry.path || !entry.branch || !isPathInside(worktreesRoot, entry.path)) continue;
-    if (activeSessions.has(entry.branch)) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'active-session' });
-      continue;
-    }
+    const activeSession = activeSessions.get(entry.branch);
     if (entry.locked) {
       result.retained.push({ branch: entry.branch, path: entry.path, reason: 'locked' });
       continue;
@@ -373,12 +440,27 @@ function reclaimMergedManagedWorktrees(options = {}) {
       continue;
     }
 
-    const merged = spawnSync('git', ['merge-base', '--is-ancestor', entry.branch, baseRef], {
-      cwd: mainRoot,
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    if (merged.error || merged.status !== 0) {
+    const integration = getBranchIntegrationState(mainRoot, entry.branch, baseRef);
+    const branchHead = runGitResult(mainRoot, ['rev-parse', entry.branch]);
+    const headMatchesSession = !activeSession || !activeSession.head
+      || (branchHead.status === 0 && branchHead.stdout.trim() === activeSession.head);
+    const prState = activeSession && activeSession.step === 'pushed' && activeSession.pr && headMatchesSession
+      ? resolvePullRequestState(mainRoot, activeSession.pr, entry.branch)
+      : { merged: false };
+    const completed = integration.integrated || prState.merged;
+    if (activeSession && !headMatchesSession) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'session-head-mismatch' });
+      continue;
+    }
+    if (activeSession && integration.aheadCount === 0 && !prState.merged) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'active-session' });
+      continue;
+    }
+    if (activeSession && !completed) {
+      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'active-session' });
+      continue;
+    }
+    if (!completed) {
       result.retained.push({ branch: entry.branch, path: entry.path, reason: 'not-merged' });
       continue;
     }
@@ -457,6 +539,25 @@ function assertReusableLinksStayInsideRoot(rootPath, allowedRoot) {
   visit(rootPath, new Set());
 }
 
+function copyReusableTreeDereferenced(sourcePath, targetPath) {
+  const linkStat = fs.lstatSync(sourcePath);
+  const resolvedSource = linkStat.isSymbolicLink() ? fs.realpathSync(sourcePath) : sourcePath;
+  const stat = linkStat.isSymbolicLink() ? fs.statSync(sourcePath) : linkStat;
+  if (stat.isDirectory()) {
+    fs.mkdirSync(targetPath, { recursive: true, mode: stat.mode });
+    for (const entry of fs.readdirSync(resolvedSource)) {
+      copyReusableTreeDereferenced(path.join(resolvedSource, entry), path.join(targetPath, entry));
+    }
+    fs.chmodSync(targetPath, stat.mode);
+    return;
+  }
+  if (!stat.isFile()) {
+    throw new Error(`reusable source contains an unsupported filesystem entry: ${sourcePath}`);
+  }
+  fs.copyFileSync(resolvedSource, targetPath);
+  fs.chmodSync(targetPath, stat.mode);
+}
+
 function materializeReusablePaths(options = {}) {
   const mainRoot = path.resolve(options.mainRoot || '');
   const worktreePath = path.resolve(options.worktreePath || '');
@@ -488,7 +589,7 @@ function materializeReusablePaths(options = {}) {
     ensureDir(path.dirname(targetPath));
     const temporaryPath = `${targetPath}.reuse-${process.pid}-${Date.now()}`;
     try {
-      fs.cpSync(sourcePath, temporaryPath, { recursive: true, force: true, dereference: true });
+      copyReusableTreeDereferenced(sourcePath, temporaryPath);
       fs.renameSync(temporaryPath, targetPath);
     } catch (error) {
       fs.rmSync(temporaryPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
@@ -779,6 +880,8 @@ module.exports = {
   findWorktreeByBranch,
   getBaseRef,
   getCurrentBranch,
+  getBranchIntegrationState,
+  getPullRequestState,
   getMainRepoRoot,
   getWorktreeRoot,
   hasUncommittedChanges,

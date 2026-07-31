@@ -6,12 +6,14 @@ const fs = require('fs');
 const path = require('path');
 const {
   getMainRepoRoot,
+  getBranchIntegrationState,
   listWorktrees,
   removeSession,
   removeWorktreeSafely,
   resolveContainerPath,
   safeRemoveTreeNoFollow,
   readSessions,
+  reclaimMergedManagedWorktrees,
   MANAGED_MARKER,
 } = require('../worktree-tools/worktree-core');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
@@ -56,15 +58,6 @@ function runGit(repoRoot, args, allowFailure = false) {
   return result;
 }
 
-function isMerged(repoRoot, branch, baseRef) {
-  return runGit(repoRoot, ['merge-base', '--is-ancestor', branch, baseRef], true).status === 0;
-}
-
-function hasUniquePatch(repoRoot, branch, baseRef) {
-  const result = runGit(repoRoot, ['cherry', '-v', baseRef, branch]);
-  return result.stdout.split(/\r?\n/).some((line) => line.startsWith('+'));
-}
-
 function classifyBranch({ branch, attached, merged, hasUniquePatch }) {
   if (PROTECTED_BRANCHES.has(branch)) return 'protected';
   if (attached) return hasUniquePatch ? 'active-unique' : 'active-equivalent';
@@ -81,8 +74,9 @@ function collectBranches(repoRoot, baseRef) {
 
   return heads.map((branch) => {
     const worktree = worktreeByBranch.get(branch) || null;
-    const merged = isMerged(repoRoot, branch, baseRef);
-    const unique = merged ? false : hasUniquePatch(repoRoot, branch, baseRef);
+    const integration = getBranchIntegrationState(repoRoot, branch, baseRef);
+    const merged = integration.mergedByAncestry;
+    const unique = merged ? false : integration.hasUniquePatch;
     return {
       branch,
       worktreePath: worktree ? worktree.path : '',
@@ -99,7 +93,8 @@ function summarize(entries) {
 }
 
 function cleanupEntry(repoRoot, config, entry, options) {
-  if (!['merged', 'equivalent', 'active-equivalent'].includes(entry.classification)) return 'skipped';
+  if (entry.classification === 'active-equivalent') return 'needs-worktree-removal';
+  if (!['merged', 'equivalent'].includes(entry.classification)) return 'skipped';
   if (entry.worktreePath) {
     if (!options.removeWorktrees) return 'needs-worktree-removal';
     const dirty = runGit(entry.worktreePath, ['status', '--porcelain']).stdout.trim();
@@ -118,10 +113,22 @@ function main() {
   const mainRoot = getMainRepoRoot(repoRoot);
   const config = loadConfig({ repoRoot: mainRoot });
   const baseRef = `origin/${config.baseBranch || 'main'}`;
+  const reclaimed = options.apply && options.removeWorktrees
+    ? reclaimMergedManagedWorktrees({ mainRoot, config, baseRef })
+    : { removed: [], retained: [] };
   const entries = collectBranches(mainRoot, baseRef);
   const summary = summarize(entries);
   const orphanAudit = collectManagedOrphans(mainRoot, config);
-  const result = { baseRef, summary, entries, removed: [], deferred: [], managedOrphans: orphanAudit.orphans, untrustedDirectories: orphanAudit.untrusted };
+  const result = {
+    baseRef,
+    summary,
+    entries,
+    removed: reclaimed.removed.map((entry) => entry.branch),
+    deferred: reclaimed.retained.map((entry) => entry.branch).filter(Boolean),
+    retainedWorktrees: reclaimed.retained,
+    managedOrphans: orphanAudit.orphans,
+    untrustedDirectories: orphanAudit.untrusted,
+  };
 
   if (options.apply) {
     for (const entry of entries) {
@@ -151,4 +158,4 @@ if (require.main === module) {
   try { main(); } catch (error) { console.error(`STATUS=BLOCKED\nREASON=${error.message}`); process.exit(1); }
 }
 
-module.exports = { classifyBranch, parseArgs, summarize, collectManagedOrphans };
+module.exports = { classifyBranch, cleanupEntry, parseArgs, summarize, collectManagedOrphans };

@@ -108,6 +108,53 @@ test('completion guard passes task branches already merged to the base ref', () 
   assert.equal(result.status, 'OK');
 });
 
+test('completion guard passes task branches whose patches were squash-merged', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'fix/example',
+    statusLines: [],
+    hasUpstream: true,
+    aheadOfUpstream: 0,
+    headMergedToBase: false,
+    headPatchEquivalentToBase: true,
+    baseRef: 'origin/main',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'OK');
+  assert.match(result.reason, /已合入主分支/);
+});
+
+test('completion guard blocks when squash comparison still contains unique patches', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'fix/example',
+    statusLines: [],
+    hasUpstream: true,
+    aheadOfUpstream: 0,
+    headMergedToBase: false,
+    headPatchEquivalentToBase: false,
+    baseRef: 'origin/main',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /尚未合入主分支/);
+});
+
+test('completion guard accepts an exact pushed head whose PR is merged', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'fix/example',
+    statusLines: [],
+    hasUpstream: true,
+    aheadOfUpstream: 0,
+    headMergedToBase: false,
+    headPatchEquivalentToBase: false,
+    pullRequestMerged: true,
+    baseRef: 'origin/main',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'OK');
+});
+
 test('splitStatusLines drops empty lines only', () => {
   assert.deepEqual(splitStatusLines(' M a.js\n?? b.js\n\n'), [' M a.js', '?? b.js']);
 });

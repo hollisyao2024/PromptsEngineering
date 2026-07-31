@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyBranch, parseArgs, summarize } = require('../branch-reconcile');
+const { classifyBranch, cleanupEntry, parseArgs, summarize } = require('../branch-reconcile');
 
 test('reconciler never marks protected or active unique branches as removable', () => {
   assert.equal(classifyBranch({ branch: 'main', attached: true, merged: true, hasUniquePatch: false }), 'protected');
@@ -23,6 +23,16 @@ test('reconciler requires an explicit opt-in for mutations', () => {
     removeOrphans: true,
     json: true,
   });
+});
+
+test('reconciler never directly removes an attached equivalent worktree', () => {
+  const action = cleanupEntry('/unused', {}, {
+    branch: 'fix/fresh',
+    worktreePath: '/unused/worktrees/fresh',
+    classification: 'active-equivalent',
+  }, { removeWorktrees: true });
+
+  assert.equal(action, 'needs-worktree-removal');
 });
 
 test('summary preserves every classification count', () => {

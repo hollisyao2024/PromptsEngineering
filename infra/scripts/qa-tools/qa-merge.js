@@ -447,10 +447,17 @@ async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
 /**
  * B2: in-process release-gate check. Replaces the previous spawnSync('pnpm
  * run qa:check-defect-blockers') which incurred 5-15s of node + workspace
- * cold-start every merge. Behavior is preserved (P0 blockers + NFR check);
- * release report is intentionally not written here (CLI entry still does).
+ * cold-start every merge. A session PR is not a project release, so it must
+ * not be blocked by unrelated modules' historical P0 evidence; the full P0
+ * and NFR gate remains mandatory for explicit project/release merges.
  */
-function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
+function runPreMergeChecks({ scope = 'project', checkers = defectBlockerCheckers } = {}) {
+  if (scope !== 'project') {
+    console.log(
+      '\x1b[36msession 合并：跳过全仓历史发布门禁；仅由本 PR 的测试与审查结果决定。\x1b[0m'
+    );
+    return true;
+  }
   console.log('\x1b[36m运行发布门禁检查（in-process）...\x1b[0m');
   const defects = checkers.parseDefects();
   const analysis = checkers.analyzeDefects(defects);
@@ -838,18 +845,9 @@ function cleanupWorktree(featureBranch, mainRepoRoot) {
 
   const cwdBefore = process.cwd();
   const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
-  if (wasInsideTarget) {
-    const worker = path.resolve(__dirname, '../worktree-tools/deferred-worktree-cleanup.js');
-    const child = spawn(process.execPath, [worker, mainRepoRoot, featureBranch, entry.path], {
-      cwd: mainRepoRoot, detached: true, windowsHide: true, stdio: 'ignore',
-    });
-    child.unref();
-    console.log(`\x1b[33m  当前 worktree 已合并，已安排后台安全清理: ${entry.path}\x1b[0m`);
-    return { removed: false, deferred: true, path: entry.path };
-  }
-  // Never attempt to remove the current worktree from a process whose cwd is
-  // still inside it. This also makes the failure mode explicit for callers
-  // that invoke /qa merge from a linked worktree on Windows.
+  // removeWorktreeSafely changes this process to mainRepoRoot before touching
+  // the tree. Keep cleanup synchronous so macOS/Windows failures cannot escape
+  // the merge completion invariants below.
   const config = loadConfig({ repoRoot: mainRepoRoot });
   const worktreesRoot = resolveContainerPath(config, mainRepoRoot, 'worktrees');
 
@@ -1501,7 +1499,7 @@ async function main() {
     // Step 9: 运行发布门禁检查
     const skipBusinessQaChecks = config.template && config.template.role === 'source';
     if (!args.skipChecks && !skipBusinessQaChecks) {
-      const checksPassed = runPreMergeChecks();
+      const checksPassed = runPreMergeChecks({ scope: args.scope });
       if (!checksPassed) {
         throw new Error(
           '发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n' +
@@ -1568,11 +1566,7 @@ async function main() {
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
-    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
-    if (cleanupResult.deferred) {
-      console.log('\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\x1b[0m');
-      return;
-    }
+    cleanupWorktree(currentBranch, mainRepoRoot);
     // A session may also exist for a legacy non-worktree branch; cleanup is a
     // completion invariant, not merely a worktree side effect.
     removeSession(config, mainRepoRoot, currentBranch);
@@ -1705,6 +1699,7 @@ if (require.main === module) {
 
 module.exports = {
   findOpenPR,
+  runPreMergeChecks,
   findWorktreePathByBranch,
   resolveMainWorkspacePath,
   formatGhError,
