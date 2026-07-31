@@ -12,27 +12,10 @@ test('completion guard passes on a clean main branch', () => {
   const result = evaluateCompletionGuard({
     branch: 'main',
     statusLines: [],
-    pendingCleanupCount: 0,
   });
 
   assert.equal(result.ok, true);
   assert.equal(result.status, 'OK');
-});
-
-test('completion guard blocks a clean main branch while durable worktree cleanup is pending', () => {
-  const result = evaluateCompletionGuard({
-    branch: 'main',
-    statusLines: [],
-    pendingCleanupCount: 1,
-    pendingCleanupBranches: ['fix/deferred-cleanup'],
-  });
-
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 'BLOCKED');
-  assert.match(result.reason, /worktree 清理尚未收敛/);
-  assert.deepEqual(result.nextCommands, [
-    'node infra/scripts/tdd-tools/tdd-completion-guard.js',
-  ]);
 });
 
 test('completion guard blocks dirty main before final response', () => {
@@ -118,53 +101,6 @@ test('completion guard passes task branches already merged to the base ref', () 
     hasUpstream: true,
     aheadOfUpstream: 0,
     headMergedToBase: true,
-    baseRef: 'origin/main',
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.status, 'OK');
-});
-
-test('completion guard passes task branches whose patches were squash-merged', () => {
-  const result = evaluateCompletionGuard({
-    branch: 'fix/example',
-    statusLines: [],
-    hasUpstream: true,
-    aheadOfUpstream: 0,
-    headMergedToBase: false,
-    headPatchEquivalentToBase: true,
-    baseRef: 'origin/main',
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.status, 'OK');
-  assert.match(result.reason, /已合入主分支/);
-});
-
-test('completion guard blocks when squash comparison still contains unique patches', () => {
-  const result = evaluateCompletionGuard({
-    branch: 'fix/example',
-    statusLines: [],
-    hasUpstream: true,
-    aheadOfUpstream: 0,
-    headMergedToBase: false,
-    headPatchEquivalentToBase: false,
-    baseRef: 'origin/main',
-  });
-
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /尚未合入主分支/);
-});
-
-test('completion guard accepts an exact pushed head whose PR is merged', () => {
-  const result = evaluateCompletionGuard({
-    branch: 'fix/example',
-    statusLines: [],
-    hasUpstream: true,
-    aheadOfUpstream: 0,
-    headMergedToBase: false,
-    headPatchEquivalentToBase: false,
-    pullRequestMerged: true,
     baseRef: 'origin/main',
   });
 

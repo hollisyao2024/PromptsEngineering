@@ -13,8 +13,10 @@ const {
 } = require('../deferred-cleanup-state');
 const { safeRemoveTreeNoFollow } = require('../worktree-core');
 
+const realTemporaryRoot = fs.realpathSync(os.tmpdir());
+
 function makeFixture() {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'deferred-cleanup-state-'));
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'deferred-cleanup-state-'));
   const mainRoot = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   fs.mkdirSync(mainRoot, { recursive: true });
@@ -30,7 +32,7 @@ function runGit(cwd, args) {
 
 test('cleanup intent is persisted before synchronous filesystem mutation begins', (t) => {
   const fixture = makeFixture();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const writes = [];
 
   markCleanupPending({
@@ -49,7 +51,7 @@ test('cleanup intent is persisted before synchronous filesystem mutation begins'
 
 test('reconciler resumes an unregistered partial deletion after process restart', (t) => {
   const fixture = makeFixture();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const worktreePath = path.join(fixture.worktreesRoot, 'partial');
   fs.mkdirSync(worktreePath);
   fs.writeFileSync(path.join(worktreePath, 'remaining.txt'), 'partial\n');
@@ -85,7 +87,7 @@ test('reconciler resumes an unregistered partial deletion after process restart'
 
 test('reconciler retains authorization and records failures for a later process', (t) => {
   const fixture = makeFixture();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   const worktreePath = path.join(fixture.worktreesRoot, 'busy');
   fs.mkdirSync(worktreePath);
   const writes = [];
@@ -124,7 +126,7 @@ test('reconciler retains authorization and records failures for a later process'
 
 test('reconciler completes registered worktree, Git metadata, branch, and session atomically', (t) => {
   const fixture = makeFixture();
-  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   runGit(fixture.mainRoot, ['init', '-b', 'main']);
   runGit(fixture.mainRoot, ['config', 'user.email', 'cleanup-test@example.com']);
   runGit(fixture.mainRoot, ['config', 'user.name', 'Cleanup Test']);
@@ -163,4 +165,51 @@ test('reconciler completes registered worktree, Git metadata, branch, and sessio
     1,
   );
   assert.deepEqual(removedSessions, ['fix/registered']);
+});
+
+test('reconciler prunes the exact authorized registration after the physical tree is already gone', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'cleanup-test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Cleanup Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'README.md'), 'fixture\n');
+  runGit(fixture.mainRoot, ['add', 'README.md']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'missing-registered');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'fix/missing-registered', worktreePath]);
+  safeRemoveTreeNoFollow(worktreePath, { allowedRoot: fixture.worktreesRoot });
+  const removedSessions = [];
+  const session = {
+    branch: 'fix/missing-registered',
+    worktree: worktreePath,
+    status: 'cleanup_pending',
+    cleanup: {
+      mainRoot: fixture.mainRoot,
+      branch: 'fix/missing-registered',
+      worktree: worktreePath,
+    },
+  };
+
+  const result = reconcilePendingCleanups({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [session],
+    removeSession: (_config, _root, branch) => removedSessions.push(branch),
+  });
+
+  assert.deepEqual(result.completed, ['fix/missing-registered']);
+  assert.deepEqual(result.pending, []);
+  assert.equal(
+    runGit(fixture.mainRoot, ['worktree', 'list', '--porcelain']).includes(worktreePath),
+    false,
+  );
+  assert.equal(
+    spawnSync('git', ['show-ref', '--verify', '--quiet', 'refs/heads/fix/missing-registered'], {
+      cwd: fixture.mainRoot,
+    }).status,
+    1,
+  );
+  assert.deepEqual(removedSessions, ['fix/missing-registered']);
 });
