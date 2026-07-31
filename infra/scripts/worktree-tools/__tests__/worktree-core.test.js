@@ -23,6 +23,9 @@ const {
 const { retryWritable: retryRemoveOperation } = require('../worktree-safe-remove');
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
+const worktreeNewScript = path.resolve(__dirname, '..', 'worktree-new.js');
+const tddNewWorktreeScript = path.resolve(__dirname, '..', '..', 'tdd-tools', 'tdd-new-worktree.js');
+const agentRunScript = path.resolve(__dirname, '..', '..', 'agent-runner', 'agent-run.js');
 
 test('safe removal retries transient non-empty directories without weakening permission handling', () => {
   let attempts = 0;
@@ -282,6 +285,79 @@ function initRepo() {
   runGit(repo, ['commit', '-m', 'init']);
   return repo;
 }
+
+function runNodeScript(repo, script, args) {
+  return spawnSync(process.execPath, [script, ...args], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+}
+
+function assertNoGeneratedTddWorktree(repo) {
+  assert.equal(runGit(repo, ['branch', '--list', 'feature/tdd']), '');
+  assert.doesNotMatch(runGit(repo, ['worktree', 'list', '--porcelain']), /tdd-tdd|feature\/tdd/u);
+  assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
+}
+
+test('worktree creation help is side-effect free across direct, TDD, and agent-runner entrypoints', (t) => {
+  const repo = initRepo();
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+
+  const commands = [
+    [worktreeNewScript, ['--help']],
+    [worktreeNewScript, ['-h']],
+    [tddNewWorktreeScript, ['--help']],
+    [agentRunScript, ['--help']],
+  ];
+
+  for (const [script, args] of commands) {
+    const result = runNodeScript(repo, script, args);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /Usage:/u);
+    assertNoGeneratedTddWorktree(repo);
+  }
+});
+
+test('worktree creation rejects missing identity before Git or filesystem mutation', (t) => {
+  const repo = initRepo();
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+
+  const commands = [
+    [worktreeNewScript, []],
+    [worktreeNewScript, ['--phase=tdd']],
+    [worktreeNewScript, ['--phase', 'tdd', '--desc']],
+    [tddNewWorktreeScript, []],
+    [agentRunScript, ['--mode=change', '--phase=tdd']],
+  ];
+
+  for (const [script, args] of commands) {
+    const result = runNodeScript(repo, script, args);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stderr, /STATUS=BLOCKED/u);
+    assert.match(result.stderr, /identity is required|requires a non-empty value/u);
+    assert.match(result.stderr, /NEXT_MANUAL_ACTION=/u);
+    assertNoGeneratedTddWorktree(repo);
+  }
+});
+
+test('worktree creation still accepts an explicit identity in dry-run mode', (t) => {
+  const repo = initRepo();
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+
+  const result = runNodeScript(repo, worktreeNewScript, [
+    '--phase=tdd',
+    '--kind=fix',
+    '--desc=argument-safety',
+    '--dry-run',
+    '--skip-fetch',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /STATUS=DRY_RUN/u);
+  assert.match(result.stdout, /BRANCH_NAME=fix\/argument-safety/u);
+  assertNoGeneratedTddWorktree(repo);
+});
 
 test('dry-run worktree creation does not fetch or create its requested worktree', (t) => {
   const repo = initRepo();

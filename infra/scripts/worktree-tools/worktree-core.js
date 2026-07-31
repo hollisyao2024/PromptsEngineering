@@ -71,10 +71,45 @@ function shortHash(input) {
   return Math.abs(hash).toString(36).slice(0, 6).padStart(4, '0');
 }
 
+function requestError(message) {
+  const error = new Error(message);
+  error.nextManualAction = 'Provide --branch <branch>, --task <TASK-ID>, or --desc <description> and rerun the command.';
+  return error;
+}
+
+function readStringOption(options, names) {
+  for (const name of names) {
+    if (!Object.prototype.hasOwnProperty.call(options, name)) continue;
+    const value = options[name];
+    if (typeof value !== 'string' || !value.trim()) {
+      throw requestError(`--${name} requires a non-empty value`);
+    }
+    return value.trim();
+  }
+  return '';
+}
+
+function validateWorktreeRequest(options = {}) {
+  const phase = readStringOption(options, ['phase']);
+  const branch = readStringOption(options, ['branch']);
+  const task = readStringOption(options, ['task']);
+  const desc = readStringOption(options, ['desc', 'description']);
+  readStringOption(options, ['kind']);
+
+  if (!branch && !task && !desc) {
+    throw requestError('worktree identity is required; phase alone cannot name a branch or worktree');
+  }
+
+  return { phase, branch, task, desc };
+}
+
 function buildBranchName(options) {
-  const phase = slugify(options.phase || 'tdd');
-  const desc = slugify(options.desc || options.description || options.task || phase);
-  const task = options.task ? String(options.task).trim().toUpperCase() : '';
+  const request = validateWorktreeRequest(options);
+  if (request.branch) return request.branch;
+
+  const phase = slugify(request.phase || 'tdd');
+  const desc = slugify(request.desc || request.task);
+  const task = request.task.toUpperCase();
   const kind = options.kind || (options.fix ? 'fix' : '');
 
   if (phase === 'prd') return `docs/prd-${desc}`;
@@ -704,13 +739,13 @@ function runWorktreeBootstrap(options = {}) {
 
 function createOrResumeWorktree(options = {}) {
   const cli = options.cli || {};
+  const branch = buildBranchName(cli);
   const cwd = options.cwd || process.cwd();
   const mainRoot = getMainRepoRoot(cwd);
   const configRoot = getWorktreeRoot(cwd);
   const config = loadConfig({ repoRoot: configRoot, cli });
   // Validate before fetch, branch creation, worktree registration, session writes, or links.
   validateSharedLinkConfig(config);
-  const branch = cli.branch || buildBranchName(cli);
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
     writeManagedMarker(mainRoot, existing.path, branch);
@@ -823,6 +858,7 @@ module.exports = {
   shouldSkipFetch,
   setupSharedLinks,
   slugify,
+  validateWorktreeRequest,
   validateSharedLinkConfig,
   writeSession,
   writeManagedMarker,

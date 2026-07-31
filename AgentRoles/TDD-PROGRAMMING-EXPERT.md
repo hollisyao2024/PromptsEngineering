@@ -27,7 +27,7 @@
   1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
   2. **Worktree 门禁**（所有 TDD 入口强制执行）：
      - `/tdd diagnose` 默认是只读排查模式；不创建 worktree，临时产物写入脚本按主 repo 解析出的容器层 `tmp/cache/artifacts`。一旦需要新增失败测试、修改代码或文档，必须升级为修改型任务。
-     - 修改型任务必须执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd ...` 或兼容入口 `node infra/scripts/tdd-tools/tdd-new-worktree.js ...` 创建/恢复专属 worktree；已安全合并 package aliases 时可使用对应 `pnpm run` 命令。
+     - 修改型任务必须执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --desc "<任务主题>"`（有 Task 时追加 `--task <TASK-ID>`）或向兼容入口 `node infra/scripts/tdd-tools/tdd-new-worktree.js` 传入 Task/描述，创建/恢复专属 worktree；`--branch`、`--task`、`--desc` 至少显式提供一项，仅传 `--phase=tdd` 必须阻断，禁止生成阶段占位分支/目录；已安全合并 package aliases 时可使用对应 `pnpm run` 命令。
      - worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令必须以 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。
      - `/tdd new-branch` 默认阻断并提示使用 worktree；只有用户明确要求单槽轻量模式时，才可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`。
      - 未通过 Worktree 门禁前，禁止执行任何代码或文档修改操作。
@@ -41,12 +41,12 @@
 | `/tdd sync` | `node infra/scripts/tdd-tools/tdd-sync.js` | `pnpm run tdd:sync` | 文档回写 Gate |
 | `/tdd push` | `node infra/scripts/tdd-tools/tdd-push.js` | `pnpm run tdd:push` | 自动提交当前分支未提交改动 + 推代码 + 自动创建当前分支 PR |
 | `/tdd finish` | `node infra/scripts/tdd-tools/tdd-finish.js` | `pnpm run tdd:finish` | 按 completion guard 的 NEXT_COMMANDS 串行完成 TDD/QA/merge 收尾 |
-| `/worktree new` | `node infra/scripts/worktree-tools/worktree-new.js` | `pnpm run worktree:new` | 创建/恢复任意专家修改型任务 worktree |
+| `/worktree new` | `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --desc "<任务主题>"` | `pnpm run worktree:new -- --phase=tdd --desc "<任务主题>"` | 创建/恢复任意专家修改型任务 worktree；身份参数必填 |
 | `/worktree list` | `node infra/scripts/worktree-tools/worktree-list.js` | `pnpm run worktree:list` | 列出活跃 worktree |
 | `/worktree remove` | `node infra/scripts/worktree-tools/worktree-remove.js` | `pnpm run worktree:remove` | 安全移除指定 worktree |
 | `/worktree resume` | `node infra/scripts/worktree-tools/worktree-resume.js` | `pnpm run worktree:resume` | 恢复或重新挂载 worktree |
 | `/tdd new-branch` | `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` | 默认不合并 alias | 显式单槽轻量模式；默认阻断并提示使用 worktree |
-| `/tdd new-worktree` | `node infra/scripts/tdd-tools/tdd-new-worktree.js` | `pnpm run tdd:new-worktree` | 兼容入口，调用 `worktree:new --phase=tdd` |
+| `/tdd new-worktree` | `node infra/scripts/tdd-tools/tdd-new-worktree.js <TASK-ID或描述>` | `pnpm run tdd:new-worktree -- <TASK-ID或描述>` | 兼容入口，调用 `worktree:new --phase=tdd` 并强制携带任务身份 |
 | `/tdd worktree list/remove` | `node infra/scripts/tdd-tools/tdd-worktree-*.js` | `pnpm run tdd:worktree-*` | 兼容入口，调用公共 `worktree:*` |
 | `/tdd resume` | `node infra/scripts/tdd-tools/tdd-resume.js` | `pnpm run tdd:resume` | 兼容入口，调用 `worktree:resume` |
 | `tdd:tick`（内部） | `node infra/scripts/tdd-tools/tdd-tick.js` | `pnpm run tdd:tick` | 依据分支名勾选 TASK 复选框（由 tdd:sync 调用） |
