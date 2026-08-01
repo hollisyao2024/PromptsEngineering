@@ -8,8 +8,10 @@ const path = require('path');
 const { cleanupOrphanWorktreeDirs } = require('../qa-merge');
 const { safeRemoveTreeNoFollow } = require('../../worktree-tools/worktree-core');
 
+const REAL_TMPDIR = fs.realpathSync(os.tmpdir());
+
 test('reclaims an empty orphan worktree when its session proves ownership', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-merge-orphan-'));
+  const container = fs.mkdtempSync(path.join(REAL_TMPDIR, 'qa-merge-orphan-'));
   const mainRoot = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
   const stale = path.join(worktreesRoot, 'tdd-stale');
@@ -17,7 +19,7 @@ test('reclaims an empty orphan worktree when its session proves ownership', (t) 
   fs.mkdirSync(path.join(mainRoot, '.git', 'worktrees'), { recursive: true });
   fs.mkdirSync(stale, { recursive: true });
   fs.mkdirSync(active, { recursive: true });
-  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: os.tmpdir() }));
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: REAL_TMPDIR }));
 
   const result = cleanupOrphanWorktreeDirs(mainRoot, {
     config: {},

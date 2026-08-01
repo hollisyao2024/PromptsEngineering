@@ -28,7 +28,7 @@ function main(argv = process.argv.slice(2)) {
 
   try {
     const cli = parseCliArgs(argv);
-    const result = createOrResumeWorktree({ cli, reconcileRemoteMergedSessions: true });
+    const result = createOrResumeWorktree({ cli });
 
     if (result.dryRun) {
       console.log('STATUS=DRY_RUN');
@@ -51,9 +51,6 @@ function main(argv = process.argv.slice(2)) {
     }
     if (result.reclaimed && result.reclaimed.removed.length > 0) {
       console.log(`RECLAIMED_MERGED_WORKTREES=${result.reclaimed.removed.map((item) => item.branch).join(',')}`);
-    }
-    if (result.remoteReclaimed && result.remoteReclaimed.removed.length > 0) {
-      console.log(`RECLAIMED_REMOTE_MERGED_WORKTREES=${result.remoteReclaimed.removed.map((item) => item.branch).join(',')}`);
     }
     if (result.bootstrap) {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
