@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const {
+  cleanupWorktree,
   cleanupOrphanWorktreeDirs,
   cleanupOrphanSessions,
 } = require('./qa-merge');
@@ -156,4 +157,31 @@ test('production cleanup sources never invoke git worktree remove', () => {
     const text = fs.readFileSync(source, 'utf8');
     assert.doesNotMatch(text, /['"]worktree['"]\s*,\s*['"]remove['"]/u, source);
   }
+});
+
+test('qa merge persists the sealed cleanup intent before scheduling deferred cleanup', (t) => {
+  const fixture = makeContainer();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  const worktreePath = path.join(fixture.worktreesRoot, 'sealed');
+  fs.mkdirSync(worktreePath);
+  const events = [];
+
+  const result = cleanupWorktree('fix/sealed', fixture.mainRoot, {
+    currentCwd: worktreePath,
+    listWorktrees: () => [{ branch: 'fix/sealed', path: worktreePath, head: 'sealed-head' }],
+    config: { containerDirs: { worktrees: fixture.worktreesRoot } },
+    markCleanupPending: (input) => events.push(['persist', input.expectedHead]),
+    scheduleDeferredCleanup: () => events.push(['schedule']),
+  });
+
+  assert.equal(result.deferred, true);
+  assert.deepEqual(events, [['persist', 'sealed-head'], ['schedule']]);
+});
+
+test('qa merge deferred cleanup does not return before main synchronization and push steps', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
+  const deferredBlock = source.match(/if \(cleanupResult\.deferred\) \{([\s\S]*?)\n\s*\}/u);
+  assert.ok(deferredBlock);
+  assert.doesNotMatch(deferredBlock[1], /\breturn\b/u);
+  assert.ok(source.indexOf('pushMainAndTag(mainWorkspacePath') > source.indexOf('cleanupResult = cleanupWorktree'));
 });

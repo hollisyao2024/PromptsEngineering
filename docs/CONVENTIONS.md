@@ -33,6 +33,8 @@
 **原则**：
 - 只读排查不创建 worktree；测试报告、覆盖率、扫描 manifest、agent run 日志等写入脚本按主 repo 解析出的容器层 `tmp`。
 - 修改 tracked 文件前必须创建或恢复专属 worktree；创建后所有读写命令以该 worktree 为 CWD。
+- worktree 合并后的清理采用持久化两阶段协议：先以合并时 HEAD 封印 session，再由主 worktree 中的 completion guard/后续生命周期入口复核并删除。目标 worktree 若仍是当前 CWD，不得同步删除，也不得让 `/qa merge` 提前跳过 main 同步与推送。
+- cleanup 封印后发现 HEAD 前移、dirty 文件或封印缺失时，session 必须转为 `recovery_required` 并保留目录、分支和错误证据。恢复时使用 `worktree-resume.js --branch <旧分支> --recover-as <新分支>` 显式迁移，普通 resume/push 不得覆盖该状态。
 - 能跨 worktree 共享的产物外置到容器层；per-worktree 代码耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。
 - `node_modules`、其子包目录和 `.pnpm` 必须由当前 worktree 的 `/worktree bootstrap` 或项目配置的包管理器命令独立建立；禁止用 symlink、Windows junction 或其他 reparse point 指向主仓库/另一 worktree。依赖去重由 pnpm store 等包管理器缓存负责，不以目录联接实现。
 - Git worktree 默认完整 checkout tracked 文件；源码/文档不跨 worktree symlink。共享的是 Git object database、pnpm store、`../cache/`、`../artifacts/`、`../tmp/` 与必要本地配置 symlink。

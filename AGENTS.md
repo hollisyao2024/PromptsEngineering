@@ -36,6 +36,8 @@
 - **创建后必须进入目录**：worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令都必须以脚本输出的 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令切到该目录。**禁止跨 worktree 用绝对路径调用脚本**（例如 CWD 在 worktree A 却调 `node /path/to/main/repo/infra/scripts/...`）；所有模板脚本统一通过 `resolveRepoRoot({ scriptDir: __dirname })`（见 `infra/scripts/shared/config.js`）按 `process.cwd()` 推导 repo 根，脚本检测到跨 repo 调用时会输出 `[cwd-anchor]` 警告，正确做法是先切 CWD 再用相对路径或 `pnpm run <alias>`。
 - **new branch 仅显式 opt-in**：默认不直接使用 `/tdd new-branch`；branch 仍由 worktree 底层自动创建。少量、单槽、用户明确指定的轻量修改可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`，但不具备并行隔离能力，也不合并到默认 package aliases。
 - **并行状态外置**：多任务运行态写入 `../tmp/worktree-sessions/`，并发锁写入 `../tmp/agent-locks/`；`docs/AGENT_STATE.md` 只记录阶段结果，不作为多任务调度源。
+- **合并后封印与补偿清理**：`/qa merge` 在任何删除前必须把分支 HEAD、worktree 绝对路径和 cleanup intent 原子写入 session。若调用进程仍位于目标 worktree，只允许标记 `cleanup_pending` 并继续完成 main 同步/推送；切到主 worktree 后由 completion guard 或下一次 worktree 生命周期入口串行收敛。补偿器删除前必须复核 HEAD 与工作区 cleanliness；HEAD 前移、出现未提交文件或缺少封印时转为 `recovery_required`，严禁删除。
+- **显式恢复合并后工作**：`cleanup_pending` / `recovery_required` 会阻止普通 resume 与 `/tdd push` 覆盖状态。确认需保留合并后产生的提交或未提交文件后，执行 `node infra/scripts/worktree-tools/worktree-resume.js --branch <旧分支> --recover-as <新分支>`，在同一 worktree 上迁移到新分支并建立新 session，再走正常 TDD/QA 流程。
 - **完成后给清单**：修改型任务完成后必须输出 `MODIFIED_FILES` 与 `TEMPLATE_APPLY_CHECKLIST`，方便把模板同步到新项目。
 
 ### 并行合并协议
@@ -43,6 +45,7 @@
 - 合并前自动执行 `fetch`、`rebase`、门禁验证和文件集合复查；无冲突时自动继续，冲突已由 Git 明确标注时才中止并输出 `NEXT_MANUAL_ACTION`。
 - 文档状态文件、package scripts、配置文件等高冲突路径优先使用脚本化合并；业务代码冲突可尝试结构化自动解决，但语义冲突必须保留给人工确认。
 - 合并成功后删除远端分支、清理 worktree/session/lock；失败时保留 worktree 和 session，供后续 `/worktree resume` 恢复。
+- merge queue 与 cleanup reconciler 必须使用容器层生命周期锁；锁记录 PID，活跃 owner 不得抢占，崩溃进程留下的 stale lock 可在校验 PID 后回收。cleanup 失败必须保留 session 中的 attempts/lastError，不得只写后台日志。
 
 ## 外部 Agent 调用协议
 - OpenClaw、Hermes、Goose 等外部 agent 可以作为调度器或执行器，但不得自行定义本仓库的 worktree、merge、cleanup 策略。
@@ -246,6 +249,7 @@ Codex CLI 默认不执行自动 code review：
 - `/worktree remove`：**首先执行** `node infra/scripts/worktree-tools/worktree-remove.js` **脚本**，清理指定 worktree（检查未提交变更后安全移除）；已安全合并 aliases 时可用 `pnpm run worktree:remove`。
 - `/worktree cancel <branch>`：仅在用户明确取消任务后执行 `node infra/scripts/worktree-tools/worktree-cancel.js --branch <branch> --force`；该入口会丢弃未提交改动、删除已注册 worktree、本地分支与会话，避免取消任务遗留目录。没有 `--force` 时必须阻断。
 - `/worktree resume [branch]`：**首先执行** `node infra/scripts/worktree-tools/worktree-resume.js` **脚本**，恢复已有 worktree 或重新挂载已有分支；已安全合并 aliases 时可用 `pnpm run worktree:resume`。
+- `/worktree resume --branch <旧分支> --recover-as <新分支>`：仅用于 `recovery_required`。保留 worktree 中合并后产生的提交/未提交文件，切换到全新分支，删除旧本地分支与旧 recovery session，并为新分支建立 `in_progress` session；禁止用普通 resume 静默覆盖 recovery 状态。
 - `/tdd new-branch`：默认阻断并提示使用 worktree；仅当用户明确要求单槽轻量模式时，执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` 创建普通 branch。该模式不具备并行隔离能力，不合并到目标项目 package aliases；自动化与外部 agent 默认必须使用 worktree。
 - `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容入口，内部调用 `worktree:*` 公共脚本。
 

@@ -296,15 +296,83 @@ function sessionPath(config, mainRoot, branch) {
 
 function writeSession(config, mainRoot, payload) {
   const filePath = sessionPath(config, mainRoot, payload.branch);
-  const now = new Date().toISOString();
-  const previous = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {};
-  fs.writeFileSync(filePath, JSON.stringify({
-    ...previous,
-    ...payload,
-    updated_at: now,
-    started_at: previous.started_at || payload.started_at || now,
-  }, null, 2) + '\n');
-  return filePath;
+  const configuredLockDir = config.worktree && config.worktree.lockDir;
+  const lockDir = resolveFromRepo(mainRoot, configuredLockDir || '../tmp/agent-locks');
+  const releaseLock = acquireLock(lockDir, `worktree-session-${payload.branch}`, 30000);
+  try {
+    const now = new Date().toISOString();
+    const previous = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {};
+    const protectedStatuses = new Set(['cleanup_pending', 'recovery_required']);
+    if (protectedStatuses.has(previous.status) && payload.status === 'in_progress') {
+      const error = new Error(
+        `branch ${payload.branch} is ${previous.status}; resolve its post-merge lifecycle before resuming`,
+      );
+      error.lifecycleStatus = previous.status;
+      error.nextManualAction = previous.status === 'recovery_required'
+        ? `Inspect and preserve post-merge changes in ${previous.worktree || payload.worktree || payload.branch}.`
+        : 'Run the completion guard from the main worktree so durable cleanup can converge.';
+      throw error;
+    }
+    const next = JSON.stringify({
+      ...previous,
+      ...payload,
+      updated_at: now,
+      started_at: previous.started_at || payload.started_at || now,
+    }, null, 2) + '\n';
+    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(temporaryPath, next);
+    fs.renameSync(temporaryPath, filePath);
+    return filePath;
+  } finally {
+    releaseLock();
+  }
+}
+
+function assertSessionCanResume(config, mainRoot, branch) {
+  const session = readSessions(config, mainRoot).find((item) => item.branch === branch);
+  if (!session || !['cleanup_pending', 'recovery_required'].includes(session.status)) return session || null;
+  const error = new Error(
+    `branch ${branch} is ${session.status}; refusing to overwrite its post-merge lifecycle state`,
+  );
+  error.lifecycleStatus = session.status;
+  error.worktreePath = session.worktree;
+  error.nextManualAction = session.status === 'recovery_required'
+    ? `Inspect ${session.worktree || branch}, then run worktree-resume.js --branch ${branch} --recover-as <new-branch>.`
+    : 'Run the completion guard from the main worktree so durable cleanup can converge.';
+  throw error;
+}
+
+function recoverSessionAsBranch(config, mainRoot, branch, newBranch) {
+  if (!newBranch || newBranch === branch || isMainBranch(newBranch)) {
+    throw new Error('--recover-as requires a distinct non-main branch name');
+  }
+  const session = readSessions(config, mainRoot).find((item) => item.branch === branch);
+  if (!session || session.status !== 'recovery_required' || !session.worktree) {
+    throw new Error(`branch ${branch} has no recovery_required session`);
+  }
+  const entry = listWorktrees(mainRoot).find((item) => isSamePath(item.path, session.worktree));
+  if (!entry) throw new Error(`recovery worktree is not registered: ${session.worktree}`);
+  if (![branch, newBranch].includes(entry.branch)) {
+    throw new Error(`recovery worktree branch mismatch: expected ${branch}, found ${entry.branch || '(detached)'}`);
+  }
+  if (entry.branch === branch) {
+    if (branchExists(mainRoot, newBranch)) throw new Error(`recovery branch already exists: ${newBranch}`);
+    runGit(['switch', '-c', newBranch], { cwd: session.worktree });
+  }
+  const head = runGit(['rev-parse', 'HEAD'], { cwd: session.worktree, capture: true }).trim();
+  writeSession(config, mainRoot, {
+    phase: session.phase || inferPhaseFromBranch(newBranch),
+    branch: newBranch,
+    worktree: session.worktree,
+    status: 'in_progress',
+    step: 'recovered_post_merge_work',
+    recovered_from: branch,
+    head,
+  });
+  runGit(['branch', '-D', branch], { cwd: mainRoot });
+  removeSession(config, mainRoot, branch);
+  writeManagedMarker(mainRoot, session.worktree, newBranch);
+  return { branch: newBranch, previousBranch: branch, worktreePath: session.worktree, head };
 }
 
 function writeManagedMarker(mainRoot, worktreePath, branch) {
@@ -601,6 +669,28 @@ function acquireLock(lockDir, lockName, timeoutMs = 600000) {
       return () => fs.rmSync(lockPath, { recursive: true, force: true });
     } catch (error) {
       if (error && error.code !== 'EEXIST') throw error;
+      try {
+        const ownerPath = path.join(lockPath, 'owner');
+        const stat = fs.statSync(lockPath);
+        const owner = fs.existsSync(ownerPath)
+          ? Number(fs.readFileSync(ownerPath, 'utf8').split(/\r?\n/)[0])
+          : 0;
+        let ownerAlive = false;
+        if (owner > 0) {
+          try {
+            process.kill(owner, 0);
+            ownerAlive = true;
+          } catch (ownerError) {
+            ownerAlive = ownerError && ownerError.code === 'EPERM';
+          }
+        }
+        if (!ownerAlive && Date.now() - stat.mtimeMs > 1000) {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        // Another process may be creating or releasing the lock; retry normally.
+      }
       if (Date.now() - started > timeoutMs) {
         throw bootstrapError(`bootstrap lock timeout: ${lockPath}`, {
           bootstrapStatus: 'BLOCKED',
@@ -746,6 +836,15 @@ function createOrResumeWorktree(options = {}) {
   const config = loadConfig({ repoRoot: configRoot, cli });
   // Validate before fetch, branch creation, worktree registration, session writes, or links.
   validateSharedLinkConfig(config);
+  assertSessionCanResume(config, mainRoot, branch);
+  // A new lifecycle entrypoint also acts as crash recovery for unrelated
+  // post-merge cleanups. Never reconcile the branch currently being requested.
+  require('./deferred-cleanup-state').reconcilePendingCleanups({
+    mainRoot,
+    config,
+    excludeBranch: branch,
+    skipWorktreePath: cwd,
+  });
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
     writeManagedMarker(mainRoot, existing.path, branch);
@@ -828,6 +927,8 @@ function createOrResumeWorktree(options = {}) {
 }
 
 module.exports = {
+  acquireLock,
+  assertSessionCanResume,
   branchExists,
   buildBranchName,
   buildWorktreeName,
@@ -848,6 +949,7 @@ module.exports = {
   reclaimMergedManagedWorktrees,
   parseWorktreePorcelain,
   readSessions,
+  recoverSessionAsBranch,
   removeWorktreeSafely,
   removeSession,
   resolveContainerPath,

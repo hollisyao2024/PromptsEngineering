@@ -8,9 +8,12 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const {
+  acquireLock,
   createOrResumeWorktree,
   isPathInside,
   materializeReusablePaths,
+  readSessions,
+  recoverSessionAsBranch,
   removeWorktreeSafely,
   reclaimMergedManagedWorktrees,
   runWorktreeBootstrap,
@@ -696,4 +699,72 @@ test('resuming an existing worktree honors configured auto bootstrap mode', (t) 
   assert.equal(created.bootstrap.mode, 'auto');
   assert.equal(resumed.bootstrap.mode, 'auto');
   assert.equal(fs.readFileSync(path.join(created.worktreePath, 'node_modules', 'count'), 'utf8'), '2');
+});
+
+test('lifecycle lock reclaims a stale owner but never steals a live owner', (t) => {
+  const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-lifecycle-lock-'));
+  t.after(() => safeRemoveTreeNoFollow(root, { allowedRoot: realTemporaryRoot }));
+  const stalePath = path.join(root, 'cleanup.lock');
+  fs.mkdirSync(stalePath);
+  fs.writeFileSync(path.join(stalePath, 'owner'), '999999999\n2000-01-01T00:00:00.000Z\n');
+  fs.utimesSync(stalePath, new Date('2000-01-01T00:00:00.000Z'), new Date('2000-01-01T00:00:00.000Z'));
+  const release = acquireLock(root, 'cleanup', 100);
+  assert.equal(fs.existsSync(stalePath), true);
+  release();
+  assert.equal(fs.existsSync(stalePath), false);
+
+  const liveRelease = acquireLock(root, 'cleanup', 100);
+  assert.throws(() => acquireLock(root, 'cleanup', 20), /lock timeout/i);
+  liveRelease();
+});
+
+test('resuming refuses to overwrite cleanup or recovery lifecycle state', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-lifecycle-resume-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees' },
+    worktree: { sessionDir: '../tmp/sessions', envSymlinks: [], sharedConfigSymlinks: [] },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const cli = { 'skip-fetch': true, phase: 'tdd', kind: 'fix', desc: 'sealed lifecycle' };
+  const created = createOrResumeWorktree({ cwd: repo, cli });
+  writeSession(created.config, repo, {
+    branch: created.branch,
+    worktree: created.worktreePath,
+    status: 'cleanup_pending',
+    step: 'merged_cleanup_pending',
+    cleanup: { expectedHead: runGit(created.worktreePath, ['rev-parse', 'HEAD']) },
+  });
+
+  assert.throws(
+    () => createOrResumeWorktree({ cwd: repo, cli }),
+    /cleanup_pending|recovery/i,
+  );
+
+  writeSession(created.config, repo, {
+    branch: created.branch,
+    worktree: created.worktreePath,
+    status: 'recovery_required',
+    step: 'post_merge_recovery_required',
+  });
+  const recovered = recoverSessionAsBranch(
+    created.config,
+    repo,
+    created.branch,
+    'fix/sealed-lifecycle-recovered',
+  );
+  assert.equal(recovered.branch, 'fix/sealed-lifecycle-recovered');
+  assert.equal(runGit(created.worktreePath, ['branch', '--show-current']), recovered.branch);
+  const sessions = readSessions(created.config, repo);
+  assert.equal(sessions.some((session) => session.branch === created.branch), false);
+  assert.equal(sessions.find((session) => session.branch === recovered.branch).status, 'in_progress');
 });

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const {
+  assertSessionCanResume,
   createOrResumeWorktree,
   findWorktreeByBranch,
   getMainRepoRoot,
@@ -8,6 +9,7 @@ const {
   listWorktrees,
   parseCliArgs,
   readSessions,
+  recoverSessionAsBranch,
   runWorktreeBootstrap,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
@@ -18,6 +20,7 @@ function main() {
     const mainRoot = getMainRepoRoot(process.cwd());
     const config = loadConfig({ repoRoot: getWorktreeRoot(process.cwd()), cli });
     const target = cli.branch || cli._ || process.argv.slice(2).find((arg) => !arg.startsWith('--'));
+    const recoverAs = cli['recover-as'] || '';
 
     if (!target) {
       const sessions = readSessions(config, mainRoot);
@@ -39,6 +42,16 @@ function main() {
 
     const existing = findWorktreeByBranch(mainRoot, target);
     if (existing) {
+      if (recoverAs) {
+        const recovered = recoverSessionAsBranch(config, mainRoot, target, recoverAs);
+        console.log('STATUS=RECOVERED');
+        console.log(`RECOVERED_FROM=${target}`);
+        console.log(`BRANCH_NAME=${recovered.branch}`);
+        console.log(`WORKTREE_PATH=${recovered.worktreePath}`);
+        console.log(`NEXT_CWD=${recovered.worktreePath}`);
+        return;
+      }
+      assertSessionCanResume(config, mainRoot, target);
       const bootstrap = runWorktreeBootstrap({
         worktreePath: existing.path,
         config,
@@ -56,6 +69,16 @@ function main() {
         console.log(`REUSED_PATHS=${bootstrap.reusedPaths.join(',')}`);
       }
       if (bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${bootstrap.nextManualAction}`);
+      return;
+    }
+
+    if (recoverAs) {
+      const recovered = recoverSessionAsBranch(config, mainRoot, target, recoverAs);
+      console.log('STATUS=RECOVERED');
+      console.log(`RECOVERED_FROM=${target}`);
+      console.log(`BRANCH_NAME=${recovered.branch}`);
+      console.log(`WORKTREE_PATH=${recovered.worktreePath}`);
+      console.log(`NEXT_CWD=${recovered.worktreePath}`);
       return;
     }
 

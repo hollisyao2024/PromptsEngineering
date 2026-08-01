@@ -3,8 +3,9 @@
 
 const { spawnSync } = require('node:child_process')
 const { existsSync, lstatSync, rmSync } = require('node:fs')
+const path = require('node:path')
 
-const TRANSIENT_REMOVE_ERRORS = new Set(['EBUSY', 'EMFILE', 'ENFILE', 'ENOTEMPTY', 'EPERM'])
+const TRANSIENT_REMOVE_ERRORS = new Set(['EBUSY', 'EMFILE', 'ENFILE', 'ENOTEMPTY', 'EPERM', 'EREMOVE'])
 const REMOVE_OPTIONS = {
   recursive: true,
   force: true,
@@ -33,6 +34,13 @@ function clearMacOSAttributes(target, platform = process.platform) {
   spawnSync('xattr', ['-cr', target], { stdio: 'ignore' })
 }
 
+function toWindowsExtendedPath(target) {
+  if (target.startsWith('\\\\?\\')) return target
+  if (target.startsWith('\\\\')) return `\\\\?\\UNC\\${target.slice(2)}`
+  if (path.win32.isAbsolute(target)) return `\\\\?\\${target}`
+  return target
+}
+
 function removeTree(target, options = {}) {
   const platform = options.platform || process.platform
   if (platform !== 'win32') {
@@ -41,7 +49,7 @@ function removeTree(target, options = {}) {
 
   const spawn = options.spawn || spawnSync
   const exists = options.exists || pathExists
-  const result = spawn('cmd.exe', ['/d', '/c', 'rmdir', '/s', '/q', target], {
+  const result = spawn('cmd.exe', ['/d', '/c', 'rmdir', '/s', '/q', toWindowsExtendedPath(target)], {
     stdio: 'ignore',
     windowsHide: true,
   })
@@ -124,4 +132,5 @@ module.exports = {
   removeTree,
   removeTreeWithRetries,
   sleepSync,
+  toWindowsExtendedPath,
 }
