@@ -3,6 +3,8 @@
 
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const { getMainRepoRoot, readSessions } = require('../worktree-tools/worktree-core');
+const { reconcilePendingCleanups } = require('../worktree-tools/deferred-cleanup-state');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -76,11 +78,23 @@ function evaluateCompletionGuard(input) {
   const branch = String(input.branch || '').trim();
   const statusLines = Array.isArray(input.statusLines) ? input.statusLines : [];
   const dirty = statusLines.length > 0;
+  const lifecycleSessions = Array.isArray(input.lifecycleSessions) ? input.lifecycleSessions : [];
+  const lifecycleBlockers = lifecycleSessions.filter((session) =>
+    ['cleanup_pending', 'recovery_required'].includes(session.status));
 
   if (!branch) {
     return block('当前不在普通分支上，无法确认 TDD/QA 流水线是否完成。', 'unmerged', {
       branch,
       dirty,
+    });
+  }
+
+  if (lifecycleBlockers.length > 0) {
+    const states = [...new Set(lifecycleBlockers.map((session) => session.status))].join(', ');
+    return block(`存在未收敛的 worktree 生命周期状态：${states}。`, 'cleanup', {
+      branch,
+      dirty,
+      lifecycleBranches: lifecycleBlockers.map((session) => session.branch),
     });
   }
 
@@ -209,12 +223,30 @@ function collectGitState(repoRoot) {
   };
 }
 
+function collectLifecycleState(repoRoot) {
+  const mainRoot = getMainRepoRoot(repoRoot);
+  const config = loadConfig({ repoRoot: mainRoot });
+  const reconciliation = reconcilePendingCleanups({
+    mainRoot,
+    config,
+    skipWorktreePath: repoRoot,
+  });
+  return {
+    reconciliation,
+    lifecycleSessions: readSessions(config, mainRoot).filter((session) =>
+      ['cleanup_pending', 'recovery_required'].includes(session.status)),
+  };
+}
+
 function printResult(result) {
   console.log(`STATUS=${result.status}`);
   if (result.branch !== undefined) console.log(`BRANCH=${result.branch || '(detached)'}`);
   if (result.reason) console.log(`REASON=${result.reason}`);
   if (result.baseRef) console.log(`BASE_REF=${result.baseRef}`);
   if (result.changedFiles) console.log(`CHANGED_FILES=${result.changedFiles}`);
+  if (result.lifecycleBranches && result.lifecycleBranches.length) {
+    console.log(`LIFECYCLE_BRANCHES=${result.lifecycleBranches.join(',')}`);
+  }
   if (result.nextCommands && result.nextCommands.length) {
     console.log('NEXT_COMMANDS=');
     for (const command of result.nextCommands) {
@@ -226,7 +258,8 @@ function printResult(result) {
 function main() {
   try {
     const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
-    const state = collectGitState(repoRoot);
+    const lifecycle = collectLifecycleState(repoRoot);
+    const state = { ...collectGitState(repoRoot), ...lifecycle };
     const result = evaluateCompletionGuard(state);
     printResult(result);
     process.exit(result.ok ? 0 : 1);
@@ -243,5 +276,6 @@ if (require.main === module) {
 
 module.exports = {
   evaluateCompletionGuard,
+  collectLifecycleState,
   splitStatusLines,
 };

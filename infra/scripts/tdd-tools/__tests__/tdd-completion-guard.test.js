@@ -18,6 +18,30 @@ test('completion guard passes on a clean main branch', () => {
   assert.equal(result.status, 'OK');
 });
 
+test('completion guard blocks clean main while durable cleanup is pending', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'main',
+    statusLines: [],
+    lifecycleSessions: [{ branch: 'fix/pending', status: 'cleanup_pending' }],
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /cleanup_pending/);
+  assert.deepEqual(result.lifecycleBranches, ['fix/pending']);
+});
+
+test('completion guard blocks clean main when post-merge work requires recovery', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'main',
+    statusLines: [],
+    lifecycleSessions: [{ branch: 'fix/recovery', status: 'recovery_required' }],
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /recovery_required/);
+  assert.deepEqual(result.lifecycleBranches, ['fix/recovery']);
+});
+
 test('completion guard blocks dirty main before final response', () => {
   const result = evaluateCompletionGuard({
     branch: 'main',

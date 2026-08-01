@@ -3,7 +3,11 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 const { writeInProgressFields } = require('./agent-state-utils');
-const { getMainRepoRoot, writeSession } = require('../worktree-tools/worktree-core');
+const {
+  assertSessionCanResume,
+  getMainRepoRoot,
+  writeSession,
+} = require('../worktree-tools/worktree-core');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const {
   buildGitHubGitEnv,
@@ -375,6 +379,9 @@ function main() {
     if (isMainBranch(branch)) {
       throw new Error(`当前位于主干分支 ${branch}，禁止执行 /tdd push。请先切换到 feature/* 或 fix/* 分支。`);
     }
+    const mainRoot = getMainRepoRoot(repoRoot);
+    const lifecycleConfig = loadConfig({ repoRoot: mainRoot });
+    assertSessionCanResume(lifecycleConfig, mainRoot, branch);
 
     const autoCommitResult = autoCommitWorkingTreeIfNeeded(branch, {
       dryRun: cliArgs.dryRun,

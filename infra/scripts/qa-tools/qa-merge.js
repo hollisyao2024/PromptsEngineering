@@ -29,11 +29,14 @@ const {
   isSamePath,
   parseWorktreePorcelain,
   readSessions,
-  removeWorktreeSafely,
   removeSession,
   resolveContainerPath,
   safeRemoveTreeNoFollow,
 } = require('../worktree-tools/worktree-core');
+const {
+  markCleanupPending,
+  reconcilePendingCleanups,
+} = require('../worktree-tools/deferred-cleanup-state');
 const defectBlockerCheckers = require('./check-defect-blockers');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const {
@@ -672,7 +675,7 @@ function syncLocalMain(mainWorkspacePath) {
   runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
 }
 
-async function localSquashMerge(featureBranch, pr, mainWorkspacePath, mainRepoRoot) {
+async function localSquashMerge(featureBranch, pr, mainWorkspacePath) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
@@ -816,60 +819,69 @@ function deleteLocalBranch(branchName, cwd = repoRoot) {
 
 // ==================== Worktree 清理 ====================
 
-function cleanupWorktree(featureBranch, mainRepoRoot) {
-  const listResult = spawnSync('git', ['worktree', 'list', '--porcelain'], {
-    cwd: mainRepoRoot,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-  if (listResult.error) throw listResult.error;
-  if (listResult.status !== 0) {
-    throw new Error(
-      `cannot list worktrees before cleanup (exit ${listResult.status}): ${(listResult.stderr || '').trim()}`
-    );
+function cleanupWorktree(featureBranch, mainRepoRoot, options = {}) {
+  let entries;
+  if (options.listWorktrees) {
+    entries = options.listWorktrees(mainRepoRoot);
+  } else {
+    const listResult = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: mainRepoRoot,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (listResult.error) throw listResult.error;
+    if (listResult.status !== 0) {
+      throw new Error(
+        `cannot list worktrees before cleanup (exit ${listResult.status}): ${(listResult.stderr || '').trim()}`
+      );
+    }
+    entries = parseWorktreePorcelain(listResult.stdout || '');
   }
 
-  const entry = parseWorktreePorcelain(listResult.stdout || '')
-    .find((item) => item.branch === featureBranch);
+  const entry = entries.find((item) => item.branch === featureBranch);
   if (!entry || !entry.path) return { removed: false, reason: 'not-found' };
   if (isSamePath(entry.path, mainRepoRoot)) {
     throw new Error(`refusing to clean the main worktree for branch ${featureBranch}`);
   }
 
-  const cwdBefore = process.cwd();
+  const config = options.config || loadConfig({ repoRoot: mainRepoRoot });
+  const expectedHead = entry.head || spawnSync('git', ['rev-parse', featureBranch], {
+    cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe',
+  }).stdout.trim();
+  const persist = options.markCleanupPending || markCleanupPending;
+  persist({ config, mainRoot: mainRepoRoot, branch: featureBranch, worktreePath: entry.path, expectedHead });
+
+  const cwdBefore = options.currentCwd || process.cwd();
   const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
   if (wasInsideTarget) {
-    const worker = path.resolve(__dirname, '../worktree-tools/deferred-worktree-cleanup.js');
-    const child = spawn(process.execPath, [worker, mainRepoRoot, featureBranch, entry.path], {
-      cwd: mainRepoRoot, detached: true, windowsHide: true, stdio: 'ignore',
+    const schedule = options.scheduleDeferredCleanup || (() => {
+      const worker = path.resolve(__dirname, '../worktree-tools/deferred-worktree-cleanup.js');
+      const child = spawn(process.execPath, [worker, mainRepoRoot, featureBranch, entry.path, '1500', 'observe'], {
+        cwd: mainRepoRoot, detached: true, windowsHide: true, stdio: 'ignore',
+      });
+      child.unref();
     });
-    child.unref();
+    schedule();
     console.log(`\x1b[33m  当前 worktree 已合并，已安排后台安全清理: ${entry.path}\x1b[0m`);
-    return { removed: false, deferred: true, path: entry.path };
+    return { removed: false, deferred: true, sealed: true, path: entry.path, expectedHead };
   }
   // Never attempt to remove the current worktree from a process whose cwd is
   // still inside it. This also makes the failure mode explicit for callers
   // that invoke /qa merge from a linked worktree on Windows.
-  const config = loadConfig({ repoRoot: mainRepoRoot });
-  const worktreesRoot = resolveContainerPath(config, mainRepoRoot, 'worktrees');
-
   console.log(`\x1b[36m安全清理 worktree: ${entry.path}\x1b[0m`);
-  const cleanup = removeWorktreeSafely({
-    mainRoot: mainRepoRoot,
-    worktreePath: entry.path,
-    worktreesRoot,
-    force: true,
-  });
-
-  // Session state is removed only after physical deletion, prune, and registry verification all pass.
-  removeSession(config, mainRepoRoot, featureBranch);
+  const reconcile = options.reconcilePendingCleanups || reconcilePendingCleanups;
+  const result = reconcile({ mainRoot: mainRepoRoot, config, branch: featureBranch });
+  if (!result.completed.includes(featureBranch)) {
+    const reason = result.errors.map((item) => item.error).join('; ') || 'durable cleanup remains pending';
+    throw new Error(`worktree cleanup did not converge for ${featureBranch}: ${reason}`);
+  }
   console.log(
-    `\x1b[32m  Worktree 已安全清理（files=${cleanup.removedFiles}, dirs=${cleanup.removedDirectories}, links=${cleanup.removedLinks}）\x1b[0m`
+    `\x1b[32m  Worktree 已通过封印校验并安全清理\x1b[0m`
   );
   if (wasInsideTarget) {
     console.log(`\x1b[36m  当前进程已切换到主仓库: ${mainRepoRoot}\x1b[0m`);
   }
-  return cleanup;
+  return { removed: true, deferred: false, sealed: true, path: entry.path, expectedHead };
 }
 
 function normalizePathKey(input) {
@@ -1354,10 +1366,12 @@ function getResumableBranches(mergedBranch, mainRepoRoot) {
   return { branches, stashes };
 }
 
-function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot) {
+function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot, cleanupResult = {}) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
-  console.log('\x1b[32m/qa merge 完成\x1b[0m');
+  console.log(cleanupResult.deferred
+    ? '\x1b[33m/qa merge 已合并，生命周期清理待收敛\x1b[0m'
+    : '\x1b[32m/qa merge 完成\x1b[0m');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
   console.log(`  分支:   ${featureBranch} → main`);
@@ -1391,7 +1405,9 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   );
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
-  console.log('  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
+  console.log(cleanupResult.deferred
+    ? '  切换到 main 并执行 tdd-completion-guard；如检测到新提交，按 --recover-as 指引恢复。'
+    : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 
   const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);
@@ -1563,19 +1579,18 @@ async function main() {
         syncMainAfterMerge();
       } else {
         strategy = 'local';
-        await localSquashMerge(currentBranch, pr, mainWorkspacePath, mainRepoRoot);
+        await localSquashMerge(currentBranch, pr, mainWorkspacePath);
       }
     }
 
     // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
     const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
     if (cleanupResult.deferred) {
-      console.log('\x1b[33m  合并已完成；worktree 清理由后台补偿器收敛。\x1b[0m');
-      return;
+      console.log('\x1b[33m  合并已完成；worktree 已封印，切换到 main 后由 completion guard 收敛。\x1b[0m');
     }
     // A session may also exist for a legacy non-worktree branch; cleanup is a
     // completion invariant, not merely a worktree side effect.
-    removeSession(config, mainRepoRoot, currentBranch);
+    if (!cleanupResult.deferred) removeSession(config, mainRepoRoot, currentBranch);
 
     // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
     if (isInWorktree) {
@@ -1583,31 +1598,35 @@ async function main() {
     }
 
     // Step 14: 清理本地 feature 分支（两种策略都需要）
-    const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
-    if (branchDeleteResult.reason === 'failed') {
-      throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
-    }
-    if (localBranchExists(currentBranch, mainWorkspacePath)) {
-      throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-    }
-    if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
-      throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-    }
-    if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
-      throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+    if (!cleanupResult.deferred) {
+      const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
+      if (branchDeleteResult.reason === 'failed') {
+        throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
+      }
+      if (localBranchExists(currentBranch, mainWorkspacePath)) {
+        throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
+        throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
+        throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
     }
 
     ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
     // B5: 单次 cleanupOrphanWorktreeDirs。worktree 移除 + 本地分支删除已完成，
     // 容器层 worktrees/ 此时是稳定状态，一次扫描足够。
-    cleanupOrphanWorktreeDirs(mainRepoRoot);
-    cleanupOrphanSessions(mainRepoRoot);
-    const containerCleanup = cleanupContainerStorage({ cwd: mainWorkspacePath, options: { apply: true } });
-    console.log(`  容器层清理：已移除 ${containerCleanup.remove.length} 个过期临时/发布产物`);
+    if (!cleanupResult.deferred) {
+      cleanupOrphanWorktreeDirs(mainRepoRoot);
+      cleanupOrphanSessions(mainRepoRoot);
+      const containerCleanup = cleanupContainerStorage({ cwd: mainWorkspacePath, options: { apply: true } });
+      console.log(`  容器层清理：已移除 ${containerCleanup.remove.length} 个过期临时/发布产物`);
+    }
 
     if (mainSyncError) {
       throw new Error(
-        `PR 已合并且 worktree 已清理，但本地 main 同步失败：${mainSyncError.message}。` +
+        `PR 已合并但本地 main 同步失败：${mainSyncError.message}。` +
         '请稍后在主仓库重试 github-auth-run git fetch --prune origin。'
       );
     }
@@ -1687,7 +1706,8 @@ async function main() {
       strategy,
       agentStateUpdated,
       newVersion,
-      mainWorkspacePath
+      mainWorkspacePath,
+      cleanupResult
     );
     printCleanupSummary(mainRepoRoot);
   } catch (error) {

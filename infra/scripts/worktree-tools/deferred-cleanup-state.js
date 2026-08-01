@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadConfig } = require('../shared/config');
 const {
+  acquireLock,
   isPathInside,
   isSamePath,
   listWorktrees,
@@ -64,15 +65,20 @@ function pruneMissingAuthorizedRegistration(mainRoot, worktreePath) {
   }
 }
 
-function cleanupPayload(mainRoot, branch, worktreePath, previous = {}, error = '') {
+function cleanupPayload(mainRoot, branch, worktreePath, previous = {}, updates = {}) {
   return {
     mainRoot: path.resolve(mainRoot),
     branch,
     worktree: path.resolve(worktreePath),
     requestedAt: previous.requestedAt || new Date().toISOString(),
-    attempts: Number(previous.attempts || 0) + (error ? 1 : 0),
-    lastAttemptAt: error ? new Date().toISOString() : (previous.lastAttemptAt || ''),
-    lastError: error || previous.lastError || '',
+    expectedHead: updates.expectedHead || previous.expectedHead || '',
+    actualHead: updates.actualHead !== undefined ? updates.actualHead : (previous.actualHead || ''),
+    worktreeHead: updates.worktreeHead !== undefined ? updates.worktreeHead : (previous.worktreeHead || ''),
+    dirty: updates.dirty !== undefined ? Boolean(updates.dirty) : Boolean(previous.dirty),
+    deletionStartedAt: updates.deletionStartedAt || previous.deletionStartedAt || '',
+    attempts: Number(previous.attempts || 0) + (updates.error ? 1 : 0),
+    lastAttemptAt: updates.error ? new Date().toISOString() : (previous.lastAttemptAt || ''),
+    lastError: updates.error || previous.lastError || '',
   };
 }
 
@@ -82,17 +88,19 @@ function markCleanupPending(options) {
     mainRoot,
     branch,
     worktreePath,
+    expectedHead,
     writeSession: write = writeSession,
   } = options;
   if (!mainRoot || !path.isAbsolute(mainRoot)) throw new Error('mainRoot must be absolute');
   if (!worktreePath || !path.isAbsolute(worktreePath)) throw new Error('worktreePath must be absolute');
   if (!branch) throw new Error('branch is required');
+  if (!expectedHead) throw new Error('expectedHead is required to seal post-merge cleanup');
   const payload = {
     branch,
     worktree: path.resolve(worktreePath),
     status: 'cleanup_pending',
     step: 'merged_cleanup_pending',
-    cleanup: cleanupPayload(mainRoot, branch, worktreePath),
+    cleanup: cleanupPayload(mainRoot, branch, worktreePath, {}, { expectedHead }),
   };
   write(config, mainRoot, payload);
   return payload;
@@ -107,7 +115,47 @@ function isAuthorizedCleanupSession(session, mainRoot, worktreesRoot) {
   if (cleanup.branch !== branch) return false;
   if (!cleanup.worktree || !isSamePath(cleanup.worktree, worktree)) return false;
   if (!cleanup.mainRoot || !isSamePath(cleanup.mainRoot, mainRoot)) return false;
+  if (!cleanup.expectedHead) return false;
   return isPathInside(worktreesRoot, worktree);
+}
+
+function inspectCleanupState(mainRoot, session) {
+  const branchRef = `refs/heads/${session.branch}`;
+  const branch = spawnSync('git', ['rev-parse', '--verify', branchRef], {
+    cwd: mainRoot, encoding: 'utf8', stdio: 'pipe',
+  });
+  const branchHead = branch.status === 0 ? branch.stdout.trim() : '';
+  if (!fs.existsSync(session.worktree)) {
+    return { branchHead, worktreeHead: '', dirty: false, missing: true };
+  }
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: session.worktree, encoding: 'utf8', stdio: 'pipe',
+  });
+  const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: session.worktree, encoding: 'utf8', stdio: 'pipe',
+  });
+  return {
+    branchHead,
+    worktreeHead: head.status === 0 ? head.stdout.trim() : '',
+    dirty: status.status === 0 ? Boolean(status.stdout.trim()) : false,
+    inspectionError: head.status !== 0 || status.status !== 0
+      ? (head.stderr || status.stderr || 'cannot inspect worktree').trim()
+      : '',
+  };
+}
+
+function recoveryReason(session, inspection) {
+  const expected = session.cleanup.expectedHead;
+  if (!expected) return 'cleanup seal is missing expectedHead';
+  if (inspection.inspectionError && !session.cleanup.deletionStartedAt) return inspection.inspectionError;
+  if (inspection.branchHead && inspection.branchHead !== expected) {
+    return `branch HEAD advanced after merge: expected ${expected}, found ${inspection.branchHead}`;
+  }
+  if (inspection.worktreeHead && inspection.worktreeHead !== expected) {
+    return `worktree HEAD advanced after merge: expected ${expected}, found ${inspection.worktreeHead}`;
+  }
+  if (inspection.dirty) return 'worktree contains post-merge changes';
+  return '';
 }
 
 function defaultDeleteBranch(mainRoot, branch) {
@@ -141,16 +189,39 @@ function reconcilePendingCleanups(options = {}) {
   const removeSess = options.removeSession || removeSession;
   const write = options.writeSession || writeSession;
   const deleteBranch = options.deleteBranch || defaultDeleteBranch;
+  const inspect = options.inspectCleanupState || inspectCleanupState;
   const onlyBranch = options.branch || '';
+  const excludeBranch = options.excludeBranch || '';
   const skipWorktreePath = options.skipWorktreePath || '';
   const completed = [];
   const pending = [];
   const errors = [];
+  const recoveryRequired = [];
   const registered = list(mainRoot);
+  const configuredLockDir = config.worktree && config.worktree.lockDir;
+  const lockDir = options.lockDir || path.resolve(mainRoot, configuredLockDir || '../tmp/agent-locks');
+  const releaseLock = options.lock === false
+    ? () => {}
+    : acquireLock(lockDir, 'worktree-cleanup-lifecycle', options.lockTimeoutMs || 30000);
 
-  for (const session of read(config, mainRoot)) {
+  try {
+    for (const session of read(config, mainRoot)) {
     if (!session || session.status !== 'cleanup_pending') continue;
     if (onlyBranch && session.branch !== onlyBranch) continue;
+    if (excludeBranch && session.branch === excludeBranch) continue;
+    if (session.cleanup && !session.cleanup.expectedHead) {
+      const reason = 'cleanup seal is missing expectedHead';
+      recoveryRequired.push(session.branch);
+      errors.push({ branch: session.branch, error: reason });
+      write(config, mainRoot, {
+        branch: session.branch,
+        worktree: session.worktree,
+        status: 'recovery_required',
+        step: 'post_merge_recovery_required',
+        cleanup: cleanupPayload(mainRoot, session.branch, session.worktree, session.cleanup, { error: reason }),
+      });
+      continue;
+    }
     if (!isAuthorizedCleanupSession(session, mainRoot, worktreesRoot)) {
       pending.push(session.branch || '(invalid)');
       errors.push({ branch: session.branch || '', error: 'invalid durable cleanup authorization' });
@@ -167,6 +238,43 @@ function reconcilePendingCleanups(options = {}) {
       if (entry && entry.branch !== session.branch) {
         throw new Error(`registered branch mismatch: expected ${session.branch}, found ${entry.branch || '(detached)'}`);
       }
+      const inspection = inspect(mainRoot, session);
+      const reason = recoveryReason(session, inspection);
+      if (reason) {
+        recoveryRequired.push(session.branch);
+        errors.push({ branch: session.branch, error: reason });
+        write(config, mainRoot, {
+          branch: session.branch,
+          worktree: session.worktree,
+          status: 'recovery_required',
+          step: 'post_merge_recovery_required',
+          cleanup: cleanupPayload(mainRoot, session.branch, session.worktree, session.cleanup, {
+            actualHead: inspection.branchHead || inspection.worktreeHead || '',
+            worktreeHead: inspection.worktreeHead || '',
+            dirty: inspection.dirty,
+            error: reason,
+          }),
+        });
+        continue;
+      }
+      if (options.observeOnly) {
+        pending.push(session.branch);
+        continue;
+      }
+      const deletingCleanup = cleanupPayload(mainRoot, session.branch, session.worktree, session.cleanup, {
+        actualHead: inspection.branchHead || '',
+        worktreeHead: inspection.worktreeHead || '',
+        dirty: false,
+        deletionStartedAt: session.cleanup.deletionStartedAt || new Date().toISOString(),
+      });
+      write(config, mainRoot, {
+        branch: session.branch,
+        worktree: session.worktree,
+        status: 'cleanup_pending',
+        step: 'merged_cleanup_deleting',
+        cleanup: deletingCleanup,
+      });
+      session.cleanup = deletingCleanup;
       if (entry) {
         if (fs.existsSync(session.worktree)) {
           removeRegistered({
@@ -198,17 +306,21 @@ function reconcilePendingCleanups(options = {}) {
           session.branch,
           session.worktree,
           session.cleanup,
-          message,
+          { error: message },
         ),
       });
     }
+    }
+  } finally {
+    releaseLock();
   }
 
-  return { completed, pending, errors };
+  return { completed, pending, recoveryRequired, errors };
 }
 
 module.exports = {
   isAuthorizedCleanupSession,
+  inspectCleanupState,
   markCleanupPending,
   pruneMissingAuthorizedRegistration,
   reconcilePendingCleanups,
