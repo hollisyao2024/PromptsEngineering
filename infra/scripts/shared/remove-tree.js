@@ -54,9 +54,9 @@ function removeTree(target, options = {}) {
     windowsHide: true,
   })
   if (result.error) throw result.error
-  if (result.status !== 0 && exists(target)) {
+  if (exists(target)) {
     const error = new Error(`Windows rmdir failed with exit code ${result.status}: ${target}`)
-    error.code = 'EREMOVE'
+    error.code = 'ENOTEMPTY'
     throw error
   }
 }

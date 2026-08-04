@@ -8,8 +8,10 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const {
+  isBranchContentInBase,
   markCleanupPending,
   reconcilePendingCleanups,
+  sweepStaleInProgressSessions,
 } = require('../deferred-cleanup-state');
 const { readSessions, safeRemoveTreeNoFollow } = require('../worktree-core');
 
@@ -362,5 +364,319 @@ test('legacy cleanup without a HEAD seal becomes recovery_required without delet
 
   assert.deepEqual(result.recoveryRequired, ['fix/legacy-unsealed']);
   assert.equal(writes[0].status, 'recovery_required');
+  assert.equal(fs.existsSync(worktreePath), true);
+});
+﻿
+// ==================== isBranchContentInBase ====================
+
+test('isBranchContentInBase detects a fully-merged branch (direct ancestor)', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  runGit(fixture.mainRoot, ['checkout', '-b', 'feature/merged']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'change\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'feature']);
+  runGit(fixture.mainRoot, ['checkout', 'main']);
+  runGit(fixture.mainRoot, ['merge', 'feature/merged', '--no-ff', '-m', 'merge feature']);
+  const result = isBranchContentInBase(fixture.mainRoot, 'feature/merged', 'main');
+  assert.equal(result.superseded, true);
+  assert.equal(result.reason, 'fully-merged');
+});
+test('isBranchContentInBase detects a squash-merged branch via cherry', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  runGit(fixture.mainRoot, ['checkout', '-b', 'feature/squashed']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'squash change\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'feature change']);
+  runGit(fixture.mainRoot, ['checkout', 'main']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'squash change\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'squash: feature change']);
+  const result = isBranchContentInBase(fixture.mainRoot, 'feature/squashed', 'main');
+  assert.equal(result.superseded, true);
+  assert.equal(result.reason, 'squash-merged');
+});
+
+test('isBranchContentInBase retains a branch with unique content', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  runGit(fixture.mainRoot, ['checkout', '-b', 'feature/unique']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'unique change\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'unique feature change']);
+  runGit(fixture.mainRoot, ['checkout', 'main']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'other.txt'), 'main progress\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'main progress']);
+  const result = isBranchContentInBase(fixture.mainRoot, 'feature/unique', 'main');
+  assert.equal(result.superseded, false);
+  assert.equal(result.reason, 'has-unique-content');
+});
+
+test('isBranchContentInBase reports branch-not-found for missing branch', () => {
+  const result = isBranchContentInBase(process.cwd(), 'nonexistent/branch', 'main');
+  assert.equal(result.superseded, false);
+  assert.equal(result.reason, 'branch-not-found');
+});
+// ==================== sweepStaleInProgressSessions ====================
+
+test('sweep removes a fully-merged in_progress session', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'merged-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/merged-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature work']);
+  runGit(fixture.mainRoot, ['merge', 'feature/merged-wt', '--no-ff', '-m', 'merge']);
+  const removedSessions = [];
+  const deletedBranches = [];
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [{
+      branch: 'feature/merged-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+    removeSession: (_c, _r, branch) => removedSessions.push(branch),
+    deleteBranch: (_r, branch) => deletedBranches.push(branch),
+  });
+  assert.equal(result.swept.length, 1);
+  assert.equal(result.swept[0].branch, 'feature/merged-wt');
+  assert.equal(result.retained.length, 0);
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.deepEqual(removedSessions, ['feature/merged-wt']);
+  assert.deepEqual(deletedBranches, ['feature/merged-wt']);
+});
+
+test('sweep removes a squash-merged in_progress session', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'squash-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/squash-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'squash change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature change']);
+  runGit(fixture.mainRoot, ['checkout', 'main']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'squash change\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'squash merge']);
+  const removedSessions = [];
+  const deletedBranches = [];
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [{
+      branch: 'feature/squash-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+    removeSession: (_c, _r, branch) => removedSessions.push(branch),
+    deleteBranch: (_r, branch) => deletedBranches.push(branch),
+  });
+  assert.equal(result.swept.length, 1);
+  assert.equal(result.swept[0].branch, 'feature/squash-wt');
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.deepEqual(removedSessions, ['feature/squash-wt']);
+  assert.deepEqual(deletedBranches, ['feature/squash-wt']);
+});
+
+test('sweep retains an in_progress session with unique content', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'unique-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/unique-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'unique change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'unique work']);
+  runGit(fixture.mainRoot, ['checkout', 'main']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'other.txt'), 'main progress\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'main progress']);
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [{
+      branch: 'feature/unique-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+  });
+  assert.equal(result.swept.length, 0);
+  assert.equal(result.retained.length, 1);
+  assert.equal(result.retained[0].reason, 'has-unique-content');
+  assert.equal(fs.existsSync(worktreePath), true);
+});
+test('sweep retains an in_progress session with a dirty worktree even if merged', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'dirty-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/dirty-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature work']);
+  runGit(fixture.mainRoot, ['merge', 'feature/dirty-wt', '--no-ff', '-m', 'merge']);
+  fs.writeFileSync(path.join(worktreePath, 'uncommitted.txt'), 'dirty\n');
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [{
+      branch: 'feature/dirty-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+  });
+  assert.equal(result.swept.length, 0);
+  assert.equal(result.retained.length, 1);
+  assert.equal(result.retained[0].reason, 'dirty-worktree');
+  assert.equal(fs.existsSync(worktreePath), true);
+});
+
+test('sweep in observe mode reports without deleting', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'observe-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/observe-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature work']);
+  runGit(fixture.mainRoot, ['merge', 'feature/observe-wt', '--no-ff', '-m', 'merge']);
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    observeOnly: true,
+    readSessions: () => [{
+      branch: 'feature/observe-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+  });
+  assert.equal(result.swept.length, 1);
+  assert.equal(result.swept[0].branch, 'feature/observe-wt');
+  assert.equal(fs.existsSync(worktreePath), true);
+  assert.equal(
+    spawnSync('git', ['show-ref', '--verify', '--quiet', 'refs/heads/feature/observe-wt'], {
+      cwd: fixture.mainRoot,
+    }).status,
+    0,
+  );
+});
+// ==================== reconcilePendingCleanups integration ====================
+
+test('reconcilePendingCleanups sweeps stale in_progress sessions by default', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'reconcile-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/reconcile-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature work']);
+  runGit(fixture.mainRoot, ['merge', 'feature/reconcile-wt', '--no-ff', '-m', 'merge']);
+  const removedSessions = [];
+  const result = reconcilePendingCleanups({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    readSessions: () => [{
+      branch: 'feature/reconcile-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+    removeSession: (_c, _r, branch) => removedSessions.push(branch),
+  });
+  assert.equal(result.sweptStale.length, 1);
+  assert.equal(result.sweptStale[0].branch, 'feature/reconcile-wt');
+  assert.equal(fs.existsSync(worktreePath), false);
+  assert.deepEqual(removedSessions, ['feature/reconcile-wt']);
+});
+
+test('reconcilePendingCleanups skips sweep when sweepStaleInProgress is false', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'skip-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/skip-wt', worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'change\n');
+  runGit(worktreePath, ['add', '.']);
+  runGit(worktreePath, ['commit', '-m', 'feature work']);
+  runGit(fixture.mainRoot, ['merge', 'feature/skip-wt', '--no-ff', '-m', 'merge']);
+  const result = reconcilePendingCleanups({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    sweepStaleInProgress: false,
+    readSessions: () => [{
+      branch: 'feature/skip-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+  });
+  assert.equal(result.sweptStale.length, 0);
   assert.equal(fs.existsSync(worktreePath), true);
 });

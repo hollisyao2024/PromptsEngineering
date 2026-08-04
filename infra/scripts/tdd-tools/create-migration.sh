@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dialect)
       [[ -n "${2:-}" ]] || { echo "❌ 缺少 --dialect 参数值"; usage; exit 1; }
-      DIALECT="${2,,}"
+      DIALECT="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
       shift 2
       ;;
     -h|--help)

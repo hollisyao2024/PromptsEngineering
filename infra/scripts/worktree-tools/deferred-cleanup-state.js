@@ -177,6 +177,117 @@ function defaultDeleteBranch(mainRoot, branch) {
   }
 }
 
+function isBranchContentInBase(mainRoot, branch, baseRef) {
+  const exists = spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (exists.status !== 0) return { superseded: false, reason: 'branch-not-found' };
+
+  // Normal merge: branch is a direct ancestor of base.
+  const ancestor = spawnSync('git', ['merge-base', '--is-ancestor', branch, baseRef], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (ancestor.status === 0) return { superseded: true, reason: 'fully-merged' };
+
+  // Squash merge: every branch-only commit has an equivalent patch-id in base.
+  const cherry = spawnSync('git', ['cherry', baseRef, branch], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (cherry.status !== 0) return { superseded: false, reason: 'cherry-failed' };
+  const lines = cherry.stdout.split('\n').filter(Boolean);
+  if (lines.length === 0) return { superseded: true, reason: 'no-unique-commits' };
+  const hasNewContent = lines.some((line) => line.startsWith('+'));
+  return hasNewContent
+    ? { superseded: false, reason: 'has-unique-content' }
+    : { superseded: true, reason: 'squash-merged' };
+}
+
+function sweepStaleInProgressSessions(options = {}) {
+  const mainRoot = path.resolve(options.mainRoot);
+  const config = options.config || loadConfig({ repoRoot: mainRoot });
+  const worktreesRoot = options.worktreesRoot
+    || resolveContainerPath(config, mainRoot, 'worktrees');
+  const baseRef = options.baseRef || 'main';
+  const read = options.readSessions || readSessions;
+  const list = options.listWorktrees || listWorktrees;
+  const removeRegistered = options.removeRegisteredWorktree
+    || ((input) => removeWorktreeSafely(input));
+  const removeSess = options.removeSession || removeSession;
+  const deleteBranch = options.deleteBranch || defaultDeleteBranch;
+  const checkContent = options.isBranchContentInBase || isBranchContentInBase;
+  const skipWorktreePath = options.skipWorktreePath || '';
+  const swept = [];
+  const retained = [];
+  const errors = [];
+  const registered = list(mainRoot);
+
+  for (const session of read(config, mainRoot)) {
+    if (!session || session.status !== 'in_progress') continue;
+    const branch = String(session.branch || '');
+    if (!branch) continue;
+
+    if (skipWorktreePath && session.worktree && isSamePath(skipWorktreePath, session.worktree)) {
+      retained.push({ branch, reason: 'current-worktree' });
+      continue;
+    }
+
+    const check = checkContent(mainRoot, branch, baseRef);
+    if (!check.superseded) {
+      retained.push({ branch, reason: check.reason });
+      continue;
+    }
+
+    // Guard against uncommitted work that git cherry cannot detect.
+    if (session.worktree && fs.existsSync(session.worktree)) {
+      const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+        cwd: session.worktree,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+      if (status.status === 0 && status.stdout.trim()) {
+        retained.push({ branch, reason: 'dirty-worktree' });
+        continue;
+      }
+    }
+
+    if (options.observeOnly) {
+      swept.push({ branch, reason: check.reason });
+      continue;
+    }
+
+    try {
+      const entry = registered.find((item) => isSamePath(item.path, session.worktree));
+      if (entry) {
+        if (fs.existsSync(session.worktree)) {
+          removeRegistered({
+            mainRoot,
+            worktreePath: session.worktree,
+            worktreesRoot,
+            force: true,
+          });
+        } else {
+          pruneMissingAuthorizedRegistration(mainRoot, session.worktree);
+        }
+      } else if (session.worktree && fs.existsSync(session.worktree)) {
+        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: worktreesRoot });
+      }
+      deleteBranch(mainRoot, branch);
+      removeSess(config, mainRoot, branch);
+      swept.push({ branch, reason: check.reason });
+    } catch (error) {
+      errors.push({ branch, error: error && error.message ? error.message : String(error) });
+    }
+  }
+
+  return { swept, retained, errors };
+}
+
 function reconcilePendingCleanups(options = {}) {
   const mainRoot = path.resolve(options.mainRoot);
   const config = options.config || loadConfig({ repoRoot: mainRoot });
@@ -197,6 +308,8 @@ function reconcilePendingCleanups(options = {}) {
   const pending = [];
   const errors = [];
   const recoveryRequired = [];
+  const sweptStale = [];
+  const staleRetained = [];
   const registered = list(mainRoot);
   const configuredLockDir = config.worktree && config.worktree.lockDir;
   const lockDir = options.lockDir || path.resolve(mainRoot, configuredLockDir || '../tmp/agent-locks');
@@ -205,6 +318,28 @@ function reconcilePendingCleanups(options = {}) {
     : acquireLock(lockDir, 'worktree-cleanup-lifecycle', options.lockTimeoutMs || 30000);
 
   try {
+    // Phase 1: sweep stale in_progress sessions whose branch content
+    // has already been fully superseded by the base ref.
+    if (options.sweepStaleInProgress !== false) {
+      const sweepResult = sweepStaleInProgressSessions({
+        mainRoot,
+        config,
+        worktreesRoot,
+        baseRef: options.baseRef,
+        readSessions: read,
+        listWorktrees: () => registered,
+        removeRegisteredWorktree: removeRegistered,
+        removeSession: removeSess,
+        deleteBranch,
+        isBranchContentInBase: options.isBranchContentInBase,
+        skipWorktreePath,
+        observeOnly: options.observeOnly,
+      });
+      for (const item of sweepResult.swept) sweptStale.push(item);
+      for (const item of sweepResult.retained) staleRetained.push(item);
+      for (const item of sweepResult.errors) errors.push(item);
+    }
+
     for (const session of read(config, mainRoot)) {
     if (!session || session.status !== 'cleanup_pending') continue;
     if (onlyBranch && session.branch !== onlyBranch) continue;
@@ -315,13 +450,15 @@ function reconcilePendingCleanups(options = {}) {
     releaseLock();
   }
 
-  return { completed, pending, recoveryRequired, errors };
+  return { completed, pending, recoveryRequired, errors, sweptStale, staleRetained };
 }
 
 module.exports = {
+  isBranchContentInBase,
   isAuthorizedCleanupSession,
   inspectCleanupState,
   markCleanupPending,
   pruneMissingAuthorizedRegistration,
   reconcilePendingCleanups,
+  sweepStaleInProgressSessions,
 };

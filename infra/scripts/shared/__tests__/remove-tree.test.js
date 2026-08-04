@@ -5,11 +5,11 @@ const require = createRequire(import.meta.url)
 const { removeTree, removeTreeWithRetries } = require('../remove-tree.js')
 
 describe('removeTreeWithRetries', () => {
-  it('uses native rmdir for large Windows trees instead of Node recursive deletion', () => {
+  it('uses native rmdir with an extended-length path for large Windows trees', () => {
     const calls = []
     removeTree('C:\\runtime\\node_modules\\.pnpm', {
       platform: 'win32',
-      exists: () => true,
+      exists: () => false,
       spawn: (...args) => {
         calls.push(args)
         return { status: 0 }
@@ -27,6 +27,26 @@ describe('removeTreeWithRetries', () => {
       '\\\\?\\C:\\runtime\\node_modules\\.pnpm',
     ])
     expect(calls[0][2]).toMatchObject({ stdio: 'ignore', windowsHide: true })
+  })
+
+  it('retries when Windows rmdir exits successfully but leaves the tree behind', () => {
+    let attempts = 0
+    const retries = []
+
+    removeTreeWithRetries('C:\\runtime\\node_modules\\.pnpm', {
+      platform: 'win32',
+      exists: () => attempts < 2,
+      spawn: () => {
+        attempts += 1
+        return { status: 0 }
+      },
+      sleep: () => {},
+      clearAttributes: () => {},
+      onRetry: ({ error }) => retries.push(error.code),
+    })
+
+    expect(attempts).toBe(2)
+    expect(retries).toEqual(['ENOTEMPTY'])
   })
 
   it('restarts a recursive removal after transient ENOTEMPTY failures', () => {

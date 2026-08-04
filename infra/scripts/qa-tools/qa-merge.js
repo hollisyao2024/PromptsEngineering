@@ -1220,9 +1220,10 @@ function syncConfiguredVersionFiles(mainWorkspacePath, versionSyncFiles, version
   if (!version || !Array.isArray(versionSyncFiles) || versionSyncFiles.length === 0) {
     return [];
   }
-  const changed = [];
+  const releaseFiles = [];
   for (const entry of versionSyncFiles) {
     const format = entry && entry.format;
+    const configuredPath = normalizeConfiguredReleasePath(entry && entry.path);
     let relPath = '';
     if (format === 'json') {
       relPath = syncJsonReleaseVersion(mainWorkspacePath, entry, version);
@@ -1233,9 +1234,54 @@ function syncConfiguredVersionFiles(mainWorkspacePath, versionSyncFiles, version
     } else {
       throw new Error(`release.versionSyncFiles format 不支持: ${format || '(empty)'}`);
     }
-    if (relPath) changed.push(relPath);
+    // Stage every configured version file, even when another process (for
+    // example a running Cargo watcher) synchronized it before this function
+    // performed its own write. Otherwise that already-correct dirty file is
+    // omitted from the release commit and leaves main unclean.
+    releaseFiles.push(relPath || configuredPath);
   }
-  return changed;
+  return releaseFiles;
+}
+
+function stageConfiguredVersionFiles(
+  mainWorkspacePath,
+  versionSyncFiles,
+  version,
+  { beforeStage } = {}
+) {
+  if (!version || !Array.isArray(versionSyncFiles) || versionSyncFiles.length === 0) {
+    return [];
+  }
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const releaseFiles = syncConfiguredVersionFiles(
+      mainWorkspacePath,
+      versionSyncFiles,
+      version
+    );
+    const expected = new Map(
+      releaseFiles.map((relPath) => [
+        relPath,
+        fs.readFileSync(path.join(mainWorkspacePath, relPath), 'utf8'),
+      ])
+    );
+    if (typeof beforeStage === 'function') beforeStage(attempt, releaseFiles);
+    runGit(['add', ...releaseFiles], { cwd: mainWorkspacePath });
+
+    const stagedMatches = releaseFiles.every((relPath) => {
+      const indexPath = relPath.split(path.sep).join('/');
+      const staged = runGit(['show', `:${indexPath}`], {
+        cwd: mainWorkspacePath,
+        capture: true,
+      });
+      return staged === expected.get(relPath);
+    });
+    if (stagedMatches) return releaseFiles;
+  }
+
+  throw new Error(
+    'release.versionSyncFiles 在提交前持续被其他进程改写，无法建立一致的 Git index 快照'
+  );
 }
 
 function insertChangelogEntry(mainRepoRoot, targetVersion, note, changelogFile = 'CHANGELOG.md') {
@@ -1321,10 +1367,23 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
   }
 }
 
-function commitReleaseAndTag(mainRepoRoot, version, note, files, createTag, tagPrefix) {
+function commitReleaseAndTag(
+  mainRepoRoot,
+  version,
+  note,
+  files,
+  createTag,
+  tagPrefix,
+  versionSyncFiles = []
+) {
   runGit(['add', ...files], {
     cwd: mainRepoRoot,
   });
+  // A running Cargo watcher can rewrite Cargo.lock between version sync and
+  // `git add`, even reverting it briefly to the previous package version.
+  // Re-synchronize at the commit boundary and verify the exact staged bytes;
+  // once the index matches, later watcher writes cannot corrupt this commit.
+  stageConfiguredVersionFiles(mainRepoRoot, versionSyncFiles, version);
   // release/state files (package.json#version、CHANGELOG、AGENT_STATE) are non-source —
   // pre-commit typecheck/lint is not applicable, and requiring main-repo node_modules
   // just to satisfy that hook costs ~5min on first qa:merge per worktree-first session.
@@ -1684,7 +1743,15 @@ async function main() {
 
     // Step 16: commit + optional tag
     if (releaseFiles.length > 0) {
-      commitReleaseAndTag(mainWorkspacePath, newVersion, releaseNote, releaseFiles, shouldCreateTag, tagPrefix);
+      commitReleaseAndTag(
+        mainWorkspacePath,
+        newVersion,
+        releaseNote,
+        releaseFiles,
+        shouldCreateTag,
+        tagPrefix,
+        releaseConfig.versionSyncFiles
+      );
       console.log(
         shouldCreateTag && newVersion
           ? `\x1b[32m  Release commit + tag ${tagPrefix}${newVersion} 已创建\x1b[0m`
@@ -1750,4 +1817,5 @@ module.exports = {
   cleanupOrphanWorktreeDirs,
   cleanupOrphanSessions,
   syncConfiguredVersionFiles,
+  stageConfiguredVersionFiles,
 };
