@@ -178,6 +178,56 @@ test('qa merge persists the sealed cleanup intent before scheduling deferred cle
   assert.deepEqual(events, [['persist', 'sealed-head'], ['schedule']]);
 });
 
+test('qa merge cascades sealed predecessor cleanup before scheduling current worktree removal', (t) => {
+  const fixture = makeContainer();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  const worktreePath = path.join(fixture.worktreesRoot, 'current');
+  fs.mkdirSync(worktreePath);
+  const events = [];
+
+  const result = cleanupWorktree('feature/current', fixture.mainRoot, {
+    currentCwd: worktreePath,
+    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head: 'current-head' }],
+    config: { containerDirs: { worktrees: fixture.worktreesRoot } },
+    markCleanupPending: () => events.push('seal-current'),
+    sealSupersededSessions: () => ({
+      sealed: ['docs/prd-current'], alreadyPending: [], alreadyRemoved: [], errors: [],
+    }),
+    reconcilePendingCleanups: (input) => {
+      events.push(`reconcile:${input.excludeBranch}`);
+      return { completed: ['docs/prd-current'], errors: [] };
+    },
+    scheduleDeferredCleanup: () => events.push('schedule-current'),
+  });
+
+  assert.equal(result.deferred, true);
+  assert.deepEqual(events, [
+    'seal-current',
+    'reconcile:feature/current',
+    'schedule-current',
+  ]);
+});
+
+test('qa merge blocks when a declared predecessor seal cannot be verified', (t) => {
+  const fixture = makeContainer();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  const worktreePath = path.join(fixture.worktreesRoot, 'current');
+  fs.mkdirSync(worktreePath);
+
+  assert.throws(() => cleanupWorktree('feature/current', fixture.mainRoot, {
+    currentCwd: worktreePath,
+    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head: 'current-head' }],
+    config: { containerDirs: { worktrees: fixture.worktreesRoot } },
+    markCleanupPending: () => {},
+    sealSupersededSessions: () => ({
+      sealed: [],
+      alreadyPending: [],
+      alreadyRemoved: [],
+      errors: [{ branch: 'docs/prd-current', error: 'predecessor worktree changed' }],
+    }),
+  }), /cannot seal superseded worktrees/u);
+});
+
 test('qa merge deferred cleanup does not return before main synchronization and push steps', () => {
   const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
   const deferredBlock = source.match(/if \(cleanupResult\.deferred\) \{([\s\S]*?)\n\s*\}/u);

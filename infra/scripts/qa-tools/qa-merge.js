@@ -36,6 +36,7 @@ const {
 const {
   markCleanupPending,
   reconcilePendingCleanups,
+  sealSupersededSessions,
 } = require('../worktree-tools/deferred-cleanup-state');
 const defectBlockerCheckers = require('./check-defect-blockers');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
@@ -851,6 +852,37 @@ function cleanupWorktree(featureBranch, mainRepoRoot, options = {}) {
   const persist = options.markCleanupPending || markCleanupPending;
   persist({ config, mainRoot: mainRepoRoot, branch: featureBranch, worktreePath: entry.path, expectedHead });
 
+  const reconcile = options.reconcilePendingCleanups || reconcilePendingCleanups;
+  const sealPredecessors = options.sealSupersededSessions || sealSupersededSessions;
+  const supersession = sealPredecessors({ config, mainRoot: mainRepoRoot, branch: featureBranch });
+  if (supersession.errors.length > 0) {
+    throw new Error(
+      `cannot seal superseded worktrees for ${featureBranch}: `
+      + supersession.errors.map((item) => `${item.branch}: ${item.error}`).join('; '),
+    );
+  }
+
+  if (supersession.sealed.length > 0 || supersession.alreadyPending.length > 0) {
+    const predecessorResult = reconcile({
+      mainRoot: mainRepoRoot,
+      config,
+      excludeBranch: featureBranch,
+      skipWorktreePath: options.currentCwd || process.cwd(),
+    });
+    const predecessorBranches = new Set([
+      ...supersession.sealed,
+      ...supersession.alreadyPending,
+    ]);
+    const predecessorErrors = predecessorResult.errors.filter((item) => predecessorBranches.has(item.branch));
+    if (predecessorErrors.length > 0) {
+      throw new Error(
+        `superseded worktree cleanup requires recovery: `
+        + predecessorErrors.map((item) => `${item.branch}: ${item.error}`).join('; '),
+      );
+    }
+    console.log(`\x1b[32m  已级联清理前置阶段 worktree: ${[...predecessorBranches].join(', ')}\x1b[0m`);
+  }
+
   const cwdBefore = options.currentCwd || process.cwd();
   const wasInsideTarget = isSamePath(cwdBefore, entry.path) || isPathInside(entry.path, cwdBefore);
   if (wasInsideTarget) {
@@ -869,7 +901,6 @@ function cleanupWorktree(featureBranch, mainRepoRoot, options = {}) {
   // still inside it. This also makes the failure mode explicit for callers
   // that invoke /qa merge from a linked worktree on Windows.
   console.log(`\x1b[36m安全清理 worktree: ${entry.path}\x1b[0m`);
-  const reconcile = options.reconcilePendingCleanups || reconcilePendingCleanups;
   const result = reconcile({ mainRoot: mainRepoRoot, config, branch: featureBranch });
   if (!result.completed.includes(featureBranch)) {
     const reason = result.errors.map((item) => item.error).join('; ') || 'durable cleanup remains pending';

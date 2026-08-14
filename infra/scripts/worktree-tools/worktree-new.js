@@ -55,6 +55,15 @@ function main(argv = process.argv.slice(2)) {
     if (result.remoteReclaimed && result.remoteReclaimed.removed.length > 0) {
       console.log(`RECLAIMED_REMOTE_MERGED_WORKTREES=${result.remoteReclaimed.removed.map((item) => item.branch).join(',')}`);
     }
+    if (result.remoteReconciliation && result.remoteReconciliation.sweptStale.length > 0) {
+      console.log(`RECONCILED_REMOTE_MERGED_SESSIONS=${result.remoteReconciliation.sweptStale.map((item) => item.branch).join(',')}`);
+    }
+    if (result.supersession && result.supersession.seals.length > 0) {
+      console.log(`SUPERSEDES=${result.supersession.seals.map((item) => item.branch).join(',')}`);
+    }
+    if (result.supersession && result.supersession.skipped.length > 0) {
+      console.log(`SUPERSESSION_SKIPPED=${result.supersession.skipped.map((item) => `${item.branch}:${item.reason}`).join(',')}`);
+    }
     if (result.bootstrap) {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
       if (result.bootstrap.mode) console.log(`BOOTSTRAP_MODE=${result.bootstrap.mode}`);

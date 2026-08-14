@@ -25,6 +25,14 @@ const {
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 const MANAGED_MARKER = '.agent-worktree.json';
+const PHASE_ORDER = new Map([
+  ['prd', 1],
+  ['arch', 2],
+  ['task', 3],
+  ['tdd', 4],
+  ['qa', 5],
+  ['devops', 6],
+]);
 
 function run(command, args, options = {}) {
   const cwd = options.cwd || process.cwd();
@@ -139,6 +147,100 @@ function inferPhaseFromBranch(branch) {
   if (branch.startsWith('qa/')) return 'qa';
   if (branch.startsWith('ops/') || branch.startsWith('ci/')) return 'devops';
   return 'tdd';
+}
+
+function lifecycleTopicFromBranch(branch) {
+  return slugify(String(branch || '')
+    .replace(/^docs\/(?:prd|arch|task)-/u, '')
+    .replace(/^(?:feature|fix|qa|ops|ci)\//u, ''));
+}
+
+function buildLifecycleIdentity(options = {}, branch = buildBranchName(options)) {
+  const phase = slugify(options.phase || inferPhaseFromBranch(branch));
+  const keys = new Set([`topic:${lifecycleTopicFromBranch(branch)}`]);
+  const desc = readStringOption(options, ['desc', 'description']);
+  const task = readStringOption(options, ['task']);
+  if (desc) keys.add(`topic:${slugify(desc)}`);
+  if (task) keys.add(`task:${slugify(task)}`);
+  return { phase, keys: [...keys].sort() };
+}
+
+function sessionLifecycleKeys(session) {
+  const keys = new Set(
+    session && session.lifecycle && Array.isArray(session.lifecycle.keys)
+      ? session.lifecycle.keys.filter((key) => typeof key === 'string' && key)
+      : [],
+  );
+  if (session && session.branch) keys.add(`topic:${lifecycleTopicFromBranch(session.branch)}`);
+  return keys;
+}
+
+function planSupersededSessions(options = {}) {
+  const { config, mainRoot, cli = {}, branch } = options;
+  const identity = buildLifecycleIdentity(cli, branch);
+  const currentRank = PHASE_ORDER.get(identity.phase) || 0;
+  const read = options.readSessions || readSessions;
+  const list = options.listWorktrees || listWorktrees;
+  const entries = list(mainRoot);
+  const seals = [];
+  const skipped = [];
+
+  for (const session of read(config, mainRoot)) {
+    if (!session || session.status !== 'in_progress' || session.branch === branch) continue;
+    const previousPhase = slugify(session.phase || inferPhaseFromBranch(session.branch));
+    const previousRank = PHASE_ORDER.get(previousPhase) || 0;
+    if (!previousRank || !currentRank || previousRank >= currentRank) continue;
+    const previousKeys = sessionLifecycleKeys(session);
+    if (!identity.keys.some((key) => previousKeys.has(key))) continue;
+
+    const entry = entries.find((candidate) => candidate.branch === session.branch
+      && session.worktree && isSamePath(candidate.path, session.worktree));
+    if (!entry || !session.worktree || !fs.existsSync(session.worktree)) {
+      skipped.push({ branch: session.branch, reason: 'missing-registered-worktree' });
+      continue;
+    }
+    const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+      cwd: session.worktree,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (status.status !== 0) {
+      skipped.push({ branch: session.branch, reason: 'inspection-failed' });
+      continue;
+    }
+    if (status.stdout.trim()) {
+      skipped.push({ branch: session.branch, reason: 'dirty-worktree' });
+      continue;
+    }
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: session.worktree,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    const expectedHead = head.status === 0 ? head.stdout.trim() : '';
+    if (!expectedHead || (entry.head && entry.head !== expectedHead)) {
+      skipped.push({ branch: session.branch, reason: 'head-mismatch' });
+      continue;
+    }
+    seals.push({
+      branch: session.branch,
+      worktree: path.resolve(session.worktree),
+      expectedHead,
+      phase: previousPhase,
+    });
+  }
+
+  seals.sort((left, right) => (PHASE_ORDER.get(left.phase) || 0) - (PHASE_ORDER.get(right.phase) || 0));
+  return { identity, seals, skipped };
+}
+
+function lifecycleState(supersession) {
+  return {
+    phase: supersession.identity.phase,
+    keys: supersession.identity.keys,
+    supersedes: supersession.seals,
+    skipped: supersession.skipped,
+  };
 }
 
 function listWorktrees(mainRoot) {
@@ -842,11 +944,13 @@ function createOrResumeWorktree(options = {}) {
   require('./deferred-cleanup-state').reconcilePendingCleanups({
     mainRoot,
     config,
+    baseRef: getBaseRef(mainRoot, config),
     excludeBranch: branch,
     skipWorktreePath: cwd,
   });
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
+    const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
     writeManagedMarker(mainRoot, existing.path, branch);
     writeSession(config, mainRoot, {
       phase: cli.phase || inferPhaseFromBranch(branch),
@@ -854,6 +958,7 @@ function createOrResumeWorktree(options = {}) {
       worktree: existing.path,
       status: 'in_progress',
       step: 'resumed',
+      lifecycle: lifecycleState(supersession),
     });
     const bootstrap = runWorktreeBootstrap({
       worktreePath: existing.path,
@@ -869,7 +974,7 @@ function createOrResumeWorktree(options = {}) {
       step: 'resumed',
       bootstrap,
     });
-    return { branch, worktreePath: existing.path, config, mainRoot, bootstrap, resumed: true };
+    return { branch, worktreePath: existing.path, config, mainRoot, bootstrap, supersession, resumed: true };
   }
 
   const worktreesDir = resolveContainerPath(config, mainRoot, 'worktrees');
@@ -887,6 +992,13 @@ function createOrResumeWorktree(options = {}) {
     runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
   }
   baseRef = getBaseRef(mainRoot, config);
+  const remoteReconciliation = require('./deferred-cleanup-state').reconcilePendingCleanups({
+    mainRoot,
+    config,
+    baseRef,
+    excludeBranch: branch,
+    skipWorktreePath: cwd,
+  });
   const reclaimed = reclaimMergedManagedWorktrees({ mainRoot, config, baseRef });
   ensureDir(worktreesDir);
 
@@ -898,6 +1010,7 @@ function createOrResumeWorktree(options = {}) {
   }
 
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
+  const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
   writeManagedMarker(mainRoot, worktreePath, branch);
   writeSession(config, mainRoot, {
     phase: cli.phase || inferPhaseFromBranch(branch),
@@ -906,6 +1019,7 @@ function createOrResumeWorktree(options = {}) {
     status: 'in_progress',
     step: 'created',
     linked,
+    lifecycle: lifecycleState(supersession),
   });
   const bootstrap = runWorktreeBootstrap({
     worktreePath,
@@ -923,7 +1037,20 @@ function createOrResumeWorktree(options = {}) {
     linked,
     bootstrap,
   });
-  return { branch, worktreePath, config, mainRoot, baseRef, linked, bootstrap, reclaimed, resumed: false, fetchSkipped };
+  return {
+    branch,
+    worktreePath,
+    config,
+    mainRoot,
+    baseRef,
+    linked,
+    bootstrap,
+    reclaimed,
+    remoteReconciliation,
+    supersession,
+    resumed: false,
+    fetchSkipped,
+  };
 }
 
 module.exports = {
@@ -931,6 +1058,7 @@ module.exports = {
   assertSessionCanResume,
   branchExists,
   buildBranchName,
+  buildLifecycleIdentity,
   buildWorktreeName,
   createOrResumeWorktree,
   findWorktreeByBranch,
@@ -944,8 +1072,10 @@ module.exports = {
   isSamePath,
   isMainBranch,
   listWorktrees,
+  lifecycleTopicFromBranch,
   materializeReusablePaths,
   parseCliArgs,
+  planSupersededSessions,
   reclaimMergedManagedWorktrees,
   parseWorktreePorcelain,
   readSessions,
