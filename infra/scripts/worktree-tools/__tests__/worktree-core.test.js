@@ -12,6 +12,7 @@ const {
   createOrResumeWorktree,
   isPathInside,
   materializeReusablePaths,
+  planSupersededSessions,
   readSessions,
   recoverSessionAsBranch,
   removeWorktreeSafely,
@@ -699,6 +700,85 @@ test('resuming an existing worktree honors configured auto bootstrap mode', (t) 
   assert.equal(created.bootstrap.mode, 'auto');
   assert.equal(resumed.bootstrap.mode, 'auto');
   assert.equal(fs.readFileSync(path.join(created.worktreePath, 'node_modules', 'count'), 'utf8'), '2');
+});
+
+test('later expert phase durably seals clean predecessor sessions for the same topic', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-phase-lineage-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees' },
+    worktree: {
+      sessionDir: '../tmp/sessions',
+      lockDir: '../tmp/locks',
+      envSymlinks: [],
+      sharedConfigSymlinks: [],
+      bootstrap: { mode: 'skip' },
+    },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const prd = createOrResumeWorktree({
+    cwd: repo,
+    cli: { 'skip-fetch': true, phase: 'prd', desc: 'shared lifecycle' },
+  });
+  fs.writeFileSync(path.join(prd.worktreePath, 'prd.md'), 'confirmed\n');
+  runGit(prd.worktreePath, ['add', 'prd.md']);
+  runGit(prd.worktreePath, ['commit', '-m', 'prd']);
+
+  const task = createOrResumeWorktree({
+    cwd: repo,
+    cli: { 'skip-fetch': true, phase: 'task', desc: 'shared lifecycle' },
+  });
+  assert.deepEqual(task.supersession.seals.map((item) => item.branch), [prd.branch]);
+  assert.equal(task.supersession.seals[0].expectedHead, runGit(prd.worktreePath, ['rev-parse', 'HEAD']));
+
+  const taskSession = readSessions(task.config, repo).find((session) => session.branch === task.branch);
+  assert.deepEqual(taskSession.lifecycle.keys, ['topic:shared-lifecycle']);
+  assert.deepEqual(taskSession.lifecycle.supersedes.map((item) => item.branch), [prd.branch]);
+});
+
+test('supersession planning never seals dirty or unrelated predecessor worktrees', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-phase-lineage-safe-'));
+  const repo = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const sessionsRoot = path.join(container, 'sessions');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'base\n');
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const dirtyPath = path.join(worktreesRoot, 'prd-shared-topic');
+  const unrelatedPath = path.join(worktreesRoot, 'prd-other-topic');
+  runGit(repo, ['worktree', 'add', '-b', 'docs/prd-shared-topic', dirtyPath]);
+  runGit(repo, ['worktree', 'add', '-b', 'docs/prd-other-topic', unrelatedPath]);
+  fs.writeFileSync(path.join(dirtyPath, 'uncommitted.md'), 'must survive\n');
+  const config = { worktree: { sessionDir: sessionsRoot, lockDir: path.join(container, 'locks') } };
+  writeSession(config, repo, {
+    phase: 'prd', branch: 'docs/prd-shared-topic', worktree: dirtyPath, status: 'in_progress', step: 'created',
+  });
+  writeSession(config, repo, {
+    phase: 'prd', branch: 'docs/prd-other-topic', worktree: unrelatedPath, status: 'in_progress', step: 'created',
+  });
+
+  const result = planSupersededSessions({
+    config,
+    mainRoot: repo,
+    cli: { phase: 'task', desc: 'shared topic' },
+    branch: 'docs/task-shared-topic',
+  });
+  assert.deepEqual(result.seals, []);
+  assert.deepEqual(result.skipped, [{ branch: 'docs/prd-shared-topic', reason: 'dirty-worktree' }]);
 });
 
 test('lifecycle lock reclaims a stale owner but never steals a live owner', (t) => {

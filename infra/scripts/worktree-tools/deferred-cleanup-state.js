@@ -106,6 +106,60 @@ function markCleanupPending(options) {
   return payload;
 }
 
+function sealSupersededSessions(options = {}) {
+  const mainRoot = path.resolve(options.mainRoot);
+  const config = options.config || loadConfig({ repoRoot: mainRoot });
+  const branch = String(options.branch || '');
+  const read = options.readSessions || readSessions;
+  const mark = options.markCleanupPending || markCleanupPending;
+  const sessions = read(config, mainRoot);
+  const current = sessions.find((session) => session && session.branch === branch);
+  const declared = current && current.lifecycle && Array.isArray(current.lifecycle.supersedes)
+    ? current.lifecycle.supersedes
+    : [];
+  const sealed = [];
+  const alreadyPending = [];
+  const alreadyRemoved = [];
+  const errors = [];
+
+  for (const predecessor of declared) {
+    const predecessorBranch = String(predecessor && predecessor.branch || '');
+    const expectedHead = String(predecessor && predecessor.expectedHead || '');
+    const worktree = String(predecessor && predecessor.worktree || '');
+    if (!predecessorBranch || !expectedHead || !worktree || !path.isAbsolute(worktree)) {
+      errors.push({ branch: predecessorBranch || '(invalid)', error: 'invalid supersession seal' });
+      continue;
+    }
+    const session = sessions.find((candidate) => candidate && candidate.branch === predecessorBranch);
+    if (!session) {
+      alreadyRemoved.push(predecessorBranch);
+      continue;
+    }
+    if (['cleanup_pending', 'recovery_required'].includes(session.status)) {
+      alreadyPending.push(predecessorBranch);
+      continue;
+    }
+    if (session.status !== 'in_progress') {
+      errors.push({ branch: predecessorBranch, error: `unexpected predecessor status: ${session.status || '(empty)'}` });
+      continue;
+    }
+    if (!session.worktree || !isSamePath(session.worktree, worktree)) {
+      errors.push({ branch: predecessorBranch, error: 'predecessor worktree changed after supersession seal' });
+      continue;
+    }
+    mark({
+      config,
+      mainRoot,
+      branch: predecessorBranch,
+      worktreePath: path.resolve(worktree),
+      expectedHead,
+    });
+    sealed.push(predecessorBranch);
+  }
+
+  return { sealed, alreadyPending, alreadyRemoved, errors };
+}
+
 function isAuthorizedCleanupSession(session, mainRoot, worktreesRoot) {
   if (!session || session.status !== 'cleanup_pending' || !session.cleanup) return false;
   const branch = String(session.branch || '');
@@ -222,6 +276,7 @@ function sweepStaleInProgressSessions(options = {}) {
   const deleteBranch = options.deleteBranch || defaultDeleteBranch;
   const checkContent = options.isBranchContentInBase || isBranchContentInBase;
   const skipWorktreePath = options.skipWorktreePath || '';
+  const excludeBranch = options.excludeBranch || '';
   const swept = [];
   const retained = [];
   const errors = [];
@@ -231,6 +286,10 @@ function sweepStaleInProgressSessions(options = {}) {
     if (!session || session.status !== 'in_progress') continue;
     const branch = String(session.branch || '');
     if (!branch) continue;
+    if (excludeBranch && branch === excludeBranch) {
+      retained.push({ branch, reason: 'excluded-branch' });
+      continue;
+    }
 
     if (skipWorktreePath && session.worktree && isSamePath(skipWorktreePath, session.worktree)) {
       retained.push({ branch, reason: 'current-worktree' });
@@ -332,6 +391,7 @@ function reconcilePendingCleanups(options = {}) {
         removeSession: removeSess,
         deleteBranch,
         isBranchContentInBase: options.isBranchContentInBase,
+        excludeBranch,
         skipWorktreePath,
         observeOnly: options.observeOnly,
       });
@@ -458,6 +518,7 @@ module.exports = {
   isAuthorizedCleanupSession,
   inspectCleanupState,
   markCleanupPending,
+  sealSupersededSessions,
   pruneMissingAuthorizedRegistration,
   reconcilePendingCleanups,
   sweepStaleInProgressSessions,

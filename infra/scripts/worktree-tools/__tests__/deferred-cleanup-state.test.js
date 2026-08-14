@@ -11,6 +11,7 @@ const {
   isBranchContentInBase,
   markCleanupPending,
   reconcilePendingCleanups,
+  sealSupersededSessions,
   sweepStaleInProgressSessions,
 } = require('../deferred-cleanup-state');
 const { readSessions, safeRemoveTreeNoFollow } = require('../worktree-core');
@@ -366,7 +367,7 @@ test('legacy cleanup without a HEAD seal becomes recovery_required without delet
   assert.equal(writes[0].status, 'recovery_required');
   assert.equal(fs.existsSync(worktreePath), true);
 });
-﻿
+
 // ==================== isBranchContentInBase ====================
 
 test('isBranchContentInBase detects a fully-merged branch (direct ancestor)', (t) => {
@@ -679,4 +680,97 @@ test('reconcilePendingCleanups skips sweep when sweepStaleInProgress is false', 
   });
   assert.equal(result.sweptStale.length, 0);
   assert.equal(fs.existsSync(worktreePath), true);
+});
+
+test('sweep never removes the explicitly excluded branch being resumed', (t) => {
+  const fixture = makeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  runGit(fixture.mainRoot, ['init', '-b', 'main']);
+  runGit(fixture.mainRoot, ['config', 'user.email', 'test@example.com']);
+  runGit(fixture.mainRoot, ['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(fixture.mainRoot, 'file.txt'), 'base\n');
+  runGit(fixture.mainRoot, ['add', '.']);
+  runGit(fixture.mainRoot, ['commit', '-m', 'init']);
+  const worktreePath = path.join(fixture.worktreesRoot, 'requested-wt');
+  runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'feature/requested-wt', worktreePath]);
+
+  const result = sweepStaleInProgressSessions({
+    config: {},
+    mainRoot: fixture.mainRoot,
+    worktreesRoot: fixture.worktreesRoot,
+    excludeBranch: 'feature/requested-wt',
+    readSessions: () => [{
+      branch: 'feature/requested-wt',
+      worktree: worktreePath,
+      status: 'in_progress',
+    }],
+  });
+
+  assert.deepEqual(result.swept, []);
+  assert.equal(result.retained[0].reason, 'excluded-branch');
+  assert.equal(fs.existsSync(worktreePath), true);
+});
+
+test('merged downstream session seals declared predecessor heads for cleanup', () => {
+  const writes = [];
+  const predecessor = {
+    branch: 'docs/prd-shared-topic',
+    worktree: path.resolve('/tmp/worktrees/prd-shared-topic'),
+    status: 'in_progress',
+  };
+  const current = {
+    branch: 'feature/shared-topic',
+    status: 'cleanup_pending',
+    lifecycle: {
+      supersedes: [{
+        branch: predecessor.branch,
+        worktree: predecessor.worktree,
+        expectedHead: 'sealed-head',
+        phase: 'prd',
+      }],
+    },
+  };
+
+  const result = sealSupersededSessions({
+    config: {},
+    mainRoot: path.resolve('/tmp/repo'),
+    branch: current.branch,
+    readSessions: () => [predecessor, current],
+    markCleanupPending: (input) => writes.push(input),
+  });
+
+  assert.deepEqual(result, {
+    sealed: [predecessor.branch],
+    alreadyPending: [],
+    alreadyRemoved: [],
+    errors: [],
+  });
+  assert.equal(writes[0].branch, predecessor.branch);
+  assert.equal(writes[0].worktreePath, predecessor.worktree);
+  assert.equal(writes[0].expectedHead, 'sealed-head');
+});
+
+test('supersession seal rejects predecessor path drift', () => {
+  const result = sealSupersededSessions({
+    config: {},
+    mainRoot: path.resolve('/tmp/repo'),
+    branch: 'feature/shared-topic',
+    readSessions: () => [{
+      branch: 'feature/shared-topic',
+      lifecycle: {
+        supersedes: [{
+          branch: 'docs/prd-shared-topic',
+          worktree: path.resolve('/tmp/worktrees/original'),
+          expectedHead: 'sealed-head',
+        }],
+      },
+    }, {
+      branch: 'docs/prd-shared-topic',
+      worktree: path.resolve('/tmp/worktrees/reused'),
+      status: 'in_progress',
+    }],
+  });
+
+  assert.equal(result.sealed.length, 0);
+  assert.match(result.errors[0].error, /worktree changed/u);
 });
