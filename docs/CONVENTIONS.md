@@ -189,11 +189,36 @@ git rev-parse --show-toplevel
 | 模式 | 是否创建 worktree | 输出位置 | 说明 |
 |------|-------------------|----------|------|
 | 只读排查 / diagnose | 否 | 容器层 `tmp/agent-runs/`、`tmp/test-results/` 等 | 不修改 tracked 文件 |
+| 长任务状态 | 视任务类型而定 | 容器层 `tmp/agent-task-runs/<task-id>/` | `state.json` 为唯一权威状态；完成后自删，未完成不参与普通 tmp 清理 |
 | 修改型任务 / change | 是 | `../worktrees/<phase>-<slug>/` | 后续 CWD 必须切换到 `WORKTREE_PATH` |
 | 缓存 | 否 | `../cache/` | 可重建、可共享 |
 | 构建/部署产物 | 否 | `../artifacts/` | 单槽位资源需加锁 |
 
 外部 agent（OpenClaw、Hermes、Goose 等）只能通过 `node infra/scripts/agent-runner/agent-run.js` 或 `node infra/scripts/worktree-tools/worktree-*.js` 接入；已安全合并 package aliases 的项目可使用 `pnpm run agent:run` / `pnpm run worktree:*`。外部 agent 不直接管理本仓库的 worktree、merge、cleanup 策略。
+
+## 长任务状态文件规范
+
+长任务使用 `infra/scripts/agent-runner/agent-task.js` 管理，不引入数据库或后台调度器。每个任务只有一个目录和一个权威 `state.json`；`evidence/` 仅在证据过大、不适合内联短摘要时按需创建。
+
+### 最小状态结构
+
+| 字段 | 约束 |
+|------|------|
+| `schema_version` / `task_id` | 当前 schema 为 `1`；task id 为 1-80 位安全 slug，目录与文件内 ID 必须一致 |
+| `goal` / `task_type` | 任务目标；`mutation` 会在 finish 时串联仓库 completion guard，其他类型默认为 `operation` |
+| `project_root` / `worktree` / `branch` | 绑定主 repo、当前 worktree 和分支；checkpoint 会在同一主 repo 内刷新绑定 |
+| `acceptance_criteria[]` | 每项具有稳定 `AC<n>`、状态和脱敏证据；全部完成才允许 finish |
+| `steps[]` | 每项具有稳定 `S<n>`、`pending/running/done/blocked/verify_required`、`safe/verify_first` 和证据 |
+| `current_step` / `next_action` / `last_error` | 恢复时唯一可信的当前位置、下一动作与最近错误；禁止从旧对话猜测 |
+| `created_at` / `updated_at` | ISO-8601 UTC 时间；完成写 `completed_at` 后立即进入安全删除 |
+
+### 写入、恢复与清理
+
+- 所有更新复用 `../tmp/agent-locks/` 的任务级锁，并采用同目录临时文件、`fsync`、原子 rename；`state.json.tmp-*` 只视为崩溃残留，读取时忽略。
+- `resume --auto` 优先按主 repo + worktree/branch 精确选择；只能退化到主 repo 内唯一活跃任务。存在多个候选或权威 JSON 损坏时必须 `STATUS=BLOCKED`，不得静默挑选或重建。
+- `done` 步骤和 AC 必须至少有一条简短证据。证据可为命令与退出码、文件路径与哈希、PR/部署回执或物理验收摘要；敏感正文只保留受控位置引用。
+- `finish` 先写 `completed` 再安全删除精确任务目录，拒绝符号链接、越界路径和 task id 不匹配。删除失败时重建最小 `cleanup_pending` 状态，下一次只重试清理，不重新执行任务。
+- `agent-task-runs` 是容器清理保护目录。正常任务由 finish 删除；失败、阻塞或等待确认的任务一直保留，直到完成或用户显式 `cancel --force`。
 
 ## Tests 约定
 

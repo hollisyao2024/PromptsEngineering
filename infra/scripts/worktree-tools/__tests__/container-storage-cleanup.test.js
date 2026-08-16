@@ -13,13 +13,14 @@ const NEW = new Date('2026-07-24T00:00:00.000Z');
 test('keeps protected and recent tmp entries, but selects old disposable entries', () => {
   const plan = buildTmpCleanupPlan([
     { name: 'worktree-sessions', path: 'tmp/worktree-sessions', modified: OLD, isDirectory: true },
+    { name: 'agent-task-runs', path: 'tmp/agent-task-runs', modified: OLD, isDirectory: true },
     { name: 'dev-app-win', path: 'tmp/dev-app-win', modified: OLD, isDirectory: true },
     { name: 'junction-node-probe-old', path: 'tmp/junction-node-probe-old', modified: OLD, isDirectory: true },
     { name: 'recent.log', path: 'tmp/recent.log', modified: NEW, isDirectory: false },
   ], { now: new Date('2026-07-25T00:00:00.000Z'), tmpDays: 7 });
 
   assert.deepEqual(plan.remove.map((entry) => entry.name), ['junction-node-probe-old']);
-  assert.deepEqual(plan.keep.map((entry) => entry.name).sort(), ['dev-app-win', 'recent.log', 'worktree-sessions']);
+  assert.deepEqual(plan.keep.map((entry) => entry.name).sort(), ['agent-task-runs', 'dev-app-win', 'recent.log', 'worktree-sessions']);
 });
 
 test('keeps only the newest configured release groups and never includes backups', () => {
