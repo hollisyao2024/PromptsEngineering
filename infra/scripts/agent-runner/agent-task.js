@@ -19,11 +19,25 @@ const {
   safeRemoveTreeNoFollow,
 } = require('../worktree-tools/worktree-core');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const LEGACY_SCHEMA_VERSION = 1;
 const TASK_STATUSES = new Set(['running', 'blocked', 'completed', 'cleanup_pending']);
 const TASK_TYPES = new Set(['operation', 'mutation', 'diagnose', 'deploy', 'computer_use', 'research']);
 const STEP_STATUSES = new Set(['pending', 'running', 'done', 'blocked', 'verify_required']);
 const REPLAY_MODES = new Set(['safe', 'verify_first']);
+const TASK_PHASES = new Set(['unspecified', 'prd', 'arch', 'task', 'tdd', 'qa', 'devops']);
+const PHASE_ORDER = new Map([
+  ['unspecified', -1], ['prd', 0], ['arch', 1], ['task', 2], ['tdd', 3], ['qa', 4], ['devops', 5],
+]);
+const PHASE_TRANSITIONS = new Map([
+  ['unspecified', new Set(['prd', 'arch', 'task', 'tdd', 'qa', 'devops'])],
+  ['prd', new Set(['arch'])],
+  ['arch', new Set(['prd', 'task'])],
+  ['task', new Set(['prd', 'arch', 'tdd'])],
+  ['tdd', new Set(['prd', 'arch', 'task', 'qa'])],
+  ['qa', new Set(['tdd', 'devops'])],
+  ['devops', new Set(['arch', 'tdd', 'qa'])],
+]);
 
 function nowIso(value) {
   if (!value) return new Date().toISOString();
@@ -75,7 +89,27 @@ function fsyncDirectory(directoryPath) {
   }
 }
 
-function validateState(state, expectedTaskId) {
+function normalizePhase(value) {
+  const phase = String(value || 'unspecified').trim().toLowerCase();
+  if (!TASK_PHASES.has(phase)) throw new Error(`invalid task phase: ${phase}`);
+  return phase;
+}
+
+function upgradeLegacyState(state) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return state;
+  if (state.schema_version !== LEGACY_SCHEMA_VERSION) return state;
+  return {
+    ...state,
+    schema_version: SCHEMA_VERSION,
+    current_phase: 'unspecified',
+    phase_history: [],
+    plan_revision: 1,
+    plan_history: [],
+  };
+}
+
+function validateState(inputState, expectedTaskId) {
+  const state = upgradeLegacyState(inputState);
   if (!state || typeof state !== 'object' || Array.isArray(state)) {
     throw new Error('invalid task state: expected an object');
   }
@@ -90,6 +124,60 @@ function validateState(state, expectedTaskId) {
   }
   if (!TASK_TYPES.has(state.task_type)) {
     throw new Error(`invalid task state: unsupported task_type ${state.task_type}`);
+  }
+  if (!TASK_PHASES.has(state.current_phase)) {
+    throw new Error(`invalid task state: unsupported current_phase ${state.current_phase}`);
+  }
+  if (!Array.isArray(state.phase_history)) {
+    throw new Error('invalid task state: phase_history must be an array');
+  }
+  let historyPhase = 'unspecified';
+  for (let index = 0; index < state.phase_history.length; index += 1) {
+    const entry = state.phase_history[index];
+    if (!entry || !TASK_PHASES.has(entry.phase) || !Array.isArray(entry.evidence)) {
+      throw new Error('invalid task state: malformed phase history');
+    }
+    const establishesInitialPhase = index === 0 && entry.from_phase === '';
+    if (!establishesInitialPhase && !TASK_PHASES.has(entry.from_phase)) {
+      throw new Error(`invalid task state: unsupported phase history source ${entry.from_phase}`);
+    }
+    if (!establishesInitialPhase) {
+      if (entry.from_phase !== historyPhase) {
+        throw new Error(`invalid task state: discontinuous phase history at ${entry.phase}`);
+      }
+      const allowed = PHASE_TRANSITIONS.get(entry.from_phase) || new Set();
+      if (!allowed.has(entry.phase)) {
+        throw new Error(`invalid task state: impossible phase history ${entry.from_phase} -> ${entry.phase}`);
+      }
+    }
+    historyPhase = entry.phase;
+  }
+  if (
+    (state.phase_history.length === 0 && state.current_phase !== 'unspecified')
+    || (state.phase_history.length > 0 && state.current_phase !== historyPhase)
+  ) {
+    throw new Error('invalid task state: current_phase does not match phase history');
+  }
+  if (!Number.isInteger(state.plan_revision) || state.plan_revision < 1) {
+    throw new Error('invalid task state: plan_revision must be a positive integer');
+  }
+  if (!Array.isArray(state.plan_history)) {
+    throw new Error('invalid task state: plan_history must be an array');
+  }
+  if (state.plan_history.length !== state.plan_revision - 1) {
+    throw new Error('invalid task state: plan history does not match plan_revision');
+  }
+  for (let index = 0; index < state.plan_history.length; index += 1) {
+    const entry = state.plan_history[index];
+    if (
+      !entry
+      || entry.revision !== index + 2
+      || !Array.isArray(entry.added_step_ids)
+      || !Array.isArray(entry.added_acceptance_ids)
+      || !String(entry.reason || '').trim()
+    ) {
+      throw new Error('invalid task state: malformed plan history');
+    }
   }
   if (!path.isAbsolute(state.project_root || '')) {
     throw new Error('invalid task state: project_root must be absolute');
@@ -106,6 +194,9 @@ function validateState(state, expectedTaskId) {
     if (!STEP_STATUSES.has(step.status) || !REPLAY_MODES.has(step.replay)) {
       throw new Error(`invalid task state: unsupported step state for ${step.id}`);
     }
+    if (!String(step.title || '').trim() || !String(step.next_action || '').trim()) {
+      throw new Error(`invalid task state: step ${step.id} requires title and next_action`);
+    }
     if (!Array.isArray(step.evidence)) {
       throw new Error(`invalid task state: evidence must be an array for ${step.id}`);
     }
@@ -113,18 +204,62 @@ function validateState(state, expectedTaskId) {
   if (!Array.isArray(state.acceptance_criteria)) {
     throw new Error('invalid task state: acceptance_criteria must be an array');
   }
+  const acceptanceIds = new Set();
+  for (const criterion of state.acceptance_criteria) {
+    if (!criterion || typeof criterion.id !== 'string' || acceptanceIds.has(criterion.id)) {
+      throw new Error('invalid task state: acceptance ids must be unique strings');
+    }
+    acceptanceIds.add(criterion.id);
+    if (!String(criterion.text || '').trim() || !['pending', 'done'].includes(criterion.status)) {
+      throw new Error(`invalid task state: malformed acceptance criterion ${criterion.id}`);
+    }
+    if (!Array.isArray(criterion.evidence)) {
+      throw new Error(`invalid task state: acceptance evidence must be an array for ${criterion.id}`);
+    }
+  }
+  const plannedStepIds = new Set();
+  const plannedAcceptanceIds = new Set();
+  for (const entry of state.plan_history) {
+    for (const stepId of entry.added_step_ids) {
+      if (!stepIds.has(stepId) || plannedStepIds.has(stepId)) {
+        throw new Error(`invalid task state: plan history references invalid step ${stepId}`);
+      }
+      plannedStepIds.add(stepId);
+    }
+    for (const acceptanceId of entry.added_acceptance_ids) {
+      if (!acceptanceIds.has(acceptanceId) || plannedAcceptanceIds.has(acceptanceId)) {
+        throw new Error(`invalid task state: plan history references invalid acceptance ${acceptanceId}`);
+      }
+      plannedAcceptanceIds.add(acceptanceId);
+    }
+  }
+  const firstIncomplete = state.steps.find((step) => step.status !== 'done') || null;
+  if (state.current_step !== (firstIncomplete ? firstIncomplete.id : '')) {
+    throw new Error('invalid task state: current_step does not match step progress');
+  }
+  if (['completed', 'cleanup_pending'].includes(state.status) && firstIncomplete) {
+    throw new Error(`invalid task state: ${state.status} task contains incomplete steps`);
+  }
+  if (!['completed', 'cleanup_pending'].includes(state.status)) {
+    const expectedStatus = state.steps.some((step) => ['blocked', 'verify_required'].includes(step.status))
+      ? 'blocked'
+      : 'running';
+    if (state.status !== expectedStatus) {
+      throw new Error(`invalid task state: status ${state.status} does not match step progress`);
+    }
+  }
   return state;
 }
 
 function writeAtomicState({ runsRoot, taskId, state }) {
   const { id, taskDir, statePath } = taskPaths(runsRoot, taskId);
   ensureRealDirectory(taskDir);
-  validateState(state, id);
+  const validatedState = validateState(state, id);
   const temporaryPath = path.join(taskDir, `state.json.tmp-${process.pid}-${Date.now()}`);
   let descriptor;
   try {
     descriptor = fs.openSync(temporaryPath, 'wx', 0o600);
-    fs.writeFileSync(descriptor, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(descriptor, `${JSON.stringify(validatedState, null, 2)}\n`, 'utf8');
     fs.fsyncSync(descriptor);
     fs.closeSync(descriptor);
     descriptor = undefined;
@@ -134,7 +269,7 @@ function writeAtomicState({ runsRoot, taskId, state }) {
     if (descriptor !== undefined) fs.closeSync(descriptor);
     if (fs.existsSync(temporaryPath)) fs.rmSync(temporaryPath, { force: true });
   }
-  return state;
+  return validatedState;
 }
 
 function readTaskState({ runsRoot, taskId }) {
@@ -183,7 +318,7 @@ function createTask(options) {
     worktree,
     branch = '',
     goal,
-    taskType = 'operation',
+    taskType = 'mutation',
   } = options;
   const taskId = safeTaskId(options.taskId);
   const goalText = String(goal || '').trim();
@@ -214,6 +349,7 @@ function createTask(options) {
       };
     });
     const acceptance = normalizeTextList(options.acceptanceCriteria);
+    const currentPhase = normalizePhase(options.phase);
     const state = {
       schema_version: SCHEMA_VERSION,
       task_id: taskId,
@@ -230,6 +366,15 @@ function createTask(options) {
         evidence: [],
       })),
       constraints: normalizeTextList(options.constraints),
+      current_phase: currentPhase,
+      phase_history: currentPhase === 'unspecified' ? [] : [{
+        phase: currentPhase,
+        from_phase: '',
+        evidence: [],
+        entered_at: timestamp,
+      }],
+      plan_revision: 1,
+      plan_history: [],
       current_step: steps[0].id,
       next_action: steps[0].title,
       last_error: null,
@@ -238,6 +383,100 @@ function createTask(options) {
       updated_at: timestamp,
     };
     return writeAtomicState({ runsRoot, taskId, state });
+  });
+}
+
+function extendTask(options) {
+  const taskId = safeTaskId(options.taskId);
+  const sourceSteps = Array.isArray(options.steps) ? options.steps : [];
+  const acceptance = normalizeTextList(options.acceptanceCriteria);
+  const reason = String(options.reason || '').trim();
+  if (sourceSteps.length === 0 && acceptance.length === 0) {
+    throw new Error('extend requires --add-step, --add-verify-step, or --add-acceptance');
+  }
+  if (!reason) throw new Error('extend requires --reason');
+
+  return withTaskLock({ lockDir: options.lockDir, taskId }, () => {
+    const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+    if (['completed', 'cleanup_pending'].includes(state.status)) {
+      throw new Error(`task is ${state.status}; plan extension is not allowed`);
+    }
+    const timestamp = nowIso(options.now);
+    const addedSteps = sourceSteps.map((source, index) => {
+      const title = String(typeof source === 'string' ? source : source.title || '').trim();
+      const replay = typeof source === 'string' ? 'safe' : (source.replay || 'safe');
+      if (!title) throw new Error(`added step ${index + 1} requires a non-empty title`);
+      if (!REPLAY_MODES.has(replay)) throw new Error(`invalid replay mode for added step ${index + 1}: ${replay}`);
+      return {
+        id: `S${state.steps.length + index + 1}`,
+        title,
+        status: 'pending',
+        replay,
+        evidence: [],
+        next_action: title,
+      };
+    });
+    const addedAcceptance = acceptance.map((text, index) => ({
+      id: `AC${state.acceptance_criteria.length + index + 1}`,
+      text,
+      status: 'pending',
+      evidence: [],
+    }));
+    state.steps.push(...addedSteps);
+    state.acceptance_criteria.push(...addedAcceptance);
+    state.plan_revision += 1;
+    state.plan_history.push({
+      revision: state.plan_revision,
+      reason,
+      added_step_ids: addedSteps.map((step) => step.id),
+      added_acceptance_ids: addedAcceptance.map((criterion) => criterion.id),
+      changed_at: timestamp,
+    });
+    const current = firstIncompleteStep(state);
+    state.current_step = current ? current.id : '';
+    state.next_action = current
+      ? String(current.next_action || current.title)
+      : 'Verify acceptance criteria, then run finish gate';
+    state.status = deriveTaskStatus(state);
+    state.updated_at = timestamp;
+    return writeAtomicState({ runsRoot: options.runsRoot, taskId, state });
+  });
+}
+
+function transitionTaskPhase(options) {
+  const taskId = safeTaskId(options.taskId);
+  const targetPhase = normalizePhase(options.phase);
+  const evidence = normalizeTextList(options.evidence);
+  return withTaskLock({ lockDir: options.lockDir, taskId }, () => {
+    const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+    if (['completed', 'cleanup_pending'].includes(state.status)) {
+      throw new Error(`task is ${state.status}; phase transition is not allowed`);
+    }
+    if (state.current_phase === targetPhase) return state;
+    if (evidence.length === 0) throw new Error('phase transition requires evidence');
+    const allowed = PHASE_TRANSITIONS.get(state.current_phase) || new Set();
+    if (!allowed.has(targetPhase)) {
+      throw new Error(`invalid phase transition: ${state.current_phase} -> ${targetPhase}`);
+    }
+    const movesForward = PHASE_ORDER.get(targetPhase) > PHASE_ORDER.get(state.current_phase);
+    const unresolvedEffect = state.steps.find((step) => ['blocked', 'verify_required'].includes(step.status));
+    if (movesForward && unresolvedEffect) {
+      throw new Error(`phase transition blocked by unresolved step ${unresolvedEffect.id}: ${unresolvedEffect.status}`);
+    }
+    const timestamp = nowIso(options.now);
+    state.phase_history.push({
+      phase: targetPhase,
+      from_phase: state.current_phase,
+      evidence,
+      entered_at: timestamp,
+    });
+    state.current_phase = targetPhase;
+    if (options.projectRoot && isSamePath(options.projectRoot, state.project_root)) {
+      if (options.worktree) state.worktree = path.resolve(options.worktree);
+      if (options.branch) state.branch = String(options.branch);
+    }
+    state.updated_at = timestamp;
+    return writeAtomicState({ runsRoot: options.runsRoot, taskId, state });
   });
 }
 
@@ -513,7 +752,7 @@ function parseCliArgs(argv) {
     ['task', 'taskId'], ['desc', 'goal'], ['type', 'taskType'], ['status', 'status'],
     ['step-id', 'stepId'], ['acceptance-id', 'acceptanceId'], ['acceptance', 'acceptance'],
     ['constraint', 'constraint'], ['evidence', 'evidenceItem'], ['next', 'nextAction'],
-    ['error', 'error'], ['replay', 'replay'],
+    ['error', 'error'], ['replay', 'replay'], ['phase', 'phase'], ['reason', 'reason'],
   ]);
   for (let index = 1; index < normalizedArgv.length; index += 1) {
     const arg = normalizedArgv[index];
@@ -524,17 +763,33 @@ function parseCliArgs(argv) {
       const value = normalizedArgv[++index];
       if (!value) throw new Error(`${arg} requires a value`);
       options.stepId = value;
-    } else if (arg === '--step' || arg === '--verify-step') {
+    } else if (arg === '--step' || arg === '--verify-step' || arg === '--add-step' || arg === '--add-verify-step') {
       const value = normalizedArgv[++index];
       if (!value) throw new Error(`${arg} requires a value`);
-      options.steps.push({ title: value, replay: arg === '--verify-step' ? 'verify_first' : 'safe' });
+      options.steps.push({
+        title: value,
+        replay: ['--verify-step', '--add-verify-step'].includes(arg) ? 'verify_first' : 'safe',
+      });
+    } else if (arg === '--add-acceptance') {
+      const value = normalizedArgv[++index];
+      if (!value) throw new Error(`${arg} requires a value`);
+      options.acceptanceCriteria.push(value);
     } else if (arg.startsWith('--') && arg.includes('=')) {
       const [rawKey, ...parts] = arg.slice(2).split('=');
-      if (rawKey === 'step') {
+      if (['step', 'verify-step', 'add-step', 'add-verify-step'].includes(rawKey)) {
         const value = parts.join('=');
-        if (!value) throw new Error('--step requires a value');
-        if (options.command === 'checkpoint') options.stepId = value;
-        else options.steps.push({ title: value, replay: 'safe' });
+        if (!value) throw new Error(`--${rawKey} requires a value`);
+        if (rawKey === 'step' && options.command === 'checkpoint') options.stepId = value;
+        else options.steps.push({
+          title: value,
+          replay: ['verify-step', 'add-verify-step'].includes(rawKey) ? 'verify_first' : 'safe',
+        });
+        continue;
+      }
+      if (rawKey === 'add-acceptance') {
+        const value = parts.join('=');
+        if (!value) throw new Error('--add-acceptance requires a value');
+        options.acceptanceCriteria.push(value);
         continue;
       }
       const key = valueKeys.get(rawKey);
@@ -578,21 +833,26 @@ function runtimeContext(cwd = process.cwd()) {
 
 function printHelp() {
   console.log(`Usage:
-  node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> --step <safe-step> [--verify-step <effect-step>]
+  node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] --step <safe-step> [--verify-step <effect-step>]
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
+  node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
+  node infra/scripts/agent-runner/agent-task.js transition --task <id> --phase <phase> --evidence <milestone>
   node infra/scripts/agent-runner/agent-task.js finish --task <id>
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
 
-Repeat --step, --verify-step, --acceptance, --constraint, and --evidence as needed.
+Repeat step, acceptance, constraint, and evidence options as needed.
 Provide --step, --acceptance-id, or both. A done step and acceptance can share one evidence checkpoint.
-Safe steps may be retried after interruption. Verify steps must be checked before replay.`);
+Safe steps may be retried after interruption. Verify steps must be checked before replay.
+New tasks default to type=mutation; use an explicit read-only task type only when no tracked mutation is possible.`);
 }
 
 function printResumeState(state, statePath) {
   console.log('STATUS=RESUMED');
   console.log(`TASK_ID=${state.task_id}`);
   console.log(`TASK_STATUS=${state.status}`);
+  console.log(`CURRENT_PHASE=${state.current_phase}`);
+  console.log(`PLAN_REVISION=${state.plan_revision}`);
   console.log(`STATE_PATH=${statePath}`);
   console.log(`GOAL=${state.goal}`);
   console.log(`CONSTRAINTS=${state.constraints.join(' | ')}`);
@@ -614,6 +874,8 @@ function main(argv = process.argv.slice(2)) {
     console.log('STATUS=STARTED');
     console.log(`TASK_ID=${state.task_id}`);
     console.log(`STATE_PATH=${path.join(context.runsRoot, state.task_id, 'state.json')}`);
+    console.log(`CURRENT_PHASE=${state.current_phase}`);
+    console.log(`PLAN_REVISION=${state.plan_revision}`);
     console.log(`CURRENT_STEP=${state.current_step}`);
     console.log(`NEXT_ACTION=${state.next_action}`);
     return 0;
@@ -624,6 +886,26 @@ function main(argv = process.argv.slice(2)) {
     console.log(`TASK_ID=${state.task_id}`);
     console.log(`TASK_STATUS=${state.status}`);
     console.log(`CURRENT_STEP=${state.current_step}`);
+    console.log(`NEXT_ACTION=${state.next_action}`);
+    return 0;
+  }
+  if (cli.command === 'extend') {
+    if (!cli.taskId) throw new Error('extend requires --task <id>');
+    const state = extendTask({ ...context, ...cli });
+    console.log('STATUS=EXTENDED');
+    console.log(`TASK_ID=${state.task_id}`);
+    console.log(`PLAN_REVISION=${state.plan_revision}`);
+    console.log(`CURRENT_STEP=${state.current_step}`);
+    console.log(`NEXT_ACTION=${state.next_action}`);
+    return 0;
+  }
+  if (cli.command === 'transition') {
+    if (!cli.taskId) throw new Error('transition requires --task <id>');
+    if (!cli.phase) throw new Error('transition requires --phase <phase>');
+    const state = transitionTaskPhase({ ...context, ...cli });
+    console.log('STATUS=TRANSITIONED');
+    console.log(`TASK_ID=${state.task_id}`);
+    console.log(`CURRENT_PHASE=${state.current_phase}`);
     console.log(`NEXT_ACTION=${state.next_action}`);
     return 0;
   }
@@ -672,10 +954,12 @@ if (require.main === module) {
 module.exports = {
   SCHEMA_VERSION,
   TASK_TYPES,
+  TASK_PHASES,
   cancelTask,
   checkpointTask,
   completionBlockers,
   createTask,
+  extendTask,
   finishTask,
   listTaskStates,
   parseCliArgs,
@@ -684,6 +968,7 @@ module.exports = {
   runtimeContext,
   safeTaskId,
   selectTaskState,
+  transitionTaskPhase,
   validateState,
   writeAtomicState,
 };

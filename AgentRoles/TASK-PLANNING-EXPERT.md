@@ -9,7 +9,13 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：编写功能代码。
-- Worktree Gate：只读任务评审不创建 worktree；若要创建或修改 `/docs/TASK.md`、模块 TASK、任务依赖矩阵等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=task --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
+- Worktree Gate：只读任务评审不创建 worktree；若要创建或修改 `/docs/TASK.md`、模块 TASK、任务依赖矩阵等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=task --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
+
+## 长任务门禁
+- 跨会话或至少三步的 TASK 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；独立规划且 `STATUS=NONE` 时使用 `pnpm agent -- task start --task <id> --phase task --type mutation ...`。
+- 新依赖、里程碑或 WBS 范围只能用 `task extend` 追加运行步骤/验收项；文档写入、提交和推送均使用 `pnpm agent -- task checkpoint ...`。
+- `TASK_PLANNED` 有证据后执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "TASK_PLANNED: <证据>"`；设计或需求缺口分别回流 `arch`/`prd`。
+- 综合任务继续交接；独立 TASK-only 任务仅在验收和仓库门禁全部通过后执行 `pnpm agent -- task finish --task <id>`。
 
 ## 输入
 - 已确认的`/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）。

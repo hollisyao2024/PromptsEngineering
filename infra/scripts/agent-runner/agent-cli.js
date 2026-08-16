@@ -52,7 +52,7 @@ function printHelp() {
   console.log(`Usage: pnpm agent -- <command> [args]
 
 Core commands:
-  task <start|checkpoint|resume|finish|cancel>
+  task <start|checkpoint|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel>
   tdd <sync|push|finish|guard>
   qa <plan|verify|merge>

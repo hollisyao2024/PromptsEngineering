@@ -10,12 +10,14 @@ const {
   cancelTask,
   checkpointTask,
   createTask,
+  extendTask,
   finishTask,
   parseCliArgs,
   readTaskState,
   resumeTask,
   safeTaskId,
   selectTaskState,
+  transitionTaskPhase,
 } = require('../agent-task');
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
@@ -67,6 +69,19 @@ test('creates one authoritative task state and refuses duplicate task ids', (t) 
   })), /invalid task type/i);
 });
 
+test('defaults long tasks to mutation and records an explicit starting phase', (t) => {
+  const paths = fixture(t);
+  const created = createTask(startInput(paths, {
+    taskType: undefined,
+    phase: 'prd',
+  }));
+
+  assert.equal(created.task_type, 'mutation');
+  assert.equal(created.current_phase, 'prd');
+  assert.equal(created.plan_revision, 1);
+  assert.deepEqual(created.phase_history.map((entry) => entry.phase), ['prd']);
+});
+
 test('CLI keeps --step compatible between start declarations and checkpoints', () => {
   const started = parseCliArgs([
     'start', '--task', 'durable-task', '--desc', 'goal', '--step', 'inspect', '--verify-step', 'publish',
@@ -82,6 +97,190 @@ test('CLI keeps --step compatible between start declarations and checkpoints', (
   assert.equal(checkpoint.stepId, 'S1');
   assert.deepEqual(checkpoint.steps, []);
   assert.deepEqual(checkpoint.evidence, ['exit=0']);
+
+  const extended = parseCliArgs([
+    'extend', '--task', 'durable-task', '--add-step', 'inspect more',
+    '--add-verify-step', 'publish more', '--add-acceptance', 'new output verified',
+    '--reason', 'scope clarified',
+  ]);
+  assert.deepEqual(extended.steps, [
+    { title: 'inspect more', replay: 'safe' },
+    { title: 'publish more', replay: 'verify_first' },
+  ]);
+  assert.deepEqual(extended.acceptanceCriteria, ['new output verified']);
+  assert.equal(extended.reason, 'scope clarified');
+
+  const transitioned = parseCliArgs([
+    'transition', '--task=durable-task', '--phase=arch', '--evidence=PRD_CONFIRMED',
+  ]);
+  assert.equal(transitioned.phase, 'arch');
+  assert.deepEqual(transitioned.evidence, ['PRD_CONFIRMED']);
+});
+
+test('appends plan changes without rewriting completed work', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, {
+    steps: [{ title: 'inspect', replay: 'safe' }],
+    acceptanceCriteria: ['baseline accepted'],
+  }));
+  checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S1',
+    status: 'done',
+    evidence: ['baseline inspected'],
+  });
+
+  const extended = extendTask({
+    ...paths,
+    taskId: 'durable-task',
+    steps: [
+      { title: 'inspect more', replay: 'safe' },
+      { title: 'publish more', replay: 'verify_first' },
+    ],
+    acceptanceCriteria: ['new output verified'],
+    reason: 'scope clarified',
+    now: '2026-08-16T01:02:00.000Z',
+  });
+
+  assert.equal(extended.steps[0].status, 'done');
+  assert.deepEqual(extended.steps[0].evidence, ['baseline inspected']);
+  assert.deepEqual(extended.steps.slice(1).map((step) => [step.id, step.replay]), [
+    ['S2', 'safe'],
+    ['S3', 'verify_first'],
+  ]);
+  assert.equal(extended.acceptance_criteria[1].id, 'AC2');
+  assert.equal(extended.plan_revision, 2);
+  assert.deepEqual(extended.plan_history[0].added_step_ids, ['S2', 'S3']);
+  assert.deepEqual(extended.plan_history[0].added_acceptance_ids, ['AC2']);
+});
+
+test('validates phase transitions and preserves evidence-backed history', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { phase: 'prd' }));
+
+  assert.throws(() => transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'tdd',
+    evidence: ['skip directly to code'],
+  }), /invalid phase transition/i);
+  assert.throws(() => transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'arch',
+  }), /evidence/i);
+
+  const architecture = transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'arch',
+    evidence: ['PRD_CONFIRMED in docs/AGENT_STATE.md'],
+    now: '2026-08-16T01:03:00.000Z',
+  });
+  assert.equal(architecture.current_phase, 'arch');
+  assert.deepEqual(architecture.phase_history.at(-1), {
+    phase: 'arch',
+    from_phase: 'prd',
+    evidence: ['PRD_CONFIRMED in docs/AGENT_STATE.md'],
+    entered_at: '2026-08-16T01:03:00.000Z',
+  });
+});
+
+test('upgrades legacy schema v1 state during recovery', (t) => {
+  const paths = fixture(t);
+  const created = createTask(startInput(paths));
+  const statePath = path.join(paths.runsRoot, 'durable-task', 'state.json');
+  const legacy = {
+    ...created,
+    schema_version: 1,
+  };
+  delete legacy.current_phase;
+  delete legacy.phase_history;
+  delete legacy.plan_revision;
+  delete legacy.plan_history;
+  fs.writeFileSync(statePath, `${JSON.stringify(legacy, null, 2)}\n`, 'utf8');
+
+  const resumed = resumeTask({ ...paths, taskId: 'durable-task' });
+  assert.equal(resumed.schema_version, 2);
+  assert.equal(resumed.current_phase, 'unspecified');
+  assert.equal(resumed.plan_revision, 1);
+  assert.deepEqual(resumed.phase_history, []);
+  assert.deepEqual(resumed.plan_history, []);
+});
+
+test('keeps one durable task coherent across governance phases and interrupted effects', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, {
+    taskType: undefined,
+    phase: 'prd',
+    steps: [
+      { title: 'confirm requirements', replay: 'safe' },
+      { title: 'write architecture', replay: 'verify_first' },
+    ],
+    acceptanceCriteria: ['governance flow verified'],
+  }));
+  checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S1',
+    status: 'done',
+    evidence: ['PRD confirmed'],
+  });
+  transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'arch',
+    evidence: ['PRD_CONFIRMED'],
+  });
+  extendTask({
+    ...paths,
+    taskId: 'durable-task',
+    steps: [{ title: 'plan implementation', replay: 'safe' }],
+    acceptanceCriteria: [],
+    reason: 'architecture exposed a planning dependency',
+  });
+  checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S2',
+    status: 'running',
+    nextAction: 'verify architecture files before replay',
+  });
+
+  const resumed = resumeTask({ ...paths, taskId: 'durable-task' });
+  assert.equal(resumed.current_phase, 'arch');
+  assert.equal(resumed.plan_revision, 2);
+  assert.equal(resumed.steps[1].status, 'verify_required');
+  assert.equal(resumed.status, 'blocked');
+  assert.match(resumed.next_action, /Verify external result/i);
+  assert.throws(() => transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'task',
+    evidence: ['ARCHITECTURE_DEFINED'],
+  }), /unresolved step S2/i);
+
+  checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S2',
+    status: 'done',
+    evidence: ['external architecture files verified'],
+  });
+  let state = transitionTaskPhase({
+    ...paths,
+    taskId: 'durable-task',
+    phase: 'task',
+    evidence: ['ARCHITECTURE_DEFINED'],
+  });
+  state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'tdd', evidence: ['TASK_PLANNED'] });
+  state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'qa', evidence: ['TDD_DONE'] });
+  state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'devops', evidence: ['QA_VALIDATED'] });
+  assert.equal(state.current_phase, 'devops');
+  assert.deepEqual(state.phase_history.map((entry) => entry.phase), [
+    'prd', 'arch', 'task', 'tdd', 'qa', 'devops',
+  ]);
 });
 
 test('checkpoints completed steps only with evidence and advances deterministically', (t) => {
@@ -212,6 +411,50 @@ test('state reads ignore temporary write remnants and fail closed on corrupt aut
   );
 });
 
+test('state reads fail closed on discontinuous phase or plan histories', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { phase: 'prd' }));
+  createTask(startInput(paths, { taskId: 'other-task' }));
+  createTask(startInput(paths, { taskId: 'acceptance-task' }));
+  createTask(startInput(paths, { taskId: 'progress-task' }));
+
+  const phasePath = path.join(paths.runsRoot, 'durable-task', 'state.json');
+  const brokenPhase = JSON.parse(fs.readFileSync(phasePath, 'utf8'));
+  brokenPhase.current_phase = 'tdd';
+  fs.writeFileSync(phasePath, `${JSON.stringify(brokenPhase, null, 2)}\n`, 'utf8');
+  assert.throws(
+    () => readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' }),
+    /current_phase does not match phase history/i,
+  );
+
+  const planPath = path.join(paths.runsRoot, 'other-task', 'state.json');
+  const brokenPlan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+  brokenPlan.plan_revision = 2;
+  fs.writeFileSync(planPath, `${JSON.stringify(brokenPlan, null, 2)}\n`, 'utf8');
+  assert.throws(
+    () => readTaskState({ runsRoot: paths.runsRoot, taskId: 'other-task' }),
+    /plan history does not match plan_revision/i,
+  );
+
+  const acceptancePath = path.join(paths.runsRoot, 'acceptance-task', 'state.json');
+  const brokenAcceptance = JSON.parse(fs.readFileSync(acceptancePath, 'utf8'));
+  brokenAcceptance.acceptance_criteria[0].status = 'accepted';
+  fs.writeFileSync(acceptancePath, `${JSON.stringify(brokenAcceptance, null, 2)}\n`, 'utf8');
+  assert.throws(
+    () => readTaskState({ runsRoot: paths.runsRoot, taskId: 'acceptance-task' }),
+    /malformed acceptance criterion/i,
+  );
+
+  const progressPath = path.join(paths.runsRoot, 'progress-task', 'state.json');
+  const brokenProgress = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+  brokenProgress.current_step = 'S2';
+  fs.writeFileSync(progressPath, `${JSON.stringify(brokenProgress, null, 2)}\n`, 'utf8');
+  assert.throws(
+    () => readTaskState({ runsRoot: paths.runsRoot, taskId: 'progress-task' }),
+    /current_step does not match step progress/i,
+  );
+});
+
 test('state reads reject a symlinked task runs root', (t) => {
   const paths = fixture(t);
   createTask(startInput(paths));
@@ -227,7 +470,7 @@ test('state reads reject a symlinked task runs root', (t) => {
 
 test('finish blocks incomplete evidence and invokes the mutation completion guard', (t) => {
   const paths = fixture(t);
-  createTask(startInput(paths, { taskType: 'mutation' }));
+  createTask(startInput(paths, { taskType: undefined }));
   let guardCalls = 0;
 
   const incomplete = finishTask({
