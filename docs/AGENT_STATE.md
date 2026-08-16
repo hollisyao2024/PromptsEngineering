@@ -1,19 +1,10 @@
 # AGENT_STATE
+
 - [ ] 1. PRD_CONFIRMED
 - [ ] 2. ARCHITECTURE_DEFINED
 - [ ] 3. TASK_PLANNED
-- [x] 4. TDD_DONE (代码合并前) — PR #6, commit 6e4e051, 2026-04-12; Codex review skipped by policy
-- [x] 5. QA_VALIDATED (发布前) — PR #1, commit 3d9da4a, 2026-02-24
-- [ ] 6. DEPLOYED (部署后)
+- [x] 4. TDD_DONE
+- [x] 5. QA_VALIDATED
+- [ ] 6. DEPLOYED
 
-- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-08; PR #4, commit 09bdacc
-
-- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-11; PR #5, commit 08eb325
-
-- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-04-16; PR #7, commit 822f3a0
-
-## IN_PROGRESS
-<!-- 脚本维护，勿手动编辑 -->
-branch: 
-
-- [x] QA_VALIDATED — Go (0 blockers) qa:verify 2026-08-16; PR #50, commit b4944d6
+> 仅记录稳定阶段里程碑。分支、PR、重试、执行步骤和恢复状态由外部 task/worktree session 保存。

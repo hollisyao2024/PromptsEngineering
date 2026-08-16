@@ -1,4 +1,5 @@
 # AGENT_STATE
+
 - [ ] 1. PRD_CONFIRMED
 - [ ] 2. ARCHITECTURE_DEFINED
 - [ ] 3. TASK_PLANNED
@@ -6,8 +7,4 @@
 - [ ] 5. QA_VALIDATED
 - [ ] 6. DEPLOYED
 
-## IN_PROGRESS
-<!-- 脚本维护，勿手动编辑 -->
-branch:
-pr:
-step:
+> 仅记录稳定阶段里程碑。分支、PR、重试、执行步骤和恢复状态由外部 task/worktree session 保存。

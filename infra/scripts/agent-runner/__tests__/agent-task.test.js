@@ -111,6 +111,28 @@ test('checkpoints completed steps only with evidence and advances deterministica
   assert.equal(updated.next_action, 'verify publish state');
 });
 
+test('one checkpoint can complete a step and its acceptance criterion atomically', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, {
+    steps: [{ title: 'verify output', replay: 'safe' }],
+    acceptanceCriteria: ['output verified'],
+  }));
+
+  const state = checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S1',
+    acceptanceId: 'AC1',
+    status: 'done',
+    evidence: ['command exit=0'],
+  });
+
+  assert.equal(state.steps[0].status, 'done');
+  assert.deepEqual(state.steps[0].evidence, ['command exit=0']);
+  assert.equal(state.acceptance_criteria[0].status, 'done');
+  assert.deepEqual(state.acceptance_criteria[0].evidence, ['command exit=0']);
+});
+
 test('resume rewinds safe interrupted work but fences verify-first side effects', (t) => {
   const paths = fixture(t);
   createTask(startInput(paths));

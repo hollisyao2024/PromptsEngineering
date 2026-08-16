@@ -264,8 +264,8 @@ function checkpointTask(options) {
     const timestamp = nowIso(options.now);
     const stepId = String(options.stepId || '').trim();
     const acceptanceId = String(options.acceptanceId || '').trim();
-    if (Boolean(stepId) === Boolean(acceptanceId)) {
-      throw new Error('checkpoint requires exactly one of --step or --acceptance');
+    if (!stepId && !acceptanceId) {
+      throw new Error('checkpoint requires --step, --acceptance-id, or both');
     }
     if (acceptanceId) {
       if (requestedStatus !== 'done') throw new Error('acceptance checkpoints only support status=done');
@@ -275,7 +275,8 @@ function checkpointTask(options) {
       criterion.status = 'done';
       criterion.evidence = [...criterion.evidence, ...evidence];
       criterion.completed_at = timestamp;
-    } else {
+    }
+    if (stepId) {
       if (!STEP_STATUSES.has(requestedStatus) || requestedStatus === 'pending') {
         throw new Error(`invalid checkpoint status: ${requestedStatus || '(missing)'}`);
       }
@@ -578,12 +579,13 @@ function runtimeContext(cwd = process.cwd()) {
 function printHelp() {
   console.log(`Usage:
   node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> --step <safe-step> [--verify-step <effect-step>]
-  node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> (--step <S1>|--acceptance-id <AC1>) --status <status> [--evidence <text>] [--next <action>]
+  node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js finish --task <id>
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
 
 Repeat --step, --verify-step, --acceptance, --constraint, and --evidence as needed.
+Provide --step, --acceptance-id, or both. A done step and acceptance can share one evidence checkpoint.
 Safe steps may be retried after interruption. Verify steps must be checked before replay.`);
 }
 

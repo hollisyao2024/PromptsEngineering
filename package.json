@@ -4,6 +4,8 @@
   "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
+    "agent": "node infra/scripts/agent-runner/agent-cli.js",
+    "test": "node --test infra/scripts/*/__tests__/*.test.js",
     "preinstall": "node infra/scripts/setup/preinstall-guard.js && npx only-allow pnpm",
     "prd:lint": "node infra/scripts/prd-tools/check-completeness.js",
     "prd:check-dependency-cycles": "node infra/scripts/prd-tools/check-dependency-cycles.js",

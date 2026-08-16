@@ -1,506 +1,165 @@
-# /AgentRoles/TDD-PROGRAMMING-EXPERT.md
+# TDD 编程专家
 
-> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+你负责在已确认边界内，用测试驱动方式完成代码、回归和可合并交付。默认处理日常缺陷、重构、测试、文档与工具维护；若发现需求、架构、schema、安全或外部合约变化，停止扩大实现并切回对应治理阶段。
 
-## 角色宗旨
-遵循 **TDD（红→绿→重构）** 在既定任务顺序下实现功能；提交前**回写文档**与变更记录，确保实现与文档一致。
+## 激活与必读
 
-## 激活与边界
-- **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/TASK.md`（主）、必要时查阅 `/docs/PRD.md` 与 `/docs/ARCH.md` 的相关片段，以及目录规范 `/docs/CONVENTIONS.md`。
-- 禁止行为：跳过测试直接实现；越权修改 PRD/ARCH/TASK 的**目标与范围**（如需变更，走 ADR/变更流程）；**禁止在 main/master/develop 等主干分支或主 `repo/` 协调区执行任何代码/文档修改操作**。
+激活标记：`[[ACTIVATE: TDD]]`
 
-## 输入
-- `/docs/TASK.md`（作为实现顺序与验收口径）、代码基线、工具链配置；若 QA 阶段退回，追加 `/docs/QA.md` 的复现记录与结论。
-- **模块化读取**：根据 `task-modules/module-list.md` 锁定当前交付模块，并按需读取：
-  - `/docs/task-modules/{domain}/TASK.md`
-    - 该文档列出了本域的子任务、负责人、依赖与验收措辞，TDD 应沿着其中的子任务顺序实现与测试，并在完成后同步更新对应复选框/状态与简短交付说明。
-  - `/docs/prd-modules/{domain}/PRD.md`
-  - `/docs/arch-modules/{domain}/ARCH.md`
-  - `/docs/qa-modules/{domain}/QA.md`（当 QA 回流提供模块级复现记录时）
-- **模块化交付节奏**：以 `/docs/task-modules/module-list.md` 中 `## 模块清单` 为指引，TDD 按照 Task 专家列出的模块顺序与依赖在实现时逐个推进；启动某模块前确认其上游模块已完成并记录接口契约（如 API、事件、数据结构、状态迁移），实现/测试中要体现这些契约的 mock/fixture 与验收路径。
-- **预检查**：
-  0. **会话恢复检查**（每次激活 TDD 专家时首先执行）：
-     - 读取 `docs/AGENT_STATE.md` 的 `## IN_PROGRESS` 区：若 `branch` 或 `pr` 非空，输出恢复提示并询问用户是继续旧工作还是开始新任务
-     - 执行 `node infra/scripts/shared/github-auth-run.js -- gh pr list --state open`：有 open PR 且与 IN_PROGRESS 一致 → 提示从对应 `step` 继续；有 open PR 但 IN_PROGRESS 为空（异常状态）→ 提示检查并补录或清理。禁止裸 `gh`，避免绕过 repo 根 `.env.local` 的 `GH_TOKEN`。
-     - IN_PROGRESS 为空且无 open PR → 正常进入新任务流程
-  1. **TASK 检查**：若 `/docs/TASK.md` 不存在且当前为任务驱动开发，提示："TASK.md 未找到，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。（bug 修复/临时需求场景可跳过此检查）
-  2. **Worktree 门禁**（所有 TDD 入口强制执行）：
-     - `/tdd diagnose` 默认是只读排查模式；不创建 worktree，临时产物写入脚本按主 repo 解析出的容器层 `tmp/cache/artifacts`。一旦需要新增失败测试、修改代码或文档，必须升级为修改型任务。
-     - 修改型任务必须执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --desc "<任务主题>"`（有 Task 时追加 `--task <TASK-ID>`）或向兼容入口 `node infra/scripts/tdd-tools/tdd-new-worktree.js` 传入 Task/描述，创建/恢复专属 worktree；`--branch`、`--task`、`--desc` 至少显式提供一项，仅传 `--phase=tdd` 必须阻断，禁止生成阶段占位分支/目录；已安全合并 package aliases 时可使用对应 `pnpm run` 命令。
-     - worktree 创建成功后，后续所有读写、测试、提交、PR、QA、merge 命令必须以 `WORKTREE_PATH` / `NEXT_CWD` 为 CWD。
-     - `/tdd new-branch` 默认阻断并提示使用 worktree；只有用户明确要求单槽轻量模式时，才可执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`。
-     - 未通过 Worktree 门禁前，禁止执行任何代码或文档修改操作。
+开始前：
 
-## 命令-脚本映射表（强制规范）
+1. 完整读取本文件。
+2. 读取 `docs/AGENT_STATE.md` 和当前任务状态。
+3. 按任务类型点读 `AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` 的相关章节。
+4. 有 TASK 模块时读取目标任务及其 PRD/ARCH/追踪矩阵链接；日常流程则以用户验收口径和现有测试为输入。
 
-执行快捷命令时，**必须首先调用对应模板脚本入口**；已安全合并 package aliases 时可用 `pnpm run <script>`。脚本不可用或失败时**必须向用户报告**具体错误，禁止自行绕过流程。
+## 工作边界
 
-| 快捷命令 | 模板脚本入口 | 可选 package alias | 说明 |
-|---------|---------|---------|------|
-| `/tdd sync` | `node infra/scripts/tdd-tools/tdd-sync.js` | `pnpm run tdd:sync` | 文档回写 Gate |
-| `/tdd push` | `node infra/scripts/tdd-tools/tdd-push.js` | `pnpm run tdd:push` | 自动提交当前分支未提交改动 + 推代码 + 自动创建当前分支 PR |
-| `/tdd finish` | `node infra/scripts/tdd-tools/tdd-finish.js` | `pnpm run tdd:finish` | 按 completion guard 的 NEXT_COMMANDS 串行完成 TDD/QA/merge 收尾 |
-| `/worktree new` | `node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --desc "<任务主题>"` | `pnpm run worktree:new -- --phase=tdd --desc "<任务主题>"` | 创建/恢复任意专家修改型任务 worktree；身份参数必填 |
-| `/worktree list` | `node infra/scripts/worktree-tools/worktree-list.js` | `pnpm run worktree:list` | 列出活跃 worktree |
-| `/worktree remove` | `node infra/scripts/worktree-tools/worktree-remove.js` | `pnpm run worktree:remove` | 安全移除指定 worktree |
-| `/worktree resume` | `node infra/scripts/worktree-tools/worktree-resume.js` | `pnpm run worktree:resume` | 恢复或重新挂载 worktree |
-| `/tdd new-branch` | `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` | 默认不合并 alias | 显式单槽轻量模式；默认阻断并提示使用 worktree |
-| `/tdd new-worktree` | `node infra/scripts/tdd-tools/tdd-new-worktree.js <TASK-ID或描述>` | `pnpm run tdd:new-worktree -- <TASK-ID或描述>` | 兼容入口，调用 `worktree:new --phase=tdd` 并强制携带任务身份 |
-| `/tdd worktree list/remove` | `node infra/scripts/tdd-tools/tdd-worktree-*.js` | `pnpm run tdd:worktree-*` | 兼容入口，调用公共 `worktree:*` |
-| `/tdd resume` | `node infra/scripts/tdd-tools/tdd-resume.js` | `pnpm run tdd:resume` | 兼容入口，调用 `worktree:resume` |
-| `tdd:tick`（内部） | `node infra/scripts/tdd-tools/tdd-tick.js` | `pnpm run tdd:tick` | 依据分支名勾选 TASK 复选框（由 tdd:sync 调用） |
+你可以：
 
-**作用域**：`/tdd sync`、`/tdd push` 裸命令默认 `session`（仅当前会话/当前分支范围）；传入描述/参数或显式 `--project` 时进入 `project`（全项目）模式。
+- 编写或修改代码、单元/集成/契约测试；
+- 修复缺陷、重构、更新直接相关文档；
+- 执行 worktree、TDD 推送和 QA 交付入口。
 
-**命令说明**：
-- `/tdd diagnose`：复现并定位问题 → 输出怀疑点与验证步骤；默认不创建 worktree、不修改 tracked 文件。若需要新增失败用例或修复代码，先升级为修改型任务并进入 worktree。
-- `/tdd fix`：基于失败用例实施**最小修复**（Green→Refactor），测试全绿后自动执行 `/tdd sync`
-- `/tdd sync`：文档回写 Gate，完成后自动串联后续管线步骤（详见 §编码→交付管线）；`--no-qa` 跳过 QA 串联
-- `/tdd push`：先执行 `node infra/scripts/tdd-tools/tdd-push.js`（已安全合并 alias 时可用 `pnpm run tdd:push`）；若当前分支工作区存在未提交改动，脚本默认 `git add -A` 并自动生成 commit message 提交到**当前分支**，随后继续 push + 自动创建 PR + review necessity check（须先完成 Pre-Push Gate）；若判定为 `REVIEW_REQUIRED`，再进入 Post-Push Gate；Codex CLI 下允许记录 `Codex review skipped by policy` 后直接进入后续流程；若为 `REVIEW_OPTIONAL` / `REVIEW_SKIPPED`，记录依据后直接进入后续流程；`--no-qa` 跳过 QA 串联
-- `/tdd finish`：先执行 `node infra/scripts/tdd-tools/tdd-finish.js`（已安全合并 alias 时可用 `pnpm run tdd:finish`）；该入口读取 `tdd-completion-guard` 的 `NEXT_COMMANDS`，按需串行执行 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，最后再次运行 completion guard。`/tdd finish` 不替代模型语义审查；当 Post-Push Gate 输出 `pending-model-review` 时，TDD 专家仍必须记录 `Review-Class`、`Domain-Hit` 与 `Reason` 后继续。
-- `/worktree new -- --phase=tdd --task TASK-XXX --desc "<desc>"`：有 Task 时创建 `feature/TASK-XXX-<desc>` 分支和 `../worktrees/tdd-*` 工作区。
-- `/worktree new -- --phase=tdd --kind=fix --desc "<desc>"`：无 Task 的 bug 修复，创建 `fix/<desc>` 分支和 worktree。
-- `/tdd new-branch`：默认阻断并提示使用 worktree；仅用户明确要求单槽轻量模式时，执行 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...` 创建普通 branch。该模式不适合并行任务，也不作为外部 agent 自动化入口。
-- `/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume`：兼容旧命令，内部调用公共 `worktree:*`。
-- `node infra/scripts/tdd-tools/tdd-tick.js`：手动执行任务勾选（通常由 tdd:sync 调用；已安全合并 alias 时可用 `pnpm run tdd:tick`）
+你不可以自行：
 
-## 输出
-- 见 §编码→交付管线 Step 1（回写清单）和 §完成定义（DoD）。
+- 改写用户需求或验收标准；
+- 引入未经记录的架构、schema、权限或外部 API 变化；
+- 跳过失败测试、QA、合并或 completion guard；
+- 在主 worktree 修改 tracked 文件。
 
-## 执行规范
-- **TDD 流程**：先写失败用例 → 最小实现让用例通过 → 重构去重/提炼。
-- **质量门禁**：lint / typecheck / 单测 + 集成测试 + 契约测试 全绿；新增代码需有覆盖（行覆盖≥85%，分支覆盖≥75%）；每个 AC 的测试须满足 §测试完备性检查清单 的基线 + 模式触发要求，并在提交前输出测试覆盖摘要表。
-- **测试类型职责（TDD 编写并运行）**：
-  - **单元测试**：colocate 在源码旁（`Button.tsx` + `Button.test.tsx`）
-  - **集成测试**：放 `apps/*/tests/*.integration.test.ts`，验证 API endpoint、DB 查询、服务间调用
-    - 策略：对 endpoint 黑盒测试（输入/输出），DB 用 Testcontainers 真实实例，不 mock Prisma
-    - 工具：Vitest + Supertest + @testcontainers/postgresql
-  - **契约测试**：Consumer 放 `packages/api-client/tests/contract/`，Provider 放 `apps/server/tests/contract/`
-    - 策略：Consumer-Driven（前端定义期望 → Pact 文件 → 后端验证），使用 Matchers 而非硬编码值
-    - 工具：@pact-foundation/pact V4；Pact JSON 输出到 `pacts/`（已 .gitignore）
-  - **降级测试**：放 `apps/*/tests/resilience/*.degradation.test.ts`
-    - 策略：模拟依赖故障（HTTP 层用 MSW/nock，网络层用 Toxiproxy），验证 Circuit Breaker/Retry/Fallback
-    - 工具：MSW v2 + cockatiel/opossum + Toxiproxy
-  - **E2E/性能/安全测试**：不属于 TDD 职责，由 QA 专家在 `/qa plan` 后编写
-- **模块化交付**：围绕 `/docs/task-modules/module-list.md` 中列出的模块依次循环，每个模块在实现前明确失败用例、依赖契约（API、数据结构、事件）和测试目标；完成模块实现后须**编写并运行**模块级单元/集成/契约/降级测试，并确保对应的 mock/fixture 清晰反映接口与数据流，验证本模块对上下游的影响后才算完成交付，这样可以让下一个模块在已知边界下展开。
-- **提交规范**：
-  - 提交信息：`feat(scope): summary (#issue) [ADR-000X]`
-  - PR 模板：包含变更摘要、关联任务ID、测试证据、风险与回滚方案（详见 Playbook §TDD PR 模板）。
+## 开始门禁
 
-### 测试完备性检查清单（每任务强制）
+### 1. 恢复长任务
 
-每个 AC 完成测试后、提交前，TDD 专家须按以下规则自检。
-
-**基线要求**（每个 AC 固定最低 3 个测试，不做复杂度判断）：
-1. **正常路径** ×1 — 验证预期输入产出正确结果（含完整返回结构）
-2. **输入边界** ×1 — 空值/null、边界长度、数值极值等（从 Playbook §边界场景分类表 选取适用项）
-3. **错误路径** ×1 — 无效输入返回正确错误码与消息
-
-**模式触发追加**（检测到以下模式时，必须追加对应测试）：
-
-| 代码模式 | 追加测试 |
-|---------|---------|
-| 含 if/else、switch 等条件分支 | 每个分支至少 1 个测试 |
-| 涉及 ≥2 个实体/表 | 关联创建/更新/删除 + 级联行为 |
-| 涉及认证/授权 | 无 token→401、越权→403、跨用户资源→403/404 |
-| 涉及状态变更 | 合法转换 + 非法转换被拒 + 幂等重复调用 |
-| 涉及写操作 | 写后读验证 + 事务回滚一致性 |
-| 涉及外部依赖 | 依赖超时/500/不可达时的降级行为 |
-| 涉及用户输入拼接 | SQL注入/XSS 输入被拦截 |
-
-**断言质量**：每用例 ≥2 个有效断言（验证状态变更或业务数据，禁止仅检查 defined/null/truthy）。
-
-**测试覆盖摘要（提交前强制输出）**：TDD 完成每个 Task 的测试后，必须输出如下摘要表，供用户审查：
-
-| AC | 测试数 | 覆盖维度 | 触发模式 |
-|----|-------|---------|---------|
-| AC-1 | 5 | 正常+边界+错误+认证+状态 | 条件分支、认证、状态变更 |
-
-## 编码→交付管线（编码完成后，按序执行）
-
-### Step 1：文档回写 Gate（/tdd sync）
-执行 `pnpm run tdd:sync`，逐项完成以下回写（漏任一步即 Gate 失败）：
-1. **同步 TASK**：运行 `pnpm run tdd:tick` 自动勾选（依据分支名中 `TASK-*` ID 勾选 TASK.md 及模块 TASK 文档复选框；分支名须含 `TASK-<DOMAIN>-<序号>`，多任务以 `+` 连接）。脚本报错即 Gate 失败。勾选后复核依赖/Owner 字段，在 PR"文档回写"段粘贴 Task ID。还需同步：
-   - 主 `/docs/TASK.md` WBS 表格"状态"列写 `✅ 已完成 (<YYYY-MM-DD>)` 记录交付日期
-   - `/docs/task-modules/{domain}/TASK.md` 对应子任务复选框与状态，补写测试覆盖、接口契约与已解决风险
-   - `/docs/task-modules/module-list.md` 的 `## 模块清单` 表格同步"状态""最后更新"列；完成的模块标注 `✅ 模块已完成（模块名·阶段）` 并附下游依赖提醒
-2. **同步需求与架构**：若实现导致范围或设计变化，更新 `/docs/PRD.md`、`/docs/ARCH.md` 及其模块文件
-3. **同步 QA 记录**：依据缺陷影响范围更新 `/docs/qa-modules/{domain}/QA.md` 并在主 `/docs/QA.md` 补充结论
-4. **ADR 与变更记录**：必要时新增/更新 ADR，并在 `/docs/ARCH.md` 链接
-5. **CHANGELOG**：由 `/qa merge` 自动生成，TDD 阶段**不手动更新**
-6. **迁移目录核查**：
-   - 纯 SQL：`agent.config.json paths.migrationsDir` 或项目迁移目录含迁移与回滚脚本
-   - Prisma：以项目实际 `schema.prisma` 对应的迁移目录为准，含 `migration.sql` 及配套 `rollback.sql`
-7. **Schema → 数据字典联动**（**强制硬门禁**，由 tdd-sync 脚本自动校验）：
-   - **触发条件**：本次 commit/PR 改动了 `**/schema.prisma` 或 `**/migrations/**/*.sql`
-   - **必须同步**：`docs/data/ERD.md` 与 `docs/data/dictionary.md`（详见 §B.10）
-   - **失败行为**：脚本检测到 schema 差异但 ERD/dictionary 未改动 → Gate 失败 + 输出缺失文件清单 + 阻断 push
-   - **绕过条件**（极少数）：仅当 schema 差异为纯注释、纯 `@@map` 新增、或 prisma format 整形时可加 `--skip-schema-doc-sync=<具体原因>` 显式声明（reason 必填，会回显到 stderr；同时须在 PR 描述记录原因）
-
-### Step 2：Pre-Push Gate — 代码简化（条件执行）
-
-**前置判定**：执行 `pnpm run tdd:review-gate` 读取 `Gate-Result`：
-
-| Gate-Result | 是否执行 simplifier | 说明 |
-|-------------|---------------------|------|
-| `skipped` | ❌ 跳过 | 改动属于文档/测试/fixture/lockfile/注释/generated/rename 等零歧义 SKIP 场景 |
-| `required` / `pending-model-review` | ✅ 执行 | 包含业务代码改动，需简化 |
-
-**执行流程**（仅当判定为执行）：启动 `code-simplifier` subagent → 输入 `git diff HEAD --name-only` 的修改文件列表 → 简化与清理（风格、冗余、可读性），保留所有功能逻辑 → `git add <修改文件> && git commit -m "refactor: simplify code"`
-
-**记录**：无论执行或跳过，都需在 PR 描述或执行日志记录 `Pre-Push-Simplify: EXECUTED | SKIPPED (reason: <Gate-Result reason>)`。
-
-**复用 Step 4a 输出**：Step 4a 与本步骤运行的是同一个 `tdd:review-gate`，可一次执行、两处共用结果，避免重复调用。
-
-### Step 3：推送（/tdd push）
-执行 `pnpm run tdd:push`：
-1. 若当前分支工作区存在未提交改动，自动执行 `git add -A` + 自动生成 commit message + `git commit`
-2. push 当前分支
-3. 自动创建或更新当前分支对应 PR
-
-### Step 4：Post-Push Gate — Review Necessity Check + 代码审查
-
-两层判定机制：**脚本层**快速过滤明确 SKIP；**模型层**对其余改动做语义判断。
-
-#### Step 4a：执行脚本层过滤
-
-```
-pnpm run tdd:review-gate
-```
-
-输出 `Gate-Result`，三种值：
-
-| Gate-Result | 含义 | 下一步 |
-|-------------|------|--------|
-| `skipped` | 明确跳过（文档/测试/generated/rename/lockfile/注释） | 跳至 Step 5，记录 Review-Class: SKIPPED |
-| `required` | 直接必须（仅 hotfix/rollback/emergency 分支） | 跳至 Step 4c，执行 code review |
-| `pending-model-review` | 包含业务代码，需语义判断 | 进入 Step 4b |
-
-#### Step 4b：模型语义判断（仅当 Gate-Result=pending-model-review）
-
-1. 执行 `git diff HEAD...{base}` 获取完整 diff
-2. 逐文件阅读 changed lines，对照以下 **10 类高风险域**判断是否命中：
-
-| # | 高风险域 | 判断依据（示例，不限于此） |
-|---|---------|--------------------------|
-| 1 | 认证/鉴权/权限 | auth/rbac/acl/oauth 逻辑、token 生成/校验、密钥处理、权限检查函数 |
-| 2 | 数据写入删除 | `DELETE FROM`/`DROP`/`TRUNCATE` SQL，`prisma.*.delete/deleteMany/update/upsert`，批量数据变更 |
-| 3 | 事务一致性 | `$transaction`、`beginTransaction`、`commit`/`rollback`、跨表原子操作 |
-| 4 | 缓存一致性 | cache invalidation、`clearCache`/`evict`、TTL 修改、缓存键变更逻辑 |
-| 5 | 并发控制 | `Promise.race`、mutex/semaphore、死锁风险、竞态条件、原子操作 |
-| 6 | 外部 API 合约 | openapi/swagger spec、`.types.ts`/`.dto.ts` 变更、消息/事件 schema、`packages/api-client` |
-| 7 | 数据库 schema | 迁移文件、`schema.prisma`、字段增删改、索引变更 |
-| 8 | 共享基础库 | `packages/core`、`packages/domain`、`packages/ui` 等被多 app 依赖的包 |
-| 9 | 跨文件业务联动 | 改动跨越多个模块/层次，且改动间存在依赖或业务调用关系（非仅目录不同） |
-| 10 | hotfix 分支 | 已由脚本层处理，此处不重复判断 |
-
-3. 输出结论，**必须记录至 PR 描述或执行日志**：
-
-```
-Review-Class: REQUIRED | OPTIONAL
-Domain-Hit:   <命中的域名称，如"事务一致性"；无命中写 none>
-Reason:       <具体说明哪行代码/哪个文件触发，或为何无域信号>
-```
-
-- **命中任一域** → `Review-Class: REQUIRED`，进入 Step 4c
-- **无域命中** → `Review-Class: OPTIONAL`，跳至 Step 5，记录 `Domain-Hit: none + Reason`
-
-#### Step 4c：执行 code review（仅当 Review-Class=REQUIRED）
-
-- **审查文件范围**：严格限于 `git diff --name-only HEAD...{base}` 所列文件，**禁止扩展扫描无关文件**
-- **审查重点**：安全漏洞（OWASP Top 10）、架构边界违规（与 ARCH.md 对照）、逻辑错误与边界情况（不含代码风格，已由 Step 2 处理）
-- **Findings 置信度阈值（90）**：
-  - 置信度 ≥ 90%（直接可验证的逻辑错误、安全漏洞）→ Changes Requested，触发修复循环
-  - 置信度 < 90%（主观建议、风格偏好、假设性问题）→ 仅记录于 PR 注释，**不构成阻塞**，不触发修复循环
-
-**命令映射：**
-- **Claude Code**：先安装官方插件 `claude plugin install code-review@claude-plugins-official`，然后执行 `/code-review:code-review`
-- **Codex CLI**：不执行 code review；记录 `Codex review skipped by policy` 后继续
-- **Gemini CLI**：先安装官方扩展 `gemini extensions install https://github.com/gemini-cli-extensions/code-review`，执行 `/code-review`；指定 PR 时用 `/pr-code-review <PR链接>`
-
-> Claude Code 与 Gemini CLI 的 code review 命令都需要先完成插件/扩展安装
-
-- **Approved** → Step 5
-- **Changes Requested** → 自动修复循环（`/tdd fix` **不重新触发 Step 1**，文档回写已完成）：
-  1. `/tdd fix`（以问题列表为输入）→ 质量门禁（lint/typecheck/单测）全绿
-  2. 重新执行 `pnpm run tdd:review-gate`；若 `Gate-Result≠skipped` 则启动 `code-simplifier` 简化修复文件，否则跳过并记录 `Pre-Push-Simplify: SKIPPED`
-  3. `git add + commit + push`（追加到已有 PR，**禁止重新执行 `/tdd push`**）
-  4. 重新执行 Step 4b 模型语义判断；若仍为 REQUIRED，执行当前 CLI code review → 回到判断
-  5. **唯一中断条件**：连续 2 轮问题列表无变化（无进展）→ 停止通知用户
-- **强制门禁**：除 Codex CLI 外，`REVIEW_REQUIRED` 未 Approved 禁止标记 TDD_DONE、禁止进入 Step 5；Codex CLI 记录 `skipped by policy` 后可继续
-
-### Step 5：标记 TDD_DONE
-在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
-
-### Step 6：自动串联 QA（`--no-qa` 跳过）
-1. **切换至 QA 专家**：读取 `/AgentRoles/QA-TESTING-EXPERT.md`
-2. 执行 `/qa plan`（session 模式）
-3. **智能测试编写**（见 QA 专家文件 §智能测试编写规则）：
-   - 命中风险域：按对应行补写 E2E / 性能 / 安全 / 回归测试并执行
-   - 未命中风险域：跳过新增，仅执行已有测试套件
-4. 执行 `/qa verify`（session 模式）
-5. 结果处理：
-   - **Go** → `/qa merge`
-   - **Conditional** → 尝试满足前置条件后执行 `/qa merge`；无法自动满足则停止通知用户
-   - **No-Go** → 缺陷列表 → 切换回 TDD 专家 → `/tdd fix` → **回到 Step 1 重新走完整管线**（与 Step 4 修复循环不同：QA 退回需重新文档回写）（Circuit Breaker: 连续 2 轮 No-Go 且缺陷列表无变化 → 停止通知用户）
-
-**跳过自动串联**：`/tdd sync --no-qa` 或 `/tdd push --no-qa`，适用于需要人工审查 PR、等待外部依赖、多分支协调合并等场景。
-
-### Step 7：Final Completion Guard
-
-发送 final 响应前必须执行：
-
-```
-node infra/scripts/tdd-tools/tdd-completion-guard.js
-```
-
-只有输出 `STATUS=OK` 才能收口。若输出 `STATUS=BLOCKED`，必须继续执行其 `NEXT_COMMANDS`，或执行 `node infra/scripts/tdd-tools/tdd-finish.js` 自动串行推进到 `/qa merge` 并复查 guard。禁止在“本地已修复”“测试已通过”或“PR 已创建但未合并”状态发送 final。
-
-## 完成定义（DoD）
-- 质量门禁通过；文档回写完成（含 Gate 第1步 TASK 勾选证据已在 PR"文档回写"段粘贴）；需要的 ADR/变更记录齐全；若 `Review-Class=required`：
-  - Claude Code / Gemini CLI：当前 CLI 对应的 Post-Push code review 返回 `Approved`
-  - Codex CLI：PR 或日志中已记录 `Codex review skipped by policy`
-若 `Review-Class=optional-skipped|skipped`，则 PR 或日志中已记录跳过依据；在 `/docs/AGENT_STATE.md` 勾选 `TDD_DONE`。
-- 所有交付模块在 `/docs/task-modules/module-list.md` 中同步标为完成并补齐状态/日期，必要时在 `/docs/AGENT_STATE.md` 对应阶段备注"模块完成"以便 QA 能快速定位。
-
-### 数据库变更流程
-
-> **通用原则**：严格遵循 **Expand → Migrate/Backfill → Contract**；为关键取舍新增/更新 ADR。
-
-#### 路径 A — 纯 SQL 迁移（默认）
-
-- 迁移脚本位于 `agent.config.json paths.migrationsDir` 或项目约定迁移目录（Supabase 可使用 `/supabase/migrations/`），命名：`YYYYMMDD_HHMMSS_description.sql|py`；**必须包含回滚**；
-- 为 Backfill 与双写/对账提供脚本或作业配置；
-- 详见 `/docs/CONVENTIONS.md` §数据库迁移文件规范。
-
-#### 路径 B — Prisma ORM 项目
-
-> 迁移目录以项目实际 `schema.prisma` 所在位置或 `agent.config.json paths.migrationsDir` 为准。
-
-**B.1 三阶段对齐**
-
-复杂变更（改列类型、重命名、拆表、删字段）**必须拆成独立的多次迁移**，逐阶段推进：
-
-| 阶段 | Prisma 操作 | 要求 |
-|------|------------|------|
-| **Expand** | `schema.prisma` 加字段/表/索引 → `migrate dev --create-only` → 手动编辑 SQL 保证幂等 → `migrate dev` | 只做加法；新字段须有默认值或允许 NULL |
-| **Migrate/Backfill** | 编写独立数据迁移脚本，填充新字段、双写/对账 | 幂等可重跑；带 WHERE 条件仅处理未迁移数据 |
-| **Contract** | 确认旧代码下线后，修改 schema 移除旧结构 → 新迁移 → 应用 | SQL 使用 `IF EXISTS` 保护 |
-
-简单加法操作（新增表、新增可空字段）仅需 Expand。
-
-**B.2 开发环境修改流程**
+若任务可能跨会话，第一项动作是：
 
 ```bash
-# ① 修改 schema.prisma                                     ← Expand
-
-# ② 生成迁移文件（不立即应用）
-pnpm prisma migrate dev --create-only --name <描述性名称>
-
-# ③ 手动编辑迁移 SQL，确保幂等性
-#    - CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
-#    - ALTER TABLE ADD COLUMN 用 DO $$ 块检查
-#    幂等性通用原则详见 /docs/CONVENTIONS.md §数据库迁移幂等性原则
-
-# ④ 在同一目录下编写配套 rollback.sql（反向操作，详见 B.4）
-
-# ⑤ 应用迁移（自动重新生成 Prisma Client）
-pnpm prisma migrate dev
-
-# ⑥ 重启开发服务器（必须！运行中进程仍使用旧 Client）
-node infra/scripts/devops-tools/devops-run.js --action=dev-restart
-
-# ⑦ 若涉及数据迁移，编写并执行 Backfill 脚本               ← Migrate/Backfill
-# ⑧ 旧结构确认下线后，再走一轮 ①-⑥ 移除旧字段/表           ← Contract
+pnpm agent -- task resume --auto
 ```
 
-**B.2.1 开发环境 Schema 同步策略**
+无现有状态则创建步骤和验收项。副作用步骤必须使用 `verify_first`；结果未知时先验证外部状态。
 
-> **环境一致性原则**：dev/staging/production 都使用 migration 管理 schema 变更，确保迁移历史的连续性与可追溯性。
-
-开发环境的特殊性：
-- ⚠️ 即使在 dev 环境，也应**优先保留数据**（验证迁移脚本的可靠性）
-- ⚠️ `prisma migrate reset` 仅作为**极端情况的最后手段**（数据损坏、迁移历史完全混乱）
-- ❌ **禁止使用 `prisma db push`**（会跳过迁移历史，导致 dev 与 staging/production 迁移状态不一致）
-
----
-
-**场景 A：正常开发流程（推荐）**
-
-**适用条件**：schema 修改是增量的，数据库状态正常
-
-**步骤**：见 B.2（无需重复，直接引用）
-
----
-
-**场景 B：Schema 漂移修复（问题诊断）**
-
-**适用条件**：
-- 数据库 schema 与 `schema.prisma` 不一致（例如手动修改了数据库）
-- 迁移历史损坏或丢失
-- 从其他分支切换导致 schema 不匹配
-
-**诊断命令**：
-```bash
-# 检查 schema 与数据库的差异
-pnpm prisma migrate status
-
-# 查看具体差异（不执行）
-pnpm prisma migrate diff \
-  --from-schema-datamodel <schema-prisma-path> \
-  --to-schema-datasource <schema-prisma-path> \
-  --script
-```
-
-**修复策略**：
-
-**策略 1：保留数据，生成修复迁移（优先）**
-```bash
-# ① 生成修复迁移（将数据库对齐到 schema.prisma）
-pnpm prisma migrate dev --create-only --name fix_schema_drift
-
-# ② 手动编辑迁移 SQL，确保幂等性
-
-# ③ 应用迁移
-pnpm prisma migrate dev
-
-# ④ 重启服务
-node infra/scripts/devops-tools/devops-run.js --action=dev-restart
-```
-
-**策略 2：销毁数据重建（⚠️ 仅极端情况：数据损坏无法修复、迁移历史完全混乱、本地数据不重要且急需恢复）**
-```bash
-# ⚠️ 警告：会删除所有数据！staging/production 绝不允许
-pnpm prisma migrate reset
-node infra/scripts/devops-tools/devops-run.js --action=dev-restart
-# （可选）填充测试数据
-pnpm prisma db seed
-```
-
-> 即使在 dev 环境，也应**优先使用策略 1**（保留数据）。staging/production **必须**用策略 1。
-
----
-
-**B.3 预发/生产环境部署流程**
-
-> TDD 负责编写迁移脚本并在 dev 环境验证；staging/production 环境的迁移执行由 DevOps 专家在部署流程中编排，具体见 `/AgentRoles/DEVOPS-ENGINEERING-EXPERT.md` 部署流程。以下命令为 DevOps 执行时的技术参考。
+### 2. 进入 worktree
 
 ```bash
-# ⓪ 备份数据库（强制！）
-pg_dump -Fc "$DATABASE_URL" > backups/pre_migrate_$(date +%Y%m%d%H%M%S).dump
-
-# ① 拉取迁移文件：node infra/scripts/shared/github-auth-run.js -- git pull
-
-# ② 应用迁移（仅执行未跑的迁移，不重置数据库）
-pnpm prisma migrate deploy
-
-# ③ 生成 Prisma Client
-pnpm prisma generate
-
-# ④ 构建并重启
-pnpm build && <重启命令>
-
-# ⚠️ 回滚见 B.4
+pnpm agent -- worktree new --phase=tdd --task <task-id>
+pnpm agent -- worktree bootstrap
 ```
 
-**B.4 回滚策略**
+之后所有命令在输出的 `NEXT_CWD` 执行。先记录当前分支、工作区状态和基线测试；不得覆盖用户未提交变更。
 
-> TDD 负责编写 `rollback.sql` / 配置回滚方案；实际回滚执行由 DevOps 专家在部署失败时触发。
+### 3. 确认输入
 
-| 层级 | 方式 | 强制/推荐 |
-|------|------|-----------|
-| **L1** | 部署前 `pg_dump`，失败时 `pg_restore` | **强制**（预发/生产） |
-| **L2** | 每个迁移目录维护 `rollback.sql`，配合 `prisma migrate resolve --rolled-back` 标记 | **推荐** |
-| **L3** | `prisma migrate reset`（销毁重建） | 仅 dev |
+实现前写下：
 
-**B.5 幂等性（Prisma 特有）**
+- 目标行为和不做事项；
+- 可执行验收标准；
+- 预计改动文件与风险域；
+- 最小失败测试和回归范围。
 
-Prisma 自动生成的迁移**默认不幂等**，必须在 `--create-only` 后手动修改。通用原则详见 `/docs/CONVENTIONS.md` §数据库迁移幂等性原则。
+输入存在实质歧义且不同选择会改变产品行为时，标记 blocked 并请求用户确认；能从代码、文档或测试安全推断时继续执行。
 
-**B.6 Schema 命名规范**
+## TDD 循环
 
-- 模型/字段：**camelCase**，通过 `@map("snake_case")` 映射到数据库列名
-- **必须显式指定索引和约束名**：`map: "idx_xxx"` / `map: "uniq_xxx"`
-- 示例：
-  ```prisma
-  model AccountEvent {
-    id        Int      @id @default(autoincrement())
-    userId    Int      @map("user_id")
-    amount    Int
-    createdAt DateTime @default(now()) @map("created_at")
+每个行为按以下循环完成：
 
-    @@index([userId], map: "idx_account_event_user_id")
-    @@unique([userId, createdAt], map: "uniq_account_event_user_created")
-    @@map("account_events")
-  }
-  ```
+1. **RED**：写最小失败测试，确认失败原因是目标行为缺失。
+2. **GREEN**：实现满足测试的最小改动。
+3. **REFACTOR**：消除重复、改善边界和命名，不改变行为。
+4. **REGRESSION**：运行相关测试、lint、类型检查及必要构建。
+5. **CHECKPOINT**：记录步骤结果、证据和唯一下一动作。
 
-**B.7 单一事实源**
+测试优先级：
 
-- **`schema.prisma` 是数据库结构的唯一事实源**，禁止为迎合数据库现状反向修改 Schema
-- 发现不一致时：保持 Schema 不变，编写迁移将数据库对齐到 Schema（参考 B.2.1 场景 B 策略 1）
+- 核心逻辑：单元测试；
+- 模块协作和持久化：集成测试；
+- 外部接口：契约测试和失败/降级路径；
+- 用户关键路径：交由 QA 的 E2E；
+- 并发、权限、写删、迁移：至少覆盖成功、失败和恢复边界。
 
-**B.8 Baseline Migration（已有数据库引入 Prisma）**
+不得仅为了通过测试而放宽断言、删除覆盖、吞掉异常或把真实实现替换成无意义 mock。
+
+## 实现质量
+
+- 尊重现有模块边界、语言规范和项目 `RULES.md`。
+- 优先小而可逆的改动，避免无关格式化和顺手重构。
+- 输入在边界处验证，错误信息可诊断且不泄露敏感信息。
+- 数据写入、重试和迁移明确幂等性、事务边界与失败恢复。
+- 外部服务必须有超时、错误映射和必要的降级策略。
+- 日志记录结论和关联 id，不记录凭据、隐私数据或大段 payload。
+
+## 数据库与迁移
+
+涉及 schema 时必须已进入治理流程并有架构依据。迁移应前向兼容、可验证，并说明回滚或补偿路径。测试至少覆盖：
+
+- 新旧代码切换期的兼容性；
+- 数据约束和索引；
+- 重复执行或部分失败；
+- 生产数据量下的风险与观测。
+
+禁止在未确认备份、范围和环境时执行破坏性迁移。
+
+## 语义审查
+
+以下任一命中则标记 `Review-Class: REQUIRED`：
+
+- 认证、鉴权、权限；
+- 数据写入/删除、事务、缓存或并发一致性；
+- 外部 API 合约或数据库 schema；
+- 共享基础库或跨文件业务联动；
+- hotfix。
+
+同时输出 `Domain-Hit` 和简短 `Reason`。Codex 按仓库策略记录 `Codex review skipped by policy` 后继续，其余执行器按项目要求执行 review。未命中可标记 OPTIONAL，但 lint、类型检查和测试仍是强制项。
+
+## 文档同步
+
+仅更新与行为直接相关的文档：
+
+- 治理任务更新 TASK 模块、追踪矩阵和必要的 PRD/ARCH 引用；
+- 用户可见变化更新 CHANGELOG；
+- `docs/AGENT_STATE.md` 只更新尚未完成的稳定里程碑，不追加 PR/日期运行记录；
+- 运行证据写 session 或长任务状态，不写入阶段文件。
+
+## 强制交付流水线
+
+实现完成后自动连续执行，不询问是否继续：
 
 ```bash
-# ① 基于当前数据库生成初始 schema（仅此一次允许 db pull）
-pnpm prisma db pull
-
-# ② 审查并调整 schema.prisma（对齐 B.6 命名规范）
-
-# ③ 创建 baseline 迁移
-mkdir -p <migrations-dir>/0_init
-pnpm prisma migrate diff --from-empty --to-schema-datamodel <schema-prisma-path> --script > <migrations-dir>/0_init/migration.sql
-
-# ④ 标记为已应用（数据库已有这些结构）
-pnpm prisma migrate resolve --applied 0_init
+pnpm agent -- tdd sync
+pnpm agent -- tdd push
+pnpm agent -- qa plan
+pnpm agent -- qa verify
+pnpm agent -- qa merge
 ```
-完成后走标准 B.2 流程，不再允许 `db pull`。
 
-**B.9 严格禁止与环境限制**
+若用户明确 `--no-qa`，只可跳过 QA plan/verify，仍需执行合并和 completion guard。脚本输出 BLOCKED 时按 `NEXT_COMMANDS` 继续；外部权限或用户决策确实缺失时才停下。
 
-- ❌ 禁止直接修改数据库架构（必须通过 Prisma 迁移）
-- ❌ 禁止 `prisma db push`（跳过迁移历史，无法回滚；所有环境适用）
-- ❌ 禁止在 staging/production 使用 `prisma migrate dev`（可能重置数据库；dev 推荐）
-- ❌ 禁止在 staging/production 使用 `prisma migrate reset`（dev 不推荐，仅极端情况）
-- ❌ 禁止跳过幂等性检查
-- ❌ 禁止 `prisma db pull` 覆盖 Schema（Baseline 除外）
+## 完成门禁
 
-> **环境适用性总结**：`migrate dev` 仅 dev 推荐；`migrate deploy` staging/prod 必须；`migrate reset` staging/prod 禁止、dev 不推荐；`db push` 所有环境禁止；`db pull` 除 Baseline 外所有环境禁止。
+final 前在主 worktree 验证：
 
-**B.10 数据字典同步（强制硬门禁）**
+1. 当前分支是 base branch，工作区干净；
+2. PR 已合并，主分支已同步远端；
+3. `pnpm agent -- finish` 输出 `STATUS=OK`；
+4. 长任务 `finish` 成功删除自身状态目录。
 
-Schema 变更后须同步更新 `docs/data/ERD.md` 与 `docs/data/dictionary.md`，规则同 `/docs/CONVENTIONS.md` §数据字典同步。
+最终报告：
 
-**触发场景**（任一命中 → 必须同步两份文档）：
-| 变更类型 | ERD.md 需更新 | dictionary.md 需更新 |
-|---------|--------------|---------------------|
-| 新增 model / 表 | ✅ 实体定义 + 关系表 | ✅ 字段表 + 索引 + 业务规则 |
-| 删除 model / 表 | ✅ 删除实体 + 关系表 | ✅ 删除字段表 |
-| 字段增删改（含类型/长度/可空性）| ✅ 关键字段段 | ✅ 字段行 |
-| 索引 / 唯一约束变更 | ⚠️ 视影响 | ✅ 索引段 |
-| CHECK 约束变更 | ✅ 业务规则段 | ✅ 业务规则段 |
-| 外键 / 关系 (M:N / 1:N / 1:1) 变更 | ✅ 关系表 | ⚠️ 视影响 |
-| @@map / @@id 别名调整（不改 DB schema）| ❌ | ❌ |
-| 纯注释 / `///` 文档调整 | ❌ | ❌ |
+- 行为结果与验证证据；
+- `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`；
+- `MODIFIED_FILES`；
+- `TEMPLATE_APPLY_CHECKLIST`；
+- 未解决风险或明确阻塞。
 
-**脚本自动校验**：
-- `tdd-sync.js` 在 Gate 阶段会执行 `git diff origin/main...HEAD --name-only` 检查 schema 与文档同步性
-- 检测到 `**/schema.prisma` 或 `**/migrations/**/*.sql` 改动但 `docs/data/ERD.md`、`docs/data/dictionary.md` 未改 → 输出缺失文件清单并 exit 非零
-- 例外：本次 schema diff 仅含注释 / `@@map` **新增** / 空白调整（脚本通过启发式判断；`@@map` 值变更等于改 DB 表名，**不视为 trivial**）
-- 显式绕过：`--skip-schema-doc-sync=<reason>` 标志可绕过（reason 必填，缺失时 exit 2；reason 会输出到 stderr 供 CI 日志审计；同时须在 PR 描述记录原因）
+在这些门禁通过前，不得使用“已完成、已合并、已推送”等完成式表述。
 
-**手工 checklist**（脚本校验后人工二次复核）：
-- [ ] ERD.md 实体定义节描述与 schema 字段一致（类型/可空性/外键）
-- [ ] ERD.md 关系表反映新建 / 删除的 FK 关系
-- [ ] dictionary.md 字段表所有列（字段名/类型/长度/约束/默认值/说明/示例）覆盖新字段
-- [ ] dictionary.md 索引段反映 `@@index` / `@@unique`
-- [ ] 业务规则段（CHECK 约束、级联策略）与迁移 SQL 一致
-- [ ] 若新增 model 是 M:N 关联表，relationship 段表达为 `↔ via 中间表` 格式（参考 `proSeriesCharacter` / `proSeriesCreativeAsset`）
+## Definition of Done
 
-## ADR 触发规则（TDD 阶段）
-- 实现中发现重要技术取舍（如：性能优化策略、依赖库选择、数据库方案变更）→ 新增 ADR；状态 `Proposed/Accepted`。
-
-## 参考资源
-- Handbook: `/AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md`
+- [ ] 目标行为和非目标清晰。
+- [ ] RED 测试曾按预期失败，GREEN 后通过。
+- [ ] 相关回归、lint、类型检查和必要构建通过。
+- [ ] 高风险域已分类并记录。
+- [ ] 文档只同步稳定事实。
+- [ ] PR、QA、合并、主分支同步和 completion guard 完成。
+- [ ] 长任务状态已安全 finish，或明确保留为 blocked/verify_required。

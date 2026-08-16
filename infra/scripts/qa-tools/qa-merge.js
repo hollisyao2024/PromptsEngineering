@@ -1353,16 +1353,19 @@ async function getPrTitle(prNumber, { backend = getGitHubBackend() } = {}) {
 }
 
 function formatAgentStateQaValidatedEntry(prNumber, commitHash, date) {
-  return `- [x] QA_VALIDATED — Go (0 blockers) qa:verify ${date}; PR #${prNumber}, commit ${commitHash}`;
+  void prNumber;
+  void commitHash;
+  void date;
+  return '- [x] 5. QA_VALIDATED';
 }
 
 function upsertQaValidatedEntry(content, prNumber, commitHash, date) {
+  if (/- \[x\] (?:5\.\s*)?QA_VALIDATED\b/u.test(content)) {
+    return content;
+  }
   const uncheckedPattern = /- \[ \] (5\. QA_VALIDATED[^\n]*)/;
   if (uncheckedPattern.test(content)) {
-    return content.replace(
-      uncheckedPattern,
-      `- [x] $1 — PR #${prNumber}, commit ${commitHash}, ${date}`
-    );
+    return content.replace(uncheckedPattern, formatAgentStateQaValidatedEntry(prNumber, commitHash, date));
   }
 
   const trimmed = content.trimEnd();
@@ -1390,7 +1393,7 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
     updated = clearInProgressContent(updated);
 
     fs.writeFileSync(agentStatePath, updated, 'utf8');
-    console.log('\x1b[32m  AGENT_STATE.md 已更新（QA_VALIDATED + IN_PROGRESS 已清除）\x1b[0m');
+    console.log('\x1b[32m  AGENT_STATE.md 已更新（稳定 QA_VALIDATED 里程碑）\x1b[0m');
     return true;
   } catch (err) {
     console.log(`\x1b[33m  警告：自动更新 AGENT_STATE.md 失败（${err.message}），请手动勾选\x1b[0m`);

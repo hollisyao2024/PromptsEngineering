@@ -1,439 +1,186 @@
-# 项目目录规范
+# 通用工程约定
 
-本模板复制到任意项目后，请参考以下约定管理目录与文件。若现有仓库已有成熟规范，可在此基础上调整并保持 `AGENTS.md` 引用路径不变。
+本文件定义模板可复用的详细协议。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
 
-> **路径基准（重要）**：本项目采用 Git Scalar enlistment 结构，物理目录布局为 `<container>/` → `repo/` → 源码。本文件中所有"顶层"、"根目录"、"项目根目录"均指 **`repo/`（Git 主 worktree 根，即 `AGENTS.md` / `package.json` 所在目录）**，不是外层容器 `<container>/`（即 `repo/` 的上级目录）。所有相对路径（如 `apps/`、`packages/`、`infra/`、`docs/`）均相对 `repo/` 解析，也是所有专家的默认 CWD；需要引用容器层资源时以 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/` 开头（详见下文"容器层"章节）。
+## 1. 路径与仓库拓扑
 
-## 顶层结构（`repo/` 根，即 Git 主 worktree）
-- `AGENTS.md`：多专家路由与流程约束（必须存在）。
-- `agent.config.json`：目标项目覆盖配置；可选择本地忽略或由团队提交，优先级高于模板 example。
-- `infra/templates/agent/config.example.json`：template-owned 默认配置，集中声明 base branch、命令、容器层目录、外部 agent 默认 executor 等默认值。
-- `infra/templates/agent/package-scripts.example.json`：可选 package scripts 清单；只能通过安全合并脚本追加到目标项目 `package.json`，禁止复制模板 `package.json` 覆盖项目文件。
-- `infra/templates/agent/template.manifest.json`：模板应用/升级策略清单；声明 `overwrite`、`remove`、`init-if-missing`、`merge-json`、`merge-jsonc`、`append-block`、`merge-package-scripts`、`project-owned`、`generated`、`exclude` 等策略（详见下方「Manifest 策略一览」）。
-- `AgentRoles/`：各阶段专家的运行时卡片；`AgentRoles/Handbooks/` 存放详细操作指南。
-- `docs/`：所有产物文档、状态、数据资料的集中目录（详见下方）。
-- `apps/`：所有可独立运行的应用（web、mobile、desktop、server 等），详见「项目目录结构（Monorepo）」章节。
-- `packages/`：所有共享代码库（ui、core、api-client、database 等），详见「项目目录结构（Monorepo）」章节。
-- `infra/`：部署与基础设施配置（Docker、k8s、Terraform、部署脚本），详见「项目目录结构（Monorepo）」章节。
-- `tooling/`：内部构建工具（eslint、tsconfig 基础配置等）。
-- `e2e/`：跨端端到端测试（Playwright / Cypress），详见「项目目录结构（Monorepo）」章节。
-- `CHANGELOG.md`：主变更记录文件，仅保留最近 1~2 个主版本的条目。
+所有仓库内相对路径以主 Git worktree 根为基准。推荐容器结构：
 
-## 容器层（repo 外，Scalar 风格）
+```text
+<container>/
+├── repo/          # 主 worktree
+├── worktrees/     # 修改任务 worktrees
+├── tmp/           # 状态、锁、测试报告
+├── cache/         # 可重建缓存
+└── artifacts/     # 构建/发布产物
+```
 
-本项目采用 Git Scalar enlistment 模型：所有 tracked 内容位于 `repo/`（内层 Git worktree），四个**非隐藏**兄弟目录位于容器层（`repo/` 的父目录）。详见 `AGENTS.md` §仓库拓扑。
+脚本必须使用 `infra/scripts/shared/config.js` 的 `resolveRepoRoot()`、`getMainRepoRoot()` 和 `resolveContainerPath()` 解析路径。linked worktree 中禁止以 `../tmp` 猜测容器位置。
 
-- `../worktrees/`：所有修改型任务的 Git linked worktrees（`/worktree new` 的输出位置；合并后自动清理）。
-- `../cache/`：可重建缓存（pnpm store 默认走用户级；本目录预留给 turbo、playwright browsers 等按需外置）。
-- `../artifacts/`：构建产物（`deploy-cache/`、`next-dev-deploy/`）——跨 worktree 单槽位共享。
-- `../tmp/`：临时/运行时/测试报告（`test-results/`、`playwright-report/`、`coverage/`、`pacts/`、`perf/`、`security/`、`scan-manifests/`、`scheduler/` 本地状态等）。
+主 worktree 保持在 base branch。修改 tracked 文件只在专属 worktree 中进行；只读诊断可在任意 worktree。每个 worktree 独立安装依赖，包内容复用交给包管理器 store。
 
-> 上述 `../*` 路径均相对主 `repo/` 解析。linked worktree 位于 `../worktrees/<name>/` 时，其 `../tmp` 并不是容器层 tmp；脚本必须通过主 repo root 与 `agent.config.json` 解析容器层路径。
+## 2. 配置
 
-**原则**：
-- 只读排查不创建 worktree；测试报告、覆盖率、扫描 manifest、agent run 日志等写入脚本按主 repo 解析出的容器层 `tmp`。
-- 修改 tracked 文件前必须创建或恢复专属 worktree；创建后所有读写命令以该 worktree 为 CWD。
-- worktree 合并后的清理采用持久化两阶段协议：先以合并时 HEAD 封印 session，再由主 worktree 中的 completion guard/后续生命周期入口复核并删除。目标 worktree 若仍是当前 CWD，不得同步删除，也不得让 `/qa merge` 提前跳过 main 同步与推送。
-- cleanup 封印后发现 HEAD 前移、dirty 文件或封印缺失时，session 必须转为 `recovery_required` 并保留目录、分支和错误证据。恢复时使用 `worktree-resume.js --branch <旧分支> --recover-as <新分支>` 显式迁移，普通 resume/push 不得覆盖该状态。
-- 能跨 worktree 共享的产物外置到容器层；per-worktree 代码耦合产物（`node_modules/`、`<primary-app-build-dir>/`、agent session/history）保留在 worktree 内。
-- `node_modules`、其子包目录和 `.pnpm` 必须由当前 worktree 的 `/worktree bootstrap` 或项目配置的包管理器命令独立建立；禁止用 symlink、Windows junction 或其他 reparse point 指向主仓库/另一 worktree。依赖去重由 pnpm store 等包管理器缓存负责，不以目录联接实现。
-- Git worktree 默认完整 checkout tracked 文件；源码/文档不跨 worktree symlink。共享的是 Git object database、pnpm store、`../cache/`、`../artifacts/`、`../tmp/` 与必要本地配置 symlink。
+有效配置按以下优先级合并：
 
-## `docs/` 子结构与文档目录职责
+```text
+CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.json
+```
 
-### 核心产出文档（`docs/*-modules/`）
+`config.example.json` 是唯一默认值来源；代码不得再维护第二份大体积默认对象。项目根 `agent.config.json` 只保存与默认值不同的键。目录不存在时，通用脚本应跳过或输出明确下一动作。
 
-各专家的主要工作成果，是项目的核心知识资产。频繁访问和更新，结构化、模块化，作为其他阶段的输入依据。
+模板协议文件：
 
-- `docs/PRD.md`：产品需求主总纲与模块索引，不承载模块级详细 Story。
-- `docs/prd-modules/`：强制的模块 PRD 目录；`module-list.md` 维护模块清单，各 `{domain}/PRD.md` 维护详细需求。
-- `docs/ARCH.md`：架构文档（主架构文档，作为总纲与索引）。
-- `docs/arch-modules/`：强制的模块 ARCH 目录；`module-list.md` 维护模块清单，各 `{domain}/ARCH.md` 维护详细设计。
-- `docs/TASK.md`：任务计划主总纲与模块索引，维护跨模块依赖、里程碑和全局风险。
-- `docs/task-modules/`：强制的模块 TASK 目录；`module-list.md` 维护模块清单，各 `{domain}/TASK.md` 维护详细 WBS。
-- `docs/QA.md`：测试计划与执行记录（主 QA 文档，作为总纲与索引）。
-- `docs/qa-modules/`：强制的模块 QA 目录；`module-list.md` 维护模块清单，各 `{domain}/QA.md` 维护详细测试计划与执行记录。
+- `infra/templates/agent/config.example.json`：完整默认值和配置结构。
+- `infra/templates/agent/project-config.example.json`：新项目的稀疏配置起点。
+- `infra/templates/agent/package-scripts.example.json`：推荐公共命令，不代表完整兼容别名。
+- `infra/templates/agent/template.manifest.json`：模板所有权和合并策略。
 
-> PRD、ARCH、TASK、QA 不提供单一文档模式。即使项目只有一个功能域，也必须保留主总纲、`module-list.md` 与对应模块文档。
-- `docs/AGENT_STATE.md`：阶段状态勾选清单。
-- `CHANGELOG.md`（项目根）：主变更记录，仅保存最近 1~2 个主版本条目。
-- `docs/changelogs/`：历史分卷目录，存放归档的旧 CHANGELOG 文件，并包含 `README.md` 记录分卷规则与索引。
-- `docs/adr/`：架构决策记录，命名格式为 `NNN-{stage}-{module}-{title}.md`。
-- `docs/CONVENTIONS.md`：本文档，描述目录与约定。
-- 可选扩展：`docs/security/`（威胁建模、安全评估）、`docs/ops/`（运维手册、SLO、值班指南）。
+配置和 JSON 文件使用 UTF-8、两个空格缩进、文件末尾换行。密钥只能从环境或忽略的本地文件读取。
 
-### 辅助支撑数据（`docs/data/`）
+## 3. 模板所有权
 
-为核心文档提供支撑的辅助材料，低频访问或一次性生成，可删除或归档不影响核心知识。
+Manifest 支持以下策略：
 
-- 模板文件 → `docs/data/templates/{prd|arch|task|qa|devops}/`
-- QA 验证报告 → `docs/data/qa-reports/YYYY-MM-DD-<type>-<description>.md`
-- 部署记录 → `docs/data/deployment-records/YYYY-MM-DD-vX.Y.Z-<env>.md`
-- 追溯矩阵 → `docs/data/traceability-matrix.md`
-- 变更请求（CR/SCR） → `docs/data/change-requests/`
-- 代码地图 → `docs/data/CODEBASE_MAP.md`（自动生成，每个文件一行，标注职责与关键 exports；运行 `pnpm run codemap` 更新）
+- `overwrite`：模板协议文件可升级覆盖。
+- `init-if-missing`：仅初始化，已有项目文件不覆盖。
+- `merge-json` / `merge-lines`：只合并协议允许的缺失项。
+- `project-owned`：模板永不写入。
 
-### 决策规则
+`RULES.md`、真实项目文档、源码、业务部署脚本和已有 `agent.config.json` 均属于项目。模板更新流程必须：
 
-| 问题 | `*-modules/` | `data/` |
-|------|-------------|---------|
-| 某专家的主要工作成果？ | ✅ | ❌ |
-| 被其他专家作为输入依据？ | ✅ | ❌ |
-| 会持续更新/演进？ | ✅ | ❌ |
-| 一次性生成的报告/记录？ | ❌ | ✅ |
-| 模板/参考资料？ | ❌ | ✅ |
-| 按时间序列归档？ | ❌ | ✅ |
+1. dry-run 并报告 create/update/merge/conflict/skip；
+2. 冲突时 fail-closed；
+3. apply 后校验哈希和文件范围；
+4. 再次 dry-run，预期无差异。
 
-**一句话总结**：`*-modules/` = 按功能组织的核心产出；`data/` = 按时间/类型组织的辅助数据（含自动生成的索引文件，如 CODEBASE_MAP）。
+模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
 
-## 命名与引用规则
-- 目录与文件名采用 kebab-case 或 snake_case，避免空格与大写混用。
-- 路径引用一律使用相对路径（例如 `./docs/PRD.md`），确保跨平台读取一致。
+## 4. 文档与阶段状态
 
-### 源码文件命名（自描述原则）
-文件名应清晰表达职责，减少需要打开文件才能了解用途的情况。推荐采用 `<entity>.<role>.ts` 格式：
+治理流程采用模块化文档：
 
-| 场景 | 推荐 | 避免 |
-|------|------|------|
-| 数据访问 | `user.repo.ts`, `order.repo.ts` | `repository.ts`, `db.ts` |
-| 中间件 | `auth.middleware.ts`, `cors.middleware.ts` | `middleware.ts`, `handlers.ts` |
-| 服务层 | `billing.service.ts`, `email.service.ts` | `service.ts`, `helpers.ts` |
-| 工具函数 | `date.utils.ts`, `string.utils.ts` | `utils.ts`, `helpers.ts` |
-| 配置 | `database.config.ts`, `redis.config.ts` | `config.ts`, `settings.ts` |
-| 类型 | `user.types.ts`, `api.types.ts` | `types.ts`, `interfaces.ts` |
+- `docs/PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`：总纲和模块索引。
+- `docs/{prd|arch|task|qa}-modules/module-list.md`：模块登记表。
+- `docs/{prd|arch|task|qa}-modules/<domain>/`：功能域详情。
+- `docs/data/traceability-matrix.md`：需求到测试的追踪关系。
 
-原则：同目录下不应出现需要打开才能区分的同质文件名（如同时存在 `utils.ts` 和 `helpers.ts`）。
+`docs/AGENT_STATE.md` 只保存稳定里程碑：
 
-## Mermaid 图形文件规范
+1. `PRD_CONFIRMED`
+2. `ARCHITECTURE_DEFINED`
+3. `TASK_PLANNED`
+4. `TDD_DONE`
+5. `QA_VALIDATED`
+6. `DEPLOYED`
 
-- **统一使用 `.md` 格式**存储所有 mermaid 图形文件，**禁止使用 `.mmd` 格式**（已于 2025-11-08 废弃）。
+里程碑已勾选时不得附加新的 PR、日期或重试行。运行态由外部 session 文件承担，避免每次合并产生无意义文档提交。
 
-### 文件位置约定
+## 5. Worktree 生命周期
 
-| 文件类型 | 存放位置 | 维护者 | 示例 |
-|---------|---------|--------|------|
-| **全局依赖图** | `/docs/data/global-dependency-graph.md` | PRD 专家 | 跨模块 Story 依赖关系 |
-| **组件依赖图** | `/docs/data/component-dependency-graph.md` | ARCH 专家 | 跨模块组件依赖关系 |
-| **实体关系图** | `/docs/data/ERD.md` | ARCH 专家 | 全局数据模型 |
-| **模块依赖图** | `/docs/prd-modules/{domain}/dependency-graph.md` | PRD 专家 | 模块内 Story 依赖关系 |
-| **任务依赖矩阵** | `/docs/data/task-dependency-matrix.md` | TASK 专家 | 跨模块任务依赖关系 |
-| **里程碑甘特图** | `/docs/data/milestone-gantt.md` | TASK 专家 | 项目时间线与里程碑 |
+创建/恢复入口：
 
-## Scripts 约定
-- 脚本按用途分类，统一存放于 `infra/scripts/`：`infra/scripts/shared/`（共享配置/工具）、`infra/scripts/worktree-tools/`（全专家 worktree 生命周期）、`infra/scripts/agent-runner/`（外部 agent 统一入口）、`infra/scripts/devops-tools/`（配置化 DevOps 快捷命令入口）、`infra/scripts/qa-tools/`（QA 脚本）、`infra/scripts/tdd-tools/`（TDD 工具脚本）。部署/cron 的具体实现属于目标项目自有脚本，由 `agent.config.json` 接入。
-- Shell 脚本首行声明 `#!/usr/bin/env bash`（或所需解释器），并包含 `set -euo pipefail` 等安全选项。
-- 每个脚本在开头给出 Usage 注释，说明参数与前置条件。
-- 项目差异必须优先读取 `agent.config.json`、环境变量或 CLI 参数，禁止在脚本中硬编码目标项目的绝对路径、业务名、固定端口或固定应用目录。
-- 配置加载优先级：CLI 参数 > 环境变量 > `agent.config.json` > `infra/templates/agent/config.example.json` > 内置默认值。
-- 容器层路径必须通过 `infra/scripts/shared/config.js` 的 `getMainRepoRoot()` / `resolveContainerPath()` 解析。linked worktree 中的字面量 `../tmp` 会落到 `../worktrees/tmp`，禁止在脚本中这样拼路径。
-- **仓库根路径必须通过 `resolveRepoRoot({ scriptDir: __dirname })` 统一解析**，禁止脚本各自写 `path.resolve(__dirname, '..', '..', '..')`。该 helper 以 `process.cwd()` 为准（跨 worktree 调用会自动指向调用方所在 worktree），并在"脚本副本所在仓库"与"CWD 解析出的仓库"不一致时输出 `[cwd-anchor]` stderr 警告，方便发现跨 worktree 绝对路径调用误操作。对于只需"自己脚本目录"相对定位的场景（如同目录 sibling 脚本调用、本目录内的构建产物落地），保留 `__dirname` 是正确的，不要改。
-- 模板不得要求复制根 `package.json` 到目标项目；需要快捷命令时使用 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 scripts，冲突项保留项目原值。
-- 模板更新不得手写 `cp -r` 覆盖目标项目；必须使用 `node infra/scripts/setup/update-template.js <项目路径>` 一键执行 dry-run、冲突检查、写入和校验。已安全合并 package aliases 时可用 `pnpm agent:update-template -- <项目路径>`；报告目录按目标项目主 `repo/` 解析到容器层，禁止落到 `worktrees/tmp`。
-- 项目耦合脚本（部署、数据库同步、cron registry 等）不由模板提供。实际项目可放在自己的 `scripts/ops/` 或项目约定目录，并把应用目录、数据库目录、部署路径、cron registry 等写入 `agent.config.json` 或环境变量。
-
-### GitHub 远端命令示例
-
-项目级 GitHub token 只使用根目录 `.env.local` 中的 `GH_TOKEN`。任何会访问 GitHub 远端的命令都必须通过模板脚本入口或 `github-auth-run.js` 包装执行。
-
-不允许：
 ```bash
-git push origin HEAD
-git pull
-gh pr list --state open
-gh pr create --title "..." --body "..."
+pnpm agent -- worktree new --phase=<phase> --task <id>
+pnpm agent -- worktree bootstrap
+pnpm agent -- worktree list
 ```
 
-允许：
+任务标识、分支名或描述至少提供一个。创建成功后必须切换到脚本输出的 `NEXT_CWD`。禁止从 worktree A 用绝对路径调用 worktree B 或主仓库脚本。
+
+并行开发状态写入 `../tmp/worktree-sessions/`，锁写入 `../tmp/agent-locks/`。锁包含 PID；仅在确认 owner 不存活后回收 stale lock。
+
+合并前按顺序 fetch、rebase、验证、文件集合复查并进入串行 merge queue。合并后先原子记录 HEAD、worktree 路径和 cleanup intent，再清理。出现 HEAD 漂移、dirty worktree 或缺少封印时必须保留并转 `recovery_required`。
+
+## 6. 长任务状态文件
+
+满足以下任一条件必须使用任务状态：用户明确要求持续执行；至少 3 个可独立验证步骤；预计跨会话、压缩或进程重启。
+
+状态目录固定为：
+
+```text
+<container>/tmp/agent-task-runs/<task-id>/
+├── state.json
+└── evidence/      # 可选大体积证据
+```
+
+`state.json` 是唯一事实来源，固定记录：
+
+- schema/version、task id、目标、描述、类型和生命周期状态；
+- 验收标准、约束、步骤、当前步骤、最后错误和唯一下一动作；
+- 主项目、当前 repo/worktree/branch；
+- 每步 `replay=safe|verify_first`、状态、简短证据和更新时间；
+- 完成或清理状态。
+
+状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
+
+### 命令
+
 ```bash
-node infra/scripts/shared/github-auth-run.js -- git push origin HEAD
-node infra/scripts/shared/github-auth-run.js -- git pull
-node infra/scripts/shared/github-auth-run.js -- gh pr list --state open
-node infra/scripts/shared/github-auth-run.js -- gh pr create --title "..." --body "..."
+pnpm agent -- task start --task <id> --desc "<目标>" --step "<步骤>"
+pnpm agent -- task checkpoint --task <id> --step <id> --status done --evidence "<证据>" --next "<下一动作>"
+pnpm agent -- task resume --auto
+pnpm agent -- task finish --task <id>
+pnpm agent -- task cancel --task <id> --force
 ```
 
-纯本地 Git 命令可以裸执行：
-```bash
-git status --short
-git diff
-git log --oneline -5
-git rev-parse --show-toplevel
+步骤状态为 `pending|running|done|blocked|verify_required`：
+
+- `safe` 步骤中断后回到 `pending`，可重放。
+- `verify_first` 步骤中断时转为 `verify_required`，先查询真实外部状态。
+- `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
+- 同一次 checkpoint 可更新步骤和验收项，减少机械写盘。
+- `resume --auto` 仅在当前主 repo/worktree/branch 唯一匹配时选择任务；否则输出候选和 `STATUS=BLOCKED`。
+
+`finish` 要求所有必需步骤、验收项和证据完成。修改任务还必须通过 completion guard。门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
+
+容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
+
+## 7. 命令面
+
+新项目只推荐统一入口：
+
+```text
+pnpm agent -- task <action>
+pnpm agent -- worktree <action>
+pnpm agent -- tdd <action>
+pnpm agent -- qa <action>
+pnpm agent -- template <action>
+pnpm agent -- dev|ship|finish
 ```
 
-### Manifest 策略一览
+旧 aliases 在已有项目中保留兼容，但模板不继续增加同义入口。命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
 
-| 策略 | 适用文件 | target 不存在 | target 存在 |
-|---|---|---|---|
-| `overwrite` | template-owned 文件（AGENTS.md、AgentRoles/、infra/scripts/、docs/CONVENTIONS.md 等） | 创建 | 完全覆盖 |
-| `remove` | 已废弃且由 manifest 精确登记的 template-owned 文件 | 无操作 | 删除单个文件；拒绝目录和越界路径 |
-| `init-if-missing` | 项目方初始化后会持续编辑、无字段补齐需求的文件（README、占位状态文档等） | 复制 source | 完全跳过 |
-| `merge-json` | 标准 JSON 配置文件（如 `agent.config.json`） | 复制 source | 字段级深度合并：双方都是 plain object 时递归补齐缺失键；标量/数组/已存在键值始终保留 target；类型冲突路径记入 `conflicts` 由人工审视。**如需"禁用"模板默认值，将字段显式设为 `false` / `""` / `null`，不要删除字段**——删除会在下次 update-template 时被重新补回 |
-| `merge-jsonc` | 含 `//` 行注释或 `/* */` 块注释的 JSONC 配置文件（如 `.gemini/settings.json`） | 复制 source | 与 `merge-json` 相同的"项目优先"语义，但保留 target 文件中的注释：仅把 source 中**顶层**缺失键以纯 JSON 形态 append 到末尾闭合花括号之前；嵌套缺失键（如 `permissions.newKey`）仅记入 `manual-sync` 提示，**不写入文件**，由人工对照 `*.template.json` 手动同步。类型冲突进 `conflicts` |
-| `append-block` | `.gitignore`、`.envrc` 等可标注 marker 的文本文件 | 写入 marker 块 | 替换/追加 marker 块 |
-| `merge-package-scripts` | 仅 `package.json` 的 scripts 段 | 跳过（package.json 缺失） | 只追加缺失 scripts，冲突项保留项目原值 |
-| `project-owned` | 项目自有内容（PRD、ARCH、TASK、QA、ADR、CHANGELOG 等） | 不创建 | 完全跳过 |
-| `generated` | 由其他脚本自动生成（如 `docs/data/CODEBASE_MAP.md`） | 不创建 | 完全跳过 |
-| `exclude` | 显式排除（项目自有部署/cron 脚本目录等） | 不创建 | 完全跳过 |
+## 8. TDD、QA 与交付
 
-**对 JSON 配置的扩展提示**：`merge-json` 仅适用于标准 JSON；`merge-jsonc` 处理含注释的 JSONC 但**只 append 顶层缺失键、嵌套缺失只报告**——`update-template` 输出 `manual-sync=<path>` 时请人工编辑对应文件。YAML（如 `.github/workflows/ci.yml`）整体作为 `project-owned`，模板仅在 `docs/data/templates/devops/CI-WORKFLOW-TEMPLATE.yml` 提供参考样板，由项目方手动同步。
+测试遵循最小风险覆盖：
 
-## 变量配置约定
-剥离出来的变量只能进入以下位置：
-- `agent.config.json`：团队或本地项目差异，例如 `paths.*`、`commands.*`、`release.*`、`devops.*`、`cron.*`。
-- 环境变量 / CI secrets：真实域名、服务器、数据库连接、token、部署密钥。
-- CLI 参数：一次性覆盖，例如 `--target`、`--phase`、`--desc`、`--executor`。
+- 先写会失败的定向测试，再实现，再回归。
+- 纯文档变更至少执行格式、链接或模板契约测试。
+- 共享基础设施变更执行单元、集成和相关回归；不得用全量失败掩盖定向结果。
+- 测试证据记录命令、退出码和简短结论，不粘贴超长日志。
 
-禁止把真实项目变量写入模板文件。变量缺失时，脚本应跳过相关能力或输出 `STATUS=BLOCKED` + `REASON`，不得猜默认业务路径执行。
+修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → finish`。`finish`/completion guard 只在主分支已合并、工作区干净且与远端一致时返回成功。
 
-## Worktree-First 工作区约定
+审查高风险域：认证权限、数据写删、事务一致性、缓存一致性、并发、外部 API、数据库 schema、共享基础库、跨文件业务联动和 hotfix。未命中可跳过语义 review，但不可跳过 lint、类型检查和测试。
 
-| 模式 | 是否创建 worktree | 输出位置 | 说明 |
-|------|-------------------|----------|------|
-| 只读排查 / diagnose | 否 | 容器层 `tmp/agent-runs/`、`tmp/test-results/` 等 | 不修改 tracked 文件 |
-| 长任务状态 | 视任务类型而定 | 容器层 `tmp/agent-task-runs/<task-id>/` | `state.json` 为唯一权威状态；完成后自删，未完成不参与普通 tmp 清理 |
-| 修改型任务 / change | 是 | `../worktrees/<phase>-<slug>/` | 后续 CWD 必须切换到 `WORKTREE_PATH` |
-| 缓存 | 否 | `../cache/` | 可重建、可共享 |
-| 构建/部署产物 | 否 | `../artifacts/` | 单槽位资源需加锁 |
+## 9. GitHub、命名与安全
 
-外部 agent（OpenClaw、Hermes、Goose 等）只能通过 `node infra/scripts/agent-runner/agent-run.js` 或 `node infra/scripts/worktree-tools/worktree-*.js` 接入；已安全合并 package aliases 的项目可使用 `pnpm run agent:run` / `pnpm run worktree:*`。外部 agent 不直接管理本仓库的 worktree、merge、cleanup 策略。
+- GitHub token 变量统一为 `GH_TOKEN`。
+- 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
+- branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。
+- 不提交凭据、`.env.local`、用户数据、未脱敏日志或本地绝对路径快照。
+- destructive 操作前解析精确路径并验证归属；不对仓库根、HOME、通配符或未解析变量递归删除。
 
-## 长任务状态文件规范
+## 10. 全仓扫描
 
-长任务使用 `infra/scripts/agent-runner/agent-task.js` 管理，不引入数据库或后台调度器。每个任务只有一个目录和一个权威 `state.json`；`evidence/` 仅在证据过大、不适合内联短摘要时按需创建。
+完整性影响正确性的跨目录任务先 Discovery、后 Editing。候选 manifest 写入容器 `tmp/scan-manifests/`，包含范围、排除项和全部候选。最终必须报告：
 
-### 最小状态结构
-
-| 字段 | 约束 |
-|------|------|
-| `schema_version` / `task_id` | 当前 schema 为 `1`；task id 为 1-80 位安全 slug，目录与文件内 ID 必须一致 |
-| `goal` / `task_type` | 任务目标；`mutation` 会在 finish 时串联仓库 completion guard，其他类型默认为 `operation` |
-| `project_root` / `worktree` / `branch` | 绑定主 repo、当前 worktree 和分支；checkpoint 会在同一主 repo 内刷新绑定 |
-| `acceptance_criteria[]` | 每项具有稳定 `AC<n>`、状态和脱敏证据；全部完成才允许 finish |
-| `steps[]` | 每项具有稳定 `S<n>`、`pending/running/done/blocked/verify_required`、`safe/verify_first` 和证据 |
-| `current_step` / `next_action` / `last_error` | 恢复时唯一可信的当前位置、下一动作与最近错误；禁止从旧对话猜测 |
-| `created_at` / `updated_at` | ISO-8601 UTC 时间；完成写 `completed_at` 后立即进入安全删除 |
-
-### 写入、恢复与清理
-
-- 所有更新复用 `../tmp/agent-locks/` 的任务级锁，并采用同目录临时文件、`fsync`、原子 rename；`state.json.tmp-*` 只视为崩溃残留，读取时忽略。
-- `resume --auto` 优先按主 repo + worktree/branch 精确选择；只能退化到主 repo 内唯一活跃任务。存在多个候选或权威 JSON 损坏时必须 `STATUS=BLOCKED`，不得静默挑选或重建。
-- `done` 步骤和 AC 必须至少有一条简短证据。证据可为命令与退出码、文件路径与哈希、PR/部署回执或物理验收摘要；敏感正文只保留受控位置引用。
-- `finish` 先写 `completed` 再安全删除精确任务目录，拒绝符号链接、越界路径和 task id 不匹配。删除失败时重建最小 `cleanup_pending` 状态，下一次只重试清理，不重新执行任务。
-- `agent-task-runs` 是容器清理保护目录。正常任务由 finish 删除；失败、阻塞或等待确认的任务一直保留，直到完成或用户显式 `cancel --force`。
-
-## Tests 约定
-
-### 职责归属
-- **TDD 专家编写并运行**：单元、集成、契约、降级测试
-- **QA 专家编写并执行**：E2E、性能、安全测试
-- **回归测试**：不单独编写代码，而是重新执行上述已有测试套件的子集（QA 在验收阶段执行）
-
-### 目录与命名
-
-| 测试类型 | 目录 | 命名规范 | 编写者 |
-|---------|------|---------|--------|
-| 单元测试 | 与源码 colocate | `*.test.ts(x)` | TDD |
-| 集成测试 | `apps/*/tests/` | `*.integration.test.ts` | TDD |
-| 契约测试 | `*/tests/contract/` | `*.consumer.pact.test.ts` / `*.provider.pact.test.ts` | TDD |
-| 降级测试 | `apps/*/tests/resilience/` | `*.degradation.test.ts` | TDD |
-| E2E 测试 | `e2e/tests/` | `*.e2e.spec.ts` | QA |
-| 性能测试 | `perf/scenarios/` | `*.k6.ts` | QA |
-| 安全测试 | `security/` + `apps/*/tests/security/` | `*.security.test.ts`（认证/授权） | QA |
-
-## 数据库迁移文件规范
-
-### 文件名格式
-- **格式：** `YYYYMMDDHHmmss_description.sql`
-- **时间戳：** 必须使用文件实际创建时的系统时间（14 位数字）
-- **描述：** 使用英文，多个单词用下划线分隔，简洁明了
-
-**示例：**
-```
-20251028174629_add_subscription_billing_cycle.sql
-20251031222146_add_admin_role.sql
+```text
+scanned_count
+matched_count
+modified_count
+skipped_count
 ```
 
-### 创建方法
-- 推荐使用项目脚本：`./infra/scripts/tdd-tools/create-migration.sh add_user_roles --dir <migrations-dir> --dialect postgres`
-- Supabase 项目：`supabase migration new add_user_roles`
-- 严禁手动输入日期
-
-### 数据库迁移幂等性原则
-- **幂等性定义**：迁移脚本可以安全地被执行多次，最终结果保持一致。
-- **保障机制**：使用 `IF NOT EXISTS` / `IF EXISTS` 条件判断；数据迁移前增加状态检查（`WHERE field IS NULL`）；用事务包裹每一步。
-- **验证要求**：提交前至少在本地执行 3 次验证（正常执行 → 重复执行 → 回滚后再执行）。
-
-### 数据字典同步
-- 任何表结构变化必须触发数据视图生成流程，确保 `docs/data/ERD.md` 与 `docs/data/dictionary.md` 与模板保持一致。
-
-## 环境变量文件规范
-
-项目按三套环境管理配置，每套包含**模板文件**（可提交）和**实际文件**（含真实密钥，禁止提交）：
-
-| 文件名 | 环境 | 类型 | Git 状态 |
-|--------|------|------|----------|
-| `.env.example` | dev | 模板 | ✅ 可提交 |
-| `.env.local` | dev | 实际 | ❌ 禁止提交 |
-| `.env.staging.example` | staging | 模板 | ✅ 可提交 |
-| `.env.staging` | staging | 实际 | ❌ 禁止提交 |
-| `.env.production.example` | production | 模板 | ✅ 可提交 |
-| `.env.production` | production | 实际 | ❌ 禁止提交 |
-
-**操作规则：**
-- 本地开发：从 `.env.example` 复制为 `.env.local`，按需填写真实值
-- 新增环境变量时：必须同步更新对应的 `*.example` 文件（写占位值，不含真实密钥）
-- **禁止**将含真实密钥的 `.env.*`（非 `*.example`）文件写入 git
-- `.gitignore` 必须遮盖所有实际环境变量文件
-
-## 其他约定
-- 机密文件保持 `.gitignore` 遮盖；若需本地存放，创建 `secret/README.md` 引导操作。
-
-## 项目目录结构（Monorepo 示例）
-
-以下结构是可参考的通用 monorepo 形态，不是模板强制目录。实际应用目录、数据库目录、迁移目录必须以 `agent.config.json` 的 `paths.*` 或项目既有规范为准。
-
-本项目采用 pnpm workspaces + Turborepo 的 Monorepo 架构。以下树展示 `repo/`（Git 主 worktree 根）**内部**结构；容器层兄弟目录（`../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`）见本文件"容器层（repo 外，Scalar 风格）"章节及 `AGENTS.md` §仓库拓扑。
-
-```
-repo/                         # = 项目根目录 = Git 主 worktree = 所有命令/专家的默认 CWD
-├── package.json              # 根 package.json（workspace 定义 + 全局 devDeps + CI 脚本）
-├── apps/                     # 可独立运行的应用（不互相 import，只依赖 packages）
-│   ├── web/                  # Web 前端（Next.js / React）
-│   │   ├── src/              # 源代码（单测 colocate：Button.tsx + Button.test.tsx）
-│   │   ├── tests/            # integration 测试
-│   │   └── package.json
-│   ├── desktop/              # 桌面客户端（Electron / Tauri）
-│   │   ├── src/              # 共享 TS/JS 源代码（单测 colocate）
-│   │   ├── src-tauri/        # Tauri: Rust 后端 + 平台构建配置
-│   │   ├── resources/        # 平台特定资源（图标、安装器配置等）
-│   │   │   ├── macos/        #   .icns, entitlements.plist
-│   │   │   ├── windows/      #   .ico, NSIS/WiX 安装器配置
-│   │   │   └── linux/        #   .desktop, AppImage 配置
-│   │   ├── tests/            # integration 测试
-│   │   └── package.json
-│   ├── mobile/               # 移动端（React Native / Expo）
-│   │   ├── src/              # 共享 TS/JS 源代码（单测 colocate）
-│   │   ├── ios/              # Xcode 项目 + 原生模块
-│   │   ├── android/          # Gradle 项目 + 原生模块
-│   │   ├── tests/            # integration 测试
-│   │   └── package.json
-│   ├── server/               # 后端 API（Node / NestJS / Fastify）
-│   │   ├── src/              # 源代码（单测 colocate）
-│   │   ├── tests/            # 集成/契约/降级/安全测试
-│   │   │   ├── *.integration.test.ts   # 集成测试（API endpoint + DB）
-│   │   │   ├── contract/               # 契约测试（Provider 验证）
-│   │   │   ├── resilience/             # 降级测试（Circuit Breaker/Retry/Fallback）
-│   │   │   └── security/               # 认证/授权安全测试
-│   │   └── package.json
-│   ├── worker/               # 后台任务 / queue consumer
-│   └── admin/                # 管理后台
-│
-├── packages/                 # 共享代码（被 apps 引用，不能反向依赖 apps）
-│   ├── core/                 # 核心业务逻辑（纯 TS，零框架依赖）
-│   ├── domain/               # 领域模型（数据结构、业务规则）
-│   ├── ui/                   # 跨端 UI 组件库
-│   ├── ai/                   # AI 相关封装
-│   ├── auth/                 # 鉴权逻辑
-│   ├── billing/              # 计费逻辑
-│   ├── analytics/            # 数据分析
-│   ├── api-client/           # 前端统一 API 调用封装
-│   │   ├── tests/
-│   │   │   └── contract/     # 契约测试（Consumer 端）
-│   ├── database/             # 数据库层（Prisma / Drizzle + 迁移 + 数据访问）
-│   │   ├── prisma/           # ORM schema（Prisma；若用 Drizzle 则为 drizzle/）
-│   │   │   ├── schema.prisma
-│   │   │   ├── migrations/
-│   │   │   └── seed.ts
-│   │   ├── src/
-│   │   │   ├── client.ts     # 统一 DB 连接实例（整个 Monorepo 唯一入口）
-│   │   │   ├── config.ts     # 连接配置
-│   │   │   ├── models/       # ORM 模型扩展（computed 字段、复杂 query builder）
-│   │   │   │   ├── user.ts
-│   │   │   │   ├── organization.ts
-│   │   │   │   └── ...
-│   │   │   ├── repositories/ # 数据访问层（强烈推荐：解耦 ORM，便于测试与替换）
-│   │   │   │   ├── user.repo.ts
-│   │   │   │   ├── org.repo.ts
-│   │   │   │   └── ...
-│   │   │   ├── services/     # DB 数据服务（事务、分页等）
-│   │   │   │   ├── transaction.ts
-│   │   │   │   └── pagination.ts
-│   │   │   ├── types.ts      # 数据库相关类型定义
-│   │   │   └── index.ts      # 统一导出（re-export client、repositories、types 等）
-│   │   ├── scripts/          # 操作脚本（migrate / reset / generate 的封装）
-│   │   │   ├── migrate.ts
-│   │   │   ├── reset.ts
-│   │   │   └── generate.ts
-│   │   ├── .env.example
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   ├── sdk/                  # 对外 SDK
-│   ├── hooks/                # 共享 React hooks
-│   ├── utils/                # 工具函数
-│   ├── types/                # 全局 TypeScript 类型
-│   └── config/               # 共享配置（ESLint / TS / Tailwind）
-│
-├── infra/                    # 部署与基础设施配置
-│   ├── docker/
-│   ├── k8s/
-│   ├── terraform/
-│   └── scripts/              # 自动化脚本
-│       ├── devops-tools/     # 配置化 DevOps 快捷命令入口
-│       ├── qa-tools/         # QA 脚本（generate-qa.js、qa-verify.js、qa-merge.js）
-│       ├── tdd-tools/        # TDD 工具脚本（create-migration.sh 等）
-│       ├── arch-tools/       # ARCH 工具脚本
-│       ├── prd-tools/        # PRD 工具脚本
-│       └── task-tools/       # TASK 工具脚本
-│
-├── tooling/                  # 内部构建工具（不发布到 registry）
-│   ├── eslint/
-│   ├── tsconfig/
-│   └── commitlint/
-│
-├── e2e/                      # E2E 测试（Playwright），QA 专家编写
-│   ├── tests/                #   测试脚本（*.e2e.spec.ts）
-│   ├── pages/                #   Page Object Model
-│   ├── fixtures/             #   自定义 Fixtures
-│   └── playwright.config.ts
-│
-├── pacts/                    # 契约测试输出（Pact JSON，自动生成，已 .gitignore）
-│
-├── perf/                     # 性能测试（k6），QA 专家编写
-│   ├── scenarios/            #   按场景命名的 k6 脚本（*.k6.ts）
-│   ├── thresholds.ts         #   共享阈值配置
-│   └── k6.config.ts          #   k6 运行配置
-│
-├── security/                 # 安全测试，QA 专家维护
-│   ├── zap/                  #   OWASP ZAP DAST 扫描配置
-│   │   ├── zap-baseline.conf #     Baseline 扫描配置
-│   │   ├── zap-api-scan.conf #     API 扫描配置
-│   │   └── zap-rules.tsv     #     误报过滤规则
-│   ├── semgrep/              #   SAST 自定义规则
-│   │   └── .semgrep.yml
-│   └── checklists/           #   手工渗透测试清单
-│       └── owasp-top10.md
-│
-├── turbo.json                # Turborepo 构建管道配置
-└── pnpm-workspace.yaml       # 声明 apps/* packages/* tooling/* 为 workspace
-```
-
-**核心原则：**
-- `apps/*`：独立可启动，不互相引用，只依赖 `packages/*`
-- `packages/*`：沉淀共享逻辑，不依赖任何 `apps/*`
-- `<database-package>`：Monorepo 推荐只有一个 DB 入口；禁止在应用层直接调用 ORM 细节，必须通过 `repositories/` 或项目约定的数据访问层访问
-- `packages/api-client`：web / mobile / desktop 共用，统一管理后端接口调用
-- `packages/core` 与 `packages/domain`：纯 TS，无框架依赖，可在全端复用
-- `infra/scripts/`：模板自动化脚本统一存放；部署/cron 的具体实现为项目自有脚本，通过 `devops-run.js` 与 `agent.config.json` 接入
-- **测试目录结构**：单测 colocate 在源码旁；集成/契约/降级测试在 `apps/*/tests/`（TDD 编写）；E2E 在 `e2e/`、性能在 `perf/`、安全在 `security/`（QA 编写）；`pacts/` 为契约测试自动输出（.gitignore）
-- **package.json 层级**：根目录必须有 `package.json`（workspace 定义 + 全局 devDeps）；每个 `apps/*` 和 `packages/*` 都有自己的 `package.json`（独立 workspace 包）
-- **依赖管理**：应用运行依赖（react、next 等）写在各自 `apps/*/package.json`，禁止提升到根目录；全局工具类（eslint、turbo、typescript）写在根 `devDependencies`
-
-### Database 层级设计（可选 `<database-package>` 示例）
-
-| 层 | 目录 | 职责 | 规则 |
-|---|------|------|------|
-| **Schema** | `prisma/`（或 `drizzle/`） | schema 定义、迁移文件、seed 数据 | 只放 schema 和 DDL，不放业务逻辑 |
-| **Client** | `src/client.ts` | 统一创建数据库实例 | 整个 Monorepo 唯一 DB 入口；所有 app 通过此文件获取 db 实例 |
-| **Repository** | `src/repositories/` | 数据访问抽象（DDD / Clean Architecture） | 禁止在 app 中直接调用 `prisma.user.findMany()`，必须通过 `userRepository.findByEmail(email)`；便于解耦 ORM、测试 mock、未来替换 |
-| **Model** | `src/models/` | ORM 模型扩展（可选） | computed 字段、复杂 query builder、domain 映射 |
-| **Service** | `src/services/` | DB 级数据服务 | 事务编排、分页封装等与 DB 强相关的通用逻辑 |
-| **Scripts** | `scripts/` | 操作脚本 | 对 `prisma migrate deploy`、`prisma db reset` 等 CLI 命令的封装（可加环境检查、日志、确认提示）；与 `prisma/migrations/`（自动生成的 DDL）不同 |
+并满足 `matched_count = modified_count + skipped_count`。范围变化时创建新 manifest，不得静默缩小。
