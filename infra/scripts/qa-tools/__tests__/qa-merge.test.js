@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { cleanupOrphanWorktreeDirs } = require('../qa-merge');
+const { cleanupOrphanWorktreeDirs, upsertQaValidatedEntry } = require('../qa-merge');
 const { safeRemoveTreeNoFollow } = require('../../worktree-tools/worktree-core');
 
 const REAL_TMPDIR = fs.realpathSync(os.tmpdir());
@@ -34,4 +34,30 @@ test('reclaims an empty orphan worktree when its session proves ownership', (t) 
   assert.deepEqual(result.removed, [stale]);
   assert.equal(fs.existsSync(stale), false);
   assert.equal(fs.existsSync(active), true);
+});
+
+test('keeps an already-completed QA milestone stable across later PR merges', () => {
+  const content = [
+    '# Agent State',
+    '',
+    '- [x] 5. QA_VALIDATED',
+    '',
+    '## IN_PROGRESS',
+    'branch: feature/next',
+    'pr: 51',
+    'step: qa',
+    'started_at: 2026-08-16 10:00',
+    '',
+  ].join('\n');
+
+  assert.equal(upsertQaValidatedEntry(content, 51, 'abcdef1', '2026-08-16'), content);
+});
+
+test('checks QA milestone without adding PR-specific history', () => {
+  const content = '# Agent State\n\n- [ ] 5. QA_VALIDATED (发布前)\n';
+
+  assert.equal(
+    upsertQaValidatedEntry(content, 51, 'abcdef1', '2026-08-16'),
+    '# Agent State\n\n- [x] 5. QA_VALIDATED\n'
+  );
 });

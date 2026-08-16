@@ -123,7 +123,7 @@ test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', 
 
     const candidates = getProjectEnvLocalCandidates({ repoRoot: worktreeRoot, cwd: worktreeRoot });
     assert.ok(candidates.includes(path.join(worktreeRoot, '.env.local')));
-    assert.ok(candidates.includes(path.join(mainRoot, '.env.local')));
+    assert.ok(candidates.includes(path.join(fs.realpathSync(mainRoot), '.env.local')));
 
     const env = {};
     const token = loadProjectGitHubToken({ repoRoot: worktreeRoot, cwd: worktreeRoot, env });

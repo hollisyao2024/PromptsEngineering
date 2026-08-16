@@ -1,7 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { createRequire } from 'node:module'
-
-const require = createRequire(import.meta.url)
+const assert = require('node:assert/strict')
+const { describe, it } = require('node:test')
 const { removeTree, removeTreeWithRetries } = require('../remove-tree.js')
 
 describe('removeTreeWithRetries', () => {
@@ -16,9 +14,9 @@ describe('removeTreeWithRetries', () => {
       },
     })
 
-    expect(calls).toHaveLength(1)
-    expect(calls[0][0]).toBe('cmd.exe')
-    expect(calls[0][1]).toEqual([
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][0], 'cmd.exe')
+    assert.deepEqual(calls[0][1], [
       '/d',
       '/c',
       'rmdir',
@@ -26,7 +24,7 @@ describe('removeTreeWithRetries', () => {
       '/q',
       '\\\\?\\C:\\runtime\\node_modules\\.pnpm',
     ])
-    expect(calls[0][2]).toMatchObject({ stdio: 'ignore', windowsHide: true })
+    assert.deepEqual(calls[0][2], { stdio: 'ignore', windowsHide: true })
   })
 
   it('retries when Windows rmdir exits successfully but leaves the tree behind', () => {
@@ -45,8 +43,8 @@ describe('removeTreeWithRetries', () => {
       onRetry: ({ error }) => retries.push(error.code),
     })
 
-    expect(attempts).toBe(2)
-    expect(retries).toEqual(['ENOTEMPTY'])
+    assert.equal(attempts, 2)
+    assert.deepEqual(retries, ['ENOTEMPTY'])
   })
 
   it('restarts a recursive removal after transient ENOTEMPTY failures', () => {
@@ -65,8 +63,8 @@ describe('removeTreeWithRetries', () => {
       clearAttributes: () => {},
     })
 
-    expect(attempts).toHaveLength(3)
-    expect(attempts.every((options) => options.recursive && options.force)).toBe(true)
+    assert.equal(attempts.length, 3)
+    assert.equal(attempts.every((options) => options.recursive && options.force), true)
   })
 
   it('retries transient Windows rmdir failures reported by the native remover', () => {
@@ -86,7 +84,7 @@ describe('removeTreeWithRetries', () => {
       clearAttributes: () => {},
     })
 
-    expect(attempts).toBe(3)
+    assert.equal(attempts, 3)
   })
 
   it('returns immediately for a missing path', () => {
@@ -96,11 +94,11 @@ describe('removeTreeWithRetries', () => {
       remove: () => { removed = true },
     })
 
-    expect(removed).toBe(false)
+    assert.equal(removed, false)
   })
 
   it('does not hide non-transient filesystem errors', () => {
-    expect(() => removeTreeWithRetries('/tmp/protected-tree', {
+    assert.throws(() => removeTreeWithRetries('/tmp/protected-tree', {
       exists: () => true,
       remove: () => {
         const error = new Error('read-only filesystem')
@@ -108,6 +106,6 @@ describe('removeTreeWithRetries', () => {
         throw error
       },
       clearAttributes: () => {},
-    })).toThrow('read-only filesystem')
+    }), /read-only filesystem/u)
   })
 })

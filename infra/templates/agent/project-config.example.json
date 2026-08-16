@@ -1,0 +1,3 @@
+{
+  "_configNotice": "Keep only project-specific overrides here. Template defaults live in infra/templates/agent/config.example.json."
+}
