@@ -40,6 +40,20 @@
 - **显式恢复合并后工作**：`cleanup_pending` / `recovery_required` 会阻止普通 resume 与 `/tdd push` 覆盖状态。确认需保留合并后产生的提交或未提交文件后，执行 `node infra/scripts/worktree-tools/worktree-resume.js --branch <旧分支> --recover-as <新分支>`，在同一 worktree 上迁移到新分支并建立新 session，再走正常 TDD/QA 流程。
 - **完成后给清单**：修改型任务完成后必须输出 `MODIFIED_FILES` 与 `TEMPLATE_APPLY_CHECKLIST`，方便把模板同步到新项目。
 
+## 长任务断点续跑协议
+
+以下任一条件成立即视为长任务：用户明确要求长任务/持续执行/直到完成；包含 3 个及以上可独立验证的子任务；或预计会跨对话、上下文压缩、进程重启继续。长任务不得只依赖对话历史、模型记忆或 `docs/AGENT_STATE.md`。
+
+- **开始**：首次执行实质动作前运行 `node infra/scripts/agent-runner/agent-task.js start --task <id> --desc "<目标>" --step "<安全步骤>" ...`。会产生外部副作用的步骤用 `--verify-step`，修改 tracked 文件的任务加 `--type mutation`。状态固定写入主 repo 所属容器层 `../tmp/agent-task-runs/<task-id>/state.json`。
+- **检查点**：每个子任务开始、完成、失败或等待用户时都必须运行 `checkpoint`。`done` 必须携带 `--evidence`；错误或等待状态必须写明 `--next`，不得只留自然语言在对话中。
+- **恢复**：新会话、继续执行、上下文压缩后或异常恢复时，第一项任务动作必须是 `node infra/scripts/agent-runner/agent-task.js resume --auto`（多任务并行时显式 `--task <id>`）。先按输出的 `CURRENT_STEP` / `NEXT_ACTION` 恢复，再执行其他命令。
+- **副作用防重**：中断时处于 `running` 的安全步骤恢复为 `pending`；`verify_first` 步骤恢复为 `verify_required`，必须先查询真实外部状态。部署、推送、提交、文件系统变更、数据库写入、Computer Use 等不得在结果未知时直接重放。
+- **完成与删除**：长任务在普通验收和仓库收尾完成后运行 `node infra/scripts/agent-runner/agent-task.js finish --task <id>`。只有 `STATUS=OK` 才允许发送完成式 final；该命令先验证全部步骤/AC/证据，`mutation` 任务还会执行现有 completion guard，随后删除该任务目录。`BLOCKED`、`verify_required`、失败和等待确认状态一律保留。
+- **取消**：只有用户明确取消任务时才能运行 `node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force`。禁止用手工删除目录代替 finish/cancel。
+- **内容边界**：`state.json` 只记录目标、约束、步骤状态、下一动作和脱敏证据引用；不得保存密钥、凭据、大段原始日志或模型隐藏思维过程。大体积证据可放同目录 `evidence/`，状态中只保存路径与哈希。
+
+已安全合并 package aliases 的项目可使用 `pnpm run agent:task -- <start|checkpoint|resume|finish|cancel> ...`。完整字段与恢复语义见 `docs/CONVENTIONS.md` §长任务状态文件规范。
+
 ### 并行合并协议
 - 多个 worktree 可并行开发，但合并回 `main` 必须进入串行 merge queue；同一时间只允许一个任务执行 rebase/merge/push。
 - 合并前自动执行 `fetch`、`rebase`、门禁验证和文件集合复查；无冲突时自动继续，冲突已由 Git 明确标注时才中止并输出 `NEXT_MANUAL_ACTION`。

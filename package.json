@@ -61,6 +61,7 @@
     "dev:stop": "node infra/scripts/devops-tools/devops-run.js --action=dev-stop",
     "dev:status": "node infra/scripts/devops-tools/devops-run.js --action=dev-status",
     "dev:logs": "node infra/scripts/devops-tools/devops-run.js --action=dev-logs",
+    "agent:task": "node infra/scripts/agent-runner/agent-task.js",
     "agent:update-template": "node infra/scripts/setup/update-template.js",
     "setup:test": "node --test infra/scripts/setup/__tests__/*.test.js",
     "type-check": "echo 'skip type-check: configure target project package.json or agent.config.json commands.typecheck'",

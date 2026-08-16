@@ -12,7 +12,7 @@ const { loadConfig, getMainRepoRoot, resolveContainerPath } = require('../shared
 const { safeRemoveTreeNoFollow, isPathInside } = require('./worktree-core');
 
 const PROTECTED_TMP_NAMES = new Set([
-  'agent-locks', 'worktree-sessions', 'server-dev', 'dev-app', 'dev-app-win',
+  'agent-locks', 'agent-task-runs', 'worktree-sessions', 'server-dev', 'dev-app', 'dev-app-win',
   'dev-app-logs', 'devops-runs', 'scan-manifests',
 ]);
 

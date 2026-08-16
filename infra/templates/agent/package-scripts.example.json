@@ -61,6 +61,7 @@
     "worktree:resume": "node infra/scripts/worktree-tools/worktree-resume.js",
     "worktree:bootstrap": "node infra/scripts/worktree-tools/worktree-bootstrap.js",
     "worktree:remove": "node infra/scripts/worktree-tools/worktree-remove.js",
+    "agent:task": "node infra/scripts/agent-runner/agent-task.js",
     "agent:run": "node infra/scripts/agent-runner/agent-run.js",
     "agent:update-template": "node infra/scripts/setup/update-template.js",
     "agent:backfill-template": "node infra/scripts/setup/backfill-template.js",
