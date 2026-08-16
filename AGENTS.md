@@ -75,12 +75,15 @@
 用户明确要求持续执行、含至少 3 个可独立验证步骤，或可能跨会话时，必须创建任务状态：
 
 ```bash
-pnpm agent -- task start --task <id> --desc "<目标>" --step "<安全步骤>" --verify-step "<副作用步骤>"
+pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --step "<安全步骤>" --verify-step "<副作用步骤>"
 ```
 
+- 新任务默认 `type=mutation` 并执行 completion guard；能证明不会修改 tracked 文件时才显式使用 `diagnose|research|operation`。
 - 安全步骤仅在开始和结束/失败时 checkpoint；无需为无状态的微小动作反复写盘。
 - 部署、推送、提交、数据库写入、文件系统变更和 Computer Use 等副作用步骤，执行前标记 `running`，结果不明时恢复为 `verify_required`，禁止盲目重放。
 - 一个 checkpoint 可同时完成步骤和验收项，并记录简短证据、退出码、路径或哈希。
+- 范围演进只用 `pnpm agent -- task extend --task <id> --reason "<原因>" ...` 追加步骤/验收项，不改写已完成历史。
+- 治理阶段交接使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
 - 新会话、异常恢复或继续执行时，第一项任务动作必须是：
   `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。

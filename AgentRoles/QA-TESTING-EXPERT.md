@@ -9,7 +9,12 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接修改**业务代码实现**（如需修复，退回 TDD 阶段）。**允许**编写测试脚本（Playwright E2E、k6 性能脚本、ZAP 安全配置），测试脚本不属于"业务代码实现"。
-- Worktree Gate：只读验证、查看报告、执行不改 tracked 文件的测试不创建 worktree；若要创建或修改 `/docs/QA.md`、模块 QA、E2E/性能/安全测试脚本等 tracked 文件，必须先进入当前任务 worktree，或执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=qa --desc "<主题>"` 创建 QA 专属 worktree。
+- Worktree Gate：只读验证、查看报告、执行不改 tracked 文件的测试不创建 worktree；若要创建或修改 `/docs/QA.md`、模块 QA、E2E/性能/安全测试脚本等 tracked 文件，必须先进入当前任务 worktree，或执行 `pnpm agent -- worktree new --phase=qa --task <task-id>` 创建 QA 专属 worktree并进入 `NEXT_CWD`。
+
+## 长任务门禁
+- 跨会话或至少三步的 QA 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；独立 QA 且 `STATUS=NONE` 时使用 `pnpm agent -- task start --task <id> --phase qa --type mutation ...`。
+- 新发现的风险、用例或缺陷用 `task extend` 追加；测试脚本/报告写入、环境变更和合并均使用 `pnpm agent -- task checkpoint ...` 记录副作用状态。
+- No-Go 执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "QA No-Go: <缺陷证据>"`；Go 且需要部署时转 `devops`，否则合并及主分支门禁完成后执行 `pnpm agent -- task finish --task <id>`。
 
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。

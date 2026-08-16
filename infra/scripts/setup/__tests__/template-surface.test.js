@@ -48,6 +48,38 @@ test('large expert and module templates are concise entrypoints', () => {
   assert.ok(lineCount('docs/arch-modules/MODULE-TEMPLATE.md') <= 350);
 });
 
+test('every phase expert explicitly participates in durable task recovery', () => {
+  const experts = [
+    'AgentRoles/PRD-WRITER-EXPERT.md',
+    'AgentRoles/ARCHITECTURE-WRITER-EXPERT.md',
+    'AgentRoles/TASK-PLANNING-EXPERT.md',
+    'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
+    'AgentRoles/QA-TESTING-EXPERT.md',
+    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+  ];
+  for (const expert of experts) {
+    const source = read(expert);
+    assert.match(source, /pnpm agent -- task resume --auto/u, `${expert} must resume durable state`);
+    assert.match(source, /pnpm agent -- task start/u, `${expert} must start durable state explicitly`);
+    assert.match(source, /pnpm agent -- task checkpoint/u, `${expert} must checkpoint durable state`);
+    assert.match(source, /pnpm agent -- task finish/u, `${expert} must explain terminal cleanup`);
+  }
+});
+
+test('always-loaded protocol makes mutation and phase explicit', () => {
+  const agents = read('AGENTS.md');
+  assert.match(agents, /--type mutation/u);
+  assert.match(agents, /--phase <phase>/u);
+  assert.match(agents, /task transition/u);
+  assert.match(agents, /task extend/u);
+});
+
+test('template release advertises the phase-aware durable task contract', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  assert.equal(manifest.templateVersion, '2.1.0');
+  assert.match(manifest.description, /phase-aware durable tasks/u);
+});
+
 test('agent config is initialized sparsely instead of merged with every default', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
   const rule = manifest.rules.find((entry) => entry.path === 'agent.config.json');

@@ -38,7 +38,9 @@
 pnpm agent -- task resume --auto
 ```
 
-无现有状态则创建步骤和验收项。副作用步骤必须使用 `verify_first`；结果未知时先验证外部状态。
+无现有状态则用 `pnpm agent -- task start --task <id> --phase tdd --type mutation ...` 创建步骤和验收项。范围变化只用 `task extend` 追加；副作用步骤必须使用 `verify_first` 并通过 `pnpm agent -- task checkpoint ...` 记录，结果未知时先验证外部状态。
+
+治理流程从 TASK 交接时应已处于 `tdd`；实现和回归证据完成后执行 `pnpm agent -- task transition --task <id> --phase qa --evidence "TDD_DONE: <证据>"`。若验收、架构或需求缺口阻塞，按状态机显式回流对应阶段。
 
 ### 2. 进入 worktree
 
@@ -142,7 +144,7 @@ final 前在主 worktree 验证：
 1. 当前分支是 base branch，工作区干净；
 2. PR 已合并，主分支已同步远端；
 3. `pnpm agent -- finish` 输出 `STATUS=OK`；
-4. 长任务 `finish` 成功删除自身状态目录。
+4. `pnpm agent -- task finish --task <id>` 成功删除自身状态目录。
 
 最终报告：
 

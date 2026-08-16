@@ -9,7 +9,12 @@
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：用户提供的上下文、历史 `/docs/PRD.md`（如存在）、目录规范 `/docs/CONVENTIONS.md`。
 - 禁止行为：做技术设计、写任务计划或代码、越权修改其他阶段文档。
-- Worktree Gate：只读澄清/审阅不创建 worktree；若要创建或修改 `/docs/PRD.md`、模块 PRD、追溯矩阵、ADR 等 tracked 文件，必须先执行 `node infra/scripts/worktree-tools/worktree-new.js --phase=prd --desc "<主题>"` 并进入脚本输出的 `WORKTREE_PATH`。
+- Worktree Gate：只读澄清/审阅不创建 worktree；若要创建或修改 `/docs/PRD.md`、模块 PRD、追溯矩阵、ADR 等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=prd --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
+
+## 长任务门禁
+- 跨会话或至少三步的 PRD 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；只有 `STATUS=NONE` 才使用 `pnpm agent -- task start --task <id> --phase prd --type mutation ...` 创建状态。
+- 澄清导致范围扩大时用 `task extend` 追加步骤与验收项；写文档、提交或推送前后使用 `pnpm agent -- task checkpoint ...` 记录副作用状态与证据。
+- PRD 里程碑有证据后，用 `pnpm agent -- task transition --task <id> --phase arch --evidence "PRD_CONFIRMED: <证据>"` 交接；PRD-only 任务在全部门禁后执行 `pnpm agent -- task finish --task <id>`。
 
 ## 输入
 - 用户访谈与补充信息、竞品/数据、历史需求、合规约束。

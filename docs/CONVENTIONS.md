@@ -108,6 +108,7 @@ pnpm agent -- worktree list
 
 - schema/version、task id、目标、描述、类型和生命周期状态；
 - 验收标准、约束、步骤、当前步骤、最后错误和唯一下一动作；
+- 当前治理阶段、证据化阶段历史、计划版本与追加式计划变更历史；
 - 主项目、当前 repo/worktree/branch；
 - 每步 `replay=safe|verify_first`、状态、简短证据和更新时间；
 - 完成或清理状态。
@@ -117,9 +118,11 @@ pnpm agent -- worktree list
 ### 命令
 
 ```bash
-pnpm agent -- task start --task <id> --desc "<目标>" --step "<步骤>"
+pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --step "<步骤>"
 pnpm agent -- task checkpoint --task <id> --step <id> --status done --evidence "<证据>" --next "<下一动作>"
 pnpm agent -- task resume --auto
+pnpm agent -- task extend --task <id> --reason "<范围变化>" --add-step "<安全步骤>" --add-verify-step "<副作用步骤>" --add-acceptance "<验收项>"
+pnpm agent -- task transition --task <id> --phase <next> --evidence "<阶段里程碑>"
 pnpm agent -- task finish --task <id>
 pnpm agent -- task cancel --task <id> --force
 ```
@@ -130,6 +133,9 @@ pnpm agent -- task cancel --task <id> --force
 - `verify_first` 步骤中断时转为 `verify_required`，先查询真实外部状态。
 - `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
 - 同一次 checkpoint 可更新步骤和验收项，减少机械写盘。
+- 新任务安全默认 `type=mutation`；确认不会修改 tracked 文件时才显式选择只读类型。schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
+- `extend` 只允许追加步骤和验收项并递增 `plan_revision`；不允许删除、重排或重写已完成历史。
+- `transition` 要求证据且校验相邻前进或显式回流路径；存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
 - `resume --auto` 仅在当前主 repo/worktree/branch 唯一匹配时选择任务；否则输出候选和 `STATUS=BLOCKED`。
 
 `finish` 要求所有必需步骤、验收项和证据完成。修改任务还必须通过 completion guard。门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
