@@ -21,8 +21,15 @@ const mainTaskFile = path.join(docsDir, 'TASK.md');
 const taskModulesDir = path.join(docsDir, 'task-modules');
 const moduleListFile = path.join(taskModulesDir, 'module-list.md');
 
-function formatCompletionText() {
-  return `✅ 已完成 (${new Date().toISOString().slice(0, 10)})`;
+function formatCompletionText(now = new Date(), timeZone = 'Asia/Shanghai') {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const calendar = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `✅ 已完成 (${calendar.year}-${calendar.month}-${calendar.day})`;
 }
 
 function normalizePlainText(text) {
@@ -79,37 +86,61 @@ function parseScope(argv) {
   return scope === 'session' ? 'session' : 'project';
 }
 
-function extractTaskDomains(taskIds) {
-  const domains = new Set();
-  taskIds.forEach((taskId) => {
-    const match = taskId.match(/^TASK-([A-Z0-9]+)-\d+$/i);
-    if (match) {
-      domains.add(match[1].toLowerCase());
-    }
-  });
-  return domains;
-}
-
-function collectTaskFiles(scope, taskIds) {
-  const files = [];
-  if (fs.existsSync(mainTaskFile)) {
-    files.push(mainTaskFile);
+function extractChecklistPrimaryTaskId(line) {
+  const checklistMatch = line.match(/^(\s*)- \[( |x|X)\]\s*(.*)$/);
+  if (!checklistMatch) {
+    return null;
   }
 
-  if (!fs.existsSync(taskModulesDir)) {
+  const content = checklistMatch[3].trim();
+  const match = content.match(/^(?:\*\*|__|`)?(TASK-[A-Z0-9]+-[0-9]+)(?:\*\*|__|`)?(?=$|[\s:：—–-])/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function extractTablePrimaryTaskId(line) {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('|')) {
+    return null;
+  }
+
+  const cells = line.split('|');
+  const primaryCell = cells.slice(1).find((cell) => cell.trim() !== '');
+  if (!primaryCell) {
+    return null;
+  }
+
+  const normalized = primaryCell.trim().replace(/^(?:\*\*|__|`)|(?:\*\*|__|`)$/g, '').trim();
+  const match = normalized.match(/^TASK-[A-Z0-9]+-[0-9]+$/i);
+  return match ? match[0].toUpperCase() : null;
+}
+
+function lineOwnsTaskId(line, taskIds) {
+  const primaryTaskId = extractChecklistPrimaryTaskId(line) || extractTablePrimaryTaskId(line);
+  return primaryTaskId ? taskIds.includes(primaryTaskId) : false;
+}
+
+function collectTaskFiles(scope, taskIds, paths = {}) {
+  const selectedMainTaskFile = paths.mainTaskFile || mainTaskFile;
+  const selectedTaskModulesDir = paths.taskModulesDir || taskModulesDir;
+  const selectedModuleListFile = paths.moduleListFile || moduleListFile;
+  const files = [];
+  if (fs.existsSync(selectedMainTaskFile)) {
+    files.push(selectedMainTaskFile);
+  }
+
+  if (!fs.existsSync(selectedTaskModulesDir)) {
     return files;
   }
 
   if (scope === 'session') {
-    if (fs.existsSync(moduleListFile)) {
-      files.push(moduleListFile);
+    if (fs.existsSync(selectedModuleListFile)) {
+      files.push(selectedModuleListFile);
     }
-    const domains = extractTaskDomains(taskIds);
-    if (!domains.size) {
+    if (!taskIds.length) {
       return files;
     }
 
-    const stack = [taskModulesDir];
+    const stack = [selectedTaskModulesDir];
     while (stack.length) {
       const current = stack.pop();
       const entries = fs.readdirSync(current, { withFileTypes: true });
@@ -122,9 +153,9 @@ function collectTaskFiles(scope, taskIds) {
         if (!entry.isFile() || entry.name !== 'TASK.md') {
           continue;
         }
-        const relativePath = path.relative(taskModulesDir, entryPath).replace(/\\/g, '/');
-        const ownerDir = relativePath.split('/')[0].toLowerCase();
-        if (domains.has(ownerDir)) {
+        const content = fs.readFileSync(entryPath, 'utf8');
+        const containsTarget = content.split(/\r?\n/).some((line) => lineOwnsTaskId(line, taskIds));
+        if (containsTarget) {
           files.push(entryPath);
         }
       }
@@ -133,10 +164,10 @@ function collectTaskFiles(scope, taskIds) {
   }
 
   if (scope === 'project') {
-    if (fs.existsSync(moduleListFile)) {
-      files.push(moduleListFile);
+    if (fs.existsSync(selectedModuleListFile)) {
+      files.push(selectedModuleListFile);
     }
-    const stack = [taskModulesDir];
+    const stack = [selectedTaskModulesDir];
     while (stack.length) {
       const current = stack.pop();
       const entries = fs.readdirSync(current, { withFileTypes: true });
@@ -159,12 +190,12 @@ function processChecklistLine(line, targetIds) {
     return null;
   }
 
-  const idsInLine = (line.match(/TASK-[A-Z0-9-]+/gi) || []).map((id) => id.toUpperCase());
-  const relevantIds = idsInLine.filter((id) => targetIds.has(id));
-  if (!relevantIds.length) {
+  const primaryTaskId = extractChecklistPrimaryTaskId(line);
+  if (!primaryTaskId || !targetIds.has(primaryTaskId)) {
     return null;
   }
 
+  const relevantIds = [primaryTaskId];
   const handledIds = new Set(relevantIds);
   const updatedIds = new Set();
   const markState = checklistMatch[2].trim().toLowerCase();
@@ -205,6 +236,39 @@ function findStatusCellIndex(cells) {
   return -1;
 }
 
+function isMarkdownTableSeparator(line) {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('|')) {
+    return false;
+  }
+  const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function findDeclaredTableStatusIndexes(lines) {
+  const indexes = new Map();
+  let activeStatusIndex = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim().startsWith('|')) {
+      activeStatusIndex = -1;
+      continue;
+    }
+    if (index + 1 < lines.length && isMarkdownTableSeparator(lines[index + 1])) {
+      const cells = line.split('|');
+      activeStatusIndex = cells.findIndex((cell) => {
+        const normalized = normalizePlainText(cell);
+        return normalized === 'STATUS' || normalized === 'STATE' || normalized === '状态';
+      });
+      continue;
+    }
+    if (!isMarkdownTableSeparator(line)) {
+      indexes.set(index, activeStatusIndex);
+    }
+  }
+  return indexes;
+}
+
 function createNameVariants(name) {
   const variants = new Set();
   if (!name) {
@@ -232,56 +296,41 @@ function extractTaskNameMap(lines, targetIds) {
     }
 
     const cells = line.split('|');
-    for (let i = 0; i < cells.length; i += 1) {
-      const cellText = cells[i].replace(/\*\*/g, '').trim();
-      const match = cellText.match(/TASK-[A-Z0-9-]+/i);
-      if (!match) {
-        continue;
-      }
-      const taskId = match[0].toUpperCase();
-      if (!targetIds.has(taskId)) {
-        break;
-      }
+    const taskId = extractTablePrimaryTaskId(line);
+    if (!taskId || !targetIds.has(taskId)) {
+      return;
+    }
 
-      const nameCell = cells[i + 1] ? cells[i + 1].replace(/\*\*/g, '').trim() : '';
-      if (nameCell) {
-        const variants = createNameVariants(nameCell);
-        nameMap.set(taskId, {
-          raw: nameCell,
-          normalizedVariants: variants
-        });
-      }
-      break;
+    const primaryIndex = cells.findIndex((cell) => cell.trim() !== '');
+    const nameCell = cells[primaryIndex + 1] ? cells[primaryIndex + 1].replace(/\*\*/g, '').trim() : '';
+    if (nameCell) {
+      const variants = createNameVariants(nameCell);
+      nameMap.set(taskId, {
+        raw: nameCell,
+        normalizedVariants: variants
+      });
     }
   });
   return nameMap;
 }
 
-function processTableLine(line, targetIds, completionText) {
+function processTableLine(line, targetIds, completionText, declaredStatusIndex) {
   const trimmed = line.trim();
   if (!trimmed.startsWith('|') || trimmed.startsWith('| 任务') || trimmed.startsWith('|---------')) {
     return null;
   }
 
   const cells = line.split('|');
-  const relevantIds = new Set();
-
-  cells.forEach((cell) => {
-    const ids = cell.match(/TASK-[A-Z0-9-]+/gi) || [];
-    ids.forEach((id) => {
-      const upperId = id.toUpperCase();
-      if (targetIds.has(upperId)) {
-        relevantIds.add(upperId);
-      }
-    });
-  });
-
-  if (!relevantIds.size) {
+  const primaryTaskId = extractTablePrimaryTaskId(line);
+  if (!primaryTaskId || !targetIds.has(primaryTaskId)) {
     return null;
   }
 
+  const relevantIds = new Set([primaryTaskId]);
   const handledIds = new Set(relevantIds);
-  const statusIdx = findStatusCellIndex(cells);
+  const statusIdx = Number.isInteger(declaredStatusIndex)
+    ? declaredStatusIndex
+    : findStatusCellIndex(cells);
   if (statusIdx === -1) {
     return {
       line,
@@ -363,12 +412,13 @@ function markTasksInFile(filePath, targetIds, completionText) {
   const lines = originalContent.split(/\r?\n/);
 
   const deliverableMatchers = extractTaskNameMap(lines, targetIds);
+  const tableStatusIndexes = findDeclaredTableStatusIndexes(lines);
 
   let changed = false;
   const handledIds = new Set();
   const updatedIds = new Set();
 
-  const updatedLines = lines.map((line) => {
+  const updatedLines = lines.map((line, lineIndex) => {
     const checklistResult = processChecklistLine(line, targetIds);
     if (checklistResult) {
       checklistResult.handledIds.forEach((id) => handledIds.add(id));
@@ -379,7 +429,12 @@ function markTasksInFile(filePath, targetIds, completionText) {
       return checklistResult.line;
     }
 
-    const tableResult = processTableLine(line, targetIds, completionText);
+    const tableResult = processTableLine(
+      line,
+      targetIds,
+      completionText,
+      tableStatusIndexes.get(lineIndex) ?? -1,
+    );
     if (tableResult) {
       tableResult.handledIds.forEach((id) => handledIds.add(id));
       tableResult.updatedIds.forEach((id) => updatedIds.add(id));
@@ -474,4 +529,14 @@ function main() {
   }
 }
 
-main();
+module.exports = {
+  collectTaskFiles,
+  formatCompletionText,
+  markTasksInFile,
+  processChecklistLine,
+  processTableLine,
+};
+
+if (require.main === module) {
+  main();
+}

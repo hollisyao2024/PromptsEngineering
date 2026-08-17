@@ -423,7 +423,40 @@ function calculateVerdict(results) {
   return { verdict: 'Go', errorCount, warningCount, exitCode: 0 };
 }
 
-function runProjectVerify(args) {
+const BASE_PROJECT_CHECKS = Object.freeze([
+  { name: 'qa:lint', required: true },
+  { name: 'qa:sync-prd-qa-ids', required: true },
+  { name: 'qa:coverage-report', required: false },
+  { name: 'qa:check-defect-blockers', required: true },
+]);
+
+function resolveProjectChecks(config = {}) {
+  const configured = config.qa?.projectChecks || [];
+  if (!Array.isArray(configured)) {
+    throw new Error('invalid qa.projectChecks entry: expected an array');
+  }
+  const checks = new Map(BASE_PROJECT_CHECKS.map((check) => [check.name, { ...check }]));
+  for (const entry of configured) {
+    if (
+      !entry
+      || typeof entry !== 'object'
+      || Array.isArray(entry)
+      || typeof entry.name !== 'string'
+      || !/^[A-Za-z0-9][A-Za-z0-9:_-]*$/.test(entry.name)
+      || typeof entry.required !== 'boolean'
+    ) {
+      throw new Error(`invalid qa.projectChecks entry: ${JSON.stringify(entry)}`);
+    }
+    const current = checks.get(entry.name);
+    checks.set(entry.name, {
+      name: entry.name,
+      required: Boolean(entry.required || current?.required),
+    });
+  }
+  return Array.from(checks.values());
+}
+
+function runProjectVerify(args, config = loadConfig({ repoRoot })) {
   log('🧭 作用域：project（全项目验收）', 'cyan');
   log(
     args.writeReports
@@ -432,12 +465,7 @@ function runProjectVerify(args) {
     'gray'
   );
 
-  const checks = [
-    { name: 'qa:lint', required: true },
-    { name: 'qa:sync-prd-qa-ids', required: true },
-    { name: 'qa:coverage-report', required: false },
-    { name: 'qa:check-defect-blockers', required: true },
-  ];
+  const checks = resolveProjectChecks(config);
 
   let requiredFailed = false;
   for (const check of checks) {
@@ -534,7 +562,7 @@ function main() {
     process.exit(0);
   }
 
-  const exitCode = args.scope === 'project' ? runProjectVerify(args) : runSessionVerify(args);
+  const exitCode = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
   const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
   writeInProgressFields(agentStatePath, {
     step: exitCode === 0 ? '/qa verify 通过，等待 /qa merge' : '/qa verify No-Go，流水线阻塞',
@@ -556,6 +584,7 @@ module.exports = {
   isTemplateRepository,
   createPnpmRunInvocation,
   parseArgs,
+  resolveProjectChecks,
   resolveTargetsFromQaPlanState,
   resolveSessionTargets,
   validateQaFile,

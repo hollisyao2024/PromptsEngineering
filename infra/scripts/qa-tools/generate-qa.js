@@ -470,6 +470,8 @@ function generateModuleQA(moduleEntry) {
 
   return `# ${moduleEntry.moduleName} - 测试计划
 
+<!-- QA-GENERATED: generate-qa.js -->
+
 > **所属主 QA**: [QA.md](../../QA.md)
 > **最后更新**: ${today}
 > **版本**: v0.1.0
@@ -539,11 +541,35 @@ ${generateTestCasesTable(moduleEntry.stories, moduleTag)}
 `;
 }
 
+function planModuleQaWrite({ existingContent, generatedContent }) {
+  if (!existingContent) {
+    return { action: 'write', content: generatedContent, reason: 'missing-document' };
+  }
+  if (/^# [^\r\n]+\r?\n\r?\n<!-- QA-GENERATED: generate-qa\.js -->\r?(?:\n|$)/.test(existingContent)) {
+    return { action: 'write', content: generatedContent, reason: 'generator-owned' };
+  }
+  return { action: 'preserve', content: existingContent, reason: 'manual-document' };
+}
+
+function validateModuleEntriesForGeneration(moduleEntries) {
+  const empty = moduleEntries.filter((entry) => !Array.isArray(entry.stories) || entry.stories.length === 0);
+  if (empty.length > 0) {
+    throw new Error(`zero stories parsed for modules: ${empty.map((entry) => entry.moduleDir).join(', ')}`);
+  }
+  return true;
+}
+
+function shouldWriteAgentState(dryRun) {
+  return !dryRun;
+}
+
 function generateProjectOverview(moduleEntries) {
   const today = new Date().toISOString().split('T')[0];
   const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
 
   return `# 测试与质量保证文档（总纲）
+
+<!-- QA-GENERATED: generate-qa.js -->
 日期：${today}   版本：v0.1.0
 
 > 本文档由 \`/qa plan --project\` 自动生成，作为测试总纲与模块索引。
@@ -624,6 +650,8 @@ function generateModuleList(moduleEntries) {
   const today = new Date().toISOString().split('T')[0];
   return `# QA 模块清单
 
+<!-- QA-GENERATED: generate-qa.js -->
+
 > 本清单由 \`/qa plan --project\` 自动生成，模块集合以 \`docs/prd-modules/*/PRD.md\` 为准。
 
 ## 模块清单
@@ -666,8 +694,16 @@ function runSessionPlan(moduleEntries, dryRun, explicitModules = []) {
 
   const touched = [];
   for (const entry of matchedModules) {
-    const content = generateModuleQA(entry);
-    if (!dryRun) writeFile(entry.qaPath, content);
+    const generatedContent = generateModuleQA(entry);
+    const decision = planModuleQaWrite({
+      existingContent: readFile(entry.qaPath),
+      generatedContent,
+    });
+    if (decision.action === 'preserve') {
+      log(`   🛡️ 保留手工维护的模块 QA（未覆盖）: ${entry.qaPath}`, 'yellow');
+      continue;
+    }
+    if (!dryRun) writeFile(entry.qaPath, decision.content);
     touched.push(entry.qaPath);
     log(`   ✅ 已${dryRun ? '预览' : '更新'}模块 QA: ${entry.qaPath}`, 'green');
   }
@@ -687,18 +723,42 @@ function runProjectPlan(moduleEntries, dryRun) {
   const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
   log(`✅ 模块化项目（${totalStories} 个 Story，${moduleEntries.length} 个模块）→ 生成主 QA + 模块 QA`, 'green');
   const mainQA = generateProjectOverview(moduleEntries);
-  if (!dryRun) writeFile(CONFIG.paths.qa, mainQA);
-  touched.push(CONFIG.paths.qa);
-  log(`   ✅ 已${dryRun ? '预览' : '生成'}主 QA: ${CONFIG.paths.qa}`, 'green');
+  const mainDecision = planModuleQaWrite({
+    existingContent: readFile(CONFIG.paths.qa),
+    generatedContent: mainQA,
+  });
+  if (mainDecision.action === 'preserve') {
+    log(`   🛡️ 保留手工维护的主 QA: ${CONFIG.paths.qa}`, 'yellow');
+  } else {
+    if (!dryRun) writeFile(CONFIG.paths.qa, mainDecision.content);
+    touched.push(CONFIG.paths.qa);
+    log(`   ✅ 已${dryRun ? '预览' : '生成'}主 QA: ${CONFIG.paths.qa}`, 'green');
+  }
 
   const moduleList = generateModuleList(moduleEntries);
-  if (!dryRun) writeFile(CONFIG.paths.qaModuleList, moduleList);
-  touched.push(CONFIG.paths.qaModuleList);
-  log(`   ✅ 已${dryRun ? '预览' : '生成'}模块清单: ${CONFIG.paths.qaModuleList}`, 'green');
+  const listDecision = planModuleQaWrite({
+    existingContent: readFile(CONFIG.paths.qaModuleList),
+    generatedContent: moduleList,
+  });
+  if (listDecision.action === 'preserve') {
+    log(`   🛡️ 保留手工维护的 QA 模块清单: ${CONFIG.paths.qaModuleList}`, 'yellow');
+  } else {
+    if (!dryRun) writeFile(CONFIG.paths.qaModuleList, listDecision.content);
+    touched.push(CONFIG.paths.qaModuleList);
+    log(`   ✅ 已${dryRun ? '预览' : '生成'}模块清单: ${CONFIG.paths.qaModuleList}`, 'green');
+  }
 
   for (const entry of moduleEntries) {
-    const content = generateModuleQA(entry);
-    if (!dryRun) writeFile(entry.qaPath, content);
+    const generatedContent = generateModuleQA(entry);
+    const decision = planModuleQaWrite({
+      existingContent: readFile(entry.qaPath),
+      generatedContent,
+    });
+    if (decision.action === 'preserve') {
+      log(`   🛡️ 保留手工维护的模块 QA（未覆盖）: ${entry.qaPath}`, 'yellow');
+      continue;
+    }
+    if (!dryRun) writeFile(entry.qaPath, decision.content);
     touched.push(entry.qaPath);
     log(`   ✅ 已${dryRun ? '预览' : '生成'}模块 QA: ${entry.qaPath}`, 'green');
   }
@@ -755,6 +815,7 @@ function main() {
     log('❌ 未找到任何模块（docs/prd-modules/*/PRD.md）；模块化结构是强制要求', 'red');
     process.exit(1);
   }
+  validateModuleEntriesForGeneration(moduleEntries);
 
   const alignment = validateUpstreamModuleAlignment(
     moduleEntries,
@@ -812,9 +873,11 @@ function main() {
     log('📄 本次未产生文档改动。', 'yellow');
   }
 
-  writeInProgressFields(path.resolve(process.cwd(), 'docs/AGENT_STATE.md'), {
-    step: '/qa plan 完成，等待 /qa verify',
-  });
+  if (shouldWriteAgentState(cli.dryRun)) {
+    writeInProgressFields(path.resolve(process.cwd(), 'docs/AGENT_STATE.md'), {
+      step: '/qa plan 完成，等待 /qa verify',
+    });
+  }
 
   process.exit(0);
 }
@@ -841,7 +904,10 @@ module.exports = {
   generateModuleList,
   generateProjectOverview,
   inferSessionModules,
+  planModuleQaWrite,
   resolveExplicitModules,
   validateUpstreamModuleAlignment,
+  validateModuleEntriesForGeneration,
+  shouldWriteAgentState,
   getQaPlanSessionStatePath,
 };

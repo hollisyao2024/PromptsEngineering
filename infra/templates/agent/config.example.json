@@ -23,6 +23,9 @@
     "qaVerify": "pnpm run qa:verify",
     "qaMerge": "pnpm run qa:merge"
   },
+  "qa": {
+    "projectChecks": []
+  },
   "paths": {
     "primaryApp": "",
     "appDirs": [],
@@ -77,6 +80,7 @@
     "portStart": 3000,
     "portEnd": 3099,
     "appDir": "",
+    "buildPackages": [],
     "command": "",
     "commands": {
       "start": "",

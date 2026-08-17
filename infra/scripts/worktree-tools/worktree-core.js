@@ -39,11 +39,15 @@ function run(command, args, options = {}) {
   const env = command === 'git'
     ? buildGitHubGitEnv({ repoRoot: getMainRepoRoot(cwd), cwd, args, env: process.env })
     : process.env;
+  // Executables are restricted to fixed internal Git/Node call sites and argv
+  // is passed without shell interpretation.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
     env,
+    shell: false,
   });
 
   if (result.status !== 0 && !options.allowFailure) {
@@ -739,6 +743,10 @@ function bootstrapError(message, meta = {}) {
 }
 
 function runShell(command, options = {}) {
+  // Bootstrap commands are reviewed, tracked repository configuration. This
+  // is the one intentional shell boundary because the contract permits a
+  // command pipeline; no request or environment value can select it.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, {
     cwd: options.cwd || process.cwd(),
     encoding: 'utf8',
