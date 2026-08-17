@@ -72,11 +72,15 @@ function ensureDir(dirPath) {
 }
 
 function run(command, args, options = {}) {
+  // Executable and argv come from fixed Git/Node call sites below. Keep shell
+  // parsing disabled so target paths cannot become command syntax.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, args, {
     cwd: options.cwd,
     encoding: 'utf8',
     stdio: 'pipe',
     env: { ...process.env, ...(options.env || {}) },
+    shell: false,
   });
   return {
     status: result.status,

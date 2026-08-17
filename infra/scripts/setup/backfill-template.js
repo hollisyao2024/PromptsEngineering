@@ -79,11 +79,15 @@ function block(reason, meta = {}) {
 }
 
 function run(command, args, options = {}) {
+  // Executable and argv come from this script's fixed Git/Node call sites;
+  // shell=false keeps repository paths and refs out of shell parsing.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, args, {
     cwd: options.cwd || process.cwd(),
     encoding: 'utf8',
     stdio: options.stdio || 'pipe',
     timeout: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+    shell: false,
   });
   if (result.error) {
     return {

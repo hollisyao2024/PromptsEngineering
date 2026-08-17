@@ -14,6 +14,9 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveRepoRoot } = require('../shared/config');
+const {
+  replaceGeneratedContentPreservingProtectedSections,
+} = require('./protected-sections');
 
 // 配置
 const PROJECT_ROOT = resolveRepoRoot({ scriptDir: __dirname });
@@ -411,7 +414,15 @@ function outputResults(storyResults, componentResults) {
   // 生成报告
   if (isReportMode) {
     const report = generateTraceabilityReport(storyResults, componentResults);
-    fs.writeFileSync(REPORT_FILE, report, 'utf8');
+    const existingReport = fs.existsSync(REPORT_FILE)
+      ? fs.readFileSync(REPORT_FILE, 'utf8')
+      : '';
+    const safeReport = replaceGeneratedContentPreservingProtectedSections(
+      existingReport,
+      report,
+      { requiredContentPattern: /Phase 16|FINAL-REQUIRED-SET-V03/ },
+    );
+    fs.writeFileSync(REPORT_FILE, safeReport, 'utf8');
     console.log(`\n📄 Traceability report generated: ${REPORT_FILE}\n`);
   }
 }

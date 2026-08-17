@@ -46,6 +46,40 @@ const colors = {
   red: '\x1b[31m',
 };
 
+const TASK_GENERATED_MARKER = '<!-- TASK-GENERATED: generate-task.js -->';
+
+function planGeneratedTaskWrite(existingContent, generatedContent) {
+  if (!existingContent) {
+    return { action: 'write', content: generatedContent, reason: 'missing-document' };
+  }
+  if (new RegExp(`^# [^\\r\\n]+\\r?\\n\\r?\\n${TASK_GENERATED_MARKER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\r?(?:\\n|$)`).test(existingContent)) {
+    return { action: 'write', content: generatedContent, reason: 'generator-owned' };
+  }
+  return { action: 'preserve', content: existingContent, reason: 'manual-document' };
+}
+
+function validateGeneratedTaskInputs(stories, components, requiredModuleDirs) {
+  const problems = [];
+  for (const moduleDir of requiredModuleDirs) {
+    const storyCount = stories.filter((story) => story.moduleDir === moduleDir).length;
+    const componentCount = components.filter((component) => component.moduleDir === moduleDir).length;
+    if (storyCount === 0 || componentCount === 0) {
+      problems.push(`${moduleDir}: zero stories=${storyCount === 0}, zero components=${componentCount === 0}`);
+    }
+  }
+  if (problems.length > 0) throw new Error(`module input parse is incomplete: ${problems.join('; ')}`);
+  return true;
+}
+
+function writeGeneratedTaskFile(filePath, generatedContent) {
+  const existingContent = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  const decision = planGeneratedTaskWrite(existingContent, generatedContent);
+  if (decision.action === 'preserve') return decision;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, decision.content);
+  return decision;
+}
+
 function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
@@ -338,9 +372,12 @@ function generateModuleTaskFiles(tasks, stories, components, requiredModuleDirs 
     const moduleMarkdown = generateModuleMarkdown(moduleName, moduleDir, moduleTasks, moduleStories, tasks);
 
     const moduleFile = path.join(CONFIG.taskModulesDir, moduleDir, 'TASK.md');
-    fs.mkdirSync(path.dirname(moduleFile), { recursive: true });
-    fs.writeFileSync(moduleFile, moduleMarkdown);
-    log(`   ✅ 创建模块文档：${moduleDir}/TASK.md (${moduleTasks.length} 个任务)`, 'green');
+    const decision = writeGeneratedTaskFile(moduleFile, moduleMarkdown);
+    if (decision.action === 'preserve') {
+      log(`   🛡️ 保留手工维护的模块 TASK：${moduleDir}/TASK.md`, 'yellow');
+    } else {
+      log(`   ✅ 创建模块文档：${moduleDir}/TASK.md (${moduleTasks.length} 个任务)`, 'green');
+    }
   });
 
   // 更新 task-modules/module-list.md
@@ -354,7 +391,7 @@ function generateModuleMarkdown(moduleName, moduleDir, moduleTasks, moduleStorie
   const today = new Date().toISOString().split('T')[0];
   const totalEffort = moduleTasks.reduce((sum, t) => sum + (t.effort || 0), 0);
 
-  let md = `# ${moduleName} 模块任务计划\n\n`;
+  let md = `# ${moduleName} 模块任务计划\n\n${TASK_GENERATED_MARKER}\n\n`;
   md += `> **说明**：本文档为 ${moduleName} 模块的详细任务计划，由 TASK 专家自动生成。\n\n`;
   md += `**日期**：${today}\n`;
   md += `**模块**：${moduleName}\n`;
@@ -481,7 +518,7 @@ function updateTaskModulesReadme(moduleDirs, tasks, stories) {
   const readmePath = path.join(CONFIG.taskModulesDir, 'module-list.md');
   const today = new Date().toISOString().split('T')[0];
 
-  let md = `# 模块任务索引\n\n`;
+  let md = `# 模块任务索引\n\n${TASK_GENERATED_MARKER}\n\n`;
   md += `> **说明**：本文档索引所有模块的详细任务计划。\n`;
   md += `> **更新日期**：${today}\n\n`;
   md += `---\n\n`;
@@ -501,8 +538,12 @@ function updateTaskModulesReadme(moduleDirs, tasks, stories) {
   md += `\n---\n\n`;
   md += `> **维护说明**：本文档由 TASK 专家自动生成，每次执行 \`/task plan\` 时自动更新。\n`;
 
-  fs.writeFileSync(readmePath, md);
-  log(`   ✅ 更新模块索引：task-modules/module-list.md`, 'green');
+  const decision = writeGeneratedTaskFile(readmePath, md);
+  if (decision.action === 'preserve') {
+    log(`   🛡️ 保留手工维护的模块索引：task-modules/module-list.md`, 'yellow');
+  } else {
+    log(`   ✅ 更新模块索引：task-modules/module-list.md`, 'green');
+  }
 }
 
 // 生成主 TASK.md 总纲；详细 WBS 始终写入模块文档。
@@ -514,7 +555,7 @@ function generateTaskMarkdown(tasks, stories, components, requiredModuleDirs = [
 
 // 生成总纲结构（不包含详细 WBS，指向模块文档）
 function generateProjectOverview(tasks, stories, components, totalEffort, criticalPath, criticalTasks, requiredModuleDirs = []) {
-  let md = `# 任务计划（总纲）\n\n`;
+  let md = `# 任务计划（总纲）\n\n${TASK_GENERATED_MARKER}\n\n`;
   md += `> **说明**：本文档为任务计划总纲，由 TASK 专家通过 \`/task plan\` 命令自动生成。\n`;
   md += `> 详细的模块任务计划请查看 \`task-modules/\` 目录下的各模块文档。\n\n`;
   md += `**日期**：${new Date().toISOString().split('T')[0]}\n`;
@@ -657,11 +698,13 @@ function main() {
   log(`   - 找到 ${stories.length} 个 Story`, 'cyan');
   log(`   - 找到 ${components.length} 个 Component`, 'cyan');
 
-  if (stories.length === 0 && components.length === 0) {
-    log(`\n⚠️  警告：未找到任何 Story 或 Component`, 'yellow');
+  if (stories.length === 0 || components.length === 0) {
+    log(`\n❌ 未找到 Story 或 Component，禁止生成空 WBS`, 'red');
     log(`   PRD/ARCH 格式可能不匹配，请检查文档格式`, 'yellow');
     log(`   或者修改 generate-task.js 的正则表达式以适配你的格式\n`, 'yellow');
+    process.exit(1);
   }
+  validateGeneratedTaskInputs(stories, components, prdModules.map((entry) => entry.moduleDir));
 
   // 生成 WBS
   log(`🔧 生成 WBS...`, 'cyan');
@@ -674,8 +717,12 @@ function main() {
   log(`📝 生成 TASK.md...`, 'cyan');
   const requiredModuleDirs = prdModules.map((entry) => entry.moduleDir);
   const taskMarkdown = generateTaskMarkdown(tasks, stories, components, requiredModuleDirs);
-  fs.writeFileSync(CONFIG.taskPath, taskMarkdown);
-  log(`✅ 已生成：${CONFIG.taskPath}`, 'green');
+  const mainDecision = writeGeneratedTaskFile(CONFIG.taskPath, taskMarkdown);
+  if (mainDecision.action === 'preserve') {
+    log(`🛡️ 保留手工维护的主 TASK：${CONFIG.taskPath}`, 'yellow');
+  } else {
+    log(`✅ 已生成：${CONFIG.taskPath}`, 'green');
+  }
 
   log(`\n📂 创建模块化任务文档...`, 'cyan');
   const moduleCount = generateModuleTaskFiles(tasks, stories, components, requiredModuleDirs);
@@ -718,5 +765,7 @@ module.exports = {
   moduleCodeFromDirectory,
   parseArchitecture,
   parsePRD,
+  planGeneratedTaskWrite,
+  validateGeneratedTaskInputs,
   validateModuleAlignment,
 };

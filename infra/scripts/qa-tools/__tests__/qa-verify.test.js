@@ -6,9 +6,40 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createPnpmRunInvocation, resolveTargetsFromQaPlanState, validateQaFile } = require('../qa-verify');
+const {
+  createPnpmRunInvocation,
+  resolveProjectChecks,
+  resolveTargetsFromQaPlanState,
+  validateQaFile,
+} = require('../qa-verify');
 
 const repoRoot = path.resolve(__dirname, '../../../..');
+
+test('project verification appends configured required checks without allowing base checks to be downgraded', () => {
+  const checks = resolveProjectChecks({
+    qa: {
+      projectChecks: [
+        { name: 'qa:lint', required: false },
+        { name: 'governance:v03:check', required: true },
+      ],
+    },
+  });
+
+  assert.deepEqual(checks, [
+    { name: 'qa:lint', required: true },
+    { name: 'qa:sync-prd-qa-ids', required: true },
+    { name: 'qa:coverage-report', required: false },
+    { name: 'qa:check-defect-blockers', required: true },
+    { name: 'governance:v03:check', required: true },
+  ]);
+});
+
+test('project verification rejects malformed configured checks', () => {
+  assert.throws(
+    () => resolveProjectChecks({ qa: { projectChecks: [{ name: 'pnpm run unsafe command', required: true }] } }),
+    /invalid qa\.projectChecks entry/i
+  );
+});
 
 test('project verification invokes pnpm through hidden Node on Windows instead of relying on PATH', () => {
   const invocation = createPnpmRunInvocation('qa:lint', {
