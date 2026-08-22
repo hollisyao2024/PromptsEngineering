@@ -3,7 +3,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { loadConfig } = require('../shared/config');
+const { loadConfig, resolveRuntimePath } = require('../shared/config');
 const {
   acquireLock,
   isPathInside,
@@ -371,7 +371,8 @@ function reconcilePendingCleanups(options = {}) {
   const staleRetained = [];
   const registered = list(mainRoot);
   const configuredLockDir = config.worktree && config.worktree.lockDir;
-  const lockDir = options.lockDir || path.resolve(mainRoot, configuredLockDir || '../tmp/agent-locks');
+  const lockDir = options.lockDir
+    || resolveRuntimePath(config, mainRoot, configuredLockDir, 'agent-locks');
   const releaseLock = options.lock === false
     ? () => {}
     : acquireLock(lockDir, 'worktree-cleanup-lifecycle', options.lockTimeoutMs || 30000);
@@ -379,7 +380,7 @@ function reconcilePendingCleanups(options = {}) {
   try {
     // Phase 1: sweep stale in_progress sessions whose branch content
     // has already been fully superseded by the base ref.
-    if (options.sweepStaleInProgress !== false) {
+    if (options.sweepStaleInProgress === true) {
       const sweepResult = sweepStaleInProgressSessions({
         mainRoot,
         config,

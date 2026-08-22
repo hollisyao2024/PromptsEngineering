@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process');
 
 const {
   acquireLock,
+  assertNoConflictingRecovery,
   createOrResumeWorktree,
   isPathInside,
   materializeReusablePaths,
@@ -44,7 +45,60 @@ test('safe removal retries transient non-empty directories without weakening per
   assert.equal(attempts, 3);
 });
 
-test('reclaims only a clean, merged worktree owned by this repository', (t) => {
+test('session writes add and renew versioned ownership without rotating the diagnostic token', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-session-v2-'));
+  const mainRoot = path.join(container, 'repo');
+  const config = {
+    worktree: {
+      sessionDir: '../tmp/sessions',
+      lockDir: '../tmp/locks',
+      leaseTtlMinutes: 60,
+    },
+  };
+  fs.mkdirSync(mainRoot, { recursive: true });
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  writeSession(config, mainRoot, {
+    branch: 'feature/TASK-DEMO-001',
+    worktree: path.join(container, 'worktrees', 'demo'),
+    status: 'in_progress',
+    lifecycle: { keys: ['task:demo', 'topic:demo'] },
+    head: 'abc123',
+  });
+  const first = readSessions(config, mainRoot)[0];
+  writeSession(config, mainRoot, {
+    branch: first.branch,
+    worktree: first.worktree,
+    status: 'in_progress',
+    step: 'renewed',
+  });
+  const second = readSessions(config, mainRoot)[0];
+
+  assert.equal(first.schema_version, 2);
+  assert.equal(first.revision, 1);
+  assert.equal(typeof first.owner.token, 'string');
+  assert.ok(Date.parse(first.lease.expires_at) > Date.parse(first.updated_at));
+  assert.equal(second.revision, 2);
+  assert.equal(second.owner.token, first.owner.token);
+  assert.ok(Date.parse(second.lease.expires_at) >= Date.parse(first.lease.expires_at));
+});
+
+test('a recovery-required lifecycle blocks a duplicate branch for the same task', () => {
+  assert.throws(() => assertNoConflictingRecovery({}, '/container/repo', {
+    phase: 'tdd',
+    task: 'TASK-DEMO-001',
+    desc: 'demo',
+  }, 'feature/TASK-DEMO-001-demo', {
+    readSessions: () => [{
+      branch: 'docs/prd-demo',
+      worktree: '/container/worktrees/prd-demo',
+      status: 'recovery_required',
+      lifecycle: { keys: ['task:task-demo-001', 'topic:demo'] },
+    }],
+  }), /recovery_required worktree conflicts/);
+});
+
+test('legacy reclaimer is observe-only even for a clean merged managed worktree', (t) => {
   const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-reclaim-'));
   const repo = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
@@ -75,9 +129,10 @@ test('reclaims only a clean, merged worktree owned by this repository', (t) => {
     baseRef: 'main',
   });
 
-  assert.deepEqual(result.removed.map((item) => item.branch), ['fix/merged-cleanup']);
-  assert.equal(fs.existsSync(worktreePath), false);
-  assert.equal(runGit(repo, ['branch', '--list', 'fix/merged-cleanup']), '');
+  assert.deepEqual(result.removed, []);
+  assert.equal(fs.existsSync(worktreePath), true);
+  assert.match(runGit(repo, ['branch', '--list', 'fix/merged-cleanup']), /fix\/merged-cleanup/);
+  assert.match(result.retained[0].reason, /legacy-reclaimer-disabled/);
 });
 
 test('retains a freshly created worktree while its session is in progress', (t) => {
@@ -87,7 +142,8 @@ test('retains a freshly created worktree while its session is in progress', (t) 
   const worktreePath = path.join(worktreesRoot, 'active');
   const config = {
     baseBranch: 'main',
-    worktree: { sessionDir: path.join(container, 'sessions') },
+    containerDirs: { tmp: path.join(container, 'tmp') },
+    worktree: { sessionDir: path.join(container, 'tmp', 'sessions') },
   };
   fs.mkdirSync(repo, { recursive: true });
   runGit(repo, ['init', '-b', 'main']);
@@ -122,7 +178,7 @@ test('retains a freshly created worktree while its session is in progress', (t) 
   assert.equal(fs.existsSync(worktreePath), true);
   assert.equal(result.retained.length, 1);
   assert.equal(result.retained[0].branch, 'fix/active-session');
-  assert.equal(result.retained[0].reason, 'active-session');
+  assert.match(result.retained[0].reason, /legacy-reclaimer-disabled:active/);
   assert.equal(path.resolve(result.retained[0].path), path.resolve(worktreePath));
 });
 
@@ -145,7 +201,7 @@ test('retains a dirty owned worktree even when its branch is merged', (t) => {
 
   assert.deepEqual(result.removed, []);
   assert.equal(fs.existsSync(fixture.worktreePath), true);
-  assert.match(result.retained[0].reason, /uncommitted changes/i);
+  assert.match(result.retained[0].reason, /legacy-reclaimer-disabled:recovery_required/);
 });
 
 test('safe removal rescans a directory when a late file makes the final rmdir non-empty', (t) => {
@@ -635,8 +691,9 @@ test('auto bootstrap can always reconcile dependencies even when the readiness c
     mainRoot: repo,
     config: {
       projectName: 'bootstrap-test',
+      containerDirs: { tmp: path.join(repo, '.git', 'runtime') },
       worktree: {
-        lockDir: path.join(repo, '.git', 'bootstrap-locks'),
+        lockDir: path.join(repo, '.git', 'runtime', 'bootstrap-locks'),
         bootstrap: {
           mode: 'auto',
           alwaysRun: true,
@@ -748,7 +805,7 @@ test('supersession planning never seals dirty or unrelated predecessor worktrees
   const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-phase-lineage-safe-'));
   const repo = path.join(container, 'repo');
   const worktreesRoot = path.join(container, 'worktrees');
-  const sessionsRoot = path.join(container, 'sessions');
+  const sessionsRoot = path.join(container, 'tmp', 'sessions');
   fs.mkdirSync(repo);
   runGit(repo, ['init', '-b', 'main']);
   runGit(repo, ['config', 'user.email', 'test@example.com']);
@@ -763,7 +820,10 @@ test('supersession planning never seals dirty or unrelated predecessor worktrees
   runGit(repo, ['worktree', 'add', '-b', 'docs/prd-shared-topic', dirtyPath]);
   runGit(repo, ['worktree', 'add', '-b', 'docs/prd-other-topic', unrelatedPath]);
   fs.writeFileSync(path.join(dirtyPath, 'uncommitted.md'), 'must survive\n');
-  const config = { worktree: { sessionDir: sessionsRoot, lockDir: path.join(container, 'locks') } };
+  const config = {
+    containerDirs: { tmp: path.join(container, 'tmp') },
+    worktree: { sessionDir: sessionsRoot, lockDir: path.join(container, 'tmp', 'locks') },
+  };
   writeSession(config, repo, {
     phase: 'prd', branch: 'docs/prd-shared-topic', worktree: dirtyPath, status: 'in_progress', step: 'created',
   });

@@ -76,6 +76,24 @@ function findPathUsers(targetPath, records, options = {}) {
 
 function inspectWorktreeUsers(worktreePath, options = {}) {
   const platform = options.platform || process.platform;
+  if (options.snapshot) {
+    if (!options.snapshot.supported) {
+      return { supported: false, users: [], reason: options.snapshot.reason || 'process snapshot unavailable' };
+    }
+    return {
+      supported: true,
+      users: findPathUsers(worktreePath, options.snapshot.records, {
+        platform,
+        excludePids: options.snapshot.excludePids || options.excludePids,
+      }),
+    };
+  }
+  const snapshot = inspectProcessSnapshot(options);
+  return inspectWorktreeUsers(worktreePath, { ...options, snapshot });
+}
+
+function inspectProcessSnapshot(options = {}) {
+  const platform = options.platform || process.platform;
   const spawn = options.spawnSync || spawnSync;
   const excludePids = [...(options.excludePids || []), process.pid];
 
@@ -91,11 +109,12 @@ function inspectWorktreeUsers(worktreePath, options = {}) {
       windowsHide: true,
     });
     if (result.error || result.status !== 0) {
-      return { supported: false, users: [], reason: result.error?.message || `powershell exit ${result.status}` };
+      return { supported: false, records: [], excludePids, reason: result.error?.message || `powershell exit ${result.status}` };
     }
     return {
       supported: true,
-      users: findPathUsers(worktreePath, parseWindowsProcessOutput(result.stdout), { platform, excludePids }),
+      records: parseWindowsProcessOutput(result.stdout),
+      excludePids,
     };
   }
 
@@ -104,16 +123,18 @@ function inspectWorktreeUsers(worktreePath, options = {}) {
     stdio: 'pipe',
   });
   if (result.error || ![0, 1].includes(result.status)) {
-    return { supported: false, users: [], reason: result.error?.message || `lsof exit ${result.status}` };
+    return { supported: false, records: [], excludePids, reason: result.error?.message || `lsof exit ${result.status}` };
   }
   return {
     supported: true,
-    users: findPathUsers(worktreePath, parseLsofCwdOutput(result.stdout), { platform, excludePids }),
+    records: parseLsofCwdOutput(result.stdout),
+    excludePids,
   };
 }
 
 module.exports = {
   findPathUsers,
+  inspectProcessSnapshot,
   inspectWorktreeUsers,
   parseLsofCwdOutput,
   parseWindowsProcessOutput,

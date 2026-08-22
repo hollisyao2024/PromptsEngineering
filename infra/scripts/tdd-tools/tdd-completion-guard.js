@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const { getMainRepoRoot, readSessions } = require('../worktree-tools/worktree-core');
-const { reconcilePendingCleanups } = require('../worktree-tools/deferred-cleanup-state');
+const { auditManagedWorktrees } = require('../worktree-tools/worktree-audit');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -226,15 +226,23 @@ function collectGitState(repoRoot) {
 function collectLifecycleState(repoRoot) {
   const mainRoot = getMainRepoRoot(repoRoot);
   const config = loadConfig({ repoRoot: mainRoot });
-  const reconciliation = reconcilePendingCleanups({
+  const audit = auditManagedWorktrees({
     mainRoot,
     config,
+    cwd: repoRoot,
+    apply: true,
     skipWorktreePath: repoRoot,
   });
+  const persisted = readSessions(config, mainRoot).filter((session) =>
+    ['cleanup_pending', 'recovery_required'].includes(session.status));
+  const persistedBranches = new Set(persisted.map((session) => session.branch));
+  const synthetic = audit.records
+    .filter((record) => ['cleanup_pending', 'recovery_required'].includes(record.state))
+    .filter((record) => !persistedBranches.has(record.branch))
+    .map((record) => ({ branch: record.branch || record.path, status: record.state }));
   return {
-    reconciliation,
-    lifecycleSessions: readSessions(config, mainRoot).filter((session) =>
-      ['cleanup_pending', 'recovery_required'].includes(session.status)),
+    audit,
+    lifecycleSessions: [...persisted, ...synthetic],
   };
 }
 

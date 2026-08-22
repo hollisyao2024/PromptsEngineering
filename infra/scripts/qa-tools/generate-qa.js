@@ -7,15 +7,13 @@
  */
 
 const fs = require('fs');
-const crypto = require('crypto');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { writeInProgressFields } = require('../tdd-tools/agent-state-utils');
+const { getQaPlanSessionStatePath } = require('../worktree-tools/qa-plan-state-audit');
 const {
-  getMainRepoRoot,
   getWorktreeRoot,
   loadConfig,
-  resolveFromRepo,
 } = require('../shared/config');
 
 const CONFIG = {
@@ -115,36 +113,8 @@ function writeFile(filePath, content) {
   fs.writeFileSync(fullPath, content, 'utf8');
 }
 
-function fileExists(filePath) {
-  return fs.existsSync(path.resolve(process.cwd(), filePath));
-}
-
 function writeJsonFile(filePath, payload) {
   writeFile(filePath, JSON.stringify(payload, null, 2) + '\n');
-}
-
-function getQaPlanSessionStatePath(options = {}) {
-  const env = options.env || process.env;
-  const customPath = env.QA_PLAN_SESSION_STATE_PATH;
-  if (customPath && customPath.trim()) return customPath.trim();
-
-  const cwd = options.cwd || process.cwd();
-  const worktreeRoot = options.worktreeRoot || getWorktreeRoot(cwd);
-  const mainRoot = options.mainRoot || getMainRepoRoot(cwd);
-  const config = options.config || loadConfig({ repoRoot: worktreeRoot, env, argv: [] });
-  const configuredSessionDir = config.worktree && config.worktree.sessionDir;
-  const sessionDir = resolveFromRepo(mainRoot, configuredSessionDir || '../tmp/worktree-sessions');
-  const worktreeName = path.basename(worktreeRoot)
-    .normalize('NFKD')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'repo';
-  const worktreeHash = crypto
-    .createHash('sha256')
-    .update(path.resolve(worktreeRoot))
-    .digest('hex')
-    .slice(0, 12);
-
-  return path.join(sessionDir, 'qa-plan', `${worktreeName}-${worktreeHash}.json`);
 }
 
 function runGit(args, { allowFailure = false } = {}) {
@@ -787,7 +757,6 @@ function main() {
   log('📖 读取输入文件...', 'cyan');
   const prdContent = readFile(CONFIG.paths.prd);
   const archContent = readFile(CONFIG.paths.arch);
-  const taskContent = readFile(CONFIG.paths.task);
   const matrixContent = readFile(CONFIG.paths.traceabilityMatrix);
 
   if (!prdContent) {
@@ -797,7 +766,6 @@ function main() {
 
   const rootPrdData = parsePRD(prdContent);
   const archData = parseARCH(archContent);
-  const taskData = parseTASK(taskContent);
   const matrixData = parseTraceabilityMatrix(matrixContent);
   const moduleEntries = buildModuleEntries();
 

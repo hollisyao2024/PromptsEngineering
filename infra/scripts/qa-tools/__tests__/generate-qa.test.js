@@ -57,7 +57,10 @@ test('QA plan session state defaults to the container worktree session directory
     config: { worktree: { sessionDir: '../tmp/worktree-sessions' } },
   });
 
-  assert.equal(path.dirname(statePath), '/workspace/project/tmp/worktree-sessions/qa-plan');
+  assert.equal(
+    path.dirname(statePath),
+    path.resolve(mainRoot, '../tmp/worktree-sessions/qa-plan'),
+  );
   assert.match(path.basename(statePath), /^fix-a-[a-f0-9]{12}\.json$/);
 });
 

@@ -315,7 +315,10 @@ test('real Git post-merge commit is detected and recovered instead of deleted', 
   const worktreePath = path.join(fixture.worktreesRoot, 'real-advanced');
   runGit(fixture.mainRoot, ['worktree', 'add', '-b', 'fix/real-advanced', worktreePath]);
   const expectedHead = runGit(worktreePath, ['rev-parse', 'HEAD']);
-  const config = { worktree: { sessionDir: path.join(fixture.container, 'sessions') } };
+  const config = {
+    containerDirs: { tmp: path.join(fixture.container, 'tmp') },
+    worktree: { sessionDir: path.join(fixture.container, 'tmp', 'sessions') },
+  };
   markCleanupPending({
     config,
     mainRoot: fixture.mainRoot,
@@ -619,7 +622,7 @@ test('sweep in observe mode reports without deleting', (t) => {
 });
 // ==================== reconcilePendingCleanups integration ====================
 
-test('reconcilePendingCleanups sweeps stale in_progress sessions by default', (t) => {
+test('reconcilePendingCleanups only sweeps stale in_progress sessions when explicitly enabled', (t) => {
   const fixture = makeFixture();
   t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
   runGit(fixture.mainRoot, ['init', '-b', 'main']);
@@ -639,6 +642,7 @@ test('reconcilePendingCleanups sweeps stale in_progress sessions by default', (t
     config: {},
     mainRoot: fixture.mainRoot,
     worktreesRoot: fixture.worktreesRoot,
+    sweepStaleInProgress: true,
     readSessions: () => [{
       branch: 'feature/reconcile-wt',
       worktree: worktreePath,

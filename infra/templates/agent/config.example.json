@@ -48,6 +48,7 @@
     ],
     "sessionDir": "../tmp/worktree-sessions",
     "lockDir": "../tmp/agent-locks",
+    "leaseTtlMinutes": 1440,
     "bootstrap": {
       "mode": "skip",
       "alwaysRun": false,
