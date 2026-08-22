@@ -258,7 +258,32 @@ function resolveFromRepo(repoRoot, relativePath) {
   return path.resolve(repoRoot, relativePath);
 }
 
+function isSameOrInside(parentPath, candidatePath) {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function validateContainerTopology(config, mainRoot) {
+  const dirs = (config && config.containerDirs) || {};
+  const worktrees = resolveFromRepo(mainRoot, dirs.worktrees || '../worktrees');
+  const tmp = resolveFromRepo(mainRoot, dirs.tmp || '../tmp');
+  if (isSameOrInside(worktrees, tmp)) {
+    throw new Error(`invalid container topology: tmp must not equal or be inside worktrees (${tmp})`);
+  }
+  return { worktrees, tmp };
+}
+
+function resolveRuntimePath(config, mainRoot, configuredPath, fallbackSubdir) {
+  const { tmp } = validateContainerTopology(config, mainRoot);
+  const resolved = resolveFromRepo(mainRoot, configuredPath || path.join('../tmp', fallbackSubdir));
+  if (!isSameOrInside(tmp, resolved)) {
+    throw new Error(`invalid runtime path: ${resolved} must be inside container tmp ${tmp}`);
+  }
+  return resolved;
+}
+
 function resolveContainerPath(config, mainRoot, key) {
+  validateContainerTopology(config, mainRoot);
   const configured = config.containerDirs && config.containerDirs[key];
   return resolveFromRepo(mainRoot, configured || `../${key}`);
 }
@@ -273,5 +298,7 @@ module.exports = {
   parseCliArgs,
   resolveContainerPath,
   resolveFromRepo,
+  resolveRuntimePath,
   resolveRepoRoot,
+  validateContainerTopology,
 };

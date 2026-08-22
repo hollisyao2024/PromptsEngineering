@@ -9,7 +9,7 @@ const {
   getWorktreeRoot,
   loadConfig,
   resolveContainerPath,
-  resolveFromRepo,
+  resolveRuntimePath,
 } = require('../shared/config');
 const {
   acquireLock,
@@ -821,7 +821,7 @@ function runtimeContext(cwd = process.cwd()) {
   const worktree = getWorktreeRoot(cwd);
   const config = loadConfig({ repoRoot: worktree });
   const tmpRoot = resolveContainerPath(config, mainRoot, 'tmp');
-  const lockDir = resolveFromRepo(mainRoot, (config.worktree && config.worktree.lockDir) || '../tmp/agent-locks');
+  const lockDir = resolveRuntimePath(config, mainRoot, config.worktree && config.worktree.lockDir, 'agent-locks');
   return {
     runsRoot: path.join(tmpRoot, 'agent-task-runs'),
     lockDir,
@@ -911,12 +911,24 @@ function main(argv = process.argv.slice(2)) {
   }
   if (cli.command === 'resume') {
     if (!cli.taskId && !cli.auto) throw new Error('resume requires --task <id> or --auto');
+    const audit = require('../worktree-tools/worktree-audit').auditManagedWorktrees({
+      mainRoot: context.projectRoot,
+      cwd: context.worktree,
+      apply: true,
+      excludeBranch: context.branch,
+      skipWorktreePath: context.worktree,
+    });
     const state = resumeTask({ ...context, taskId: cli.taskId });
     if (!state) {
       console.log('STATUS=NONE');
       return 0;
     }
     printResumeState(state, path.join(context.runsRoot, state.task_id, 'state.json'));
+    console.log(`WORKTREE_AUDIT_STATUS=${audit.status}`);
+    const cleaned = audit.records.filter((record) => record.state === 'cleaned');
+    if (cleaned.length > 0) console.log(`AUDIT_CLEANED=${cleaned.map((record) => record.branch).join(',')}`);
+    const recovery = audit.records.filter((record) => record.state === 'recovery_required');
+    if (recovery.length > 0) console.log(`AUDIT_RECOVERY_REQUIRED=${recovery.map((record) => record.branch).join(',')}`);
     return 0;
   }
   if (cli.command === 'finish') {

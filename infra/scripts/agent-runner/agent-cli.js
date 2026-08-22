@@ -19,6 +19,7 @@ const ROUTES = new Map([
   ['worktree:bootstrap', 'infra/scripts/worktree-tools/worktree-bootstrap.js'],
   ['worktree:remove', 'infra/scripts/worktree-tools/worktree-remove.js'],
   ['worktree:cancel', 'infra/scripts/worktree-tools/worktree-cancel.js'],
+  ['worktree:audit', 'infra/scripts/worktree-tools/worktree-audit-cli.js'],
   ['template:update', 'infra/scripts/setup/update-template.js'],
   ['template:backfill', 'infra/scripts/setup/backfill-template.js'],
 ]);
@@ -53,7 +54,7 @@ function printHelp() {
 
 Core commands:
   task <start|checkpoint|resume|extend|transition|finish|cancel>
-  worktree <new|list|resume|bootstrap|remove|cancel>
+  worktree <new|list|resume|bootstrap|remove|cancel|audit>
   tdd <sync|push|finish|guard>
   qa <plan|verify|merge>
   template <update|backfill>

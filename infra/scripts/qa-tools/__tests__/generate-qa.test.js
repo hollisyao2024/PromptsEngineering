@@ -8,6 +8,9 @@ const {
   generateModuleList,
   generateProjectOverview,
   getQaPlanSessionStatePath,
+  planModuleQaWrite,
+  shouldWriteAgentState,
+  validateModuleEntriesForGeneration,
   validateUpstreamModuleAlignment,
 } = require('../generate-qa');
 
@@ -54,7 +57,10 @@ test('QA plan session state defaults to the container worktree session directory
     config: { worktree: { sessionDir: '../tmp/worktree-sessions' } },
   });
 
-  assert.equal(path.dirname(statePath), '/workspace/project/tmp/worktree-sessions/qa-plan');
+  assert.equal(
+    path.dirname(statePath),
+    path.resolve(mainRoot, '../tmp/worktree-sessions/qa-plan'),
+  );
   assert.match(path.basename(statePath), /^fix-a-[a-f0-9]{12}\.json$/);
 });
 
@@ -87,4 +93,47 @@ test('QA plan session state path keeps the explicit environment override', () =>
   });
 
   assert.equal(statePath, '/custom/qa-session.json');
+});
+
+test('QA plan does not overwrite a manually maintained module QA document', () => {
+  const decision = planModuleQaWrite({
+    existingContent: '# QA\n\n人工 Phase 16 验收计划\n',
+    generatedContent: '# generated\n',
+  });
+
+  assert.deepEqual(decision, {
+    action: 'preserve',
+    content: '# QA\n\n人工 Phase 16 验收计划\n',
+    reason: 'manual-document',
+  });
+});
+
+test('QA plan may refresh a document that declares generator ownership', () => {
+  const decision = planModuleQaWrite({
+    existingContent: '# QA\n\n<!-- QA-GENERATED: generate-qa.js -->\nold\n',
+    generatedContent: '# QA\n\n<!-- QA-GENERATED: generate-qa.js -->\nnew\n',
+  });
+
+  assert.equal(decision.action, 'write');
+  assert.match(decision.content, /new/);
+});
+
+test('QA ownership marker is authoritative only immediately after the H1', () => {
+  const existing = '# QA\n\nManual text quotes <!-- QA-GENERATED: generate-qa.js --> later.\n';
+  assert.equal(planModuleQaWrite({ existingContent: existing, generatedContent: '# new\n' }).action, 'preserve');
+});
+
+test('QA generation fails closed when any module parses zero stories', () => {
+  assert.throws(
+    () => validateModuleEntriesForGeneration([
+      modules[0],
+      { moduleDir: 'empty', moduleName: 'Empty', stories: [] },
+    ]),
+    /zero stories.*empty/i
+  );
+});
+
+test('QA dry-run never writes AGENT_STATE', () => {
+  assert.equal(shouldWriteAgentState(true), false);
+  assert.equal(shouldWriteAgentState(false), true);
 });

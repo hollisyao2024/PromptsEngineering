@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { spawnSync } = require('child_process');
 const {
   getMainRepoRoot,
@@ -12,7 +13,7 @@ const {
   loadConfig,
   parseCliArgs,
   resolveContainerPath,
-  resolveFromRepo,
+  resolveRuntimePath,
 } = require('../shared/config');
 const { buildGitHubGitEnv } = require('../shared/github-auth');
 const {
@@ -39,11 +40,15 @@ function run(command, args, options = {}) {
   const env = command === 'git'
     ? buildGitHubGitEnv({ repoRoot: getMainRepoRoot(cwd), cwd, args, env: process.env })
     : process.env;
+  // Executables are restricted to fixed internal Git/Node call sites and argv
+  // is passed without shell interpretation.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
     stdio: options.capture ? 'pipe' : 'inherit',
     env,
+    shell: false,
   });
 
   if (result.status !== 0 && !options.allowFailure) {
@@ -234,6 +239,24 @@ function planSupersededSessions(options = {}) {
   return { identity, seals, skipped };
 }
 
+function assertNoConflictingRecovery(config, mainRoot, cli, branch, options = {}) {
+  const identity = buildLifecycleIdentity(cli, branch);
+  const read = options.readSessions || readSessions;
+  const conflicts = read(config, mainRoot).filter((session) => {
+    if (!session || session.branch === branch || session.status !== 'recovery_required') return false;
+    const keys = sessionLifecycleKeys(session);
+    return identity.keys.some((key) => keys.has(key));
+  });
+  if (conflicts.length === 0) return [];
+  const error = new Error(
+    `recovery_required worktree conflicts with this lifecycle: ${conflicts.map((item) => item.branch).join(', ')}`,
+  );
+  error.lifecycleStatus = 'recovery_required';
+  error.worktreePath = conflicts[0].worktree;
+  error.nextManualAction = 'Recover or resolve the conflicting worktree before creating another branch for the same task/topic.';
+  throw error;
+}
+
 function lifecycleState(supersession) {
   return {
     phase: supersession.identity.phase,
@@ -259,6 +282,12 @@ function listWorktrees(mainRoot) {
       current.head = line.slice(5).trim();
     } else if (line.startsWith('branch ')) {
       current.branch = line.slice(7).trim().replace('refs/heads/', '');
+    } else if (line === 'locked' || line.startsWith('locked ')) {
+      current.locked = true;
+      current.lockReason = line.slice('locked'.length).trim();
+    } else if (line === 'prunable' || line.startsWith('prunable ')) {
+      current.prunable = true;
+      current.prunableReason = line.slice('prunable'.length).trim();
     }
   }
   if (current.path) entries.push(current);
@@ -391,7 +420,7 @@ function setupSharedLinks(mainRoot, worktreePath, config) {
 
 function sessionPath(config, mainRoot, branch) {
   const configured = config.worktree && config.worktree.sessionDir;
-  const dir = resolveFromRepo(mainRoot, configured || '../tmp/worktree-sessions');
+  const dir = resolveRuntimePath(config, mainRoot, configured, 'worktree-sessions');
   ensureDir(dir);
   return path.join(dir, `${slugify(branch)}.json`);
 }
@@ -399,7 +428,7 @@ function sessionPath(config, mainRoot, branch) {
 function writeSession(config, mainRoot, payload) {
   const filePath = sessionPath(config, mainRoot, payload.branch);
   const configuredLockDir = config.worktree && config.worktree.lockDir;
-  const lockDir = resolveFromRepo(mainRoot, configuredLockDir || '../tmp/agent-locks');
+  const lockDir = resolveRuntimePath(config, mainRoot, configuredLockDir, 'agent-locks');
   const releaseLock = acquireLock(lockDir, `worktree-session-${payload.branch}`, 30000);
   try {
     const now = new Date().toISOString();
@@ -415,9 +444,29 @@ function writeSession(config, mainRoot, payload) {
         : 'Run the completion guard from the main worktree so durable cleanup can converge.';
       throw error;
     }
+    const leaseTtlMinutes = Number(config.worktree && config.worktree.leaseTtlMinutes) || 1440;
+    const renewLease = payload.status === 'in_progress';
+    const owner = renewLease
+      ? {
+        pid: process.pid,
+        ppid: process.ppid,
+        token: previous.owner && previous.owner.token ? previous.owner.token : randomUUID(),
+        created_at: previous.owner && previous.owner.created_at ? previous.owner.created_at : now,
+      }
+      : previous.owner;
+    const lease = renewLease
+      ? {
+        renewed_at: now,
+        expires_at: new Date(Date.parse(now) + leaseTtlMinutes * 60 * 1000).toISOString(),
+      }
+      : previous.lease;
     const next = JSON.stringify({
       ...previous,
       ...payload,
+      schema_version: 2,
+      revision: Number(previous.revision || 0) + 1,
+      ...(owner ? { owner } : {}),
+      ...(lease ? { lease } : {}),
       updated_at: now,
       started_at: previous.started_at || payload.started_at || now,
     }, null, 2) + '\n';
@@ -491,7 +540,7 @@ function writeManagedMarker(mainRoot, worktreePath, branch) {
 
 function readSessions(config, mainRoot) {
   const configured = config.worktree && config.worktree.sessionDir;
-  const dir = resolveFromRepo(mainRoot, configured || '../tmp/worktree-sessions');
+  const dir = resolveRuntimePath(config, mainRoot, configured, 'worktree-sessions');
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
     .filter((name) => name.endsWith('.json'))
@@ -524,94 +573,31 @@ function hasOwnedWorktreeMarker(mainRoot, worktreePath, branch) {
 }
 
 /**
- * Reclaim only worktrees that are provably complete: they must be owned by this
- * repository, clean, and already reachable from the configured base branch.
- *
- * This is deliberately best-effort. A failed proof or cleanup is reported and
- * retained rather than blocking a new task or deleting potentially useful work.
+ * Compatibility facade for callers of the legacy reclaimer.  The old
+ * implementation deleted merged worktrees without a versioned session lease,
+ * task binding, process snapshot, or cleanup intent.  It is intentionally
+ * observe-only now; destructive convergence is owned exclusively by
+ * worktree-audit.js.
  */
 function reclaimMergedManagedWorktrees(options = {}) {
   const mainRoot = options.mainRoot || getMainRepoRoot(process.cwd());
   const config = options.config || loadConfig({ repoRoot: mainRoot });
-  const worktreesRoot = options.worktreesRoot
-    || resolveContainerPath(config, mainRoot, 'worktrees');
   const baseRef = options.baseRef || getBaseRef(mainRoot, config);
-  const result = { removed: [], retained: [] };
-  // A linked worktree starts at baseRef, so Git alone reports a freshly
-  // created, still-active worktree as "merged" until its first commit.  In
-  // concurrent task creation that made one task reclaim another before the
-  // latter had a chance to do any work.  A durable in-progress session is the
-  // explicit ownership signal; completion flows remove that session before
-  // this best-effort reclaimer is allowed to delete the worktree.
-  const activeSessions = new Set(
-    readSessions(config, mainRoot)
-      .filter((session) => session && session.status === 'in_progress' && session.branch)
-      .map((session) => session.branch)
-  );
-
-  const listing = spawnSync('git', ['worktree', 'list', '--porcelain'], {
-    cwd: mainRoot,
-    encoding: 'utf8',
-    stdio: 'pipe',
+  const audit = require('./worktree-audit').auditManagedWorktrees({
+    mainRoot,
+    config,
+    baseRef,
+    cwd: options.cwd || process.cwd(),
+    apply: false,
   });
-  if (listing.error || listing.status !== 0) {
-    result.retained.push({ reason: 'worktree-list-failed' });
-    return result;
-  }
-
-  for (const entry of parseWorktreePorcelain(listing.stdout || '')) {
-    if (!entry.path || !entry.branch || !isPathInside(worktreesRoot, entry.path)) continue;
-    if (activeSessions.has(entry.branch)) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'active-session' });
-      continue;
-    }
-    if (entry.locked) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'locked' });
-      continue;
-    }
-    if (!hasOwnedWorktreeMarker(mainRoot, entry.path, entry.branch)) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'unmanaged' });
-      continue;
-    }
-    if (isSamePath(process.cwd(), entry.path) || isPathInside(entry.path, process.cwd())) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'current-working-directory' });
-      continue;
-    }
-
-    const merged = spawnSync('git', ['merge-base', '--is-ancestor', entry.branch, baseRef], {
-      cwd: mainRoot,
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    if (merged.error || merged.status !== 0) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: 'not-merged' });
-      continue;
-    }
-
-    try {
-      removeWorktreeSafely({
-        mainRoot,
-        worktreePath: entry.path,
-        worktreesRoot,
-        force: false,
-      });
-      removeSession(config, mainRoot, entry.branch);
-      const branchDelete = spawnSync('git', ['branch', '-D', entry.branch], {
-        cwd: mainRoot,
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-      result.removed.push({
-        branch: entry.branch,
-        path: entry.path,
-        branchDeleted: branchDelete.status === 0,
-      });
-    } catch (error) {
-      result.retained.push({ branch: entry.branch, path: entry.path, reason: error.message });
-    }
-  }
-
-  return result;
+  return {
+    removed: [],
+    retained: audit.records.map((record) => ({
+      branch: record.branch,
+      path: record.path,
+      reason: `legacy-reclaimer-disabled:${record.state}:${record.reason}`,
+    })),
+  };
 }
 
 function normalizeBootstrapMode(value, fallback = 'skip') {
@@ -739,6 +725,10 @@ function bootstrapError(message, meta = {}) {
 }
 
 function runShell(command, options = {}) {
+  // Bootstrap commands are reviewed, tracked repository configuration. This
+  // is the one intentional shell boundary because the contract permits a
+  // command pipeline; no request or environment value can select it.
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
   const result = spawnSync(command, {
     cwd: options.cwd || process.cwd(),
     encoding: 'utf8',
@@ -889,7 +879,12 @@ function runWorktreeBootstrap(options = {}) {
     });
   }
 
-  const lockDir = resolveFromRepo(mainRoot || getMainRepoRoot(worktreePath), (config.worktree && config.worktree.lockDir) || '../tmp/agent-locks');
+  const lockDir = resolveRuntimePath(
+    config,
+    mainRoot || getMainRepoRoot(worktreePath),
+    config.worktree && config.worktree.lockDir,
+    'agent-locks',
+  );
   const release = acquireLock(lockDir, lockName, timeoutMs);
   try {
     const result = runShell(command, { cwd: worktreePath, timeoutMs });
@@ -939,17 +934,18 @@ function createOrResumeWorktree(options = {}) {
   // Validate before fetch, branch creation, worktree registration, session writes, or links.
   validateSharedLinkConfig(config);
   assertSessionCanResume(config, mainRoot, branch);
-  // A new lifecycle entrypoint also acts as crash recovery for unrelated
-  // post-merge cleanups. Never reconcile the branch currently being requested.
-  require('./deferred-cleanup-state').reconcilePendingCleanups({
-    mainRoot,
-    config,
-    baseRef: getBaseRef(mainRoot, config),
-    excludeBranch: branch,
-    skipWorktreePath: cwd,
-  });
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
+    const audit = require('./worktree-audit').auditManagedWorktrees({
+      mainRoot,
+      config,
+      cwd,
+      apply: true,
+      excludeBranch: branch,
+      skipWorktreePath: cwd,
+    });
+    assertNoConflictingRecovery(config, mainRoot, cli, branch);
+    const head = runGit(['rev-parse', 'HEAD'], { cwd: existing.path, capture: true }).trim();
     const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
     writeManagedMarker(mainRoot, existing.path, branch);
     writeSession(config, mainRoot, {
@@ -958,6 +954,7 @@ function createOrResumeWorktree(options = {}) {
       worktree: existing.path,
       status: 'in_progress',
       step: 'resumed',
+      head,
       lifecycle: lifecycleState(supersession),
     });
     const bootstrap = runWorktreeBootstrap({
@@ -972,9 +969,10 @@ function createOrResumeWorktree(options = {}) {
       worktree: existing.path,
       status: 'in_progress',
       step: 'resumed',
+      head,
       bootstrap,
     });
-    return { branch, worktreePath: existing.path, config, mainRoot, bootstrap, supersession, resumed: true };
+    return { branch, worktreePath: existing.path, config, mainRoot, audit, bootstrap, supersession, resumed: true };
   }
 
   const worktreesDir = resolveContainerPath(config, mainRoot, 'worktrees');
@@ -992,14 +990,16 @@ function createOrResumeWorktree(options = {}) {
     runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
   }
   baseRef = getBaseRef(mainRoot, config);
-  const remoteReconciliation = require('./deferred-cleanup-state').reconcilePendingCleanups({
+  const audit = require('./worktree-audit').auditManagedWorktrees({
     mainRoot,
     config,
     baseRef,
+    cwd,
+    apply: true,
     excludeBranch: branch,
     skipWorktreePath: cwd,
   });
-  const reclaimed = reclaimMergedManagedWorktrees({ mainRoot, config, baseRef });
+  assertNoConflictingRecovery(config, mainRoot, cli, branch);
   ensureDir(worktreesDir);
 
   if (branchExists(mainRoot, branch)) {
@@ -1010,6 +1010,7 @@ function createOrResumeWorktree(options = {}) {
   }
 
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
+  const head = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
   const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
   writeManagedMarker(mainRoot, worktreePath, branch);
   writeSession(config, mainRoot, {
@@ -1018,6 +1019,7 @@ function createOrResumeWorktree(options = {}) {
     worktree: worktreePath,
     status: 'in_progress',
     step: 'created',
+    head,
     linked,
     lifecycle: lifecycleState(supersession),
   });
@@ -1034,6 +1036,7 @@ function createOrResumeWorktree(options = {}) {
     worktree: worktreePath,
     status: 'in_progress',
     step: 'created',
+    head,
     linked,
     bootstrap,
   });
@@ -1045,8 +1048,7 @@ function createOrResumeWorktree(options = {}) {
     baseRef,
     linked,
     bootstrap,
-    reclaimed,
-    remoteReconciliation,
+    audit,
     supersession,
     resumed: false,
     fetchSkipped,
@@ -1055,6 +1057,7 @@ function createOrResumeWorktree(options = {}) {
 
 module.exports = {
   acquireLock,
+  assertNoConflictingRecovery,
   assertSessionCanResume,
   branchExists,
   buildBranchName,
@@ -1067,6 +1070,7 @@ module.exports = {
   getMainRepoRoot,
   getWorktreeRoot,
   hasUncommittedChanges,
+  hasOwnedWorktreeMarker,
   inferPhaseFromBranch,
   isPathInside,
   isSamePath,

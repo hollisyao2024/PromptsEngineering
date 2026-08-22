@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   findPathUsers,
+  inspectProcessSnapshot,
   inspectWorktreeUsers,
   parseLsofCwdOutput,
   parseWindowsProcessOutput,
@@ -51,6 +52,20 @@ test('process inspection reports an unavailable platform probe without inventing
   assert.equal(result.supported, false);
   assert.deepEqual(result.users, []);
   assert.match(result.reason, /lsof unavailable/u);
+});
+
+test('one process snapshot can classify multiple worktree paths without respawning', () => {
+  let spawned = 0;
+  const snapshot = inspectProcessSnapshot({
+    platform: 'linux',
+    spawnSync: () => {
+      spawned += 1;
+      return { status: 0, stdout: 'p101\nfcwd\nn/worktrees/a\np202\nfcwd\nn/worktrees/b\n' };
+    },
+  });
+  assert.deepEqual(inspectWorktreeUsers('/worktrees/a', { platform: 'linux', snapshot }).users.map((item) => item.pid), [101]);
+  assert.deepEqual(inspectWorktreeUsers('/worktrees/b', { platform: 'linux', snapshot }).users.map((item) => item.pid), [202]);
+  assert.equal(spawned, 1);
 });
 
 test('malformed Windows process output is rejected as an empty parsed record set', () => {

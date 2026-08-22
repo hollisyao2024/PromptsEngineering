@@ -49,14 +49,12 @@ function main(argv = process.argv.slice(2)) {
     if (result.fetchSkipped) {
       console.log('FETCH_SKIPPED=true');
     }
-    if (result.reclaimed && result.reclaimed.removed.length > 0) {
-      console.log(`RECLAIMED_MERGED_WORKTREES=${result.reclaimed.removed.map((item) => item.branch).join(',')}`);
-    }
-    if (result.remoteReclaimed && result.remoteReclaimed.removed.length > 0) {
-      console.log(`RECLAIMED_REMOTE_MERGED_WORKTREES=${result.remoteReclaimed.removed.map((item) => item.branch).join(',')}`);
-    }
-    if (result.remoteReconciliation && result.remoteReconciliation.sweptStale.length > 0) {
-      console.log(`RECONCILED_REMOTE_MERGED_SESSIONS=${result.remoteReconciliation.sweptStale.map((item) => item.branch).join(',')}`);
+    if (result.audit) {
+      console.log(`WORKTREE_AUDIT_STATUS=${result.audit.status}`);
+      const cleaned = result.audit.records.filter((item) => item.state === 'cleaned');
+      if (cleaned.length > 0) console.log(`AUDIT_CLEANED=${cleaned.map((item) => item.branch).join(',')}`);
+      const recovery = result.audit.records.filter((item) => item.state === 'recovery_required');
+      if (recovery.length > 0) console.log(`AUDIT_RECOVERY_REQUIRED=${recovery.map((item) => item.branch).join(',')}`);
     }
     if (result.supersession && result.supersession.seals.length > 0) {
       console.log(`SUPERSEDES=${result.supersession.seals.map((item) => item.branch).join(',')}`);

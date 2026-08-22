@@ -14,6 +14,10 @@ test('unified agent CLI routes stable workflow commands', () => {
     script: 'infra/scripts/worktree-tools/worktree-new.js',
     args: ['--desc', 'demo'],
   });
+  assert.deepEqual(resolveCommand(['worktree', 'audit', '--apply']), {
+    script: 'infra/scripts/worktree-tools/worktree-audit-cli.js',
+    args: ['--apply'],
+  });
   assert.deepEqual(resolveCommand(['qa', 'verify']), {
     script: 'infra/scripts/qa-tools/qa-verify.js',
     args: [],
