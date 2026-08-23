@@ -74,6 +74,13 @@ test('always-loaded protocol makes mutation and phase explicit', () => {
   assert.match(agents, /task extend/u);
 });
 
+test('always-loaded protocol forbids parent-relative patch paths for container writes', () => {
+  const agents = read('AGENTS.md');
+  assert.match(agents, /apply_patch.*绝对路径/u);
+  assert.match(agents, /禁止.*父级相对路径.*apply_patch/u);
+  assert.match(agents, /错误写入.*空父目录/u);
+});
+
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
   assert.equal(manifest.templateVersion, '2.1.0');

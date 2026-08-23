@@ -66,6 +66,7 @@
 - 只读排查不建 worktree；任何 tracked 文件修改必须先执行：
   `pnpm agent -- worktree new --phase=<phase> --task <id>`。
 - 创建后，所有读写、测试、提交和 QA 命令必须在输出的 `NEXT_CWD` 中执行。
+- `apply_patch` 不继承 shell `workdir`：创建 worktree 后，其所有目标必须使用经校验、位于 `NEXT_CWD` 下的绝对路径；写入容器层目录时先用 `resolveContainerPath()` 解析绝对路径。禁止以 `../` 等父级相对路径调用 `apply_patch`。若发生错误写入，删除错文件后还必须复核并清理遗留的空父目录。
 - 依赖用 `pnpm agent -- worktree bootstrap` 建立；不得跨 worktree 调脚本或共享依赖目录。
 - 合并后清理由 session 封印和补偿器完成；存在未提交变更、HEAD 漂移或缺少封印时转为恢复状态，禁止删除。
 - 多 worktree 可并行开发，合并必须通过串行 merge queue。
