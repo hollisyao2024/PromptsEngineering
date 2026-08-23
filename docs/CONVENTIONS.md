@@ -193,6 +193,8 @@ pnpm agent -- dev|app|build|ship|private|finish
 
 修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → finish`。`finish`/completion guard 只在主分支已合并、工作区干净且与远端一致时返回成功。
 
+项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
+
 审查高风险域：认证权限、数据写删、事务一致性、缓存一致性、并发、外部 API、数据库 schema、共享基础库、跨文件业务联动和 hotfix。未命中可跳过语义 review，但不可跳过 lint、类型检查和测试。
 
 ## 9. GitHub、命名与安全

@@ -26,6 +26,9 @@
   "qa": {
     "projectChecks": []
   },
+  "tdd": {
+    "projectChecks": []
+  },
   "paths": {
     "primaryApp": "",
     "appDirs": [],

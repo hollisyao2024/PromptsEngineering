@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
+
+const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
 function parseScope(argv) {
   let scope = 'session';
@@ -66,6 +70,62 @@ function runSchemaDocSyncCheck(argv) {
   return result.status === 0;
 }
 
+function resolveProjectChecks(config = {}) {
+  const configured = config.tdd?.projectChecks || [];
+  if (!Array.isArray(configured)) {
+    throw new Error('invalid tdd.projectChecks entry: expected an array');
+  }
+  return configured.map((entry) => {
+    if (
+      !entry
+      || typeof entry !== 'object'
+      || Array.isArray(entry)
+      || typeof entry.name !== 'string'
+      || !/^[A-Za-z0-9][A-Za-z0-9:_-]*$/.test(entry.name)
+      || typeof entry.required !== 'boolean'
+    ) {
+      throw new Error(`invalid tdd.projectChecks entry: ${JSON.stringify(entry)}`);
+    }
+    return { name: entry.name, required: entry.required };
+  });
+}
+
+function createPnpmRunInvocation(scriptName, options = {}) {
+  const platform = options.platform || process.platform;
+  const env = options.env || process.env;
+  const pnpmBin = options.pnpmBin || resolvePnpmBin(platform, env);
+  return createWindowsCmdInvocation(
+    pnpmBin,
+    ['run', scriptName],
+    {
+      cwd: options.cwd || repoRoot,
+      stdio: 'inherit',
+      encoding: 'utf8',
+      env,
+    },
+    platform,
+    env,
+  );
+}
+
+function runProjectChecks(config, options = {}) {
+  const checks = resolveProjectChecks(config);
+  const run = options.spawn || spawnSync;
+  let requiredFailed = false;
+  for (const check of checks) {
+    console.log(`▶ Project Check Gate: ${check.name}`);
+    const invocation = createPnpmRunInvocation(check.name, options);
+    const result = run(invocation.bin, invocation.args, invocation.options);
+    if (result.status === 0) {
+      console.log(`✅ Project Check Gate 通过: ${check.name}`);
+      continue;
+    }
+    console.error(`❌ Project Check Gate 失败: ${check.name} (exit ${result.status})`);
+    if (check.required) requiredFailed = true;
+  }
+  return !requiredFailed;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (isHelp(argv)) {
@@ -74,6 +134,12 @@ function main() {
   }
 
   const scope = parseScope(argv);
+
+  const config = loadConfig({ repoRoot });
+  if (!runProjectChecks(config)) {
+    console.error('❌ /tdd sync 失败：项目硬门禁未通过');
+    process.exit(1);
+  }
 
   // Step 1.7：Schema-Doc Sync Gate（强制硬门禁，TDD-EXPERT.md §B.10）
   const schemaDocOk = runSchemaDocSyncCheck(argv);
@@ -108,4 +174,10 @@ function main() {
   process.exit(result.status || 0);
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = {
+  createPnpmRunInvocation,
+  resolveProjectChecks,
+  runProjectChecks,
+};
