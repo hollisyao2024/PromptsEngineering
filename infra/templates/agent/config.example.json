@@ -27,7 +27,11 @@
     "projectChecks": []
   },
   "tdd": {
-    "projectChecks": []
+    "projectChecks": [],
+    "migrationRegistry": {
+      "registryFile": "",
+      "filePattern": "^\\d{3}_[a-z0-9_]+\\.(?:[cm]?[jt]s)$"
+    }
   },
   "paths": {
     "primaryApp": "",
