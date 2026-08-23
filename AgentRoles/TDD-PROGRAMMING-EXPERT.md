@@ -100,6 +100,8 @@ pnpm agent -- worktree bootstrap
 - 重复执行或部分失败；
 - 生产数据量下的风险与观测。
 
+项目使用显式运行时迁移注册表时，每个新增迁移必须按文件名顺序注册；配置 `paths.migrationsDir` 与 `tdd.migrationRegistry.registryFile` 后，由 `tdd sync` 自动阻断遗漏或乱序。任何数据库持久化行为变化仍应由项目规则和 required `tdd.projectChecks` 强制要求配套迁移。
+
 禁止在未确认备份、范围和环境时执行破坏性迁移。
 
 ## 语义审查

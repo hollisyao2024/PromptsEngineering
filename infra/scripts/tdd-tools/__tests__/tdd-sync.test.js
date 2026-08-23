@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-const { resolveProjectChecks, runProjectChecks } = require('../tdd-sync');
+const { resolveProjectChecks, runMigrationRegistryCheck, runProjectChecks } = require('../tdd-sync');
 
 test('/tdd sync --help exits before Schema-Doc Sync Gate', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
@@ -47,4 +47,27 @@ test('/tdd sync rejects unsafe project check names', () => {
     () => resolveProjectChecks({ tdd: { projectChecks: [{ name: 'check && unsafe', required: true }] } }),
     /invalid tdd\.projectChecks entry/,
   );
+});
+
+test('/tdd sync skips the migration registry gate unless a registry file is configured', () => {
+  let called = false;
+  assert.equal(runMigrationRegistryCheck({
+    paths: { migrationsDir: 'database/migrations' },
+    tdd: { migrationRegistry: { registryFile: '' } },
+  }, {
+    spawn: () => {
+      called = true;
+      return { status: 0 };
+    },
+  }), true);
+  assert.equal(called, false);
+});
+
+test('/tdd sync blocks when the configured migration registry gate fails', () => {
+  assert.equal(runMigrationRegistryCheck({
+    paths: { migrationsDir: 'database/migrations' },
+    tdd: { migrationRegistry: { registryFile: 'database/migrations/index.ts' } },
+  }, {
+    spawn: () => ({ status: 1 }),
+  }), false);
 });

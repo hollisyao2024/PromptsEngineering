@@ -3,6 +3,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
+const { resolveMigrationRegistryConfig } = require('./check-migration-registry');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -126,6 +127,24 @@ function runProjectChecks(config, options = {}) {
   return !requiredFailed;
 }
 
+function runMigrationRegistryCheck(config, options = {}) {
+  if (!resolveMigrationRegistryConfig(config)) return true;
+  console.log('▶ Migration Registry Gate');
+  const run = options.spawn || spawnSync;
+  const result = run(process.execPath, [path.join(__dirname, 'check-migration-registry.js')], {
+    cwd: options.cwd || repoRoot,
+    stdio: 'inherit',
+    encoding: 'utf8',
+    env: options.env || process.env,
+  });
+  if (result.status === 0) {
+    console.log('✅ Migration Registry Gate 通过');
+    return true;
+  }
+  console.error(`❌ Migration Registry Gate 失败 (exit ${result.status})`);
+  return false;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (isHelp(argv)) {
@@ -136,6 +155,10 @@ function main() {
   const scope = parseScope(argv);
 
   const config = loadConfig({ repoRoot });
+  if (!runMigrationRegistryCheck(config)) {
+    console.error('❌ /tdd sync 失败：Migration Registry Gate 未通过');
+    process.exit(1);
+  }
   if (!runProjectChecks(config)) {
     console.error('❌ /tdd sync 失败：项目硬门禁未通过');
     process.exit(1);
@@ -179,5 +202,6 @@ if (require.main === module) main();
 module.exports = {
   createPnpmRunInvocation,
   resolveProjectChecks,
+  runMigrationRegistryCheck,
   runProjectChecks,
 };
