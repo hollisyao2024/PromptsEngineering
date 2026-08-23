@@ -8,7 +8,7 @@
 
 ## 1. 摘要
 
-目标是以单一模板执行面覆盖本地服务、客户端开发、客户端构建和环境部署，同时保持项目命令与产品参数外置。非目标是创造新的 shell alias 体系或规定具体客户端框架。
+目标是以单一模板执行面覆盖本地服务、客户端开发、客户端构建和环境部署。模板配置登记稳定的规范 alias，项目实现或覆盖 alias；产品参数继续外置。非目标是规定具体客户端框架或真实部署实现。
 
 | ID | 决策 | 原因 | 状态 |
 | --- | --- | --- | --- |
@@ -58,7 +58,7 @@ flowchart LR
 | 项目命令 | shell command string | 非零退出转 `STATUS=BLOCKED` |
 | 容器路径解析 | `resolveContainerPath()` | 越界路径阻断 |
 
-兼容策略：既有 `devServer` 和 `devops` 配置不变；新增 `app.commands` 为可选扩展。已有 package aliases 不删除。
+兼容策略：`config.example.json` 提供完整默认矩阵，项目稀疏 `agent.config.json` 通过深合并继承并可在任意叶级覆盖；已有 package aliases 不删除。项目显式选择未知 profile、平台或环境时不跨维度回退。
 
 ## 5. 数据视图
 
@@ -66,7 +66,7 @@ flowchart LR
 
 | 表名 | 类型 | 关键字段 | 保留策略 |
 | --- | --- | --- | --- |
-| `app.commands` | JSON 配置，不是数据库表 | action → platform → profile → command | 项目版本控制；模板仅提供空默认值 |
+| `app.commands` | JSON 配置，不是数据库表 | action → platform → profile → command | 模板登记规范 alias 默认值；项目稀疏覆盖 |
 | `devops-runs/result.json` | 临时运行证据 | action/platform/target/command/cwd/status | 容器 tmp 策略 |
 
 无 schema 迁移、事务、并发写入或业务数据保留变化。
@@ -76,7 +76,7 @@ flowchart LR
 | 属性 | 可测目标 | 设计措施 | 验证方式 |
 | --- | --- | --- | --- |
 | 可靠性 | 不发生跨 profile 回退 | 精确嵌套选择 | 负向单元测试 |
-| 可移植性 | 0 个产品硬编码参数 | 空模板默认值 + 项目配置 | 内容扫描 |
+| 可移植性 | 0 个产品硬编码参数且完整矩阵可继承 | 规范 alias 默认值 + 项目叶级覆盖 | 内容扫描与枚举契约测试 |
 | 可观测性 | 每次执行有结构化字段 | 复用 run directory | 集成测试 |
 | 兼容性 | 既有 dev/ship 测试全部通过 | 增量 action 分支 | 回归测试 |
 
@@ -101,14 +101,15 @@ flowchart LR
 | ID | 风险类型 | 影响 | 缓解/负责人 | 截止 |
 | --- | --- | --- | --- | --- |
 | R-001 | profile fallback | 操作错误目标 | 精确查找 + @template-maintainers | TDD Gate |
-| R-002 | alias proliferation | 命令事实源漂移 | 不扩张 package scripts + @template-maintainers | ARCH Gate |
+| R-002 | alias 实现缺失 | 配置可解析但项目脚本执行失败 | 模板只登记规范名称；目标项目负责实现或覆盖，传播验收检查目标 alias | ARCH/QA Gate |
 | R-003 | project-owned overwrite | 目标行为损坏 | manifest 收敛测试 + @qa | QA Gate |
 
 ## 11. 实现约束
 
-- 必须：新增配置结构保持空默认值；缺失命令 `STATUS=BLOCKED`。
+- 必须：模板配置登记 mac、win、ios、android 的 dev/build 默认与 private 变体、本地服务五项生命周期默认与 private 变体、dev/staging/prod 服务端 build 默认与 private 变体。
+- 必须：`ship` 只保留配置槽且无可执行默认值；显式清空或未知维度时 `STATUS=BLOCKED`。
 - 禁止：在模板中写入 XiaoLan 名称、端口、URL、脚本或签名参数。
-- 可选：项目继续保留 `/private ...` package aliases。
+- 可选：项目通过同名 package aliases 实现规范名称，或在 `agent.config.json` 覆盖为项目命令。
 - TASK 拆分提示：先负向测试，再路由和选择器实现，最后传播验收。
 
 ## 12. Story/Component 追溯表

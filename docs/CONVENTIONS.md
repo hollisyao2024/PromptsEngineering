@@ -159,7 +159,7 @@ pnpm agent -- dev|app|build|ship|private|finish
 
 ### 客户端与服务端快捷命令
 
-用户快捷语义与模板稳定入口如下；真实命令只从目标项目 `agent.config.json` 读取：
+用户快捷语义与模板稳定入口如下；执行命令从模板默认配置与目标项目稀疏 `agent.config.json` 的合并结果读取，项目可在任意叶级覆盖：
 
 | 用户快捷命令 | 模板稳定入口 | 语义 |
 | --- | --- | --- |
@@ -173,6 +173,17 @@ pnpm agent -- dev|app|build|ship|private|finish
 | `/private build <env>` | `pnpm agent -- private build <env>` | 构建 private profile 服务端环境产物 |
 | `/ship <env>` | `pnpm agent -- ship <env>` | 执行真实环境部署 |
 | `/private ship <env>` | `pnpm agent -- private ship <env>` | 执行 private profile 真实环境部署 |
+
+客户端平台完整矩阵：
+
+| 平台 | 默认开发客户端 | Private 开发客户端 | 默认发行构建 | Private 发行构建 |
+| --- | --- | --- | --- | --- |
+| macOS | `/dev app mac` | `/private dev app mac` | `/build app mac` | `/private build app mac` |
+| Windows | `/dev app win` | `/private dev app win` | `/build app win` | `/private build app win` |
+| iOS | `/dev app ios` | `/private dev app ios` | `/build app ios` | `/private build app ios` |
+| Android | `/dev app android` | `/private dev app android` | `/build app android` | `/private build app android` |
+
+服务端构建环境矩阵为 `/build dev|staging|prod` 与 `/private build dev|staging|prod`。模板登记构建命令的规范 alias 默认值；项目负责实现或覆盖 alias。真实部署 `/ship`、`/private ship` 必须由项目显式配置，不提供可执行默认值。
 
 配置结构：
 

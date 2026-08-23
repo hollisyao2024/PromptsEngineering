@@ -6,7 +6,7 @@
 
 ## 1. 总览
 
-本架构在现有配置加载器、统一 Agent CLI 和 DevOps 执行器之上增加通用客户端命令面。模板持有命令语义、维度校验、配置解析和结构化结果；目标项目持有真实 shell 命令与产品约束。
+本架构在现有配置加载器、统一 Agent CLI 和 DevOps 执行器之上增加通用客户端命令面。模板持有命令语义、规范 alias 默认矩阵、维度校验、配置解析和结构化结果；目标项目持有 alias 的真实实现、覆盖值与产品约束。
 
 ## 2. 功能域架构索引
 
@@ -75,7 +75,8 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | 新建独立命令系统 | 不采用 | 会产生第二执行面 | [ADR-001](adr/001-arch-template-command-dispatch.md) |
 | 扩展现有 Agent CLI + DevOps dispatcher | 采用 | 复用配置、运行证据和阻断模型 | [ADR-001](adr/001-arch-template-command-dispatch.md) |
-| 在模板中增加完整 package aliases | 不采用 | 扩张同义入口并覆盖项目差异 | [ADR-001](adr/001-arch-template-command-dispatch.md) |
+| 在模板配置中登记规范 alias 默认矩阵 | 采用 | 稀疏项目更新模板后即可解析统一命令，同时保留叶级覆盖 | [ADR-001](adr/001-arch-template-command-dispatch.md) |
+| 向目标 `package.json` 强制注入 alias 实现 | 不采用 | 模板无法替项目选择框架、构建器或签名流程 | [ADR-001](adr/001-arch-template-command-dispatch.md) |
 
 ## 5. 跨模块依赖关系
 
@@ -89,6 +90,7 @@ sequenceDiagram
 | 平台字符串与项目 alias 漂移 | 执行错误脚本 | 平台标准化后精确索引 | 单元测试 |
 | 文档语法和内部 CLI 混淆 | 用户继续使用旧语法 | 专家表只显示 `/private restart` | 文档契约测试 |
 | 模板覆盖项目文件 | 项目行为损坏 | manifest 所有权和传播收敛检查 | apply 验收 |
+| 模板只更新路由但漏登记默认矩阵 | 实际项目在启动前即因配置缺失阻断 | 枚举矩阵契约测试 + 目标项目 apply 后解析测试 | 模板传播验收 |
 
 ## 7. 文档审查与更新节奏
 
