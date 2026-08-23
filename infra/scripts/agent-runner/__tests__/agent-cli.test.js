@@ -26,6 +26,54 @@ test('unified agent CLI routes stable workflow commands', () => {
     script: 'infra/scripts/tdd-tools/tdd-finish.js',
     args: [],
   });
+  assert.deepEqual(resolveCommand(['app', 'dev', '--platform=mac']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-dev', '--platform=mac'],
+  });
+  assert.deepEqual(resolveCommand(['app', 'build', '--platform=win']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-build', '--platform=win'],
+  });
+  assert.deepEqual(resolveCommand(['build', 'server', '--env=production']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=build', '--env=production'],
+  });
+  assert.deepEqual(resolveCommand(['private', 'restart']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=dev-restart', '--target=private'],
+  });
+  assert.deepEqual(resolveCommand(['dev', 'app', 'mac']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-dev', '--platform=mac'],
+  });
+  assert.deepEqual(resolveCommand(['build', 'app', 'win']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-build', '--platform=win'],
+  });
+  assert.deepEqual(resolveCommand(['build', 'prod']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=build', '--env=prod'],
+  });
+  assert.deepEqual(resolveCommand(['private', 'dev', 'app', 'mac']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-dev', '--platform=mac', '--target=private'],
+  });
+  assert.deepEqual(resolveCommand(['private', 'build', 'app', 'win']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=app-build', '--platform=win', '--target=private'],
+  });
+  assert.deepEqual(resolveCommand(['private', 'build', 'prod']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=build', '--env=prod', '--target=private'],
+  });
+  assert.deepEqual(resolveCommand(['private', 'ship', 'prod']), {
+    script: 'infra/scripts/devops-tools/devops-run.js',
+    args: ['--action=ship', '--env=prod', '--target=private'],
+  });
+});
+
+test('private service shortcut only accepts lifecycle actions', () => {
+  assert.throws(() => resolveCommand(['private', 'unknown']), /private requires/u);
 });
 
 test('unified agent CLI rejects unknown routes', () => {

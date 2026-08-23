@@ -59,7 +59,14 @@
 - 命令接口：`devops-run.js --action=dev-<start|restart|stop|status|logs>`
 - pnpm 入口：`pnpm dev:start`、`pnpm dev:restart`、`pnpm dev:stop`、`pnpm dev:status`、`pnpm dev:logs`
 - **配置约定**：实际命令写在 `agent.config.json devServer.commands`，必要时通过环境变量提供端口、服务名和日志路径
+- private profile 的用户快捷语法为 `/private start|restart|stop|status|logs`；内部 target 仅用于 dispatcher 调度，不作为用户命令暴露
 - 验收标准：重启后健康检查端点返回 200；失败时查看日志文件排查
+
+### 客户端开发与构建
+
+- `/dev app <platform>` 与 `/private dev app <platform>` 读取 `agent.config.json app.commands.dev.<platform>`，用于启动真实开发客户端。
+- `/build app <platform>` 与 `/private build app <platform>` 读取 `agent.config.json app.commands.build.<platform>`，只生成发行产物。
+- 显式 profile 没有精确命令时必须阻断，禁止回退 default；构建成功不得替代运行态验收。
 
 ---
 
@@ -144,9 +151,12 @@
 | `env:check` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` | |
 | `env:status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | |
 | `dev:restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | |
-| `dev:restart -- --target=<profile>` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart --target=<profile>` | 多本地服务 profile 必须显式传 target |
+| `/private restart` | `pnpm agent -- private restart` | private profile 用户语法 |
+| `/dev app <platform>` | `pnpm agent -- dev app <platform>` | 开发客户端 |
+| `/build app <platform>` | `pnpm agent -- build app <platform>` | 客户端发行产物 |
+| `/build <env>` | `pnpm agent -- build <env>` | 服务端环境产物，不部署 |
 
-`devops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际部署脚本须由目标项目在 `agent.config.json` 中声明，并包含环境检查、构建、部署、冒烟验证四个阶段。多本地服务可用 `devServer.commands.<action>.<profile>` 声明，调用时使用 `--target=<profile>`，不要使用位置参数。
+`devops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际客户端、构建与部署脚本须由目标项目在 `agent.config.json` 中声明。多 profile 命令必须精确配置；用户使用 `/private ...` 语法，内部 target 不得作为用户快捷命令公开。
 
 ---
 

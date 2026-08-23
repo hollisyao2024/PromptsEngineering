@@ -77,6 +77,12 @@
     "createTag": false,
     "tagPrefix": "v"
   },
+  "app": {
+    "commands": {
+      "dev": {},
+      "build": {}
+    }
+  },
   "devServer": {
     "portStart": 3000,
     "portEnd": 3099,
@@ -100,6 +106,11 @@
     "startCommand": "",
     "healthCheckPath": "/",
     "commands": {
+      "build": {
+        "dev": "",
+        "staging": "",
+        "production": ""
+      },
       "ship": {
         "dev": "",
         "staging": "",

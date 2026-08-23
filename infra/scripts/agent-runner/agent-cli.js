@@ -24,8 +24,25 @@ const ROUTES = new Map([
   ['template:backfill', 'infra/scripts/setup/backfill-template.js'],
 ]);
 
+const DEV_SERVICE_ACTIONS = new Set(['start', 'restart', 'stop', 'status', 'logs']);
+const APP_ACTIONS = new Set(['dev', 'build']);
+const DEVOPS_RUNNER = 'infra/scripts/devops-tools/devops-run.js';
+
 function normalizeArgv(argv) {
   return argv[0] === '--' ? argv.slice(1) : argv;
+}
+
+function appRoute(action, rest, target = '') {
+  if (!APP_ACTIONS.has(action)) throw new Error('app requires dev or build');
+  const args = [`--action=app-${action}`, ...rest];
+  if (target) args.push(`--target=${target}`);
+  return { script: DEVOPS_RUNNER, args };
+}
+
+function slashAppRoute(action, rest, target = '') {
+  const [platform = '', ...extra] = rest;
+  if (!platform) throw new Error(`${action} app requires a platform`);
+  return appRoute(action, [`--platform=${platform}`, ...extra], target);
 }
 
 function resolveCommand(argv) {
@@ -36,12 +53,40 @@ function resolveCommand(argv) {
     return { script: 'infra/scripts/agent-runner/agent-task.js', args: [action, ...rest] };
   }
   if (domain === 'dev') {
+    if (action === 'app') return slashAppRoute('dev', rest);
     if (!action) throw new Error('dev requires start, restart, stop, status, or logs');
-    return { script: 'infra/scripts/devops-tools/devops-run.js', args: [`--action=dev-${action}`, ...rest] };
+    if (!DEV_SERVICE_ACTIONS.has(action)) throw new Error('dev requires app or start, restart, stop, status, or logs');
+    return { script: DEVOPS_RUNNER, args: [`--action=dev-${action}`, ...rest] };
+  }
+  if (domain === 'app') {
+    return appRoute(action, rest);
+  }
+  if (domain === 'build') {
+    if (action === 'app') return slashAppRoute('build', rest);
+    if (action === 'server') return { script: DEVOPS_RUNNER, args: ['--action=build', ...rest] };
+    if (!action) throw new Error('build requires app <platform>, server --env=<env>, or <env>');
+    return { script: DEVOPS_RUNNER, args: ['--action=build', `--env=${action}`, ...rest] };
   }
   if (domain === 'ship') {
     if (!action) throw new Error('ship requires dev, staging, or production');
-    return { script: 'infra/scripts/devops-tools/devops-run.js', args: ['--action=ship', `--env=${action}`, ...rest] };
+    return { script: DEVOPS_RUNNER, args: ['--action=ship', `--env=${action}`, ...rest] };
+  }
+  if (domain === 'private') {
+    if (DEV_SERVICE_ACTIONS.has(action)) {
+      return { script: DEVOPS_RUNNER, args: [`--action=dev-${action}`, '--target=private', ...rest] };
+    }
+    if (action === 'dev' && rest[0] === 'app') return slashAppRoute('dev', rest.slice(1), 'private');
+    if (action === 'build' && rest[0] === 'app') return slashAppRoute('build', rest.slice(1), 'private');
+    if (action === 'build' && rest[0] === 'server') {
+      return { script: DEVOPS_RUNNER, args: ['--action=build', ...rest.slice(1), '--target=private'] };
+    }
+    if (action === 'build' && rest[0]) {
+      return { script: DEVOPS_RUNNER, args: ['--action=build', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
+    }
+    if (action === 'ship' && rest[0]) {
+      return { script: DEVOPS_RUNNER, args: ['--action=ship', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
+    }
+    throw new Error('private requires start, restart, stop, status, logs, dev app <platform>, build app <platform>, build <env>, or ship <env>');
   }
   const compound = action ? `${domain}:${action}` : domain;
   const script = ROUTES.get(compound) || ROUTES.get(domain);
@@ -59,7 +104,13 @@ Core commands:
   qa <plan|verify|merge>
   template <update|backfill>
   dev <start|restart|stop|status|logs>
+  dev app <platform>
+  app <dev|build> --platform=<platform>
+  build app <platform> | build <env>
   ship <dev|staging|production>
+  private <start|restart|stop|status|logs>
+  private dev app <platform> | private build app <platform>
+  private build <env> | private ship <env>
   finish
 
 Existing package aliases remain compatible for migrated projects.`);
