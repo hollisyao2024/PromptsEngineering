@@ -8,7 +8,7 @@
 
 ## 1. 模块概述
 
-建立跨项目可复用的客户端和服务端命令协议。模板负责稳定语义、配置解析、阻断策略和结构化输出；项目负责真实命令、平台、profile、环境和验收细节。
+建立跨项目可复用的客户端和服务端命令协议。模板负责稳定语义、规范 package alias 默认矩阵、配置解析、阻断策略和结构化输出；项目负责实现或覆盖 alias，以及平台、profile、环境和验收细节。
 
 ## 2. 范围与约束
 
@@ -17,6 +17,7 @@ In Scope：
 - `/private restart` 作为 private profile 的用户可见快捷语法。
 - `/dev app <platform>` 与 `/build app <platform>` 的开发/发行语义。
 - 本地服务生命周期与 build/ship 边界。
+- mac、win、ios、android 的 dev/build 默认及 private alias，以及服务端生命周期和 build 环境 alias，随模板更新可继承。
 - 通过 `agent.config.json` 注册命令，缺失时 fail closed。
 
 Out of Scope：
@@ -34,6 +35,7 @@ Out of Scope：
 | US-CMDSURF-002 | AC-CMDSURF-002-02：Given 项目配置了客户端平台命令，When 执行 `/build app <platform>`，Then 统一入口只生成发行产物且不执行部署。 | TASK-CMDSURF-002 | TC-CMDSURF-003 | @qa |
 | US-CMDSURF-003 | AC-CMDSURF-003-01：Given 命令、平台、环境或 profile 未配置，When 调用统一入口，Then 输出 `STATUS=BLOCKED`、明确下一动作并以非零状态退出，且不得跨 profile 回退。 | TASK-CMDSURF-003 | TC-CMDSURF-004 | @qa |
 | US-CMDSURF-004 | AC-CMDSURF-004-01：Given 模板应用到目标项目，When 执行 dry-run、apply 和收敛 dry-run，Then 仅更新 template-owned 文件且 `RULES.md` 与 `agent.config.json` 保持项目所有。 | TASK-CMDSURF-004 | TC-CMDSURF-005 | @qa |
+| US-CMDSURF-004 | AC-CMDSURF-004-02：Given 目标项目保留稀疏 `agent.config.json`，When 应用模板并加载有效配置，Then mac、win、ios、android 的 dev/build 默认及 private 变体、本地服务五项生命周期和 dev/staging/prod 服务端 build 均解析为规范 alias；`ship` 仍无可执行默认值。 | TASK-CMDSURF-005 | TC-CMDSURF-006 | @qa |
 
 ## 4. 非功能需求（NFR）
 
@@ -41,6 +43,7 @@ Out of Scope：
 - NFR-CMDSURF-002：所有执行写入容器层运行目录并输出可解析状态。
 - NFR-CMDSURF-003：模板默认配置不包含真实产品名、端口、URL、凭据或签名身份。
 - NFR-CMDSURF-004：macOS、Linux、Windows 的 Node 调度路径保持兼容；项目命令自行声明平台约束。
+- NFR-CMDSURF-005：模板更新不得要求把完整默认矩阵复制到 project-owned `agent.config.json`；有效配置必须通过深合并继承 template-owned 默认值。
 
 ## 5. 依赖与风险
 

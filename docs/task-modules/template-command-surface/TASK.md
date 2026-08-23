@@ -24,6 +24,9 @@
 | TASK-CMDSURF-003 | Dispatcher、通用文档和专家映射 | @tdd | 0.5d | P0 | TASK-CMDSURF-002 | ✅ 已完成 | 2026-08-23 |
 | TASK-CMDSURF-004 | 模板回归、QA、推送与合并 | @qa | 0.5d | P0 | TASK-CMDSURF-003 | 🚧 进行中 | - |
 | TASK-CMDSURF-005 | XiaoLan 传播、项目配置与收敛验收 | @qa | 0.5d | P0 | TASK-CMDSURF-004 | 📝 待开始 | - |
+| TASK-CMDSURF-006 | RED：完整默认矩阵与稀疏继承契约 | @tdd | 0.25d | P0 | TASK-CMDSURF-003 | ✅ 已完成 | 2026-08-23 |
+| TASK-CMDSURF-007 | 中央模板登记客户端、服务生命周期与服务端 build 默认矩阵 | @tdd | 0.25d | P0 | TASK-CMDSURF-006 | ✅ 已完成 | 2026-08-23 |
+| TASK-CMDSURF-008 | 实际项目 apply、收敛与命令解析验收 | @qa | 0.25d | P0 | TASK-CMDSURF-007 | 🚧 待 QA 合并复验 | - |
 
 ### 2.2 任务详细说明
 
@@ -32,6 +35,9 @@
 - TASK-CMDSURF-003：扩展 dispatcher 解析平台与 profile；显式 profile 只允许精确值；更新 `docs/CONVENTIONS.md` 和 DEVOPS 专家映射。
 - TASK-CMDSURF-004：运行 Node 全量、setup、PRD/ARCH/TASK lint、diff check，执行 tdd push、QA verify/merge。
 - TASK-CMDSURF-005：模板源合并后在 XiaoLan 独立 worktree dry-run/apply，补项目 `app.commands`，执行目标回归与 QA merge。
+- TASK-CMDSURF-006：枚举 mac、win、ios、android 的 dev/build 默认与 private、本地服务五项生命周期、服务端三环境 build，先证明中央模板当前缺失。
+- TASK-CMDSURF-007：只修改 template-owned 默认配置和直接相关协议文档；保留稀疏项目配置与 ship 空默认值。
+- TASK-CMDSURF-008：从已合并中央模板更新实际项目，验证 apply 收敛及 `/dev app mac --dry-run` 等完整矩阵解析。
 
 每项验收均采用 Given-When-Then：Given 前置任务完成，When 执行对应测试或传播 Gate，Then 输出明确成功证据且无范围外文件变化。
 
@@ -43,6 +49,8 @@
 | 002 | 003 | Finish-to-start | 先冻结配置/路由 |
 | 003 | 004 | Finish-to-start | 实现完整后回归 |
 | 004 | 005 | Finish-to-start | 只传播已合并模板；完整 ID 以全局依赖矩阵为准 |
+| 006 | 007 | Finish-to-start | RED 后登记中央模板默认矩阵 |
+| 007 | 008 | Finish-to-start | 中央模板登记后执行真实项目传播验收 |
 
 ## 4. 资源分配
 
@@ -68,6 +76,7 @@
 | US-CMDSURF-002 | AC-CMDSURF-002-02 | TASK-CMDSURF-003 | TC-CMDSURF-003 | @qa | ✅ TDD 通过 |
 | US-CMDSURF-003 | AC-CMDSURF-003-01 | TASK-CMDSURF-003 | TC-CMDSURF-004 | @qa | ✅ TDD 通过 |
 | US-CMDSURF-004 | AC-CMDSURF-004-01 | TASK-CMDSURF-005 | TC-CMDSURF-005 | @qa | 📝 |
+| US-CMDSURF-004 | AC-CMDSURF-004-02 | TASK-CMDSURF-006~008 | TC-CMDSURF-006 | @qa | ✅ TDD 通过 / 待 QA 合并复验 |
 
 ## 7. 风险登记
 
@@ -76,6 +85,7 @@
 | 显式 profile 被 default 吞掉 | 操作错误目标 | 负向测试与精确选择 | @tdd | 已规划 |
 | 传播覆盖项目配置 | 项目行为损坏 | manifest + dry-run 收敛 | @qa | 已规划 |
 | 全量治理文档初始化引入链接错误 | QA 门禁失败 | lint 与 diff check | @qa | 已规划 |
+| 中央模板遗漏默认矩阵 | 实际项目更新后命令在执行前阻断 | 完整枚举契约 + 实际项目解析验收 | @tdd/@qa | 修复中 |
 
 ## 8. 数据库迁移任务
 
@@ -100,4 +110,5 @@
 - [x] 依赖、关键路径、DB No-op 和传播 Gate 已明确。
 - [x] 执行 `task:lint`、`task:check-cycles`、`task:sync`。
 - [x] TDD 阶段回写 RED 8 项预期失败、GREEN 17/17 与全量 Node 257/257 证据。
+- [x] 默认矩阵修复 RED 23/26（3 项预期失败）、GREEN 29/29、全量 Node 263/263，并完成目标副本 32/32 解析。
 - [ ] QA 与传播阶段回写最终状态与证据。

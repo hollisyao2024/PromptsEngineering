@@ -42,6 +42,62 @@ test('new projects receive a small canonical command surface', () => {
   assert.equal(example.scripts['tdd:resume'], undefined);
 });
 
+test('template defaults register the complete client, service, and server build command matrix', () => {
+  const config = JSON.parse(read('infra/templates/agent/config.example.json'));
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  assert.deepEqual(
+    manifest.rules.find((entry) => entry.path === 'infra/templates'),
+    { path: 'infra/templates', strategy: 'overwrite' },
+    'template updates must propagate config.example.json to target projects'
+  );
+
+  for (const platform of ['mac', 'win', 'ios', 'android']) {
+    assert.deepEqual(config.app.commands.dev[platform], {
+      default: `pnpm dev:app:${platform}`,
+      private: `pnpm private:dev:app:${platform}`,
+    });
+    assert.deepEqual(config.app.commands.build[platform], {
+      default: `pnpm build:app:${platform}`,
+      private: `pnpm private:build:app:${platform}`,
+    });
+  }
+
+  for (const action of ['start', 'restart', 'stop', 'status', 'logs']) {
+    assert.deepEqual(config.devServer.commands[action], {
+      default: `pnpm dev:${action}`,
+      private: `pnpm private:${action}`,
+    });
+  }
+
+  assert.deepEqual(config.devops.commands.build, {
+    dev: 'pnpm build:dev',
+    staging: 'pnpm build:staging',
+    production: 'pnpm build:prod',
+    private: {
+      dev: 'pnpm private:build:dev',
+      staging: 'pnpm private:build:staging',
+      production: 'pnpm private:build:prod',
+    },
+  });
+  assert.deepEqual(config.devops.commands.ship, {
+    dev: '',
+    staging: '',
+    production: '',
+  });
+});
+
+test('template conventions explicitly register every supported client shortcut', () => {
+  const conventions = read('docs/CONVENTIONS.md');
+  for (const platform of ['mac', 'win', 'ios', 'android']) {
+    assert.match(conventions, new RegExp(`/${'dev'} app ${platform}`, 'u'));
+    assert.match(conventions, new RegExp(`/private dev app ${platform}`, 'u'));
+    assert.match(conventions, new RegExp(`/build app ${platform}`, 'u'));
+    assert.match(conventions, new RegExp(`/private build app ${platform}`, 'u'));
+  }
+  assert.match(conventions, /\/build dev\|staging\|prod/u);
+  assert.match(conventions, /\/private build dev\|staging\|prod/u);
+});
+
 test('large expert and module templates are concise entrypoints', () => {
   assert.ok(lineCount('AgentRoles/TDD-PROGRAMMING-EXPERT.md') <= 220);
   assert.ok(lineCount('docs/qa-modules/MODULE-TEMPLATE.md') <= 350);

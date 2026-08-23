@@ -3,8 +3,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { loadConfig } = require('../../shared/config');
 
 const {
   collectPositionals,
@@ -109,6 +111,54 @@ test('selects server build and ship commands by environment and target', () => {
   assert.equal(commandForAction(config, {}, 'build', 'production', '', ''), 'pnpm build:prod');
   assert.equal(commandForAction(config, {}, 'build', 'production', 'private', ''), 'pnpm private:build:prod');
   assert.equal(commandForAction(config, {}, 'ship', 'production', 'private', ''), 'pnpm private:ship:prod');
+});
+
+test('an updated sparse project inherits all 32 registered default commands and can override one leaf', (t) => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-command-matrix-'));
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify({
+    projectName: 'fixture',
+    app: {
+      commands: {
+        dev: {
+          mac: { default: 'pnpm custom:dev:mac' },
+        },
+      },
+    },
+  }, null, 2)}\n`);
+
+  const config = loadConfig({ repoRoot: fixture, env: {}, argv: [] });
+  const resolved = [];
+  for (const platform of ['mac', 'win', 'ios', 'android']) {
+    const defaultDev = platform === 'mac' ? 'pnpm custom:dev:mac' : `pnpm dev:app:${platform}`;
+    resolved.push(commandForAction(config, {}, 'app-dev', '', '', platform));
+    assert.equal(resolved.at(-1), defaultDev);
+    resolved.push(commandForAction(config, {}, 'app-dev', '', 'private', platform));
+    assert.equal(resolved.at(-1), `pnpm private:dev:app:${platform}`);
+    resolved.push(commandForAction(config, {}, 'app-build', '', '', platform));
+    assert.equal(resolved.at(-1), `pnpm build:app:${platform}`);
+    resolved.push(commandForAction(config, {}, 'app-build', '', 'private', platform));
+    assert.equal(resolved.at(-1), `pnpm private:build:app:${platform}`);
+  }
+
+  for (const action of ['start', 'restart', 'stop', 'status', 'logs']) {
+    resolved.push(commandForAction(config, {}, `dev-${action}`, '', ''));
+    assert.equal(resolved.at(-1), `pnpm dev:${action}`);
+    resolved.push(commandForAction(config, {}, `dev-${action}`, '', 'private'));
+    assert.equal(resolved.at(-1), `pnpm private:${action}`);
+  }
+
+  for (const env of ['dev', 'staging', 'production']) {
+    const suffix = env === 'production' ? 'prod' : env;
+    resolved.push(commandForAction(config, {}, 'build', env));
+    assert.equal(resolved.at(-1), `pnpm build:${suffix}`);
+    resolved.push(commandForAction(config, {}, 'build', env, 'private'));
+    assert.equal(resolved.at(-1), `pnpm private:build:${suffix}`);
+  }
+
+  assert.equal(resolved.length, 32);
+  assert.equal(commandForAction(config, {}, 'ship', 'production'), '');
+  assert.equal(commandForAction(config, {}, 'ship', 'production', 'private'), '');
 });
 
 test('materializes node-prefixed configured commands with the current runtime', () => {

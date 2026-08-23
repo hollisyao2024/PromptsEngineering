@@ -86,8 +86,42 @@
   },
   "app": {
     "commands": {
-      "dev": {},
-      "build": {}
+      "dev": {
+        "mac": {
+          "default": "pnpm dev:app:mac",
+          "private": "pnpm private:dev:app:mac"
+        },
+        "win": {
+          "default": "pnpm dev:app:win",
+          "private": "pnpm private:dev:app:win"
+        },
+        "ios": {
+          "default": "pnpm dev:app:ios",
+          "private": "pnpm private:dev:app:ios"
+        },
+        "android": {
+          "default": "pnpm dev:app:android",
+          "private": "pnpm private:dev:app:android"
+        }
+      },
+      "build": {
+        "mac": {
+          "default": "pnpm build:app:mac",
+          "private": "pnpm private:build:app:mac"
+        },
+        "win": {
+          "default": "pnpm build:app:win",
+          "private": "pnpm private:build:app:win"
+        },
+        "ios": {
+          "default": "pnpm build:app:ios",
+          "private": "pnpm private:build:app:ios"
+        },
+        "android": {
+          "default": "pnpm build:app:android",
+          "private": "pnpm private:build:app:android"
+        }
+      }
     }
   },
   "devServer": {
@@ -97,11 +131,26 @@
     "buildPackages": [],
     "command": "",
     "commands": {
-      "start": "",
-      "restart": "",
-      "stop": "",
-      "status": "",
-      "logs": ""
+      "start": {
+        "default": "pnpm dev:start",
+        "private": "pnpm private:start"
+      },
+      "restart": {
+        "default": "pnpm dev:restart",
+        "private": "pnpm private:restart"
+      },
+      "stop": {
+        "default": "pnpm dev:stop",
+        "private": "pnpm private:stop"
+      },
+      "status": {
+        "default": "pnpm dev:status",
+        "private": "pnpm private:status"
+      },
+      "logs": {
+        "default": "pnpm dev:logs",
+        "private": "pnpm private:logs"
+      }
     }
   },
   "devops": {
@@ -114,9 +163,14 @@
     "healthCheckPath": "/",
     "commands": {
       "build": {
-        "dev": "",
-        "staging": "",
-        "production": ""
+        "dev": "pnpm build:dev",
+        "staging": "pnpm build:staging",
+        "production": "pnpm build:prod",
+        "private": {
+          "dev": "pnpm private:build:dev",
+          "staging": "pnpm private:build:staging",
+          "production": "pnpm private:build:prod"
+        }
       },
       "ship": {
         "dev": "",
