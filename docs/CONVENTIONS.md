@@ -152,10 +152,35 @@ pnpm agent -- worktree <action>
 pnpm agent -- tdd <action>
 pnpm agent -- qa <action>
 pnpm agent -- template <action>
-pnpm agent -- dev|ship|finish
+pnpm agent -- dev|app|build|ship|private|finish
 ```
 
 旧 aliases 在已有项目中保留兼容，但模板不继续增加同义入口。命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
+
+### 客户端与服务端快捷命令
+
+用户快捷语义与模板稳定入口如下；真实命令只从目标项目 `agent.config.json` 读取：
+
+| 用户快捷命令 | 模板稳定入口 | 语义 |
+| --- | --- | --- |
+| `/restart` | `pnpm agent -- dev restart` | 重启默认本地服务 |
+| `/private restart` | `pnpm agent -- private restart` | 重启 private profile 本地服务；不得写成 `/restart private` 或 `/restart --target=private` |
+| `/dev app <platform>` | `pnpm agent -- dev app <platform>` | 启动开发客户端，不等于构建发行产物 |
+| `/private dev app <platform>` | `pnpm agent -- private dev app <platform>` | 启动 private profile 开发客户端，不得回退默认 profile |
+| `/build app <platform>` | `pnpm agent -- build app <platform>` | 构建客户端发行产物，不执行部署 |
+| `/private build app <platform>` | `pnpm agent -- private build app <platform>` | 构建 private profile 客户端发行产物 |
+| `/build <env>` | `pnpm agent -- build <env>` | 构建服务端环境产物，不改变目标环境状态 |
+| `/private build <env>` | `pnpm agent -- private build <env>` | 构建 private profile 服务端环境产物 |
+| `/ship <env>` | `pnpm agent -- ship <env>` | 执行真实环境部署 |
+| `/private ship <env>` | `pnpm agent -- private ship <env>` | 执行 private profile 真实环境部署 |
+
+配置结构：
+
+- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。
+- 本地服务：`devServer.commands.<start|restart|stop|status|logs>`；多 profile 使用对象精确声明。
+- 服务端构建与部署：`devops.commands.build` / `devops.commands.ship`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
+- 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
+- 客户端开发、发行构建、服务端产物构建与真实部署是四种不同副作用边界，验收证据不得互相替代。
 
 ## 8. TDD、QA 与交付
 

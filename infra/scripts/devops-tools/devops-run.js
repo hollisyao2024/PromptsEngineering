@@ -2,10 +2,10 @@
 /**
  * Portable DevOps shortcut dispatcher.
  *
- * This file owns the template-level semantics for /ship, /cd, /ci, /env and
- * /restart. Real deployment, CI and service commands stay in agent.config.json
- * or environment variables; legacy project-coupled server scripts are not used
- * as a fallback.
+ * This file owns the template-level semantics for client dev/build, local
+ * service lifecycle, server build, /ship, /cd, /ci and /env. Real commands
+ * stay in agent.config.json or environment variables; project-coupled scripts
+ * are never used as an implicit fallback.
  */
 
 const fs = require('fs');
@@ -48,6 +48,24 @@ const DEV_ACTIONS = {
   'dev-logs': 'logs',
 };
 
+const APP_ACTIONS = {
+  'app-dev': 'dev',
+  'app-build': 'build',
+};
+
+const PLATFORM_ALIASES = {
+  mac: 'mac',
+  macos: 'mac',
+  darwin: 'mac',
+  win: 'win',
+  windows: 'win',
+  win32: 'win',
+  ios: 'ios',
+  iphone: 'ios',
+  android: 'android',
+  linux: 'linux',
+};
+
 function normalizeEnv(env) {
   if (!env) return '';
   return ENV_ALIASES[String(env).toLowerCase()] || String(env).toLowerCase();
@@ -57,6 +75,12 @@ function normalizeDevTarget(target) {
   if (!target) return '';
   const normalized = String(target).toLowerCase();
   return DEV_TARGET_ALIASES[normalized] || normalized;
+}
+
+function normalizePlatform(platform) {
+  if (!platform) return '';
+  const normalized = String(platform).toLowerCase();
+  return PLATFORM_ALIASES[normalized] || normalized;
 }
 
 function envLabel(env) {
@@ -72,6 +96,29 @@ function readCommand(value, selector, options = {}) {
     if (fallbackDefault) return value.default || value.saas || value.dev || '';
   }
   return '';
+}
+
+function readTargetCommand(value, target, options = {}) {
+  const { fallbackDefault = false } = options;
+  if (!value) return '';
+  if (typeof value === 'string') return target ? '' : value;
+  if (typeof value !== 'object') return '';
+  if (target) return value[target] || '';
+  if (!fallbackDefault) return '';
+  return value.default || value.saas || value.dev || '';
+}
+
+function readProfiledEnvCommand(value, env, target) {
+  if (!value) return '';
+  if (target) return readCommand(value[target], env);
+  if (value.default && typeof value.default === 'object') return readCommand(value.default, env);
+  return readCommand(value, env);
+}
+
+function readAppCommand(config, action, platform, target) {
+  const commands = (config.app && config.app.commands) || {};
+  const platformCommands = commands[action] || {};
+  return readTargetCommand(platformCommands[platform], target, { fallbackDefault: true });
 }
 
 function collectPositionals(argv = []) {
@@ -143,13 +190,14 @@ function block(reason, nextManualAction, meta = {}) {
   process.exit(1);
 }
 
-function commandForAction(config, cli, action, env, devTarget = '') {
+function commandForAction(config, cli, action, env, commandTarget = '', platform = '') {
   const commands = (config.devops && config.devops.commands) || {};
   const workflows = (config.devops && config.devops.workflows) || {};
   const healthCheck = (config.devops && config.devops.healthCheck) || {};
   const devServerCommands = (config.devServer && config.devServer.commands) || {};
 
-  if (action === 'ship') return readCommand(commands.ship, env);
+  if (action === 'build') return readProfiledEnvCommand(commands.build, env, commandTarget);
+  if (action === 'ship') return readProfiledEnvCommand(commands.ship, env, commandTarget);
   if (action === 'cd') return readCommand(commands.cd, env);
   if (action === 'ci-run') return readCommand(commands.ciRun || workflows.ci, env);
   if (action === 'ci-status') return readCommand(commands.ciStatus, env);
@@ -159,10 +207,14 @@ function commandForAction(config, cli, action, env, devTarget = '') {
   if (Object.prototype.hasOwnProperty.call(DEV_ACTIONS, action)) {
     const devCommand = DEV_ACTIONS[action];
     return (
-      readCommand(devServerCommands[devCommand], devTarget, { fallbackDefault: true }) ||
-      (devCommand === 'restart' ? config.devServer && config.devServer.command : '') ||
+      readTargetCommand(devServerCommands[devCommand], commandTarget, { fallbackDefault: true }) ||
+      (devCommand === 'restart' && !commandTarget ? config.devServer && config.devServer.command : '') ||
       ''
     );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(APP_ACTIONS, action)) {
+    return readAppCommand(config, APP_ACTIONS[action], platform, commandTarget);
   }
 
   if (cli.command) return cli.command;
@@ -170,7 +222,7 @@ function commandForAction(config, cli, action, env, devTarget = '') {
 }
 
 function actionRequiresEnv(action) {
-  return ['ship', 'cd', 'env-check'].includes(action);
+  return ['build', 'ship', 'cd', 'env-check'].includes(action);
 }
 
 function actionRequiresDeployEnabled(action) {
@@ -182,12 +234,15 @@ function main() {
   const cli = parseCliArgs(argv);
   const action = String(cli.action || '').toLowerCase();
   const isDevAction = Object.prototype.hasOwnProperty.call(DEV_ACTIONS, action);
+  const isAppAction = Object.prototype.hasOwnProperty.call(APP_ACTIONS, action);
   const positionals = collectPositionals(argv);
   const positionalTarget = positionals.find((value) => value && !String(value).startsWith('-'));
-  const devTarget = isDevAction
-    ? normalizeDevTarget(cli.devTarget || cli.target || cli.edition || cli.profile)
-    : '';
-  const env = normalizeEnv(cli.env || cli.environment || (isDevAction ? '' : cli.target));
+  const explicitEnv = cli.env || cli.environment;
+  const commandTarget = normalizeDevTarget(
+    cli.devTarget || cli.profile || cli.edition || ((isDevAction || isAppAction || explicitEnv) ? cli.target : '')
+  );
+  const env = normalizeEnv(explicitEnv || ((isDevAction || isAppAction) ? '' : cli.target));
+  const platform = normalizePlatform(cli.platform || cli.os);
   const quick = Boolean(cli.quick || cli['quick']);
   const mainRoot = getMainRepoRoot(process.cwd());
   const repoRoot = getWorktreeRoot(process.cwd());
@@ -197,7 +252,7 @@ function main() {
   if (!action) {
     block(
       'missing --action',
-      'Run with --action=ship|cd|ci-run|ci-status|env-check|env-status|dev-restart',
+      'Run with --action=app-dev|app-build|build|ship|cd|ci-run|ci-status|env-check|env-status|dev-restart',
       { run_dir: runDir }
     );
   }
@@ -205,6 +260,14 @@ function main() {
   if (actionRequiresEnv(action) && !env) {
     block('missing --env', 'Pass --env=dev|staging|production.', {
       action,
+      run_dir: runDir,
+    });
+  }
+
+  if (isAppAction && !platform) {
+    block('missing --platform', 'Pass --platform=mac|win|ios|android|linux.', {
+      action,
+      target: commandTarget,
       run_dir: runDir,
     });
   }
@@ -220,27 +283,29 @@ function main() {
   if (isDevAction && positionalTarget) {
     block(
       'dev action positional targets are not supported',
-      'Use an explicit target flag, e.g. node infra/scripts/devops-tools/devops-run.js --action=dev-restart --target=private.',
+      'Use the user shortcut /private restart for the private service, or a project-defined profile shortcut.',
       { action, target: normalizeDevTarget(positionalTarget), run_dir: runDir }
     );
   }
 
-  const rawCommand = commandForAction(config, cli, action, env, devTarget);
+  const rawCommand = commandForAction(config, cli, action, env, commandTarget, platform);
   if (!rawCommand) {
-    const suffix = isDevAction && devTarget ? `:${devTarget}` : env ? `:${env}` : '';
+    const dimensions = [platform, commandTarget, env].filter(Boolean);
+    const suffix = dimensions.length > 0 ? `:${dimensions.join(':')}` : '';
     block(
       `no command configured for ${action}${suffix}`,
-      'Add the command under agent.config.json devops.commands or devServer.commands.',
-      { action, env, target: devTarget, run_dir: runDir }
+      'Add the command under agent.config.json app.commands, devServer.commands, or devops.commands.',
+      { action, env, platform, target: commandTarget, run_dir: runDir }
     );
   }
 
   const runtimeCommand = resolveRuntimeCommand(templateCommand(rawCommand, {
     action,
     env,
-    target: devTarget,
+    target: commandTarget,
+    platform,
     env_short: envLabel(env),
-    target_short: devTarget,
+    target_short: commandTarget,
     repo: repoRoot,
     main_repo: mainRoot,
     artifacts: resolveContainerPath(config, mainRoot, 'artifacts'),
@@ -251,14 +316,15 @@ function main() {
     block(
       'Windows requires a Bash runtime for the configured deployment command',
       'Install Git for Windows (Git Bash), or set BASH_PATH to a bash.exe path, then rerun the shortcut.',
-      { action, env, target: devTarget, run_dir: runDir }
+      { action, env, platform, target: commandTarget, run_dir: runDir }
     );
   }
 
   const result = {
     action,
     env,
-    target: devTarget,
+    target: commandTarget,
+    platform,
     command,
     cwd: repoRoot,
     run_dir: runDir,
@@ -270,7 +336,8 @@ function main() {
   console.log(result.dry_run ? 'STATUS=DRY_RUN' : 'STATUS=RUNNING');
   console.log(`ACTION=${action}`);
   if (env) console.log(`ENV=${env}`);
-  if (devTarget) console.log(`TARGET=${devTarget}`);
+  if (platform) console.log(`PLATFORM=${platform}`);
+  if (commandTarget) console.log(`TARGET=${commandTarget}`);
   console.log(`RUN_DIR=${runDir}`);
   console.log(`CWD=${repoRoot}`);
   console.log(`COMMAND=${command}`);
@@ -285,7 +352,8 @@ function main() {
       ...process.env,
       AGENT_DEVOPS_ACTION: action,
       AGENT_ENV: env,
-      AGENT_TARGET: devTarget,
+      AGENT_TARGET: commandTarget,
+      AGENT_PLATFORM: platform,
       AGENT_QUICK: quick ? '1' : '0',
       SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
       AGENT_RUN_DIR: runDir,
@@ -305,7 +373,8 @@ function main() {
     block(`command exited with ${spawned.status}`, 'Inspect RUN_DIR and the command output, then fix configuration or target environment.', {
       action,
       env,
-      target: devTarget,
+      target: commandTarget,
+      platform,
       run_dir: runDir,
     });
   }
@@ -319,7 +388,10 @@ module.exports = {
   collectPositionals,
   commandForAction,
   normalizeDevTarget,
+  normalizePlatform,
   readCommand,
+  readProfiledEnvCommand,
+  readTargetCommand,
   resolveBashCommand,
   resolveRuntimeCommand,
 };

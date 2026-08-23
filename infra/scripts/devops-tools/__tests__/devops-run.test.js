@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
@@ -50,6 +51,66 @@ test('selects dev server command by target', () => {
   );
 });
 
+test('does not fall back to the default service command for an explicit private target', () => {
+  const config = {
+    devServer: {
+      commands: {
+        restart: 'node scripts/dev-server.js restart',
+      },
+    },
+  };
+
+  assert.equal(commandForAction(config, {}, 'dev-restart', '', 'private'), '');
+});
+
+test('selects app dev and build commands by platform and target without cross-profile fallback', () => {
+  const config = {
+    app: {
+      commands: {
+        dev: {
+          mac: {
+            default: 'pnpm dev:app:mac',
+            private: 'pnpm private:dev:app:mac',
+          },
+        },
+        build: {
+          win: 'pnpm build:app:win',
+        },
+      },
+    },
+  };
+
+  assert.equal(commandForAction(config, {}, 'app-dev', '', 'private', 'mac'), 'pnpm private:dev:app:mac');
+  assert.equal(commandForAction(config, {}, 'app-dev', '', '', 'mac'), 'pnpm dev:app:mac');
+  assert.equal(commandForAction(config, {}, 'app-build', '', '', 'win'), 'pnpm build:app:win');
+  assert.equal(commandForAction(config, {}, 'app-build', '', 'private', 'win'), '');
+});
+
+test('selects server build and ship commands by environment and target', () => {
+  const config = {
+    devops: {
+      commands: {
+        build: {
+          production: 'pnpm build:prod',
+          private: {
+            production: 'pnpm private:build:prod',
+          },
+        },
+        ship: {
+          production: 'pnpm ship:prod',
+          private: {
+            production: 'pnpm private:ship:prod',
+          },
+        },
+      },
+    },
+  };
+
+  assert.equal(commandForAction(config, {}, 'build', 'production', '', ''), 'pnpm build:prod');
+  assert.equal(commandForAction(config, {}, 'build', 'production', 'private', ''), 'pnpm private:build:prod');
+  assert.equal(commandForAction(config, {}, 'ship', 'production', 'private', ''), 'pnpm private:ship:prod');
+});
+
 test('materializes node-prefixed configured commands with the current runtime', () => {
   assert.equal(
     resolveRuntimeCommand('node scripts/server.js restart', 'C:\\Program Files\\nodejs\\node.exe'),
@@ -88,7 +149,7 @@ test('reports no Windows Bash command when no compatible runtime is installed', 
   );
 });
 
-test('keeps ship target semantics on env actions', () => {
+test('does not fall back to the default ship command for an explicit private target', () => {
   const config = {
     devops: {
       commands: {
@@ -99,7 +160,7 @@ test('keeps ship target semantics on env actions', () => {
     },
   };
 
-  assert.equal(commandForAction(config, {}, 'ship', 'production', 'private'), 'deploy production');
+  assert.equal(commandForAction(config, {}, 'ship', 'production', 'private'), '');
 });
 
 test('rejects positional dev targets so /restart private cannot be routed implicitly', () => {
@@ -117,5 +178,25 @@ test('rejects positional dev targets so /restart private cannot be routed implic
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /dev action positional targets are not supported/);
-  assert.match(result.stderr, /--target=private/);
+  assert.match(result.stderr, /\/private restart/);
+});
+
+test('requires an explicit platform for app commands', () => {
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const result = spawnSync(process.execPath, [script, '--action=app-dev', '--dry-run'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing --platform/);
+});
+
+test('documents /private restart as the user shortcut instead of /restart --target', () => {
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const expert = fs.readFileSync(path.join(repoRoot, 'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md'), 'utf8');
+  assert.match(expert, /`\/private restart`/u);
+  assert.doesNotMatch(expert, /`\/restart --target <profile>`/u);
 });

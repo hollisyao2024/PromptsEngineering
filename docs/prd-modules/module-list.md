@@ -1,0 +1,5 @@
+# PRD 模块清单
+
+| 模块名称 | 优先级 | 负责团队 | 文件链接 | 状态 |
+| --- | --- | --- | --- | --- |
+| 模板命令面 | P0 | @template-maintainers | [PRD.md](template-command-surface/PRD.md) | ✅ 已确认 |
