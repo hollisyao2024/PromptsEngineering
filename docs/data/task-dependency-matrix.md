@@ -8,6 +8,9 @@
 | TASK-CMDSURF-004 | TASK-CMDSURF-005 | Finish-to-start | 0 | 是 | 模板合并后进入目标项目传播 |
 | TASK-CMDSURF-006 | TASK-CMDSURF-007 | Finish-to-start | 0 | 是 | 默认矩阵 RED 后进入中央模板登记 |
 | TASK-CMDSURF-007 | TASK-CMDSURF-008 | Finish-to-start | 0 | 是 | 中央模板登记后进入实际项目传播 |
+| TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
+| TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
+| TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |
 
 ```mermaid
 flowchart LR
@@ -18,4 +21,7 @@ flowchart LR
   T5 --> T6[TASK-CMDSURF-006]
   T6 --> T7[TASK-CMDSURF-007]
   T7 --> T8[TASK-CMDSURF-008]
+  E1[TASK-ENVINIT-001] --> E2[TASK-ENVINIT-002]
+  E2 --> E3[TASK-ENVINIT-003]
+  E3 --> E4[TASK-ENVINIT-004]
 ```
