@@ -9,6 +9,11 @@
 .claude/settings.local.json
 .gemini/settings.local.json
 
+# Project runtime environment files (examples remain trackable)
+.env.local
+.env.staging
+.env.production
+
 # Agent/test/runtime outputs
 **/test-results/
 **/playwright-report/

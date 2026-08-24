@@ -1,17 +1,17 @@
 # PromptsEngineering 模板需求总纲
 
-日期：2026-08-23　版本：v1.0
+日期：2026-08-24　版本：v1.1
 
 ## 1. 产品概述
 
-PromptsEngineering 为目标仓库提供可移植的 Agent 工程治理模板。本轮目标是把客户端与服务端的高频操作收敛为稳定、可配置、可验证的命令协议，并为通用矩阵提供规范 package alias 默认值。
+PromptsEngineering 为目标仓库提供可移植的 Agent 工程治理模板。本轮目标覆盖稳定命令协议，以及目标项目首次初始化时的环境变量文件骨架。
 
 成功指标：模板命令协议定向测试 100% 通过；mac、win、ios、android 的 dev/build、private 变体、本地服务生命周期及服务端 build 环境矩阵在模板更新后均可解析；平台不支持、profile 不存在或项目显式清空命令时 100% fail closed；模板默认值不包含目标项目产品参数。
 
 ## 2. 全局范围与边界
 
-- 功能域：[模板命令面](prd-modules/template-command-surface/PRD.md)。
-- In Scope：本地服务生命周期、客户端开发启动、客户端发行构建、服务端构建与部署的语义边界及统一入口。
+- 功能域：[模板命令面](prd-modules/template-command-surface/PRD.md)、[环境文件初始化](prd-modules/environment-file-initialization/PRD.md)。
+- In Scope：本地服务生命周期、客户端开发启动、客户端发行构建、服务端构建与部署的语义边界及统一入口；首次初始化缺失的环境 example 与本地实际文件。
 - Out of Scope：具体端口、进程名、框架、签名、公证、部署拓扑、认证账号、数据库路径和真实部署默认命令。
 - `RULES.md`、`agent.config.json`、业务源码与部署脚本继续由目标项目拥有。
 
@@ -37,6 +37,7 @@ PromptsEngineering 为目标仓库提供可移植的 Agent 工程治理模板。
 | 功能域 | 优先级/阶段 | 负责人 | 文档链接 | 依赖状态/Traceability | 当前 Gate 状态 |
 | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | Traceability 已初始化 | 进入 ARCH |
+| 环境文件初始化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/environment-file-initialization/PRD.md) | Traceability 已初始化 | 进入 ARCH |
 
 ## 6. 里程碑与依赖
 
@@ -45,6 +46,7 @@ PromptsEngineering 为目标仓库提供可移植的 Agent 工程治理模板。
 | M0 协议确认 | PRD、追溯矩阵 | Story/AC 完整 | 无外部依赖 |
 | M1 模板实现 | 配置 schema、CLI/执行器、测试 | 定向与回归通过 | 依赖现有 agent.config loader |
 | M2 传播验收 | 目标项目模板 dry-run/apply/convergence | project-owned 文件不变 | 依赖模板源合并 |
+| M3 环境文件初始化 | 六个环境文件首次生成 | example 可跟踪、实际文件被忽略、已有内容不变 | 依赖模板 apply 引擎与 `.gitignore` 合并 |
 
 ## 7. 风险与开放问题
 
@@ -53,6 +55,7 @@ PromptsEngineering 为目标仓库提供可移植的 Agent 工程治理模板。
 | 把 SaaS/Private 误当成通用产品模型 | 模板使用 profile/target 抽象，项目自行定义别名 | 已收敛 |
 | 快捷命令与 package aliases 双重事实源 | 模板统一入口读取 agent.config，aliases 仅兼容 | 已收敛 |
 | 开发、构建、部署语义混淆 | 协议和测试明确三者不可互相替代 | 已收敛 |
+| 首次初始化覆盖项目已有环境配置 | 六个文件统一采用 init-if-missing，已有文件内容逐字节保持不变 | 已收敛 |
 
 开放问题：无。
 

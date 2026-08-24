@@ -115,37 +115,50 @@ function validateJsonFiles(targetRoot, files) {
   }
 }
 
-const GH_TOKEN_ENV_BLOCK = [
-  '# ========================================',
-  '# GitHub CLI（开发环境，/tdd push 自动创建 PR）',
-  '# ========================================',
-  'GH_TOKEN=',
-  '',
-].join('\n');
+const ENVIRONMENT_FILE_PAIRS = Object.freeze([
+  Object.freeze({ example: '.env.example', runtime: '.env.local' }),
+  Object.freeze({ example: '.env.staging.example', runtime: '.env.staging' }),
+  Object.freeze({ example: '.env.production.example', runtime: '.env.production' }),
+]);
 
-function ensureGhTokenEnvLocal(targetRoot, write) {
-  const envLocalPath = path.join(targetRoot, '.env.local');
-  const exists = fs.existsSync(envLocalPath);
-  const current = exists ? fs.readFileSync(envLocalPath, 'utf8') : '';
-
-  if (/^\s*(?:export\s+)?GH_TOKEN\s*=.*$/m.test(current)) {
-    return {
-      status: 'unchanged',
-      path: '.env.local',
-      reason: 'GH_TOKEN already present',
-    };
-  }
-
-  const prefix = current && !current.endsWith('\n') ? `${current}\n\n` : current ? `${current}\n` : '';
-  const next = `${prefix}${GH_TOKEN_ENV_BLOCK}`;
+function initializeEnvironmentFiles(targetRoot, write) {
   if (write) {
-    fs.writeFileSync(envLocalPath, next);
+    for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
+      if (fs.existsSync(path.join(targetRoot, runtime))) continue;
+      if (!fs.existsSync(path.join(targetRoot, example))) {
+        throw new Error(`environment example missing: ${example}`);
+      }
+    }
   }
-  return {
-    status: exists ? 'updated' : 'created',
-    path: '.env.local',
-    reason: exists ? 'GH_TOKEN block appended' : 'file created with GH_TOKEN block',
-  };
+
+  return ENVIRONMENT_FILE_PAIRS.map(({ example, runtime }) => {
+    const runtimePath = path.join(targetRoot, runtime);
+    if (fs.existsSync(runtimePath)) {
+      return { status: 'unchanged', path: runtime, reason: 'target exists' };
+    }
+    if (!write) {
+      return { status: 'created', path: runtime, reason: 'initialized from corresponding example' };
+    }
+
+    const content = fs.readFileSync(path.join(targetRoot, example));
+    try {
+      fs.writeFileSync(runtimePath, content, { flag: 'wx', mode: 0o600 });
+      return { status: 'created', path: runtime, reason: 'initialized from corresponding example' };
+    } catch (error) {
+      if (error && error.code === 'EEXIST') {
+        return { status: 'unchanged', path: runtime, reason: 'target exists' };
+      }
+      throw error;
+    }
+  });
+}
+
+function reportEnvironmentFiles(results) {
+  for (const result of results) {
+    const key = result.path.replace(/^\./u, '').replace(/[^a-zA-Z0-9]+/gu, '_').toUpperCase();
+    console.log(`ENV_FILE_${key}=${result.status}`);
+    if (result.reason) console.log(`ENV_FILE_${key}_REASON=${result.reason}`);
+  }
 }
 
 function isGitWorktree(targetRoot) {
@@ -258,9 +271,7 @@ function main() {
   const dryRun = run(process.execPath, baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
-  const dryRunEnvLocal = ensureGhTokenEnvLocal(targetRoot, false);
-  console.log(`ENV_LOCAL_GH_TOKEN=${dryRunEnvLocal.status}`);
-  if (dryRunEnvLocal.reason) console.log(`ENV_LOCAL_GH_TOKEN_REASON=${dryRunEnvLocal.reason}`);
+  reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, false));
 
   if (dryRun.status !== 0) {
     block('dry-run failed', { dry_run_log: dryRunLog });
@@ -284,9 +295,7 @@ function main() {
   if (writeRun.status !== 0) {
     block('write failed', { write_log: writeLogPath });
   }
-  const writeEnvLocal = ensureGhTokenEnvLocal(targetRoot, true);
-  console.log(`ENV_LOCAL_GH_TOKEN=${writeEnvLocal.status}`);
-  if (writeEnvLocal.reason) console.log(`ENV_LOCAL_GH_TOKEN_REASON=${writeEnvLocal.reason}`);
+  reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, true));
 
   validateJsonFiles(targetRoot, [
     'agent.config.json',
@@ -336,7 +345,7 @@ if (require.main === module) {
 
 module.exports = {
   createBackfillBaseline,
-  GH_TOKEN_ENV_BLOCK,
-  ensureGhTokenEnvLocal,
+  ENVIRONMENT_FILE_PAIRS,
+  initializeEnvironmentFiles,
   parseArgs,
 };
