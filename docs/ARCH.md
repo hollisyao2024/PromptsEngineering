@@ -1,18 +1,19 @@
 # PromptsEngineering 模板架构总纲
 
-**日期**：2026-08-23  
-**版本**：v1.0  
+**日期**：2026-08-24
+**版本**：v1.1
 **状态**：✅ 已确认
 
 ## 1. 总览
 
-本架构在现有配置加载器、统一 Agent CLI 和 DevOps 执行器之上增加通用客户端命令面。模板持有命令语义、规范 alias 默认矩阵、维度校验、配置解析和结构化结果；目标项目持有 alias 的真实实现、覆盖值与产品约束。
+本架构覆盖通用客户端命令面，以及基于模板 manifest 和初始化器的环境文件首次创建。模板持有协议和安全骨架；目标项目持有后续内容与真实凭据。
 
 ## 2. 功能域架构索引
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 依赖/Gate | Traceability ID | 阻塞/待办 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ 已确认 | TDD/QA 定向测试 | US-CMDSURF-001~004 | 无 | 2026-08-23 |
+| 环境文件初始化 | @template-maintainers | [ARCH.md](arch-modules/environment-file-initialization/ARCH.md) | ✅ 已确认 | init-if-missing / Git ignore 验收 | US-ENVINIT-001~003 | 无 | 2026-08-24 |
 
 ## 3. 架构视图
 
@@ -80,7 +81,7 @@ sequenceDiagram
 
 ## 5. 跨模块依赖关系
 
-当前只有模板命令面模块，无跨模块依赖。详见 [global-dependency-graph.md](data/global-dependency-graph.md) 与 [component-dependency-graph.md](data/component-dependency-graph.md)。
+模板命令面与环境文件初始化无运行时依赖；两者共同依赖模板 apply 生命周期。详见 [global-dependency-graph.md](data/global-dependency-graph.md) 与 [component-dependency-graph.md](data/component-dependency-graph.md)。
 
 ## 6. 风险
 
@@ -91,16 +92,20 @@ sequenceDiagram
 | 文档语法和内部 CLI 混淆 | 用户继续使用旧语法 | 专家表只显示 `/private restart` | 文档契约测试 |
 | 模板覆盖项目文件 | 项目行为损坏 | manifest 所有权和传播收敛检查 | apply 验收 |
 | 模板只更新路由但漏登记默认矩阵 | 实际项目在启动前即因配置缺失阻断 | 枚举矩阵契约测试 + 目标项目 apply 后解析测试 | 模板传播验收 |
+| 环境初始化覆盖已有凭据 | 本地或部署配置损坏 | 独占创建、存在即 unchanged，禁止 append/overwrite | 预置 sentinel 内容测试 |
 
 ## 7. 文档审查与更新节奏
 
 | 版本 | 日期 | 触发类型 | 影响功能域 | 审查人 | Traceability/QA 状态 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
 | v1.0 | 2026-08-23 | 用户确认命令协议 | 模板命令面 | @architect | Traceability 已建立 / QA 待执行 | 首版架构 |
+| v1.1 | 2026-08-24 | 用户确认六文件初始化 | 环境文件初始化 | @architect | Traceability 已建立 / QA 待执行 | 增加首次创建与所有权边界 |
 
 ## 8. 相关文档
 
 - [PRD.md](PRD.md)
 - [模块架构](arch-modules/template-command-surface/ARCH.md)
+- [环境文件初始化架构](arch-modules/environment-file-initialization/ARCH.md)
 - [架构追溯](data/arch-prd-traceability.md)
 - [ADR](adr/001-arch-template-command-dispatch.md)
+- [ADR-002](adr/002-arch-environment-file-init-if-missing.md)
