@@ -35,7 +35,7 @@ function formatCompletionText(now = new Date(), timeZone = 'Asia/Shanghai') {
 function normalizePlainText(text) {
   return text
     .replace(/[*_`~]/g, '')
-    .replace(/[()\[\]{}（）【】<>《》"'.,:;!?/\\-]/g, '')
+    .replace(/[()[\]{}（）【】<>《》"'.,:;!?/\\-]/g, '')
     .replace(/\s+/g, '')
     .toUpperCase();
 }
