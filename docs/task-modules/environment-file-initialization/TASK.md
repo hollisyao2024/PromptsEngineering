@@ -20,10 +20,10 @@
 
 | Task ID | 名称 | 负责人 | 工时 | 优先级 | 前置任务 | 状态 | 完成日期 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TASK-ENVINIT-001 | RED：首次创建、dry-run 与已有内容保护测试 | @tdd | 0.5d | P0 | - | 📝 待开始 | - |
-| TASK-ENVINIT-002 | Example sources、manifest 与 ignore 契约 | @tdd | 0.5d | P0 | TASK-ENVINIT-001 | 📝 待开始 | - |
-| TASK-ENVINIT-003 | 实际文件 init-if-missing 初始化器 | @tdd | 0.5d | P0 | TASK-ENVINIT-002 | 📝 待开始 | - |
-| TASK-ENVINIT-004 | 双次 apply、Git 状态、回归与合并 Gate | @qa / @devops | 0.5d | P0 | TASK-ENVINIT-003 | 📝 待开始 | - |
+| TASK-ENVINIT-001 | RED：首次创建、dry-run 与已有内容保护测试 | @tdd | 0.5d | P0 | - | ✅ 已完成 | 2026-08-24 |
+| TASK-ENVINIT-002 | Example sources、manifest 与 ignore 契约 | @tdd | 0.5d | P0 | TASK-ENVINIT-001 | ✅ 已完成 | 2026-08-24 |
+| TASK-ENVINIT-003 | 实际文件 init-if-missing 初始化器 | @tdd | 0.5d | P0 | TASK-ENVINIT-002 | ✅ 已完成 | 2026-08-24 |
+| TASK-ENVINIT-004 | 双次 apply、Git 状态、回归与合并 Gate | @qa / @devops | 0.5d | P0 | TASK-ENVINIT-003 | 🔄 已提交 | - |
 
 ### 2.2 任务详细说明
 
@@ -52,18 +52,18 @@
 
 | 里程碑 | 目标日期 | 交付物 | 验收标准 | Gate | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| M1-ENV-RED | 2026-08-24 | 失败测试 | 新能力缺失导致预期失败 | TASK_PLANNED | 📝 |
-| M2-ENV-GREEN | 2026-08-24 | source、manifest、初始化器 | 定向测试通过 | TDD_DONE | 📝 |
+| M1-ENV-RED | 2026-08-24 | 失败测试 | 新能力缺失导致预期失败 | TASK_PLANNED | ✅ |
+| M2-ENV-GREEN | 2026-08-24 | source、manifest、初始化器 | 定向测试通过 | TDD_DONE | ✅ |
 | M3-ENV-QA | 2026-08-24 | 传播与 Git 证据 | 四条 AC 全通过 | QA_VALIDATED | 📝 |
 
 ## 6. Story → Task 映射
 
 | Story ID | AC ID | Task ID | Test Case ID | QA | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| US-ENVINIT-001 | AC-ENVINIT-001-01 | TASK-ENVINIT-001~003 | TC-ENVINIT-001 | @qa | 📝 |
-| US-ENVINIT-001 | AC-ENVINIT-001-02 | TASK-ENVINIT-002、004 | TC-ENVINIT-002 | @qa | 📝 |
-| US-ENVINIT-002 | AC-ENVINIT-002-01 | TASK-ENVINIT-001、003 | TC-ENVINIT-003 | @qa | 📝 |
-| US-ENVINIT-003 | AC-ENVINIT-003-01 | TASK-ENVINIT-001、003、004 | TC-ENVINIT-004 | @qa | 📝 |
+| US-ENVINIT-001 | AC-ENVINIT-001-01 | TASK-ENVINIT-001~003 | TC-ENVINIT-001 | @qa | ✅ TDD / 待 QA |
+| US-ENVINIT-001 | AC-ENVINIT-001-02 | TASK-ENVINIT-002、004 | TC-ENVINIT-002 | @qa | ✅ TDD / 待 QA |
+| US-ENVINIT-002 | AC-ENVINIT-002-01 | TASK-ENVINIT-001、003 | TC-ENVINIT-003 | @qa | ✅ TDD / 待 QA |
+| US-ENVINIT-003 | AC-ENVINIT-003-01 | TASK-ENVINIT-001、003、004 | TC-ENVINIT-004 | @qa | ✅ TDD / 待 QA |
 
 已同步 `traceability-matrix.md`、`story-task-mapping.md` 与 `task-dependency-matrix.md`。
 

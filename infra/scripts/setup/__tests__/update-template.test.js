@@ -5,13 +5,16 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
+const { applyRule } = require('../template-apply-engine');
 
 const {
   createBackfillBaseline,
-  GH_TOKEN_ENV_BLOCK,
-  ensureGhTokenEnvLocal,
+  ENVIRONMENT_FILE_PAIRS,
+  initializeEnvironmentFiles,
 } = require('../update-template');
+
+const TEMPLATE_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 
 function mkTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `update-template-${prefix}-`));
@@ -39,41 +42,122 @@ test('createBackfillBaseline snapshots template updates without changing the cal
   assert.equal(git(targetRoot, ['diff', '--name-only']), 'AGENTS.md');
 });
 
-test('ensureGhTokenEnvLocal reports create in dry-run without writing', () => {
-  const targetRoot = mkTmpDir('dry-create');
-  const result = ensureGhTokenEnvLocal(targetRoot, false);
-  assert.equal(result.status, 'created');
+function writeEnvironmentExamples(targetRoot) {
+  const contents = new Map([
+    ['.env.example', 'GH_TOKEN=\nLOCAL_ONLY=\n'],
+    ['.env.staging.example', 'APP_ENV=staging\nSTAGING_SECRET=\n'],
+    ['.env.production.example', 'APP_ENV=production\nPRODUCTION_SECRET=\n'],
+  ]);
+  for (const [file, content] of contents) {
+    fs.writeFileSync(path.join(targetRoot, file), content);
+  }
+  return contents;
+}
+
+test('initializeEnvironmentFiles dry-run reports all missing runtime files without writing', () => {
+  const targetRoot = mkTmpDir('env-dry-run');
+  writeEnvironmentExamples(targetRoot);
+
+  const results = initializeEnvironmentFiles(targetRoot, false);
+
+  assert.deepEqual(results, ENVIRONMENT_FILE_PAIRS.map(({ runtime }) => ({
+    status: 'created',
+    path: runtime,
+    reason: 'initialized from corresponding example',
+  })));
+  for (const { runtime } of ENVIRONMENT_FILE_PAIRS) {
+    assert.equal(fs.existsSync(path.join(targetRoot, runtime)), false);
+  }
+});
+
+test('initializeEnvironmentFiles creates each runtime file from its target example', () => {
+  const targetRoot = mkTmpDir('env-create');
+  const contents = writeEnvironmentExamples(targetRoot);
+
+  const results = initializeEnvironmentFiles(targetRoot, true);
+
+  assert.deepEqual(results.map(({ status, path: file }) => ({ status, path: file })), [
+    { status: 'created', path: '.env.local' },
+    { status: 'created', path: '.env.staging' },
+    { status: 'created', path: '.env.production' },
+  ]);
+  for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
+    assert.equal(fs.readFileSync(path.join(targetRoot, runtime), 'utf8'), contents.get(example));
+  }
+});
+
+test('initializeEnvironmentFiles never modifies existing runtime files', () => {
+  const targetRoot = mkTmpDir('env-existing');
+  writeEnvironmentExamples(targetRoot);
+  const sentinels = new Map(ENVIRONMENT_FILE_PAIRS.map(({ runtime }, index) => [
+    runtime,
+    `SENTINEL_${index}=preserve-exactly`,
+  ]));
+  for (const [file, content] of sentinels) {
+    fs.writeFileSync(path.join(targetRoot, file), content);
+  }
+
+  const results = initializeEnvironmentFiles(targetRoot, true);
+
+  assert.deepEqual(results.map(({ status }) => status), ['unchanged', 'unchanged', 'unchanged']);
+  for (const [file, content] of sentinels) {
+    assert.equal(fs.readFileSync(path.join(targetRoot, file), 'utf8'), content);
+  }
+});
+
+test('initializeEnvironmentFiles fails closed when a required example is missing', () => {
+  const targetRoot = mkTmpDir('env-missing-example');
+  fs.writeFileSync(path.join(targetRoot, '.env.example'), 'GH_TOKEN=\n');
+
+  assert.throws(
+    () => initializeEnvironmentFiles(targetRoot, true),
+    /environment example missing: \.env\.staging\.example/u,
+  );
   assert.equal(fs.existsSync(path.join(targetRoot, '.env.local')), false);
+  assert.equal(fs.existsSync(path.join(targetRoot, '.env.staging')), false);
+  assert.equal(fs.existsSync(path.join(targetRoot, '.env.production')), false);
 });
 
-test('ensureGhTokenEnvLocal creates .env.local with GH_TOKEN block', () => {
-  const targetRoot = mkTmpDir('create');
-  const result = ensureGhTokenEnvLocal(targetRoot, true);
-  assert.equal(result.status, 'created');
-  assert.equal(fs.readFileSync(path.join(targetRoot, '.env.local'), 'utf8'), GH_TOKEN_ENV_BLOCK);
-});
+test('environment initialization creates six files with the expected Git ownership and then converges', () => {
+  const targetRoot = mkTmpDir('env-integration');
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(TEMPLATE_ROOT, 'infra/templates/agent/template.manifest.json'),
+    'utf8',
+  ));
+  const exampleRules = ENVIRONMENT_FILE_PAIRS.map(({ example }) => (
+    manifest.rules.find((rule) => rule.path === example)
+  ));
+  const gitignoreRule = manifest.rules.find((rule) => rule.path === '.gitignore');
 
-test('ensureGhTokenEnvLocal appends GH_TOKEN block to existing env file', () => {
-  const targetRoot = mkTmpDir('append');
-  fs.writeFileSync(path.join(targetRoot, '.env.local'), 'OTHER=value');
-  const result = ensureGhTokenEnvLocal(targetRoot, true);
-  assert.equal(result.status, 'updated');
-  const content = fs.readFileSync(path.join(targetRoot, '.env.local'), 'utf8');
-  assert.equal(content, `OTHER=value\n\n${GH_TOKEN_ENV_BLOCK}`);
-});
+  for (const rule of [...exampleRules, gitignoreRule]) {
+    const result = applyRule(TEMPLATE_ROOT, targetRoot, rule, true, new Set());
+    assert.notEqual(result[0].status, 'blocked');
+  }
+  initializeEnvironmentFiles(targetRoot, true);
 
-test('ensureGhTokenEnvLocal does not duplicate existing GH_TOKEN values', () => {
-  const targetRoot = mkTmpDir('existing');
-  fs.writeFileSync(path.join(targetRoot, '.env.local'), 'GH_TOKEN=already-set\n');
-  const result = ensureGhTokenEnvLocal(targetRoot, true);
-  assert.equal(result.status, 'unchanged');
-  assert.equal(fs.readFileSync(path.join(targetRoot, '.env.local'), 'utf8'), 'GH_TOKEN=already-set\n');
-});
+  for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
+    assert.equal(fs.existsSync(path.join(targetRoot, example)), true);
+    assert.equal(fs.existsSync(path.join(targetRoot, runtime)), true);
+  }
 
-test('ensureGhTokenEnvLocal treats export GH_TOKEN as existing', () => {
-  const targetRoot = mkTmpDir('existing-export');
-  fs.writeFileSync(path.join(targetRoot, '.env.local'), 'export GH_TOKEN=already-set\n');
-  const result = ensureGhTokenEnvLocal(targetRoot, true);
-  assert.equal(result.status, 'unchanged');
-  assert.equal(fs.readFileSync(path.join(targetRoot, '.env.local'), 'utf8'), 'export GH_TOKEN=already-set\n');
+  git(targetRoot, ['init']);
+  for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
+    const ignoredRuntime = spawnSync('git', ['check-ignore', '--quiet', runtime], { cwd: targetRoot });
+    const ignoredExample = spawnSync('git', ['check-ignore', '--quiet', example], { cwd: targetRoot });
+    assert.equal(ignoredRuntime.status, 0, `${runtime} must be ignored`);
+    assert.notEqual(ignoredExample.status, 0, `${example} must remain trackable`);
+  }
+
+  const sentinels = new Map();
+  for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
+    sentinels.set(example, `${example}=project-owned`);
+    sentinels.set(runtime, `${runtime}=project-owned`);
+  }
+  for (const [file, content] of sentinels) fs.writeFileSync(path.join(targetRoot, file), content);
+
+  for (const rule of exampleRules) applyRule(TEMPLATE_ROOT, targetRoot, rule, true, new Set());
+  initializeEnvironmentFiles(targetRoot, true);
+  for (const [file, content] of sentinels) {
+    assert.equal(fs.readFileSync(path.join(targetRoot, file), 'utf8'), content);
+  }
 });

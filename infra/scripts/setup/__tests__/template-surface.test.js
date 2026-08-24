@@ -30,6 +30,29 @@ test('RULES remains project-owned and is never copied from the template source',
   assert.deepEqual(rule, { path: 'RULES.md', strategy: 'project-owned' });
 });
 
+test('environment examples initialize once while runtime files stay ignored', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  for (const file of ['.env.example', '.env.staging.example', '.env.production.example']) {
+    assert.deepEqual(
+      manifest.rules.find((entry) => entry.path === file),
+      { path: file, strategy: 'init-if-missing' },
+    );
+    assert.doesNotThrow(() => read(file));
+  }
+
+  const runtimeFiles = ['.env.local', '.env.staging', '.env.production'];
+  for (const file of runtimeFiles) {
+    assert.equal(manifest.rules.some((entry) => entry.path === file), false);
+  }
+
+  const gitignoreTemplate = read('infra/templates/merge/gitignore.agent.append');
+  const ignoredPaths = new Set(gitignoreTemplate.split(/\r?\n/u));
+  for (const file of runtimeFiles) assert.equal(ignoredPaths.has(file), true);
+  for (const file of ['.env.example', '.env.staging.example', '.env.production.example']) {
+    assert.equal(ignoredPaths.has(file), false);
+  }
+});
+
 test('new projects receive a small canonical command surface', () => {
   const example = JSON.parse(read('infra/templates/agent/package-scripts.example.json'));
   const names = Object.keys(example.scripts || {});

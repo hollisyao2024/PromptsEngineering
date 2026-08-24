@@ -51,7 +51,7 @@
 7. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
 
 ## 一键应用与重复升级
-`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
+`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。首次应用时还会补齐 `.env.example`、`.env.staging.example`、`.env.production.example`、`.env.local`、`.env.staging`、`.env.production`；已有环境文件永不追加或覆盖。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
 
 ```bash
 # 首次应用或重复升级，目标路径支持相对路径
@@ -66,7 +66,7 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 应用策略：
 - `overwrite`：模板协议和核心脚本，可覆盖升级。
 - `remove`：只删除 manifest 明确登记的废弃 template-owned 文件，不支持目录删除，也不能越出目标仓库。
-- `init-if-missing`：目标没有才创建，例如 `docs/AGENT_STATE.md`、`agent.config.json`。
+- `init-if-missing`：目标没有才创建，例如 `docs/AGENT_STATE.md`、`agent.config.json` 和三个 `.env.*example` 文件。
 - `append-block`：用 managed block 合并，例如 `.gitignore`、`.envrc`。
 - `merge-package-scripts`：只向 `package.json` 追加缺失 scripts，已有 scripts 永不覆盖。
 - `project-owned` / `generated`：目标项目自有或生成文件，永不覆盖。
@@ -74,6 +74,7 @@ pnpm agent:update-template -- ../target-project/repo --dry-run
 
 template-owned 文件说明：
 - `infra/templates/agent/config.example.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json` 会复制到目标项目，但属于模板协议文件，后续升级可能覆盖。
+- 三个 example 环境文件可由 Git 跟踪；三个非 example 实际文件从对应 example 首次生成并由 `.gitignore` 忽略，之后完全由目标项目维护。
 - 实际项目需要改配置时，只改 `agent.config.json`、环境变量、CLI 参数、目标项目 `package.json` 或 `scripts/ops/` 等 project-owned 文件。
 - 如果确实需要扩展模板应用策略，优先回到模板仓库修改并升级模板，不在单个实际项目里手改 `infra/templates/agent/template.manifest.json`。
 
