@@ -661,12 +661,18 @@ test('skip-fetch creates a worktree without contacting origin', () => {
   runGit(repo, ['push', '-u', 'origin', 'main']);
   fs.rmSync(path.join(repo, '.git', 'FETCH_HEAD'), { force: true });
 
+  const bindings = [];
   const result = createOrResumeWorktree({
     cwd: repo,
+    bindTaskLocation: (input) => {
+      bindings.push(input);
+      return { status: 'BOUND', taskId: input.taskId };
+    },
     cli: {
       'skip-fetch': true,
       phase: 'tdd',
       kind: 'fix',
+      task: 'local-fast-path',
       desc: 'local fast path',
     },
   });
@@ -675,6 +681,9 @@ test('skip-fetch creates a worktree without contacting origin', () => {
   assert.equal(result.branch, 'fix/local-fast-path');
   assert.equal(fs.existsSync(result.worktreePath), true);
   assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
+  assert.deepEqual(bindings.map((item) => item.taskId), ['local-fast-path']);
+  assert.equal(bindings[0].worktree, result.worktreePath);
+  assert.equal(bindings[0].branch, result.branch);
 });
 
 test('auto bootstrap can always reconcile dependencies even when the readiness check passes', (t) => {
@@ -875,8 +884,16 @@ test('resuming refuses to overwrite cleanup or recovery lifecycle state', (t) =>
   runGit(repo, ['commit', '-m', 'init']);
   t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
 
-  const cli = { 'skip-fetch': true, phase: 'tdd', kind: 'fix', desc: 'sealed lifecycle' };
+  const cli = {
+    'skip-fetch': true,
+    phase: 'tdd',
+    kind: 'fix',
+    task: 'sealed-lifecycle',
+    desc: 'sealed lifecycle',
+  };
   const created = createOrResumeWorktree({ cwd: repo, cli });
+  const originalSession = readSessions(created.config, repo)
+    .find((session) => session.branch === created.branch);
   writeSession(created.config, repo, {
     branch: created.branch,
     worktree: created.worktreePath,
@@ -896,15 +913,86 @@ test('resuming refuses to overwrite cleanup or recovery lifecycle state', (t) =>
     status: 'recovery_required',
     step: 'post_merge_recovery_required',
   });
+  const bindings = [];
   const recovered = recoverSessionAsBranch(
     created.config,
     repo,
     created.branch,
     'fix/sealed-lifecycle-recovered',
+    { bindTaskLocation: (input) => bindings.push(input) },
   );
   assert.equal(recovered.branch, 'fix/sealed-lifecycle-recovered');
   assert.equal(runGit(created.worktreePath, ['branch', '--show-current']), recovered.branch);
   const sessions = readSessions(created.config, repo);
   assert.equal(sessions.some((session) => session.branch === created.branch), false);
-  assert.equal(sessions.find((session) => session.branch === recovered.branch).status, 'in_progress');
+  const recoveredSession = sessions.find((session) => session.branch === recovered.branch);
+  assert.equal(recoveredSession.status, 'in_progress');
+  assert.deepEqual(recoveredSession.lifecycle, originalSession.lifecycle);
+  assert.deepEqual(bindings.map((item) => item.taskId), ['sealed-lifecycle']);
+  assert.equal(bindings[0].worktree, created.worktreePath);
+  assert.equal(bindings[0].branch, recovered.branch);
+});
+
+test('recovery branch rebind resumes from its persisted intent after task binding interruption', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-rebind-retry-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees', tmp: '../tmp' },
+    worktree: { sessionDir: '../tmp/sessions', lockDir: '../tmp/locks', envSymlinks: [], sharedConfigSymlinks: [] },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const created = createOrResumeWorktree({
+    cwd: repo,
+    cli: {
+      'skip-fetch': true,
+      phase: 'tdd',
+      kind: 'fix',
+      task: 'retry-rebind',
+      desc: 'retry rebind',
+    },
+  });
+  writeSession(created.config, repo, {
+    branch: created.branch,
+    worktree: created.worktreePath,
+    status: 'recovery_required',
+    step: 'post_merge_recovery_required',
+  });
+  const recoveredBranch = 'recovery/retry-rebind';
+
+  assert.throws(() => recoverSessionAsBranch(
+    created.config,
+    repo,
+    created.branch,
+    recoveredBranch,
+    { bindTaskLocation: () => { throw new Error('simulated task state interruption'); } },
+  ), /simulated task state interruption/u);
+
+  const interruptedSessions = readSessions(created.config, repo);
+  const oldSession = interruptedSessions.find((session) => session.branch === created.branch);
+  assert.equal(oldSession.status, 'recovery_required');
+  assert.equal(oldSession.step, 'recovery_rebind_pending');
+  assert.equal(oldSession.rebind.toBranch, recoveredBranch);
+  assert.equal(runGit(created.worktreePath, ['branch', '--show-current']), recoveredBranch);
+
+  const bindings = [];
+  const recovered = recoverSessionAsBranch(
+    created.config,
+    repo,
+    created.branch,
+    recoveredBranch,
+    { bindTaskLocation: (input) => bindings.push(input) },
+  );
+  assert.equal(recovered.branch, recoveredBranch);
+  assert.deepEqual(bindings.map((item) => item.taskId), ['retry-rebind']);
+  assert.equal(readSessions(created.config, repo).some((session) => session.branch === created.branch), false);
+  assert.equal(runGit(repo, ['branch', '--list', created.branch]), '');
 });

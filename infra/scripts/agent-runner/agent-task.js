@@ -386,6 +386,39 @@ function createTask(options) {
   });
 }
 
+function bindTaskLocation(options) {
+  const taskId = safeTaskId(options.taskId);
+  if (!path.isAbsolute(options.projectRoot || '')) {
+    throw new Error('projectRoot must be absolute');
+  }
+  if (!path.isAbsolute(options.worktree || '')) {
+    throw new Error('worktree must be absolute');
+  }
+  const taskDir = path.join(options.runsRoot, taskId);
+  if (!fs.existsSync(taskDir)) return { status: 'MISSING', taskId };
+
+  return withTaskLock({ lockDir: options.lockDir, taskId }, () => {
+    const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+    if (!isSamePath(state.project_root, options.projectRoot)) {
+      throw new Error(`task ${taskId} belongs to a different project root`);
+    }
+    if (['completed', 'cleanup_pending'].includes(state.status)) {
+      return { status: 'TERMINAL', taskId, taskStatus: state.status };
+    }
+
+    const worktree = path.resolve(options.worktree);
+    const branch = String(options.branch || '');
+    if (isSamePath(state.worktree, worktree) && state.branch === branch) {
+      return { status: 'UNCHANGED', taskId };
+    }
+    state.worktree = worktree;
+    state.branch = branch;
+    state.updated_at = nowIso(options.now);
+    writeAtomicState({ runsRoot: options.runsRoot, taskId, state });
+    return { status: 'BOUND', taskId };
+  });
+}
+
 function extendTask(options) {
   const taskId = safeTaskId(options.taskId);
   const sourceSteps = Array.isArray(options.steps) ? options.steps : [];
@@ -952,21 +985,11 @@ function main(argv = process.argv.slice(2)) {
   throw new Error(`unknown command: ${cli.command}`);
 }
 
-if (require.main === module) {
-  try {
-    process.exitCode = main();
-  } catch (error) {
-    console.error('STATUS=BLOCKED');
-    if (error.candidates) console.error(`CANDIDATES=${error.candidates.join(',')}`);
-    console.error(`REASON=${error.message}`);
-    process.exitCode = 1;
-  }
-}
-
 module.exports = {
   SCHEMA_VERSION,
   TASK_TYPES,
   TASK_PHASES,
+  bindTaskLocation,
   cancelTask,
   checkpointTask,
   completionBlockers,
@@ -984,3 +1007,14 @@ module.exports = {
   validateState,
   writeAtomicState,
 };
+
+if (require.main === module) {
+  try {
+    process.exitCode = main();
+  } catch (error) {
+    console.error('STATUS=BLOCKED');
+    if (error.candidates) console.error(`CANDIDATES=${error.candidates.join(',')}`);
+    console.error(`REASON=${error.message}`);
+    process.exitCode = 1;
+  }
+}

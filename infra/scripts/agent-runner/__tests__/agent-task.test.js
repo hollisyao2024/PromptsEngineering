@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const {
+  bindTaskLocation,
   cancelTask,
   checkpointTask,
   createTask,
@@ -392,6 +393,43 @@ test('auto selection binds to worktree and blocks ambiguous project tasks', (t) 
     worktree: paths.projectRoot,
     branch: 'main',
   }), /ambiguous/i);
+});
+
+test('explicit lifecycle binding moves an active task to its managed worktree', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, {
+    branch: 'main',
+    worktree: paths.projectRoot,
+  }));
+  const reboundWorktree = path.join(paths.root, 'recovered-worktree');
+  fs.mkdirSync(reboundWorktree);
+
+  const result = bindTaskLocation({
+    ...paths,
+    taskId: 'durable-task',
+    projectRoot: paths.projectRoot,
+    worktree: reboundWorktree,
+    branch: 'recovery/durable-task',
+    now: '2026-08-16T02:00:00.000Z',
+  });
+
+  assert.equal(result.status, 'BOUND');
+  const rebound = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(rebound.worktree, reboundWorktree);
+  assert.equal(rebound.branch, 'recovery/durable-task');
+  assert.equal(selectTaskState([rebound], {
+    projectRoot: paths.projectRoot,
+    worktree: reboundWorktree,
+    branch: 'recovery/durable-task',
+  }).task_id, 'durable-task');
+});
+
+test('CLI publishes task-state readers before running main to avoid audit circular loading', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'agent-task.js'), 'utf8');
+  assert.ok(
+    source.indexOf('module.exports = {') < source.indexOf('if (require.main === module)'),
+    'agent-task exports must exist before task resume invokes the worktree auditor',
+  );
 });
 
 test('state reads ignore temporary write remnants and fail closed on corrupt authority', (t) => {

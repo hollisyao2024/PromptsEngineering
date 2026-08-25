@@ -6,6 +6,7 @@ const { spawnSync } = require('node:child_process');
 const { loadConfig, resolveContainerPath, resolveRuntimePath } = require('../shared/config');
 const {
   acquireLock,
+  bindLifecycleTaskLocations,
   branchExists,
   getBaseRef,
   getMainRepoRoot,
@@ -14,6 +15,7 @@ const {
   isMainBranch,
   isPathInside,
   isSamePath,
+  lifecycleTopicFromBranch,
   listWorktrees,
   readSessions,
   removeSession,
@@ -32,11 +34,14 @@ function sessionTaskIds(session) {
   const keys = session && session.lifecycle && Array.isArray(session.lifecycle.keys)
     ? session.lifecycle.keys
     : [];
-  return [...new Set(keys
+  const ids = keys
     .filter((key) => typeof key === 'string' && key.startsWith('task:'))
     .map((key) => normalizeTaskId(key.slice('task:'.length)))
-    .filter(Boolean))]
-    .sort();
+    .filter(Boolean);
+  if (session && session.recovered_from) {
+    ids.push(normalizeTaskId(lifecycleTopicFromBranch(session.recovered_from)));
+  }
+  return [...new Set(ids.filter(Boolean))].sort();
 }
 
 function samePath(left, right) {
@@ -228,6 +233,8 @@ function collectAuditRecords(options) {
       now,
     };
     const classification = classifyWorktreeEvidence(evidence);
+    const matchedActiveTaskIds = sessionTaskIds(session)
+      .filter((taskId) => tasks.ids.includes(taskId));
     return {
       branch,
       path: worktreePath,
@@ -241,7 +248,7 @@ function collectAuditRecords(options) {
         dirty: git.dirty,
         uniqueCommits: git.uniqueCommits,
         processUsers: evidence.processInspection.users?.map((user) => user.pid) || [],
-        activeTaskIds: tasks.ids,
+        activeTaskIds: matchedActiveTaskIds,
         taskInspectionSupported: tasks.supported,
       },
     };
@@ -254,6 +261,7 @@ function deleteLocalBranch(mainRoot, branch) {
 }
 
 function recoveryPayload(record, reason) {
+  const rebind = record.session && record.session.rebind;
   return {
     branch: record.branch,
     worktree: record.path,
@@ -264,7 +272,9 @@ function recoveryPayload(record, reason) {
       observed_at: new Date().toISOString(),
       expected_head: record.head || '',
       expected_revision: record.revision || 0,
-      next_action: `Inspect and preserve ${record.path || record.branch}; recover it to a new branch before cleanup.`,
+      next_action: rebind && rebind.toBranch
+        ? `pnpm agent -- worktree resume --branch ${record.branch} --recover-as ${rebind.toBranch}`
+        : `Inspect and preserve ${record.path || record.branch}; recover it to a new branch before cleanup.`,
     },
   };
 }
@@ -326,7 +336,7 @@ function summarize(records, mode, reconciliation = null, qaPlanStates = null) {
   const counts = {};
   for (const record of records) counts[record.state] = (counts[record.state] || 0) + 1;
   return {
-    status: records.some((record) => record.state === 'recovery_required')
+    status: records.some((record) => ['cleanup_pending', 'recovery_required'].includes(record.state))
       || qaPlanStates?.status === 'ATTENTION'
       ? 'ATTENTION'
       : 'OK',
@@ -389,6 +399,40 @@ function auditManagedWorktrees(options = {}) {
     const initial = collect();
     const results = [];
     for (const record of initial) {
+      if (record.state === 'active' && record.reason === 'task-active' && record.session) {
+        const lifecycleKeys = new Set(
+          record.session.lifecycle && Array.isArray(record.session.lifecycle.keys)
+            ? record.session.lifecycle.keys
+            : [],
+        );
+        for (const taskId of record.evidence.activeTaskIds) lifecycleKeys.add(`task:${taskId}`);
+        if (record.session.recovered_from) {
+          lifecycleKeys.add(`topic:${lifecycleTopicFromBranch(record.session.recovered_from)}`);
+        }
+        const migratedSession = {
+          ...record.session,
+          lifecycle: {
+            ...(record.session.lifecycle || {}),
+            phase: record.session.lifecycle?.phase || record.session.phase,
+            keys: [...lifecycleKeys].sort(),
+          },
+        };
+        if (!record.session.lifecycle || record.evidence.activeTaskIds.some(
+          (taskId) => !record.session.lifecycle.keys?.includes(`task:${taskId}`),
+        )) {
+          (dependencies.writeSession || writeSession)(config, mainRoot, migratedSession);
+        }
+        const taskBindings = bindLifecycleTaskLocations(
+          config,
+          mainRoot,
+          migratedSession,
+          record.path,
+          record.branch,
+          { ...dependencies, taskIds: record.evidence.activeTaskIds },
+        );
+        results.push({ ...record, taskBindings });
+        continue;
+      }
       if (record.state === 'recovery_required' && record.session && record.branch && record.path
           && record.session.status !== 'recovery_required') {
         (dependencies.writeSession || writeSession)(config, mainRoot, recoveryPayload(record, record.reason));
@@ -431,8 +475,10 @@ function convergeCleanupCandidate(candidate, operations = {}) {
     if (typeof operations[name] !== 'function') throw new Error(`${name} operation is required`);
   }
 
+  let intentPersisted = false;
   try {
     operations.writeIntent(candidate);
+    intentPersisted = true;
     operations.removeWorktree(candidate);
     operations.deleteBranch(candidate);
     const observed = operations.verify(candidate) || {};
@@ -444,6 +490,9 @@ function convergeCleanupCandidate(candidate, operations = {}) {
     operations.removeSession(candidate);
     return { state: 'cleaned', reason: 'cleanup-verified' };
   } catch (error) {
+    if (intentPersisted) {
+      return { state: 'cleanup_pending', reason: `cleanup-deferred:${error.message}` };
+    }
     const reason = `cleanup-failed:${error.message}`;
     operations.writeRecovery(candidate, reason);
     return { state: 'recovery_required', reason };
