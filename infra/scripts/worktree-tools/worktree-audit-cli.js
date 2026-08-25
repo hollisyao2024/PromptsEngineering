@@ -49,6 +49,8 @@ function main(argv = process.argv.slice(2)) {
     ].filter((record) => record.state === 'recovery_required');
     if (recovery.length > 0) {
       console.log('NEXT_ACTION=Inspect recovery_required worktrees and preserve needed changes with worktree resume --recover-as.');
+    } else if (result.records.some((record) => record.state === 'cleanup_pending')) {
+      console.log('NEXT_ACTION=Retry pnpm agent -- worktree audit --apply so persisted cleanup intents can converge.');
     }
   }
   return result.status === 'ATTENTION' ? 1 : 0;

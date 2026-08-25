@@ -180,6 +180,52 @@ function sessionLifecycleKeys(session) {
   return keys;
 }
 
+function lifecycleTaskIds(session) {
+  return [...new Set([...sessionLifecycleKeys(session)]
+    .filter((key) => key.startsWith('task:'))
+    .map((key) => slugify(key.slice('task:'.length)))
+    .filter(Boolean))].sort();
+}
+
+function verifiedRecoveryTaskIds(config, mainRoot, session, options = {}) {
+  const explicit = lifecycleTaskIds(session);
+  if (!session || !session.recovered_from) return explicit;
+  const candidate = lifecycleTopicFromBranch(session.recovered_from);
+  const runsRoot = path.join(resolveContainerPath(config, mainRoot, 'tmp'), 'agent-task-runs');
+  const list = options.listTaskStates
+    || require('../agent-runner/agent-task').listTaskStates;
+  const matching = list({ runsRoot })
+    .filter((state) => state && isSamePath(state.project_root, mainRoot))
+    .filter((state) => !['completed', 'cleanup_pending'].includes(state.status))
+    .map((state) => slugify(state.task_id))
+    .filter((taskId) => taskId === candidate);
+  return [...new Set([...explicit, ...matching])].sort();
+}
+
+function bindLifecycleTaskLocations(config, mainRoot, session, worktree, branch, options = {}) {
+  const taskIds = Array.isArray(options.taskIds)
+    ? [...new Set(options.taskIds.map(slugify).filter(Boolean))].sort()
+    : lifecycleTaskIds(session);
+  if (taskIds.length === 0) return [];
+  const runsRoot = path.join(resolveContainerPath(config, mainRoot, 'tmp'), 'agent-task-runs');
+  const lockDir = resolveRuntimePath(
+    config,
+    mainRoot,
+    config.worktree && config.worktree.lockDir,
+    'agent-locks',
+  );
+  const bind = options.bindTaskLocation
+    || require('../agent-runner/agent-task').bindTaskLocation;
+  return taskIds.map((taskId) => bind({
+    runsRoot,
+    lockDir,
+    taskId,
+    projectRoot: mainRoot,
+    worktree,
+    branch,
+  }));
+}
+
 function planSupersededSessions(options = {}) {
   const { config, mainRoot, cli = {}, branch } = options;
   const identity = buildLifecycleIdentity(cli, branch);
@@ -493,37 +539,97 @@ function assertSessionCanResume(config, mainRoot, branch) {
   throw error;
 }
 
-function recoverSessionAsBranch(config, mainRoot, branch, newBranch) {
+function recoverSessionAsBranch(config, mainRoot, branch, newBranch, options = {}) {
   if (!newBranch || newBranch === branch || isMainBranch(newBranch)) {
     throw new Error('--recover-as requires a distinct non-main branch name');
   }
-  const session = readSessions(config, mainRoot).find((item) => item.branch === branch);
-  if (!session || session.status !== 'recovery_required' || !session.worktree) {
-    throw new Error(`branch ${branch} has no recovery_required session`);
+  const configuredLockDir = config.worktree && config.worktree.lockDir;
+  const lockDir = resolveRuntimePath(config, mainRoot, configuredLockDir, 'agent-locks');
+  const release = acquireLock(lockDir, 'worktree-recovery-rebind', options.lockTimeoutMs || 30000);
+  try {
+    const session = readSessions(config, mainRoot).find((item) => item.branch === branch);
+    if (!session || session.status !== 'recovery_required' || !session.worktree) {
+      throw new Error(`branch ${branch} has no recovery_required session`);
+    }
+    let entry = listWorktrees(mainRoot).find((item) => isSamePath(item.path, session.worktree));
+    if (!entry) throw new Error(`recovery worktree is not registered: ${session.worktree}`);
+    if (![branch, newBranch].includes(entry.branch)) {
+      throw new Error(`recovery worktree branch mismatch: expected ${branch}, found ${entry.branch || '(detached)'}`);
+    }
+    const head = runGit(['rev-parse', 'HEAD'], { cwd: session.worktree, capture: true }).trim();
+    const taskIds = verifiedRecoveryTaskIds(config, mainRoot, session, options);
+    const lifecycleKeys = new Set(sessionLifecycleKeys(session));
+    for (const taskId of taskIds) lifecycleKeys.add(`task:${taskId}`);
+    const lifecycle = {
+      ...(session.lifecycle || {}),
+      phase: session.lifecycle?.phase || session.phase || inferPhaseFromBranch(newBranch),
+      keys: [...lifecycleKeys].sort(),
+    };
+    const rebind = {
+      fromBranch: branch,
+      toBranch: newBranch,
+      worktree: path.resolve(session.worktree),
+      expectedHead: head,
+      requestedAt: session.rebind?.requestedAt || new Date().toISOString(),
+    };
+    writeSession(config, mainRoot, {
+      branch,
+      worktree: session.worktree,
+      status: 'recovery_required',
+      step: 'recovery_rebind_pending',
+      rebind,
+    });
+
+    if (entry.branch === branch) {
+      if (branchExists(mainRoot, newBranch)) throw new Error(`recovery branch already exists: ${newBranch}`);
+      runGit(['branch', '-m', newBranch], { cwd: session.worktree });
+      entry = listWorktrees(mainRoot).find((item) => isSamePath(item.path, session.worktree));
+    }
+    if (!entry || entry.branch !== newBranch) {
+      throw new Error(`recovery branch rename is incomplete: expected ${newBranch}`);
+    }
+    const observedHead = runGit(['rev-parse', 'HEAD'], { cwd: session.worktree, capture: true }).trim();
+    if (observedHead !== head) {
+      throw new Error(`recovery HEAD drift: expected ${head}, found ${observedHead}`);
+    }
+
+    writeManagedMarker(mainRoot, session.worktree, newBranch);
+    writeSession(config, mainRoot, {
+      phase: session.phase || inferPhaseFromBranch(newBranch),
+      branch: newBranch,
+      worktree: session.worktree,
+      status: 'in_progress',
+      step: 'recovered_post_merge_work',
+      recovered_from: session.recovered_from || branch,
+      head,
+      lifecycle,
+    });
+    const taskBindings = bindLifecycleTaskLocations(
+      config,
+      mainRoot,
+      { ...session, lifecycle },
+      session.worktree,
+      newBranch,
+      options,
+    );
+    if (branchExists(mainRoot, branch)) {
+      const previousHead = runGit(['rev-parse', branch], { cwd: mainRoot, capture: true }).trim();
+      if (previousHead !== head) {
+        throw new Error(`previous recovery branch drift: expected ${head}, found ${previousHead}`);
+      }
+      runGit(['branch', '-D', branch], { cwd: mainRoot });
+    }
+    removeSession(config, mainRoot, branch);
+    return {
+      branch: newBranch,
+      previousBranch: branch,
+      worktreePath: session.worktree,
+      head,
+      taskBindings,
+    };
+  } finally {
+    release();
   }
-  const entry = listWorktrees(mainRoot).find((item) => isSamePath(item.path, session.worktree));
-  if (!entry) throw new Error(`recovery worktree is not registered: ${session.worktree}`);
-  if (![branch, newBranch].includes(entry.branch)) {
-    throw new Error(`recovery worktree branch mismatch: expected ${branch}, found ${entry.branch || '(detached)'}`);
-  }
-  if (entry.branch === branch) {
-    if (branchExists(mainRoot, newBranch)) throw new Error(`recovery branch already exists: ${newBranch}`);
-    runGit(['switch', '-c', newBranch], { cwd: session.worktree });
-  }
-  const head = runGit(['rev-parse', 'HEAD'], { cwd: session.worktree, capture: true }).trim();
-  writeSession(config, mainRoot, {
-    phase: session.phase || inferPhaseFromBranch(newBranch),
-    branch: newBranch,
-    worktree: session.worktree,
-    status: 'in_progress',
-    step: 'recovered_post_merge_work',
-    recovered_from: branch,
-    head,
-  });
-  runGit(['branch', '-D', branch], { cwd: mainRoot });
-  removeSession(config, mainRoot, branch);
-  writeManagedMarker(mainRoot, session.worktree, newBranch);
-  return { branch: newBranch, previousBranch: branch, worktreePath: session.worktree, head };
 }
 
 function writeManagedMarker(mainRoot, worktreePath, branch) {
@@ -947,6 +1053,7 @@ function createOrResumeWorktree(options = {}) {
     assertNoConflictingRecovery(config, mainRoot, cli, branch);
     const head = runGit(['rev-parse', 'HEAD'], { cwd: existing.path, capture: true }).trim();
     const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
+    const lifecycle = lifecycleState(supersession);
     writeManagedMarker(mainRoot, existing.path, branch);
     writeSession(config, mainRoot, {
       phase: cli.phase || inferPhaseFromBranch(branch),
@@ -955,7 +1062,7 @@ function createOrResumeWorktree(options = {}) {
       status: 'in_progress',
       step: 'resumed',
       head,
-      lifecycle: lifecycleState(supersession),
+      lifecycle,
     });
     const bootstrap = runWorktreeBootstrap({
       worktreePath: existing.path,
@@ -972,7 +1079,25 @@ function createOrResumeWorktree(options = {}) {
       head,
       bootstrap,
     });
-    return { branch, worktreePath: existing.path, config, mainRoot, audit, bootstrap, supersession, resumed: true };
+    const taskBindings = bindLifecycleTaskLocations(
+      config,
+      mainRoot,
+      { branch, lifecycle },
+      existing.path,
+      branch,
+      options,
+    );
+    return {
+      branch,
+      worktreePath: existing.path,
+      config,
+      mainRoot,
+      audit,
+      bootstrap,
+      supersession,
+      taskBindings,
+      resumed: true,
+    };
   }
 
   const worktreesDir = resolveContainerPath(config, mainRoot, 'worktrees');
@@ -1012,6 +1137,7 @@ function createOrResumeWorktree(options = {}) {
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
   const head = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
   const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
+  const lifecycle = lifecycleState(supersession);
   writeManagedMarker(mainRoot, worktreePath, branch);
   writeSession(config, mainRoot, {
     phase: cli.phase || inferPhaseFromBranch(branch),
@@ -1021,7 +1147,7 @@ function createOrResumeWorktree(options = {}) {
     step: 'created',
     head,
     linked,
-    lifecycle: lifecycleState(supersession),
+    lifecycle,
   });
   const bootstrap = runWorktreeBootstrap({
     worktreePath,
@@ -1040,6 +1166,14 @@ function createOrResumeWorktree(options = {}) {
     linked,
     bootstrap,
   });
+  const taskBindings = bindLifecycleTaskLocations(
+    config,
+    mainRoot,
+    { branch, lifecycle },
+    worktreePath,
+    branch,
+    options,
+  );
   return {
     branch,
     worktreePath,
@@ -1050,6 +1184,7 @@ function createOrResumeWorktree(options = {}) {
     bootstrap,
     audit,
     supersession,
+    taskBindings,
     resumed: false,
     fetchSkipped,
   };
@@ -1063,6 +1198,7 @@ module.exports = {
   buildBranchName,
   buildLifecycleIdentity,
   buildWorktreeName,
+  bindLifecycleTaskLocations,
   createOrResumeWorktree,
   findWorktreeByBranch,
   getBaseRef,
@@ -1077,6 +1213,8 @@ module.exports = {
   isMainBranch,
   listWorktrees,
   lifecycleTopicFromBranch,
+  lifecycleTaskIds,
+  verifiedRecoveryTaskIds,
   materializeReusablePaths,
   parseCliArgs,
   planSupersededSessions,
