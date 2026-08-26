@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   evaluateCompletionGuard,
+  parseArgs,
   splitStatusLines,
 } = require('../tdd-completion-guard');
 
@@ -40,6 +41,76 @@ test('completion guard blocks clean main when post-merge work requires recovery'
   assert.equal(result.ok, false);
   assert.match(result.reason, /recovery_required/);
   assert.deepEqual(result.lifecycleBranches, ['fix/recovery']);
+});
+
+test('task-scoped completion guard ignores recovery owned by another task', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'main',
+    statusLines: [],
+    taskId: 'cloud-sync-implementation',
+    lifecycleSessions: [{
+      branch: 'docs/prd-cleanroom-one-click-publish',
+      status: 'recovery_required',
+      lifecycle: { keys: ['task:cleanroom-one-click-publish'] },
+    }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'OK');
+});
+
+test('task-scoped completion guard blocks recovery owned by the finishing task', () => {
+  const result = evaluateCompletionGuard({
+    branch: 'main',
+    statusLines: [],
+    taskId: 'cloud-sync-implementation',
+    lifecycleSessions: [
+      {
+        branch: 'docs/prd-cleanroom-one-click-publish',
+        status: 'recovery_required',
+        lifecycle: { keys: ['task:cleanroom-one-click-publish'] },
+      },
+      {
+        branch: 'feature/cloud-sync-implementation',
+        status: 'cleanup_pending',
+        lifecycle: { keys: ['task:cloud-sync-implementation'] },
+      },
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /cleanup_pending/);
+  assert.deepEqual(result.lifecycleBranches, ['feature/cloud-sync-implementation']);
+});
+
+test('task scope never bypasses repository state checks', async (t) => {
+  await t.test('dirty main remains blocked', () => {
+    const result = evaluateCompletionGuard({
+      branch: 'main',
+      statusLines: [' M package.json'],
+      taskId: 'cloud-sync-implementation',
+      lifecycleSessions: [{
+        branch: 'fix/unrelated',
+        status: 'recovery_required',
+        lifecycle: { keys: ['task:unrelated'] },
+      }],
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /未提交改动/);
+  });
+
+  await t.test('unpushed task branch remains blocked', () => {
+    const result = evaluateCompletionGuard({
+      branch: 'feature/cloud-sync-implementation',
+      statusLines: [],
+      taskId: 'cloud-sync-implementation',
+      hasUpstream: false,
+      remoteHeadMatchesHead: false,
+      headMergedToBase: false,
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /尚未完整推送/);
+  });
 });
 
 test('completion guard blocks dirty main before final response', () => {
@@ -134,4 +205,10 @@ test('completion guard passes task branches already merged to the base ref', () 
 
 test('splitStatusLines drops empty lines only', () => {
   assert.deepEqual(splitStatusLines(' M a.js\n?? b.js\n\n'), [' M a.js', '?? b.js']);
+});
+
+test('completion guard task scope parsing is explicit and fail-closed', () => {
+  assert.equal(parseArgs(['--task', 'Cloud-Sync']).taskId, 'cloud-sync');
+  assert.equal(parseArgs([]).taskId, '');
+  assert.throws(() => parseArgs(['--task=']), /requires a task id/);
 });

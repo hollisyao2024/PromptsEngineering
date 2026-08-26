@@ -88,7 +88,7 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
 - 新会话、异常恢复或继续执行时，第一项任务动作必须是：
   `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
-- 全部步骤、验收和仓库门禁通过后执行 `pnpm agent -- task finish --task <id>`；只有用户明确取消时才可 `cancel --force`。
+- 全部步骤、验收和仓库门禁通过后执行 `pnpm agent -- task finish --task <id>`；任务关闭只受该 task id 明确绑定的 worktree 生命周期状态阻断，无关任务的 recovery 不得阻止关闭。只有用户明确取消时才可 `cancel --force`。
 - `state.json` 不得保存密钥、大段日志或隐藏思维过程；大证据放 `evidence/` 并只引用路径与哈希。
 
 ## 修改与交付门禁
@@ -111,7 +111,7 @@ git rev-parse origin/<base>
 pnpm agent -- finish
 ```
 
-只有 guard 输出 `STATUS=OK` 且本地/远端主分支一致，才可宣告完成。最终报告必须包含 `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`、`MODIFIED_FILES` 和 `TEMPLATE_APPLY_CHECKLIST`。
+仓库级 `pnpm agent -- finish` 无 task scope，必须对全部受管理 worktree fail-closed；任务级 `task finish --task <id>` 只检查该任务明确拥有的 worktree 生命周期 blocker。只有适用门禁输出 `STATUS=OK` 且本地/远端主分支一致，才可宣告对应范围完成。最终报告必须包含 `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`、`MODIFIED_FILES` 和 `TEMPLATE_APPLY_CHECKLIST`。
 
 高风险改动包括认证权限、数据写入删除、事务/缓存/并发、外部 API、schema、共享基础库、跨文件业务联动和 hotfix。命中时记录语义审查结论；Codex 按策略记录 `Codex review skipped by policy` 后继续门禁。
 
