@@ -17,6 +17,8 @@
 
 脚本必须使用 `infra/scripts/shared/config.js` 的 `resolveRepoRoot()`、`getMainRepoRoot()` 和 `resolveContainerPath()` 解析路径。linked worktree 中禁止以 `../tmp` 猜测容器位置。
 
+写入型稳定命令首次需要容器目录时必须通过共享初始化器自动递归创建：worktree 生命周期声明 `worktrees`/`tmp`，任务与模板运行状态声明 `tmp`，项目命令执行前声明 `tmp`/`cache`/`artifacts`。初始化必须幂等并保护已有内容；配置加载、纯路径解析与无需写入的只读命令不得为补齐目录而产生副作用。目标被文件或符号链接占位、路径非法或创建失败时必须 fail closed，禁止继续后续命令副作用。
+
 主 worktree 保持在 base branch。修改 tracked 文件只在专属 worktree 中进行；只读诊断可在任意 worktree。每个 worktree 独立安装依赖，包内容复用交给包管理器 store。
 
 ## 2. 配置

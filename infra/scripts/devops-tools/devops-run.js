@@ -14,9 +14,9 @@ const { spawnSync } = require('child_process');
 const {
   getMainRepoRoot,
   getWorktreeRoot,
+  ensureContainerDirectories,
   loadConfig,
   parseCliArgs,
-  resolveContainerPath,
 } = require('../shared/config');
 const { buildGitHubShellEnv } = require('../shared/github-auth');
 
@@ -173,7 +173,7 @@ function resolveBashCommand(command, options = {}) {
 }
 
 function ensureRunDir(config, mainRoot) {
-  const tmpDir = resolveContainerPath(config, mainRoot, 'tmp');
+  const { tmp: tmpDir } = ensureContainerDirectories(config, mainRoot, ['tmp']);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`;
   const runDir = path.join(tmpDir, 'devops-runs', runId);
   fs.mkdirSync(runDir, { recursive: true });
@@ -299,6 +299,12 @@ function main() {
     );
   }
 
+  const commandContainerDirs = ensureContainerDirectories(
+    config,
+    mainRoot,
+    ['tmp', 'cache', 'artifacts'],
+  );
+
   const runtimeCommand = resolveRuntimeCommand(templateCommand(rawCommand, {
     action,
     env,
@@ -308,8 +314,9 @@ function main() {
     target_short: commandTarget,
     repo: repoRoot,
     main_repo: mainRoot,
-    artifacts: resolveContainerPath(config, mainRoot, 'artifacts'),
-    tmp: resolveContainerPath(config, mainRoot, 'tmp'),
+    artifacts: commandContainerDirs.artifacts,
+    cache: commandContainerDirs.cache,
+    tmp: commandContainerDirs.tmp,
   }));
   const command = resolveBashCommand(runtimeCommand);
   if (!command) {
@@ -357,8 +364,9 @@ function main() {
       AGENT_QUICK: quick ? '1' : '0',
       SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
       AGENT_RUN_DIR: runDir,
-      AGENT_ARTIFACTS_DIR: resolveContainerPath(config, mainRoot, 'artifacts'),
-      AGENT_TMP_DIR: resolveContainerPath(config, mainRoot, 'tmp'),
+      AGENT_ARTIFACTS_DIR: commandContainerDirs.artifacts,
+      AGENT_CACHE_DIR: commandContainerDirs.cache,
+      AGENT_TMP_DIR: commandContainerDirs.tmp,
     },
   });
 

@@ -12,6 +12,7 @@ const { spawnSync } = require('child_process');
 
 const DEFAULTS_PATH = path.resolve(__dirname, '..', '..', 'templates', 'agent', 'config.example.json');
 const DEFAULT_CONFIG = JSON.parse(fs.readFileSync(DEFAULTS_PATH, 'utf8'));
+const CONTAINER_DIRECTORY_KEYS = new Set(['worktrees', 'tmp', 'cache', 'artifacts']);
 
 function gitValue(cwd, args) {
   const result = spawnSync('git', args, {
@@ -284,13 +285,47 @@ function resolveRuntimePath(config, mainRoot, configuredPath, fallbackSubdir) {
 
 function resolveContainerPath(config, mainRoot, key) {
   validateContainerTopology(config, mainRoot);
-  const configured = config.containerDirs && config.containerDirs[key];
+  const configured = config && config.containerDirs && config.containerDirs[key];
   return resolveFromRepo(mainRoot, configured || `../${key}`);
+}
+
+function assertRealContainerDirectory(directoryPath, key) {
+  const stat = fs.lstatSync(directoryPath);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`container directory ${key} must be a real directory: ${directoryPath}`);
+  }
+}
+
+function ensureContainerDirectories(config, mainRoot, keys) {
+  const requestedKeys = [...new Set(Array.isArray(keys) ? keys : [keys])];
+  for (const key of requestedKeys) {
+    if (!CONTAINER_DIRECTORY_KEYS.has(key)) {
+      throw new Error(`unknown container directory key: ${key}`);
+    }
+  }
+
+  const resolved = Object.fromEntries(
+    requestedKeys.map((key) => [key, resolveContainerPath(config || {}, mainRoot, key)]),
+  );
+  for (const [key, directoryPath] of Object.entries(resolved)) {
+    try {
+      if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true });
+      assertRealContainerDirectory(directoryPath, key);
+    } catch (error) {
+      if (error && /^container directory /u.test(error.message)) throw error;
+      throw new Error(
+        `failed to initialize container directory ${key} (${directoryPath}): ${error.message}`,
+        { cause: error },
+      );
+    }
+  }
+  return resolved;
 }
 
 module.exports = {
   DEFAULT_CONFIG,
   deepMerge,
+  ensureContainerDirectories,
   getMainRepoRoot,
   getRepoRoot,
   getWorktreeRoot,

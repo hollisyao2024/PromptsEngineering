@@ -2,7 +2,7 @@
 
 > **所属主 PRD**：[PRD.md](../../PRD.md)  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-08-23  
+> **最后更新**：2026-08-26  
 > **状态**：✅ 已确认  
 > **追溯说明**：Story/AC 维护在 `docs/data/traceability-matrix.md`
 
@@ -19,6 +19,7 @@ In Scope：
 - 本地服务生命周期与 build/ship 边界。
 - mac、win、ios、android 的 dev/build 默认及 private alias，以及服务端生命周期和 build 环境 alias，随模板更新可继承。
 - 通过 `agent.config.json` 注册命令，缺失时 fail closed。
+- 命令首次需要容器层 `worktrees`、`tmp`、`cache` 或 `artifacts` 目录时，自动递归创建缺失目录。
 
 Out of Scope：
 
@@ -36,6 +37,9 @@ Out of Scope：
 | US-CMDSURF-003 | AC-CMDSURF-003-01：Given 命令、平台、环境或 profile 未配置，When 调用统一入口，Then 输出 `STATUS=BLOCKED`、明确下一动作并以非零状态退出，且不得跨 profile 回退。 | TASK-CMDSURF-003 | TC-CMDSURF-004 | @qa |
 | US-CMDSURF-004 | AC-CMDSURF-004-01：Given 模板应用到目标项目，When 执行 dry-run、apply 和收敛 dry-run，Then 仅更新 template-owned 文件且 `RULES.md` 与 `agent.config.json` 保持项目所有。 | TASK-CMDSURF-004 | TC-CMDSURF-005 | @qa |
 | US-CMDSURF-004 | AC-CMDSURF-004-02：Given 目标项目保留稀疏 `agent.config.json`，When 应用模板并加载有效配置，Then mac、win、ios、android 的 dev/build 默认及 private 变体、本地服务五项生命周期和 dev/staging/prod 服务端 build 均解析为规范 alias；`ship` 仍无可执行默认值。 | TASK-CMDSURF-005 | TC-CMDSURF-006 | @qa |
+| US-CMDSURF-005 | AC-CMDSURF-005-01：Given 容器层的 `worktrees`、`tmp`、`cache` 或 `artifacts` 目录尚不存在，When 执行首次需要写入对应目录的稳定命令，Then 命令在写入前自动递归创建该目录及必要父目录。 | TASK-CMDSURF-009~011 | TC-CMDSURF-007 | @qa |
+| US-CMDSURF-005 | AC-CMDSURF-005-02：Given 相关容器目录已经存在，When 重复执行对应命令，Then 目录初始化保持幂等且不删除、不覆盖既有内容。 | TASK-CMDSURF-009~011 | TC-CMDSURF-008 | @qa |
+| US-CMDSURF-005 | AC-CMDSURF-005-03：Given 配置路径非法、目标不是实际目录或当前进程无创建权限，When 命令初始化对应容器目录，Then 命令明确失败并输出可行动的错误，不继续执行后续副作用；只读且无需写入的命令不为初始化目录而产生额外副作用。 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa |
 
 ## 4. 非功能需求（NFR）
 
@@ -44,10 +48,11 @@ Out of Scope：
 - NFR-CMDSURF-003：模板默认配置不包含真实产品名、端口、URL、凭据或签名身份。
 - NFR-CMDSURF-004：macOS、Linux、Windows 的 Node 调度路径保持兼容；项目命令自行声明平台约束。
 - NFR-CMDSURF-005：模板更新不得要求把完整默认矩阵复制到 project-owned `agent.config.json`；有效配置必须通过深合并继承 template-owned 默认值。
+- NFR-CMDSURF-006：容器目录初始化必须幂等、按需执行，并沿用配置解析与拓扑校验后的绝对路径，禁止用 linked worktree 相对路径猜测容器位置。
 
 ## 5. 依赖与风险
 
-依赖现有 `agent-cli.js`、`devops-run.js`、配置加载器与模板 manifest。主要风险是把项目 alias 当成模板规范，以及 private profile 隐式回退到 default；通过显式语法与定向负向测试缓解。
+依赖现有 `agent-cli.js`、`devops-run.js`、配置加载器与模板 manifest。主要风险是把项目 alias 当成模板规范、private profile 隐式回退到 default，以及目录创建发生得过早而污染只读操作；通过显式语法、按需初始化边界与定向负向测试缓解。
 
 ## 6. 里程碑与 Gate
 
@@ -57,7 +62,7 @@ Out of Scope：
 
 ## 7. 追溯矩阵与验证
 
-详见 [`docs/data/traceability-matrix.md`](../../data/traceability-matrix.md)。五项 AC 必须全部关联自动化测试或传播验收证据。
+详见 [`docs/data/traceability-matrix.md`](../../data/traceability-matrix.md)。全部 AC 必须关联自动化测试或传播验收证据。
 
 ## 8. 用户体验设计（UX）
 
@@ -72,6 +77,7 @@ Out of Scope：
 | 版本 | 日期 | 描述 | 责任人 |
 | --- | --- | --- | --- |
 | v1.0 | 2026-08-23 | 建立通用客户端和服务端快捷命令协议 | @template-maintainers |
+| v1.1 | 2026-08-26 | 增加容器目录按需自动创建、幂等与失败边界 | @template-maintainers |
 
 ## 11. 自检清单
 

@@ -8,6 +8,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const { spawnSync } = require('child_process');
 const {
+  ensureContainerDirectories,
   getMainRepoRoot,
   getWorktreeRoot,
   loadConfig,
@@ -1125,7 +1126,7 @@ function createOrResumeWorktree(options = {}) {
     skipWorktreePath: cwd,
   });
   assertNoConflictingRecovery(config, mainRoot, cli, branch);
-  ensureDir(worktreesDir);
+  ensureContainerDirectories(config, mainRoot, ['worktrees', 'tmp']);
 
   if (branchExists(mainRoot, branch)) {
     runGit(['worktree', 'add', worktreePath, branch], { cwd: mainRoot });
