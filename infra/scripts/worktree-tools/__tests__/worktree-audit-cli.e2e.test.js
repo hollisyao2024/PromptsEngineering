@@ -82,3 +82,47 @@ test('CLI apply converges a real clean orphan across worktree, branch, and sessi
   assert.equal(readSessions(config, mainRoot).some((session) => session.branch === branch), false);
   assert.equal(fs.existsSync(qaPlanState), false);
 });
+
+test('CLI apply removes only unregistered empty directory trees', (t) => {
+  const temporaryRoot = fs.realpathSync(os.tmpdir());
+  const container = fs.mkdtempSync(path.join(temporaryRoot, 'worktree-audit-empty-residue-'));
+  const mainRoot = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const tmpRoot = path.join(container, 'tmp');
+  const emptyResidue = path.join(worktreesRoot, 'tdd-empty-residue');
+  const nonEmptyDirectory = path.join(worktreesRoot, 'manual-backup');
+  const config = {
+    baseBranch: 'main',
+    containerDirs: { worktrees: worktreesRoot, tmp: tmpRoot },
+    worktree: {
+      sessionDir: path.join(tmpRoot, 'worktree-sessions'),
+      lockDir: path.join(tmpRoot, 'agent-locks'),
+      leaseTtlMinutes: 60,
+      bootstrap: { mode: 'skip' },
+    },
+  };
+  fs.mkdirSync(mainRoot, { recursive: true });
+  fs.mkdirSync(path.join(emptyResidue, 'infra', 'postgres', 'init.sql'), { recursive: true });
+  fs.mkdirSync(nonEmptyDirectory, { recursive: true });
+  fs.writeFileSync(path.join(nonEmptyDirectory, 'keep.txt'), 'preserve\n');
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: temporaryRoot }));
+  git(mainRoot, ['init', '-b', 'main']);
+  git(mainRoot, ['config', 'user.email', 'audit-cli@example.com']);
+  git(mainRoot, ['config', 'user.name', 'Audit CLI Test']);
+  fs.writeFileSync(path.join(mainRoot, 'README.md'), 'base\n');
+  fs.writeFileSync(path.join(mainRoot, 'agent.config.json'), `${JSON.stringify(config, null, 2)}\n`);
+  git(mainRoot, ['add', '.']);
+  git(mainRoot, ['commit', '-m', 'base']);
+
+  const result = spawnSync(process.execPath, [auditCli, '--apply'], {
+    cwd: mainRoot,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    timeout: 30000,
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /REASON=empty-unregistered-directory/);
+  assert.equal(fs.existsSync(emptyResidue), false);
+  assert.equal(fs.readFileSync(path.join(nonEmptyDirectory, 'keep.txt'), 'utf8'), 'preserve\n');
+});

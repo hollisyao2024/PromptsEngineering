@@ -67,9 +67,6 @@ function classifyWorktreeEvidence(input = {}) {
   if (session.status === 'cleanup_pending') {
     return { state: 'cleanup_pending', reason: 'cleanup-intent-present' };
   }
-  if (session.status === 'recovery_required') {
-    return { state: 'recovery_required', reason: session.audit?.reason || 'recovery-state-present' };
-  }
   if (!session.branch || !session.worktree || !entry.branch || !entry.path
       || session.branch !== entry.branch || !samePath(session.worktree, entry.path)
       || !input.markerOwned) {
@@ -175,6 +172,78 @@ function recordKey(value) {
   return `path:${path.resolve((value && (value.worktree || value.path)) || '.')}`;
 }
 
+function inspectEmptyDirectoryTree(rootPath) {
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(rootPath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return { empty: false, directories: [] };
+    throw error;
+  }
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    return { empty: false, directories: [] };
+  }
+
+  const directories = [path.resolve(rootPath)];
+  for (let index = 0; index < directories.length; index += 1) {
+    const directory = directories[index];
+    for (const name of fs.readdirSync(directory)) {
+      const childPath = path.join(directory, name);
+      const childStat = fs.lstatSync(childPath);
+      if (childStat.isSymbolicLink() || !childStat.isDirectory()) {
+        return { empty: false, directories: [] };
+      }
+      directories.push(childPath);
+    }
+  }
+  return { empty: true, directories };
+}
+
+function collectUnregisteredDirectoryRecords(worktreesRoot, knownPaths = []) {
+  if (!fs.existsSync(worktreesRoot)) return [];
+  const rootStat = fs.lstatSync(worktreesRoot);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error(`worktrees root must be a real directory: ${worktreesRoot}`);
+  }
+  const known = knownPaths.filter(Boolean).map((value) => path.resolve(value));
+  const records = [];
+  for (const dirent of fs.readdirSync(worktreesRoot, { withFileTypes: true })) {
+    if (!dirent.isDirectory() || dirent.isSymbolicLink()) continue;
+    const directoryPath = path.join(worktreesRoot, dirent.name);
+    if (known.some((knownPath) => samePath(knownPath, directoryPath))) continue;
+    const inspection = inspectEmptyDirectoryTree(directoryPath);
+    records.push({
+      kind: 'unregistered-directory',
+      branch: '',
+      path: directoryPath,
+      head: '',
+      revision: 0,
+      state: inspection.empty ? 'cleanup_candidate' : 'ignored',
+      reason: inspection.empty ? 'empty-unregistered-directory' : 'nonempty-unregistered-directory',
+      session: null,
+      entry: null,
+      evidence: { emptyDirectoryTree: inspection.empty },
+    });
+  }
+  return records;
+}
+
+function removeEmptyDirectoryTree(rootPath, worktreesRoot) {
+  const resolvedRoot = path.resolve(rootPath);
+  const resolvedWorktreesRoot = path.resolve(worktreesRoot);
+  if (path.dirname(resolvedRoot) !== resolvedWorktreesRoot) {
+    throw new Error(`empty residue must be a direct child of worktrees root: ${rootPath}`);
+  }
+  const inspection = inspectEmptyDirectoryTree(resolvedRoot);
+  if (!inspection.empty) {
+    throw new Error(`unregistered directory is no longer empty: ${rootPath}`);
+  }
+  const deepestFirst = [...inspection.directories]
+    .sort((left, right) => right.split(path.sep).length - left.split(path.sep).length);
+  for (const directory of deepestFirst) fs.rmdirSync(directory);
+  return { removedDirectories: deepestFirst.length };
+}
+
 function collectAuditRecords(options) {
   const {
     mainRoot,
@@ -210,7 +279,7 @@ function collectAuditRecords(options) {
     pairs.set(key, pair);
   }
 
-  return [...pairs.values()].map(({ session, entry }) => {
+  const managedRecords = [...pairs.values()].map(({ session, entry }) => {
     const branch = String(session?.branch || entry?.branch || '');
     const worktreePath = String(session?.worktree || entry?.path || '');
     const markerOwned = Boolean(entry && branch && ownsMarker(mainRoot, entry.path, branch));
@@ -253,6 +322,40 @@ function collectAuditRecords(options) {
       },
     };
   });
+  const knownPaths = [
+    ...sessions.map((session) => session && session.worktree),
+    ...entries.map((entry) => entry && entry.path),
+  ];
+  const unregistered = (dependencies.collectUnregisteredDirectoryRecords
+    || collectUnregisteredDirectoryRecords)(
+    resolveContainerPath(config, mainRoot, 'worktrees'),
+    knownPaths,
+  ).map((record) => {
+    if (record.state !== 'cleanup_candidate') return record;
+    const processInspection = inspectUsers(record.path, {
+      excludePids: [process.pid],
+      snapshot: processes,
+    });
+    if (!processInspection.supported) {
+      return {
+        ...record,
+        state: 'ignored',
+        reason: 'unregistered-directory-process-inspection-unavailable',
+        evidence: { ...record.evidence, processUsers: [] },
+      };
+    }
+    const processUsers = processInspection.users?.map((user) => user.pid) || [];
+    if (processUsers.length > 0) {
+      return {
+        ...record,
+        state: 'active',
+        reason: 'active-process',
+        evidence: { ...record.evidence, processUsers },
+      };
+    }
+    return { ...record, evidence: { ...record.evidence, processUsers } };
+  });
+  return [...managedRecords, ...unregistered];
 }
 
 function deleteLocalBranch(mainRoot, branch) {
@@ -332,6 +435,19 @@ function applyCleanupCandidate(record, context) {
   });
 }
 
+function applyUnregisteredDirectoryCandidate(record, context) {
+  const remove = context.dependencies?.removeEmptyDirectoryTree || removeEmptyDirectoryTree;
+  try {
+    const removal = remove(record.path, context.worktreesRoot);
+    if (fs.existsSync(record.path)) {
+      return { state: 'recovery_required', reason: 'empty-directory-cleanup-verification-failed' };
+    }
+    return { state: 'cleaned', reason: 'empty-unregistered-directory', removal };
+  } catch (error) {
+    return { state: 'recovery_required', reason: `empty-directory-cleanup-failed:${error.message}` };
+  }
+}
+
 function summarize(records, mode, reconciliation = null, qaPlanStates = null) {
   const counts = {};
   for (const record of records) counts[record.state] = (counts[record.state] || 0) + 1;
@@ -399,6 +515,33 @@ function auditManagedWorktrees(options = {}) {
     const initial = collect();
     const results = [];
     for (const record of initial) {
+      if (record.kind === 'unregistered-directory') {
+        if (record.state !== 'cleanup_candidate') {
+          results.push(record);
+          continue;
+        }
+        const refreshed = collect().find((candidate) => (
+          candidate.kind === record.kind && samePath(candidate.path, record.path)
+        ));
+        if (!refreshed || refreshed.state !== 'cleanup_candidate') {
+          results.push({
+            ...(refreshed || record),
+            state: 'recovery_required',
+            reason: refreshed
+              ? `revalidation-${refreshed.reason}`
+              : 'revalidation-missing-unregistered-directory',
+          });
+          continue;
+        }
+        results.push({
+          ...refreshed,
+          ...applyUnregisteredDirectoryCandidate(refreshed, {
+            worktreesRoot,
+            dependencies,
+          }),
+        });
+        continue;
+      }
       if (record.state === 'active' && record.reason === 'task-active' && record.session) {
         const lifecycleKeys = new Set(
           record.session.lifecycle && Array.isArray(record.session.lifecycle.keys)
@@ -501,13 +644,17 @@ function convergeCleanupCandidate(candidate, operations = {}) {
 
 module.exports = {
   activeTaskSnapshot,
+  applyUnregisteredDirectoryCandidate,
   auditManagedWorktrees,
   classifyWorktreeEvidence,
+  collectUnregisteredDirectoryRecords,
   collectAuditRecords,
   convergeCleanupCandidate,
+  inspectEmptyDirectoryTree,
   inspectGitEvidence,
   mergedBranchSnapshot,
   leaseIsActive,
   normalizeTaskId,
+  removeEmptyDirectoryTree,
   sessionTaskIds,
 };

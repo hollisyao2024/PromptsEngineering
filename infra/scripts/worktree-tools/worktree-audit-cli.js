@@ -8,7 +8,7 @@ function printHelp() {
   pnpm agent -- worktree audit [--apply] [--json]
 
 Options:
-  --apply  Persist recovery states and clean only fully proven orphan worktrees
+  --apply  Persist recovery states and clean proven orphan worktrees or empty unregistered directories
   --json   Print the complete machine-readable report
   -h       Show this help without changing Git or the filesystem
 

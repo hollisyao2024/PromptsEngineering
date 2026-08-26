@@ -103,6 +103,58 @@ test('selects only a fully proven clean orphan as a cleanup candidate', () => {
   });
 });
 
+test('re-evaluates persisted recovery state from current evidence', () => {
+  const recovered = safeEvidence({
+    session: {
+      ...safeEvidence().session,
+      status: 'recovery_required',
+      audit: { reason: 'task-inspection-unavailable' },
+    },
+  });
+
+  assert.deepEqual(classifyWorktreeEvidence(recovered), {
+    state: 'cleanup_candidate',
+    reason: 'clean-orphan',
+  });
+  assert.deepEqual(classifyWorktreeEvidence({ ...recovered, dirty: true }), {
+    state: 'recovery_required',
+    reason: 'dirty-worktree',
+  });
+});
+
+test('does not clean an unregistered empty directory used by another process', (t) => {
+  const temporaryRoot = fs.realpathSync(os.tmpdir());
+  const container = fs.mkdtempSync(path.join(temporaryRoot, 'worktree-audit-process-guard-'));
+  const mainRoot = path.join(container, 'repo');
+  const worktreesRoot = path.join(container, 'worktrees');
+  const residue = path.join(worktreesRoot, 'empty-but-active');
+  fs.mkdirSync(mainRoot, { recursive: true });
+  fs.mkdirSync(residue, { recursive: true });
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: temporaryRoot }));
+
+  const result = auditManagedWorktrees({
+    mainRoot,
+    cwd: mainRoot,
+    config: {
+      containerDirs: { worktrees: worktreesRoot, tmp: path.join(container, 'tmp') },
+    },
+    baseRef: 'main',
+    dependencies: {
+      readSessions: () => [],
+      listWorktrees: () => [],
+      listTaskStates: () => [],
+      inspectGitEvidence: () => ({ dirty: false, uniqueCommits: 0 }),
+      inspectWorktreeUsers: () => ({ supported: true, users: [{ pid: 42 }] }),
+      auditQaPlanSessionStates: () => ({ status: 'OK', counts: {}, records: [] }),
+    },
+  });
+
+  assert.deepEqual(result.records.map((record) => [record.state, record.reason]), [
+    ['active', 'active-process'],
+  ]);
+  assert.equal(fs.existsSync(residue), true);
+});
+
 test('fails safe for dirty, unique, occupied, uninspectable, drifted, or legacy worktrees', () => {
   const cases = [
     [{ dirty: true }, 'dirty-worktree'],
