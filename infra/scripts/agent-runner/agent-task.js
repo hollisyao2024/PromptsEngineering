@@ -349,6 +349,9 @@ function createTask(options) {
       };
     });
     const acceptance = normalizeTextList(options.acceptanceCriteria);
+    if (normalizedTaskType === 'mutation' && acceptance.length === 0) {
+      throw new Error('mutation tasks require at least one explicit --acceptance');
+    }
     const currentPhase = normalizePhase(options.phase);
     const state = {
       schema_version: SCHEMA_VERSION,
@@ -866,7 +869,7 @@ function runtimeContext(cwd = process.cwd()) {
 
 function printHelp() {
   console.log(`Usage:
-  node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] --step <safe-step> [--verify-step <effect-step>]
+  node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] [--acceptance <criterion>] --step <safe-step> [--verify-step <effect-step>]
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
@@ -875,6 +878,7 @@ function printHelp() {
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
 
 Repeat step, acceptance, constraint, and evidence options as needed.
+Mutation tasks require at least one explicit --acceptance; diagnose, research, and operation tasks may use the goal by default.
 Provide --step, --acceptance-id, or both. A done step and acceptance can share one evidence checkpoint.
 Safe steps may be retried after interruption. Verify steps must be checked before replay.
 New tasks default to type=mutation; use an explicit read-only task type only when no tracked mutation is possible.`);

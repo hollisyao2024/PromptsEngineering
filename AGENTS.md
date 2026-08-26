@@ -25,6 +25,13 @@
 - `../tmp/worktree-sessions/`：分支、PR、QA、合并和清理运行态。
 - `docs/AGENT_STATE.md`：只保存六阶段稳定里程碑，不保存每次 PR、重试或运行日志。
 
+## 任务输入门禁
+
+- 开始前结合用户输入、仓库文档、代码和测试，明确目标、非目标、可观察验收与验证方式；不得把原始目标原样当作验收标准。
+- 仓库内可发现的信息先自行检查；低风险、可逆的缺口可作最小假设继续，并在结果中说明。
+- 若不同选择会实质改变产品行为、数据、安全、权限、外部合约或范围，修改前只提出解决该歧义所需的最少问题。
+- mutation 任务在创建或恢复修改 worktree 前必须有显式验收；只读诊断、研究和运维可按现有目标继续。
+
 ## 两种执行流程
 
 ### 日常流程（默认）
@@ -76,7 +83,7 @@
 用户明确要求持续执行、含至少 3 个可独立验证步骤，或可能跨会话时，必须创建任务状态：
 
 ```bash
-pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --step "<安全步骤>" --verify-step "<副作用步骤>"
+pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<安全步骤>" --verify-step "<副作用步骤>"
 ```
 
 - 新任务默认 `type=mutation` 并执行 completion guard；能证明不会修改 tracked 文件时才显式使用 `diagnose|research|operation`。

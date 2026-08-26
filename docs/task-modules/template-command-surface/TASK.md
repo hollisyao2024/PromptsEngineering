@@ -6,8 +6,8 @@
 > **状态**：🚧 执行中  
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-08-26  
-> **版本**：v1.1
+> **最后更新**：2026-08-27
+> **版本**：v1.2
 
 ## 1. 模块概述
 
@@ -31,6 +31,10 @@
 | TASK-CMDSURF-010 | 共享容器目录初始化器与安全校验 | @tdd | 0.5d | P0 | TASK-CMDSURF-009 | ✅ 已完成 | 2026-08-26 |
 | TASK-CMDSURF-011 | Worktree、任务状态、模板与 DevOps 调用点集成 | @tdd | 0.5d | P0 | TASK-CMDSURF-010 | ✅ 已完成 | 2026-08-26 |
 | TASK-CMDSURF-012 | 回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-011 | 🔄 待 QA | - |
+| TASK-CMDSURF-013 | RED：mutation 显式验收与 Codex 配置内容扫描 | @tdd | 0.25d | P0 | ADR-004 | ✅ 已完成 | 2026-08-27 |
+| TASK-CMDSURF-014 | 任务输入规则与 `createTask()` 最小门禁实现 | @tdd | 0.25d | P0 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
+| TASK-CMDSURF-015 | Codex 审批策略示例收敛 | @tdd | 0.25d | P1 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
+| TASK-CMDSURF-016 | 定向回归、模板检查、QA 与合并 | @qa | 0.25d | P0 | TASK-CMDSURF-014~015 | 🚧 进行中 | - |
 
 ### 2.2 任务详细说明
 
@@ -46,6 +50,10 @@
 - TASK-CMDSURF-010：在共享路径层实现白名单、拓扑复用、recursive mkdir 与 `lstat` 真实目录复核；不改变 `loadConfig()` 和 `resolveContainerPath()` 的无副作用语义。
 - TASK-CMDSURF-011：将写入调用点迁移到共享 helper；构建/CI/发布执行前初始化并传递 `AGENT_TMP_DIR`、`AGENT_CACHE_DIR`、`AGENT_ARTIFACTS_DIR`，列表与状态审计保持只读。
 - TASK-CMDSURF-012：运行定向与全量测试、文档 Gate、高风险路径语义审查，以及固定的 tdd/qa 合并门禁。
+- TASK-CMDSURF-013：先为 mutation 缺少显式验收的失败路径、只读类型目标回退和模板 Codex 配置内容扫描建立 RED。
+- TASK-CMDSURF-014：在 `AGENTS.md` 集中短提示词补齐规则，在 `createTask()` 写盘前增加 mutation 门禁，并让 Conventions 只保留引用和命令示例。
+- TASK-CMDSURF-015：把交互式 Codex 审批策略示例收敛为 `on-request`，保留非交互式 `never`，移除重复的已弃用值说明。
+- TASK-CMDSURF-016：执行定向与全量 Node 测试、治理文档与模板门禁，再进入固定的 tdd/qa 合并流程。
 
 每项验收均采用 Given-When-Then：Given 前置任务完成，When 执行对应测试或传播 Gate，Then 输出明确成功证据且无范围外文件变化。
 
@@ -62,6 +70,9 @@
 | 009 | 010 | Finish-to-start | 先建立缺目录和负向 RED，再实现共享 helper |
 | 010 | 011 | Finish-to-start | helper 合约冻结后接入写入命令 |
 | 011 | 012 | Finish-to-start | 集成完成后进入回归与合并门禁 |
+| 013 | 014 | Finish-to-start | RED 后实现任务输入与创建门禁 |
+| 013 | 015 | Finish-to-start | 内容扫描 RED 后收敛 Codex 配置示例 |
+| 014~015 | 016 | Finish-to-start | 两条最小实现完成后统一回归与合并 |
 
 ## 4. 资源分配
 
@@ -78,6 +89,7 @@
 | M2-TEMPLATE | 2026-08-23 | 模板实现 | 测试与 QA 全绿 | QA_VALIDATED | 🚧 |
 | M3-PROPAGATE | 2026-08-23 | XiaoLan 更新 | 收敛 dry-run、主远端一致 | QA_VALIDATED | 📝 |
 | M4-CONTAINER-DIRS | 2026-08-26 | 共享初始化器与调用点 | TC-CMDSURF-007~009、回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
+| M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 
 ## 6. Story → Task 映射
 
@@ -92,6 +104,8 @@
 | US-CMDSURF-005 | AC-CMDSURF-005-01 | TASK-CMDSURF-009~011 | TC-CMDSURF-007 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-005 | AC-CMDSURF-005-02 | TASK-CMDSURF-009~011 | TC-CMDSURF-008 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-005 | AC-CMDSURF-005-03 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-006 | AC-CMDSURF-006-01 | TASK-CMDSURF-013~014 | TC-CMDSURF-010 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-006 | AC-CMDSURF-006-02 | TASK-CMDSURF-013、015 | TC-CMDSURF-011 | @qa | ✅ TDD 通过 / 待 QA |
 
 ## 7. 风险登记
 
@@ -103,6 +117,7 @@
 | 中央模板遗漏默认矩阵 | 实际项目更新后命令在执行前阻断 | 完整枚举契约 + 实际项目解析验收 | @tdd/@qa | 修复中 |
 | 共享 helper 在只读路径被误用 | 查询命令污染容器目录 | 纯解析无副作用测试 + 显式调用点清单 | @tdd | 已规划 |
 | 容器路径被文件或链接占位 | 写入失败或越界 | `lstat` 拒绝并在副作用前阻断 | @tdd/@qa | 已规划 |
+| 文档规则重复导致提示词膨胀或漂移 | Agent 行为不一致 | `AGENTS.md` 单一语义入口，Conventions 仅引用 | @tdd/@qa | 已规划 |
 
 ## 8. 数据库迁移任务
 
@@ -113,7 +128,7 @@
 ## 9. 技术债务与约束
 
 - 现有 dispatcher 将服务、CI、环境和 app 操作集中在单文件；本轮保持单一执行面，若后续动作显著增长再评估拆分。
-- 不修改 `AGENTS.md`，不扩大模板 package scripts。
+- 任务输入语义只修改 `AGENTS.md`，不新增专家、schema、CLI 参数或 package scripts。
 
 ## 10. 变更记录
 
@@ -121,6 +136,7 @@
 | --- | --- | --- | --- |
 | v1.0 | 2026-08-23 | 初始任务拆解 | @task-planning |
 | v1.1 | 2026-08-26 | 增加容器目录按需初始化 TDD 与 QA 关键路径 | @task-planning |
+| v1.2 | 2026-08-27 | 增加短提示词补齐、mutation 显式验收和 Codex 配置清理任务 | @task-planning |
 
 ## 11. 自检与 Gate 清单
 
@@ -130,4 +146,5 @@
 - [x] TDD 阶段回写 RED 8 项预期失败、GREEN 17/17 与全量 Node 257/257 证据。
 - [x] 默认矩阵修复 RED 23/26（3 项预期失败）、GREEN 29/29、全量 Node 263/263，并完成目标副本 32/32 解析。
 - [x] 容器目录 RED 19/23（4 项预期失败）、GREEN 25/25；全量 Node 302/304，两个环境项复核为 `/bin/bash` 不可用与 PowerShell PATH，后者补齐运行时后通过。
+- [x] 短提示词门禁 RED 32/35（3 项预期失败）、GREEN 35/35；补齐 Windows 运行时后可运行全量 306/306，另有硬编码 `/bin/bash` 的既有迁移用例在 Windows 不适用。
 - [ ] QA 与传播阶段回写最终状态与证据。
