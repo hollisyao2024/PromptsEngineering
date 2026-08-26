@@ -2,7 +2,7 @@
 
 > **所属主 PRD**：[PRD.md](../../PRD.md)  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-08-26  
+> **最后更新**：2026-08-27
 > **状态**：✅ 已确认  
 > **追溯说明**：Story/AC 维护在 `docs/data/traceability-matrix.md`
 
@@ -20,12 +20,14 @@ In Scope：
 - mac、win、ios、android 的 dev/build 默认及 private alias，以及服务端生命周期和 build 环境 alias，随模板更新可继承。
 - 通过 `agent.config.json` 注册命令，缺失时 fail closed。
 - 命令首次需要容器层 `worktrees`、`tmp`、`cache` 或 `artifacts` 目录时，自动递归创建缺失目录。
+- 短提示词先结合仓库上下文补齐目标、非目标、可观察验收与验证方式；修改型任务启动前必须有显式验收标准。
 
 Out of Scope：
 
 - 不提供 `/restart --target=private` 作为用户快捷命令。
 - 不硬编码 `private` 的端口、服务名、数据库、框架或部署方式。
 - 不覆盖目标项目 `RULES.md`、`agent.config.json` 或已有 package aliases。
+- 不新增 intake schema、CLI 参数、专家角色或治理模块。
 
 ## 3. 用户故事与验收
 
@@ -40,6 +42,8 @@ Out of Scope：
 | US-CMDSURF-005 | AC-CMDSURF-005-01：Given 容器层的 `worktrees`、`tmp`、`cache` 或 `artifacts` 目录尚不存在，When 执行首次需要写入对应目录的稳定命令，Then 命令在写入前自动递归创建该目录及必要父目录。 | TASK-CMDSURF-009~011 | TC-CMDSURF-007 | @qa |
 | US-CMDSURF-005 | AC-CMDSURF-005-02：Given 相关容器目录已经存在，When 重复执行对应命令，Then 目录初始化保持幂等且不删除、不覆盖既有内容。 | TASK-CMDSURF-009~011 | TC-CMDSURF-008 | @qa |
 | US-CMDSURF-005 | AC-CMDSURF-005-03：Given 配置路径非法、目标不是实际目录或当前进程无创建权限，When 命令初始化对应容器目录，Then 命令明确失败并输出可行动的错误，不继续执行后续副作用；只读且无需写入的命令不为初始化目录而产生额外副作用。 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa |
+| US-CMDSURF-006 | AC-CMDSURF-006-01：Given 用户只提供了简短或不完整的修改请求，When Agent 开始执行，Then 先从用户输入与仓库证据补齐目标、非目标、可观察验收和验证方式；仅在实质歧义会改变产品行为、数据、安全、权限、外部合约或范围时提出最小问题，且 mutation 任务无显式验收标准时不得创建状态。 | TASK-CMDSURF-013~014 | TC-CMDSURF-010 | @qa |
+| US-CMDSURF-006 | AC-CMDSURF-006-02：Given 模板提供 Codex 审批策略示例，When 用户阅读或复制配置，Then 交互式场景使用 `on-request`、非交互式场景使用 `never`，且模板不再推荐已弃用的 `on-failure`。 | TASK-CMDSURF-015 | TC-CMDSURF-011 | @qa |
 
 ## 4. 非功能需求（NFR）
 
@@ -49,6 +53,7 @@ Out of Scope：
 - NFR-CMDSURF-004：macOS、Linux、Windows 的 Node 调度路径保持兼容；项目命令自行声明平台约束。
 - NFR-CMDSURF-005：模板更新不得要求把完整默认矩阵复制到 project-owned `agent.config.json`；有效配置必须通过深合并继承 template-owned 默认值。
 - NFR-CMDSURF-006：容器目录初始化必须幂等、按需执行，并沿用配置解析与拓扑校验后的绝对路径，禁止用 linked worktree 相对路径猜测容器位置。
+- NFR-CMDSURF-007：任务输入规则保持单一入口、短小且可测试；诊断、研究和运维任务继续允许以目标作为默认验收，保持兼容。
 
 ## 5. 依赖与风险
 
@@ -78,6 +83,7 @@ Out of Scope：
 | --- | --- | --- | --- |
 | v1.0 | 2026-08-23 | 建立通用客户端和服务端快捷命令协议 | @template-maintainers |
 | v1.1 | 2026-08-26 | 增加容器目录按需自动创建、幂等与失败边界 | @template-maintainers |
+| v1.2 | 2026-08-27 | 增加短提示词补齐与 mutation 显式验收门禁，并收敛 Codex 审批策略示例 | @template-maintainers |
 
 ## 11. 自检清单
 

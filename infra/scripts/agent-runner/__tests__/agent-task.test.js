@@ -83,6 +83,38 @@ test('defaults long tasks to mutation and records an explicit starting phase', (
   assert.deepEqual(created.phase_history.map((entry) => entry.phase), ['prd']);
 });
 
+test('mutation tasks require explicit acceptance before task state is created', (t) => {
+  const paths = fixture(t);
+
+  assert.throws(() => createTask(startInput(paths, {
+    taskType: undefined,
+    acceptanceCriteria: [],
+  })), /mutation tasks require at least one explicit --acceptance/i);
+  assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), false);
+
+  const created = createTask(startInput(paths, {
+    taskId: 'accepted-mutation',
+    taskType: undefined,
+    acceptanceCriteria: ['observable result verified'],
+  }));
+  assert.deepEqual(created.acceptance_criteria.map((item) => item.text), ['observable result verified']);
+});
+
+test('read-only task types keep the goal as their default acceptance', (t) => {
+  const paths = fixture(t);
+
+  for (const taskType of ['diagnose', 'research', 'operation']) {
+    const goal = `${taskType} the current state`;
+    const created = createTask(startInput(paths, {
+      taskId: `${taskType}-task`,
+      taskType,
+      goal,
+      acceptanceCriteria: [],
+    }));
+    assert.deepEqual(created.acceptance_criteria.map((item) => item.text), [goal]);
+  }
+});
+
 test('CLI keeps --step compatible between start declarations and checkpoints', () => {
   const started = parseCliArgs([
     'start', '--task', 'durable-task', '--desc', 'goal', '--step', 'inspect', '--verify-step', 'publish',

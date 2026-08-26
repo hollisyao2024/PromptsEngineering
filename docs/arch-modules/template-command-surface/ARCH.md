@@ -3,8 +3,8 @@
 > 模块 ID：`CMDSURF`  
 > 状态：Accepted  
 > 负责人：@template-maintainers  
-> 最后更新：2026-08-26  
-> 对应 PRD：[`US-CMDSURF-001~005`](../../prd-modules/template-command-surface/PRD.md)
+> 最后更新：2026-08-27
+> 对应 PRD：[`US-CMDSURF-001~006`](../../prd-modules/template-command-surface/PRD.md)
 
 ## 1. 摘要
 
@@ -14,6 +14,7 @@
 | --- | --- | --- | --- |
 | ADR-001 | 扩展现有 Agent CLI 和 DevOps dispatcher | 保持单一执行面与证据模型 | Accepted |
 | ADR-003 | 在共享配置层提供显式、按需的容器目录初始化器 | 统一路径校验与失败语义，同时避免配置读取产生副作用 | Accepted |
+| ADR-004 | 任务输入语义集中在 `AGENTS.md`，`createTask()` 只强制 mutation 显式验收 | 以最小模板改动同时获得上下文补齐和可执行门禁，并保持只读任务兼容 | Accepted |
 
 ## 2. 上下文与边界
 
@@ -39,6 +40,7 @@ flowchart LR
 | CMDSURF-SVC-001 | Command Dispatcher | 维度校验、执行、结构化结果 | action/platform/target/env | STATUS 与运行证据 | 模板 |
 | CMDSURF-SVC-002 | Config Resolver | 从合并配置精确选择命令 | `app.commands`、`devServer.commands`、`devops.commands` | command 或空 | 模板 |
 | CMDSURF-SVC-003 | Container Directory Initializer | 对声明的容器目录执行解析、拓扑校验、递归创建与真实目录复核 | config、main root、目录 key 集合 | 已校验绝对路径或明确错误 | 模板 |
+| CMDSURF-SVC-004 | Task State Manager | 校验 mutation 显式验收并持久化任务目标、步骤与验收 | task type、goal、acceptance | task state 或明确错误 | 模板 |
 
 关键调用链：CLI 标准化参数 → Dispatcher 校验必需维度 → Config Resolver 精确查找 → 按动作声明并初始化所需容器目录 → 项目命令执行 → 记录结果。
 
@@ -49,6 +51,8 @@ flowchart LR
 - 状态/worktree/template 命令只声明自身写入的目录；构建、CI、发布等项目命令在启动前声明 `tmp`、`cache`、`artifacts`，并通过环境变量获得同一批已初始化绝对路径。
 - 只读列表、状态审计或单纯配置加载不调用初始化接口。
 
+任务输入策略：`AGENTS.md` 是短提示词补齐、最小提问与修改前验收门禁的唯一语义入口；`docs/CONVENTIONS.md` 只保留命令示例和入口引用。`createTask()` 在任何状态写入前拒绝缺少显式验收的 mutation；`diagnose`、`research`、`operation` 沿用目标回退，不新增状态 schema 或 CLI 参数。
+
 ## 4. 接口视图
 
 ### 提供的接口
@@ -58,6 +62,7 @@ flowchart LR
 | `app dev` | `--platform=<platform> [--target=<profile>]` | 结构化执行结果 | missing platform/config |
 | `app build` | `--platform=<platform> [--target=<profile>]` | 结构化执行结果 | missing platform/config |
 | `dev restart` | 可选内部 `--target=<profile>` | 结构化执行结果 | missing profile config |
+| `task start` | `--type=<type> --desc=<goal> [--acceptance=<criterion>]` | task state | mutation 缺少显式 acceptance 时拒绝创建 |
 
 用户快捷语法将 `/private restart` 翻译为内部 `dev restart --target=private`；模板文档不把后者呈现为用户快捷命令。
 
@@ -92,6 +97,7 @@ flowchart LR
 | 可观测性 | 每次执行有结构化字段 | 复用 run directory | 集成测试 |
 | 兼容性 | 既有 dev/ship 测试全部通过 | 增量 action 分支 | 回归测试 |
 | 可恢复性 | 缺目录首次写入成功，重复调用不改已有内容 | 共享显式初始化器 + recursive mkdir + lstat | 缺失/已存在/文件占位/只读场景测试 |
+| 输入完整性 | mutation 状态均含显式可观察验收 | 文档语义门禁 + 创建时 fail closed | 单元测试与模板内容扫描 |
 
 ## 7. 安全与隐私
 
@@ -119,6 +125,7 @@ flowchart LR
 | R-003 | project-owned overwrite | 目标行为损坏 | manifest 收敛测试 + @qa | QA Gate |
 | R-004 | 配置读取隐式创建目录 | 只读命令污染文件系统 | 解析与初始化 API 分离，只在写入边界显式调用 | TDD Gate |
 | R-005 | 文件或链接冒充容器目录 | 写入越界或状态损坏 | `lstat` 复核真实目录，异常 fail closed | TDD Gate |
+| R-006 | 把用户原始目标机械复制为验收 | 任务看似完整但不可验证 | mutation 禁止目标回退；文档要求可观察验收 | TDD Gate |
 
 ## 11. 实现约束
 
@@ -129,6 +136,8 @@ flowchart LR
 - TASK 拆分提示：先负向测试，再路由和选择器实现，最后传播验收。
 - 必须：容器目录初始化集中于共享 helper；调用方声明目录需求，禁止复制散落的 `mkdir` 与 `../tmp` 路径猜测。
 - 必须：项目命令启动前提供已创建的 `AGENT_TMP_DIR`、`AGENT_CACHE_DIR`、`AGENT_ARTIFACTS_DIR`；只读命令不触发全量目录创建。
+- 必须：mutation 任务只有显式 `--acceptance` 才可创建；`diagnose`、`research`、`operation` 保持目标回退。
+- 禁止：为短提示词补齐新增 schema、CLI 参数或重复的专家规则。
 
 ## 12. Story/Component 追溯表
 
@@ -139,6 +148,7 @@ flowchart LR
 | US-CMDSURF-003 | CMDSURF-SVC-001、CMDSURF-SVC-002 |
 | US-CMDSURF-004 | CMDSURF-SVC-002、模板 manifest |
 | US-CMDSURF-005 | CMDSURF-SVC-003、CMDSURF-SVC-001 |
+| US-CMDSURF-006 | CMDSURF-SVC-004、AGENTS 任务输入规则、Codex 配置模板 |
 
 ## 13. 完成检查
 

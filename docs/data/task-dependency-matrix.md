@@ -11,6 +11,10 @@
 | TASK-CMDSURF-009 | TASK-CMDSURF-010 | Finish-to-start | 0 | 是 | 容器目录 RED 后实现共享初始化器 |
 | TASK-CMDSURF-010 | TASK-CMDSURF-011 | Finish-to-start | 0 | 是 | 共享合约冻结后接入写入命令 |
 | TASK-CMDSURF-011 | TASK-CMDSURF-012 | Finish-to-start | 0 | 是 | 集成完成后执行回归与合并门禁 |
+| TASK-CMDSURF-013 | TASK-CMDSURF-014 | Finish-to-start | 0 | 是 | RED 后实现任务输入与创建门禁 |
+| TASK-CMDSURF-013 | TASK-CMDSURF-015 | Finish-to-start | 0 | 是 | 内容扫描 RED 后收敛 Codex 配置示例 |
+| TASK-CMDSURF-014 | TASK-CMDSURF-016 | Finish-to-start | 0 | 是 | 任务门禁实现完成后进入统一回归 |
+| TASK-CMDSURF-015 | TASK-CMDSURF-016 | Finish-to-start | 0 | 是 | 配置示例收敛后进入统一回归 |
 | TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
 | TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
 | TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |
@@ -27,6 +31,10 @@ flowchart LR
   C9[TASK-CMDSURF-009] --> C10[TASK-CMDSURF-010]
   C10 --> C11[TASK-CMDSURF-011]
   C11 --> C12[TASK-CMDSURF-012]
+  C13[TASK-CMDSURF-013] --> C14[TASK-CMDSURF-014]
+  C13 --> C15[TASK-CMDSURF-015]
+  C14 --> C16[TASK-CMDSURF-016]
+  C15 --> C16
   E1[TASK-ENVINIT-001] --> E2[TASK-ENVINIT-002]
   E2 --> E3[TASK-ENVINIT-003]
   E3 --> E4[TASK-ENVINIT-004]

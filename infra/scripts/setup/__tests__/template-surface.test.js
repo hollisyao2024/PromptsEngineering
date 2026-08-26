@@ -147,10 +147,30 @@ test('every phase expert explicitly participates in durable task recovery', () =
 
 test('always-loaded protocol makes mutation and phase explicit', () => {
   const agents = read('AGENTS.md');
+  const conventions = read('docs/CONVENTIONS.md');
+  assert.match(agents, /## 任务输入门禁/u);
+  assert.match(agents, /目标、非目标、可观察验收与验证/u);
+  assert.match(agents, /mutation.*显式验收/u);
   assert.match(agents, /--type mutation/u);
+  assert.match(agents, /--acceptance/u);
   assert.match(agents, /--phase <phase>/u);
   assert.match(agents, /task transition/u);
   assert.match(agents, /task extend/u);
+  assert.match(conventions, /AGENTS\.md.*任务输入门禁/u);
+  assert.match(conventions, /--type mutation.*--acceptance/u);
+});
+
+test('template-owned Codex guidance avoids deprecated approval policies', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  const codexFiles = manifest.rules
+    .filter((entry) => entry.path.startsWith('.codex/'))
+    .map((entry) => entry.source || entry.path);
+
+  for (const file of codexFiles) {
+    assert.doesNotMatch(read(file), /on-failure/u, `${file} must not recommend deprecated on-failure`);
+  }
+  assert.match(read('.codex/config.example.toml'), /approval_policy = "on-request"/u);
+  assert.match(read('.codex/README.md'), /approval_policy = "on-request"/u);
 });
 
 test('always-loaded protocol forbids parent-relative patch paths for container writes', () => {

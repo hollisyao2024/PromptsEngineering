@@ -119,8 +119,10 @@ pnpm agent -- worktree list
 
 ### 命令
 
+任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。
+
 ```bash
-pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --step "<步骤>"
+pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<步骤>"
 pnpm agent -- task checkpoint --task <id> --step <id> --status done --evidence "<证据>" --next "<下一动作>"
 pnpm agent -- task resume --auto
 pnpm agent -- task extend --task <id> --reason "<范围变化>" --add-step "<安全步骤>" --add-verify-step "<副作用步骤>" --add-acceptance "<验收项>"

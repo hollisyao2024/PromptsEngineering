@@ -76,12 +76,11 @@ echo $CODEX_HOME
 
 | 值 | 说明 | 适用场景 |
 |----|------|---------|
-| `"untrusted"` | 大多数命令需要批准 | 团队默认、新项目 ✅ |
-| `"on-failure"` | 失败时才提示 | 熟悉的项目 |
-| `"on-request"` | Codex 请求时才提示 | 高度信任的环境 |
+| `"untrusted"` | 仅自动执行已知安全命令 | 不信任的代码库 |
+| `"on-request"` | 由 Codex 判断何时请求批准 | 交互式开发、团队默认 ✅ |
 | `"never"` | 完全自动化 | 个人项目、完全信任 ⚠️ |
 
-**团队默认**：`"untrusted"`
+**团队默认**：`"on-request"`
 
 ### 沙箱模式（`sandbox_mode`）
 
@@ -101,7 +100,7 @@ echo $CODEX_HOME
 
 ```toml
 # 平衡策略：安全性和便利性的折中
-approval_policy = "on-failure"       # 失败时才提示，成功时自动执行
+approval_policy = "on-request"       # 需要时请求批准
 sandbox_mode = "workspace-write"     # 仅允许修改项目文件
 
 [sandbox_workspace_write]
@@ -109,15 +108,13 @@ network_access = true                # 启用网络访问
 ```
 
 **效果**：
-- ✅ Git 操作自动执行（失败时才提示）
-- ✅ 文档编辑自动执行（失败时才提示）
+- ✅ 沙箱内的常规操作可直接执行
+- ✅ 需要扩大权限时请求批准
 - ✅ 项目文件可以修改
 - ✅ 网络访问允许（WebFetch 等）
 - ❌ 系统文件禁止修改
 
-**对齐 Claude Code 方案 C**：
-- Claude: `permissions.allow = ["Bash(git add:*)", "Edit(docs/**)", ...]`
-- Codex: `approval_policy = "on-failure"` (更宽松，但接近效果)
+**交互式开发建议**：`approval_policy = "on-request"` 与 `sandbox_mode = "workspace-write"` 配合使用。
 
 ### 个人配置（`config.toml`）
 
@@ -157,14 +154,14 @@ network_access = true                # 明确启用网络访问
 |------|-------------|-----------|-----------|
 | **完全自动化** | `permissions.allow: ["Bash", "Edit", "Write", "WebFetch"]` | `bash.autoExecute: true` `file.confirm: false` `networking.autoPermit: true` | `approval_policy: "never"` `sandbox_mode: "danger-full-access"` `network_access: true` |
 | **保守安全** | 大量 deny 规则 | 所有开关设为 false | `approval_policy: "untrusted"` `sandbox_mode: "read-only"` |
-| **平衡策略** | 精心设计的 allow/deny/ask | 部分开关为 true | `approval_policy: "on-failure"` `sandbox_mode: "workspace-write"` `network_access: true` ✅ |
+| **平衡策略** | 精心设计的 allow/deny/ask | 部分开关为 true | `approval_policy: "on-request"` `sandbox_mode: "workspace-write"` `network_access: true` ✅ |
 
 ### 架构差异与限制
 
 | 特性 | Claude Code | Codex CLI | 说明 |
 |------|-------------|-----------|------|
 | **权限粒度** | 细粒度（可针对特定命令/路径） | 全局策略 | Codex 无法实现"允许 git add 但拒绝 git push --force" |
-| **Git 操作** | 可单独配置每个 git 命令 | 统一遵循 approval_policy | Codex 的 `on-failure` 作为近似替代 |
+| **Git 操作** | 可单独配置每个 git 命令 | 统一遵循 approval_policy | `on-request` 在需要时请求批准 |
 | **文件编辑** | 可允许特定目录 `Edit(docs/**)` | 沙箱模式全局控制 | Codex 无法单独允许编辑 docs/ 而拒绝其他 |
 | **网络访问** | `ask: ["WebFetch(domain:*)"]` 可提示确认 | `network_access = true/false` 全局开关 | Codex 只能全开/全关，无法实现"需确认" |
 | **MCP 服务器** | `enableAllProjectMcpServers: true` 全局开关 | 需逐个定义 `[mcp_servers.*]` | Codex 无"自动启用所有"功能 |
@@ -176,14 +173,14 @@ network_access = true                # 明确启用网络访问
 ### 团队配置的平衡策略
 
 ```toml
-approval_policy = "on-failure"
+approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]
 network_access = true
 ```
 
-- ✅ 大多数操作自动执行，失败时才提示
+- ✅ 沙箱内常规操作可直接执行，需要时请求批准
 - ✅ 允许修改项目文件
 - ✅ 允许网络访问
 - ❌ 禁止修改系统文件
@@ -224,7 +221,7 @@ sandbox_mode = "read-only"
 ### 示例 2：平衡模式（推荐）
 
 ```toml
-approval_policy = "on-failure"
+approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 ```
 
@@ -300,5 +297,5 @@ echo $CODEX_HOME
 
 ---
 
-**最后更新**：2025-11-05
-**版本**：3.0 (基于官方文档修正)
+**最后更新**：2026-08-27
+**版本**：3.1 (移除已弃用的审批策略)
