@@ -244,6 +244,68 @@ test('requires an explicit platform for app commands', () => {
   assert.match(result.stderr, /missing --platform/);
 });
 
+test('creates missing tmp, cache, and artifacts directories before a project command dry-run', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-container-dirs-'));
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const tmpDir = path.join(container, 'tmp');
+  const cacheDir = path.join(container, 'cache');
+  const artifactsDir = path.join(container, 'artifacts');
+
+  const result = spawnSync(
+    process.execPath,
+    [script, '--action=app-build', '--platform=win', '--dry-run'],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AGENT_TMP_DIR: tmpDir,
+        AGENT_CACHE_DIR: cacheDir,
+        AGENT_ARTIFACTS_DIR: artifactsDir,
+      },
+      encoding: 'utf8',
+      stdio: 'pipe',
+    },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /STATUS=DRY_RUN/);
+  for (const directoryPath of [tmpDir, cacheDir, artifactsDir]) {
+    assert.equal(fs.lstatSync(directoryPath).isDirectory(), true, directoryPath);
+  }
+});
+
+test('blocks before later command side effects when a container path is not a directory', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-container-file-'));
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const cachePath = path.join(container, 'cache');
+  const artifactsDir = path.join(container, 'artifacts');
+  fs.writeFileSync(cachePath, 'occupied\n');
+
+  const result = spawnSync(
+    process.execPath,
+    [script, '--action=app-build', '--platform=win', '--dry-run'],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AGENT_TMP_DIR: path.join(container, 'tmp'),
+        AGENT_CACHE_DIR: cachePath,
+        AGENT_ARTIFACTS_DIR: artifactsDir,
+      },
+      encoding: 'utf8',
+      stdio: 'pipe',
+    },
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /container directory cache must be a real directory/iu);
+  assert.equal(fs.existsSync(artifactsDir), false);
+});
+
 test('documents /private restart as the user shortcut instead of /restart --target', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
   const expert = fs.readFileSync(path.join(repoRoot, 'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md'), 'utf8');
