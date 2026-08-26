@@ -142,7 +142,7 @@ pnpm agent -- task cancel --task <id> --force
 - `transition` 要求证据且校验相邻前进或显式回流路径；存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
 - `resume --auto` 仅在当前主 repo/worktree/branch 唯一匹配时选择任务；否则输出候选和 `STATUS=BLOCKED`。
 
-`finish` 要求所有必需步骤、验收项和证据完成。修改任务还必须通过 completion guard。门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
+`task finish --task <id>` 要求该任务所有必需步骤、验收项和证据完成。修改任务还必须通过任务级 completion guard：只把 `lifecycle.keys` 明确绑定到该 task id 的 `cleanup_pending|recovery_required` worktree 作为生命周期 blocker，同时仍要求主分支已合并、工作区干净且与远端一致。无 task scope 的仓库级 `pnpm agent -- finish` 保持全仓 fail-closed，任一受管理 worktree 未收敛都会阻断。任务门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
 
 容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
 
@@ -206,7 +206,7 @@ pnpm agent -- dev|app|build|ship|private|finish
 - 共享基础设施变更执行单元、集成和相关回归；不得用全量失败掩盖定向结果。
 - 测试证据记录命令、退出码和简短结论，不粘贴超长日志。
 
-修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → finish`。`finish`/completion guard 只在主分支已合并、工作区干净且与远端一致时返回成功。
+修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在主分支已合并、工作区干净且与远端一致时返回成功。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 

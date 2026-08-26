@@ -15,6 +15,7 @@ const {
   finishTask,
   parseCliArgs,
   readTaskState,
+  runMutationCompletionGuard,
   resumeTask,
   safeTaskId,
   selectTaskState,
@@ -584,6 +585,28 @@ test('finish blocks incomplete evidence and invokes the mutation completion guar
   assert.match(guardBlocked.nextAction, /completion guard/i);
   assert.equal(guardCalls, 1);
   assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), true);
+});
+
+test('mutation completion guard scopes the subprocess to the finishing task', () => {
+  let invocation;
+  const result = runMutationCompletionGuard({
+    project_root: '/repo',
+    task_id: 'cloud-sync-implementation',
+  }, {
+    spawnSync: (command, args, options) => {
+      invocation = { command, args, options };
+      return { status: 0, stdout: 'STATUS=OK\n', stderr: '' };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(invocation.command, process.execPath);
+  assert.deepEqual(invocation.args, [
+    'infra/scripts/tdd-tools/tdd-completion-guard.js',
+    '--task',
+    'cloud-sync-implementation',
+  ]);
+  assert.equal(invocation.options.cwd, '/repo');
 });
 
 test('successful finish deletes only the owned task directory', (t) => {

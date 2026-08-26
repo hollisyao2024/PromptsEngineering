@@ -672,8 +672,16 @@ function resumeTask(options) {
   });
 }
 
-function runMutationCompletionGuard(state) {
-  const result = spawnSync(process.execPath, ['infra/scripts/tdd-tools/tdd-completion-guard.js'], {
+function runMutationCompletionGuard(state, dependencies = {}) {
+  if (!state.task_id) {
+    return { ok: false, output: 'STATUS=BLOCKED\nREASON=mutation completion guard requires task_id' };
+  }
+  const spawn = dependencies.spawnSync || spawnSync;
+  const result = spawn(process.execPath, [
+    'infra/scripts/tdd-tools/tdd-completion-guard.js',
+    '--task',
+    state.task_id,
+  ], {
     cwd: state.project_root,
     encoding: 'utf8',
     stdio: 'pipe',
@@ -1003,6 +1011,7 @@ module.exports = {
   listTaskStates,
   parseCliArgs,
   readTaskState,
+  runMutationCompletionGuard,
   resumeTask,
   runtimeContext,
   safeTaskId,

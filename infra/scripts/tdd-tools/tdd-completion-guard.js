@@ -4,7 +4,11 @@
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const { getMainRepoRoot, readSessions } = require('../worktree-tools/worktree-core');
-const { auditManagedWorktrees } = require('../worktree-tools/worktree-audit');
+const {
+  auditManagedWorktrees,
+  normalizeTaskId,
+  sessionTaskIds,
+} = require('../worktree-tools/worktree-audit');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 
@@ -74,11 +78,18 @@ function block(reason, kind, meta = {}) {
   };
 }
 
+function lifecycleSessionsForTask(sessions, taskId) {
+  const lifecycleSessions = Array.isArray(sessions) ? sessions : [];
+  const normalizedTaskId = normalizeTaskId(taskId);
+  if (!normalizedTaskId) return lifecycleSessions;
+  return lifecycleSessions.filter((session) => sessionTaskIds(session).includes(normalizedTaskId));
+}
+
 function evaluateCompletionGuard(input) {
   const branch = String(input.branch || '').trim();
   const statusLines = Array.isArray(input.statusLines) ? input.statusLines : [];
   const dirty = statusLines.length > 0;
-  const lifecycleSessions = Array.isArray(input.lifecycleSessions) ? input.lifecycleSessions : [];
+  const lifecycleSessions = lifecycleSessionsForTask(input.lifecycleSessions, input.taskId);
   const lifecycleBlockers = lifecycleSessions.filter((session) =>
     ['cleanup_pending', 'recovery_required'].includes(session.status));
 
@@ -239,11 +250,40 @@ function collectLifecycleState(repoRoot) {
   const synthetic = audit.records
     .filter((record) => ['cleanup_pending', 'recovery_required'].includes(record.state))
     .filter((record) => !persistedBranches.has(record.branch))
-    .map((record) => ({ branch: record.branch || record.path, status: record.state }));
+    .map((record) => ({
+      ...(record.session || {}),
+      branch: record.branch || record.path,
+      worktree: record.path || record.session?.worktree || '',
+      status: record.state,
+    }));
   return {
     audit,
     lifecycleSessions: [...persisted, ...synthetic],
   };
+}
+
+function parseArgs(argv) {
+  const args = { taskId: '' };
+  let taskScopeRequested = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === '--task' || value === '--task-id') {
+      taskScopeRequested = true;
+      args.taskId = argv[index + 1] || '';
+      index += 1;
+    } else if (value.startsWith('--task=')) {
+      taskScopeRequested = true;
+      args.taskId = value.slice('--task='.length);
+    } else if (value.startsWith('--task-id=')) {
+      taskScopeRequested = true;
+      args.taskId = value.slice('--task-id='.length);
+    }
+  }
+  if (taskScopeRequested && !args.taskId) {
+    throw new Error('completion guard task scope requires a task id');
+  }
+  args.taskId = normalizeTaskId(args.taskId);
+  return args;
 }
 
 function printResult(result) {
@@ -265,9 +305,10 @@ function printResult(result) {
 
 function main() {
   try {
+    const args = parseArgs(process.argv.slice(2));
     const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
     const lifecycle = collectLifecycleState(repoRoot);
-    const state = { ...collectGitState(repoRoot), ...lifecycle };
+    const state = { ...collectGitState(repoRoot), ...lifecycle, taskId: args.taskId };
     const result = evaluateCompletionGuard(state);
     printResult(result);
     process.exit(result.ok ? 0 : 1);
@@ -285,5 +326,7 @@ if (require.main === module) {
 module.exports = {
   evaluateCompletionGuard,
   collectLifecycleState,
+  lifecycleSessionsForTask,
+  parseArgs,
   splitStatusLines,
 };
