@@ -90,6 +90,8 @@ pnpm agent -- worktree list
 
 任务标识、分支名或描述至少提供一个。创建成功后必须切换到脚本输出的 `NEXT_CWD`。禁止从 worktree A 用绝对路径调用 worktree B 或主仓库脚本。
 
+创建全新 worktree 时，默认必须在 branch、worktree 和 session 副作用前成功执行 `git fetch --prune origin`，严格解析 `refs/remotes/origin/<baseBranch>` 的 commit，并以该固定 SHA 创建新分支。fetch 或远端 base 解析失败时必须 `STATUS=BLOCKED`，禁止继续使用缓存、本地 base 或任意 `HEAD`。只有显式 `--skip-fetch`（或兼容环境变量）可以不联网；该路径只允许缓存 remote base 或本地 base，必须输出 `BASE_FRESHNESS=UNVERIFIED`，两者都不存在时阻断。dry-run 与已有 worktree resume 不触发 fetch，也不自动 rebase。
+
 并行开发状态写入 `../tmp/worktree-sessions/`，锁写入 `../tmp/agent-locks/`。锁包含 PID；仅在确认 owner 不存活后回收 stale lock。
 
 合并前按顺序 fetch、rebase、验证、文件集合复查并进入串行 merge queue。合并后先原子记录 HEAD、worktree 路径和 cleanup intent，再清理。出现 HEAD 漂移、dirty worktree 或缺少封印时必须保留并转 `recovery_required`。

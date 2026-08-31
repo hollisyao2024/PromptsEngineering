@@ -15,7 +15,7 @@ Options:
   --phase <phase>       Expert phase (prd, arch, task, tdd, qa, devops; default: tdd)
   --kind fix            Create a fix/<description> branch
   --dry-run             Print the planned branch and path without creating them
-  --skip-fetch          Do not contact origin before creation
+  --skip-fetch          Do not contact origin; use a cached remote or local base as unverified
   --skip-bootstrap      Skip configured worktree dependency bootstrap
   -h, --help            Show this help without changing Git or the filesystem`);
 }
@@ -36,6 +36,8 @@ function main(argv = process.argv.slice(2)) {
       console.log(`WORKTREE_PATH=${result.worktreePath}`);
       console.log(`NEXT_CWD=${result.worktreePath}`);
       console.log(`BASE_REF=${result.baseRef}`);
+      console.log('FETCH_STATUS=NOT_RUN_DRY_RUN');
+      console.log('BASE_FRESHNESS=UNVERIFIED');
       return;
     }
 
@@ -43,6 +45,11 @@ function main(argv = process.argv.slice(2)) {
     console.log(`BRANCH_NAME=${result.branch}`);
     console.log(`WORKTREE_PATH=${result.worktreePath}`);
     console.log(`NEXT_CWD=${result.worktreePath}`);
+    if (result.fetchStatus) console.log(`FETCH_STATUS=${result.fetchStatus}`);
+    if (result.baseRef) console.log(`BASE_REF=${result.baseRef}`);
+    if (result.baseCommit) console.log(`BASE_COMMIT=${result.baseCommit}`);
+    if (result.baseSource) console.log(`BASE_SOURCE=${result.baseSource}`);
+    if (result.baseFreshness) console.log(`BASE_FRESHNESS=${result.baseFreshness}`);
     if (result.linked && result.linked.length > 0) {
       console.log(`LINKED=${result.linked.join(',')}`);
     }
@@ -78,6 +85,9 @@ function main(argv = process.argv.slice(2)) {
   } catch (error) {
     console.error('STATUS=BLOCKED');
     if (error.worktreePath) console.error(`WORKTREE_PATH=${error.worktreePath}`);
+    if (error.fetchStatus) console.error(`FETCH_STATUS=${error.fetchStatus}`);
+    if (error.baseRef) console.error(`BASE_REF=${error.baseRef}`);
+    if (error.baseFreshness) console.error(`BASE_FRESHNESS=${error.baseFreshness}`);
     if (error.bootstrapStatus) console.error(`BOOTSTRAP_STATUS=${error.bootstrapStatus}`);
     if (error.command) console.error(`BOOTSTRAP_COMMAND=${error.command}`);
     if (error.checkCommand) console.error(`BOOTSTRAP_CHECK_COMMAND=${error.checkCommand}`);

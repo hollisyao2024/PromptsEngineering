@@ -346,6 +346,47 @@ function initRepo() {
   return repo;
 }
 
+function initRemoteWorktreeFixture() {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-base-sync-'));
+  const repo = path.join(container, 'repo');
+  const remote = path.join(container, 'origin.git');
+  fs.mkdirSync(repo);
+  runGit(container, ['init', '--bare', remote]);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# base sync test\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees', tmp: '../tmp' },
+    worktree: {
+      envSymlinks: [],
+      sharedConfigSymlinks: [],
+      sessionDir: '../tmp/sessions',
+      lockDir: '../tmp/locks',
+      bootstrap: { mode: 'skip' },
+    },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  runGit(repo, ['remote', 'add', 'origin', remote]);
+  runGit(repo, ['push', '-u', 'origin', 'main']);
+  runGit(remote, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
+  return { container, repo, remote };
+}
+
+function advanceRemoteMain(fixture) {
+  const publisher = path.join(fixture.container, 'publisher');
+  runGit(fixture.container, ['clone', fixture.remote, publisher]);
+  runGit(publisher, ['config', 'user.email', 'publisher@example.com']);
+  runGit(publisher, ['config', 'user.name', 'Publisher']);
+  fs.writeFileSync(path.join(publisher, 'REMOTE.md'), 'new remote commit\n');
+  runGit(publisher, ['add', 'REMOTE.md']);
+  runGit(publisher, ['commit', '-m', 'advance remote']);
+  runGit(publisher, ['push', 'origin', 'main']);
+  return runGit(publisher, ['rev-parse', 'HEAD']);
+}
+
 function runNodeScript(repo, script, args) {
   return spawnSync(process.execPath, [script, ...args], {
     cwd: repo,
@@ -416,6 +457,8 @@ test('worktree creation still accepts an explicit identity in dry-run mode', (t)
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /STATUS=DRY_RUN/u);
   assert.match(result.stdout, /BRANCH_NAME=fix\/argument-safety/u);
+  assert.match(result.stdout, /FETCH_STATUS=NOT_RUN_DRY_RUN/u);
+  assert.match(result.stdout, /BASE_FRESHNESS=UNVERIFIED/u);
   assertNoGeneratedTddWorktree(repo);
 });
 
@@ -437,6 +480,223 @@ test('dry-run worktree creation does not fetch or create its requested worktree'
   assert.equal(result.branch, 'fix/dry-run-should-stay-read-only');
   assert.equal(fs.existsSync(path.join(repo, '.git', 'FETCH_HEAD')), false);
   assert.equal(fs.existsSync(result.worktreePath), false);
+});
+
+test('default creation fetches the advanced remote base and records the exact created commit', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  const remoteHead = advanceRemoteMain(fixture);
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  const result = createOrResumeWorktree({
+    cwd: fixture.repo,
+    cli: { phase: 'tdd', kind: 'fix', desc: 'verified remote base' },
+  });
+
+  assert.equal(result.fetchStatus, 'OK');
+  assert.equal(result.baseFreshness, 'VERIFIED');
+  assert.equal(result.baseRef, 'refs/remotes/origin/main');
+  assert.equal(result.baseCommit, remoteHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', 'HEAD']), remoteHead);
+});
+
+test('default creation blocks on fetch failure before branch worktree or session creation', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  const missingRemote = path.join(fixture.container, 'missing-origin.git');
+  runGit(fixture.repo, ['remote', 'set-url', 'origin', missingRemote]);
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  assert.throws(
+    () => createOrResumeWorktree({
+      cwd: fixture.repo,
+      cli: { phase: 'tdd', kind: 'fix', desc: 'required fetch failure' },
+    }),
+    /fetch.*origin.*failed/i,
+  );
+
+  assert.equal(runGit(fixture.repo, ['branch', '--list', 'fix/required-fetch-failure']), '');
+  assert.doesNotMatch(
+    runGit(fixture.repo, ['worktree', 'list', '--porcelain']),
+    /required-fetch-failure/u,
+  );
+  assert.equal(fs.existsSync(path.join(fixture.container, 'tmp', 'sessions')), false);
+});
+
+test('default creation blocks when fetch succeeds but the configured remote base is missing', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  runGit(fixture.remote, ['update-ref', '-d', 'refs/heads/main']);
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  assert.throws(
+    () => createOrResumeWorktree({
+      cwd: fixture.repo,
+      cli: { phase: 'tdd', kind: 'fix', desc: 'missing remote base' },
+    }),
+    /remote base origin\/main is unavailable after fetch/i,
+  );
+
+  assert.equal(runGit(fixture.repo, ['branch', '--list', 'fix/missing-remote-base']), '');
+  assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /missing-remote-base/u);
+  assert.equal(fs.existsSync(path.join(fixture.container, 'tmp', 'sessions')), false);
+});
+
+test('skip-fetch records an unverified cached base commit without contacting origin', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  const cachedHead = runGit(fixture.repo, ['rev-parse', 'refs/remotes/origin/main']);
+  fs.rmSync(path.join(fixture.repo, '.git', 'FETCH_HEAD'), { force: true });
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  const result = createOrResumeWorktree({
+    cwd: fixture.repo,
+    cli: {
+      'skip-fetch': true,
+      phase: 'tdd',
+      kind: 'fix',
+      desc: 'cached base evidence',
+    },
+  });
+
+  assert.equal(result.fetchStatus, 'SKIPPED');
+  assert.equal(result.baseFreshness, 'UNVERIFIED');
+  assert.equal(result.baseRef, 'refs/remotes/origin/main');
+  assert.equal(result.baseCommit, cachedHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', 'HEAD']), cachedHead);
+  assert.equal(fs.existsSync(path.join(fixture.repo, '.git', 'FETCH_HEAD')), false);
+});
+
+test('skip-fetch blocks instead of falling back to an unrelated HEAD', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-no-base-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'topic']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# unrelated topic\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees', tmp: '../tmp' },
+    worktree: {
+      envSymlinks: [],
+      sharedConfigSymlinks: [],
+      sessionDir: '../tmp/sessions',
+      bootstrap: { mode: 'skip' },
+    },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'topic only']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  assert.throws(
+    () => createOrResumeWorktree({
+      cwd: repo,
+      cli: {
+        'skip-fetch': true,
+        phase: 'tdd',
+        kind: 'fix',
+        desc: 'reject unrelated head',
+      },
+    }),
+    /no cached origin\/main or local main exists/i,
+  );
+
+  assert.equal(runGit(repo, ['branch', '--list', 'fix/reject-unrelated-head']), '');
+  assert.doesNotMatch(runGit(repo, ['worktree', 'list', '--porcelain']), /reject-unrelated-head/u);
+});
+
+test('skip-fetch can use the configured local base when no cached remote base exists', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-local-base-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# local base\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees', tmp: '../tmp' },
+    worktree: {
+      envSymlinks: [],
+      sharedConfigSymlinks: [],
+      sessionDir: '../tmp/sessions',
+      bootstrap: { mode: 'skip' },
+    },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'local base']);
+  const localHead = runGit(repo, ['rev-parse', 'main']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const result = createOrResumeWorktree({
+    cwd: repo,
+    cli: {
+      'skip-fetch': true,
+      phase: 'tdd',
+      kind: 'fix',
+      desc: 'local base evidence',
+    },
+  });
+
+  assert.equal(result.fetchStatus, 'SKIPPED');
+  assert.equal(result.baseFreshness, 'UNVERIFIED');
+  assert.equal(result.baseSource, 'local-base');
+  assert.equal(result.baseRef, 'refs/heads/main');
+  assert.equal(result.baseCommit, localHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', 'HEAD']), localHead);
+});
+
+test('worktree CLI reports verified base evidence and structured fetch failures', (t) => {
+  const success = initRemoteWorktreeFixture();
+  const remoteHead = advanceRemoteMain(success);
+  const failed = initRemoteWorktreeFixture();
+  runGit(failed.repo, ['remote', 'set-url', 'origin', path.join(failed.container, 'missing.git')]);
+  t.after(() => safeRemoveTreeNoFollow(success.container, { allowedRoot: realTemporaryRoot }));
+  t.after(() => safeRemoveTreeNoFollow(failed.container, { allowedRoot: realTemporaryRoot }));
+
+  const successResult = runNodeScript(success.repo, worktreeNewScript, [
+    '--phase=tdd',
+    '--kind=fix',
+    '--desc=cli-base-evidence',
+  ]);
+  assert.equal(successResult.status, 0, successResult.stderr || successResult.stdout);
+  assert.match(successResult.stdout, /STATUS=CREATED/u);
+  assert.match(successResult.stdout, /FETCH_STATUS=OK/u);
+  assert.match(successResult.stdout, /BASE_REF=refs\/remotes\/origin\/main/u);
+  assert.match(successResult.stdout, new RegExp(`BASE_COMMIT=${remoteHead}`, 'u'));
+  assert.match(successResult.stdout, /BASE_FRESHNESS=VERIFIED/u);
+
+  const failureResult = runNodeScript(failed.repo, worktreeNewScript, [
+    '--phase=tdd',
+    '--kind=fix',
+    '--desc=cli-fetch-failure',
+  ]);
+  assert.equal(failureResult.status, 1, failureResult.stdout || failureResult.stderr);
+  assert.match(failureResult.stderr, /STATUS=BLOCKED/u);
+  assert.match(failureResult.stderr, /FETCH_STATUS=FAILED/u);
+  assert.match(failureResult.stderr, /BASE_FRESHNESS=UNVERIFIED/u);
+  assert.match(failureResult.stderr, /NEXT_MANUAL_ACTION=/u);
+});
+
+test('resuming an existing worktree does not fetch or change its head', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+  const cli = {
+    'skip-fetch': true,
+    phase: 'tdd',
+    kind: 'fix',
+    desc: 'resume without network',
+  };
+  const created = createOrResumeWorktree({ cwd: fixture.repo, cli });
+  const originalHead = runGit(created.worktreePath, ['rev-parse', 'HEAD']);
+  runGit(fixture.repo, ['remote', 'set-url', 'origin', path.join(fixture.container, 'missing.git')]);
+  fs.rmSync(path.join(fixture.repo, '.git', 'FETCH_HEAD'), { force: true });
+
+  const resumed = createOrResumeWorktree({
+    cwd: fixture.repo,
+    cli: { phase: 'tdd', kind: 'fix', desc: 'resume without network' },
+  });
+
+  assert.equal(resumed.resumed, true);
+  assert.equal(runGit(resumed.worktreePath, ['rev-parse', 'HEAD']), originalHead);
+  assert.equal(fs.existsSync(path.join(fixture.repo, '.git', 'FETCH_HEAD')), false);
 });
 
 function initLinkedWorktreeFixture() {
