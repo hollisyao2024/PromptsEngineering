@@ -16,5 +16,6 @@ graph TD
 | `agent.config.json` 配置加载器 | 模板内部 | 继续使用深合并和稀疏项目覆盖 | 已存在 |
 | `agent-cli.js` 与执行器 | 模板内部 | 命令缺失时 fail closed | 已存在 |
 | 目标项目命令 | 项目所有 | 模板不得提供业务回退 | 配置时可用 |
+| Git `origin` 与 configured base branch | 外部远端/模板内部约定 | 全新 worktree 默认必须成功刷新并解析 commit；显式 skip 才可离线 | 已存在 |
 
 范围变化或新增模块时必须更新本图并执行依赖环检查。

@@ -19,6 +19,10 @@
 | US-CMDSURF-006 | 短提示词补齐与显式验收门禁 | TASK-CMDSURF-014 | 任务输入规则与创建门禁 | AC-CMDSURF-006-01 / TC-CMDSURF-010 |
 | US-CMDSURF-006 | Codex 审批策略示例收敛 | TASK-CMDSURF-015 | 配置示例清理 | AC-CMDSURF-006-02 / TC-CMDSURF-011 |
 | US-CMDSURF-006 | 短提示词补齐与显式验收门禁 | TASK-CMDSURF-016 | 回归与 QA 合并门禁 | AC-CMDSURF-006-01~02 / TC-CMDSURF-010~011 |
+| US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-017 | RED：远端、失败、skip 与无网络例外契约 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
+| US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-018 | 严格 fetch、固定 SHA 与结构化证据 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
+| US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-019 | 协议与模板版本同步 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
+| US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-020 | 回归与 QA 合并门禁 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-001 | RED：首次创建与 Git 所有权契约 | AC-ENVINIT-001-01~02 / TC-ENVINIT-001~002 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-002 | example、manifest 与 ignore 合约 | AC-ENVINIT-001-01~02 / TC-ENVINIT-001~002 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-003 | 实际文件初始化器 | AC-ENVINIT-001-01 / TC-ENVINIT-001 |

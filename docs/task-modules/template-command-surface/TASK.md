@@ -3,11 +3,11 @@
 > **所属主 TASK**：[TASK.md](../../TASK.md)  
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/template-command-surface/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/template-command-surface/ARCH.md)  
-> **状态**：🚧 执行中  
+> **状态**：🔄 TDD 通过 / 待 QA
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-08-27
-> **版本**：v1.2
+> **最后更新**：2026-09-01
+> **版本**：v1.3
 
 ## 1. 模块概述
 
@@ -35,6 +35,10 @@
 | TASK-CMDSURF-014 | 任务输入规则与 `createTask()` 最小门禁实现 | @tdd | 0.25d | P0 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
 | TASK-CMDSURF-015 | Codex 审批策略示例收敛 | @tdd | 0.25d | P1 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
 | TASK-CMDSURF-016 | 定向回归、模板检查、QA 与合并 | @qa | 0.25d | P0 | TASK-CMDSURF-014~015 | 🚧 进行中 | - |
+| TASK-CMDSURF-017 | RED：远端前进、fetch/base 失败、显式 skip、dry-run 与 resume 契约 | @tdd | 0.5d | P0 | ADR-005 | ✅ 已完成 | 2026-09-01 |
+| TASK-CMDSURF-018 | 严格远端 base 解析、固定 SHA 创建与结构化新鲜度输出 | @tdd | 0.5d | P0 | TASK-CMDSURF-017 | ✅ 已完成 | 2026-09-01 |
+| TASK-CMDSURF-019 | 通用约定与模板 patch 版本同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-018 | ✅ 已完成 | 2026-09-01 |
+| TASK-CMDSURF-020 | 定向/全量回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-019 | 🚧 进行中 | - |
 
 ### 2.2 任务详细说明
 
@@ -54,6 +58,10 @@
 - TASK-CMDSURF-014：在 `AGENTS.md` 集中短提示词补齐规则，在 `createTask()` 写盘前增加 mutation 门禁，并让 Conventions 只保留引用和命令示例。
 - TASK-CMDSURF-015：把交互式 Codex 审批策略示例收敛为 `on-request`，保留非交互式 `never`，移除重复的已弃用值说明。
 - TASK-CMDSURF-016：执行定向与全量 Node 测试、治理文档与模板门禁，再进入固定的 tdd/qa 合并流程。
+- TASK-CMDSURF-017：使用本地 bare remote 建立 RED，覆盖远端 base 从 A 前进到 B 后默认创建、fetch 失败、远端 base 缺失、显式 skip 的缓存/local base、无任意 HEAD fallback、dry-run 与 resume 无网络。
+- TASK-CMDSURF-018：在请求与恢复态预检后执行默认 required fetch，严格解析 `refs/remotes/origin/<base>^{commit}`，以 commit SHA 创建新分支，并输出 `FETCH_STATUS`、`BASE_REF`、`BASE_COMMIT` 与 `BASE_FRESHNESS`；现有 skip/env 入口保持兼容。
+- TASK-CMDSURF-019：更新 `docs/CONVENTIONS.md` 的创建/合并双同步边界，将模板版本提升为 `2.1.1`；不修改 `AGENTS.md`、配置 schema、remote 或 session schema。
+- TASK-CMDSURF-020：执行 worktree 定向测试、全量 Node/setup/治理文档/模板收敛门禁和高风险语义审查，再按固定顺序进入 tdd sync/push 与 QA merge。
 
 每项验收均采用 Given-When-Then：Given 前置任务完成，When 执行对应测试或传播 Gate，Then 输出明确成功证据且无范围外文件变化。
 
@@ -73,6 +81,9 @@
 | 013 | 014 | Finish-to-start | RED 后实现任务输入与创建门禁 |
 | 013 | 015 | Finish-to-start | 内容扫描 RED 后收敛 Codex 配置示例 |
 | 014~015 | 016 | Finish-to-start | 两条最小实现完成后统一回归与合并 |
+| 017 | 018 | Finish-to-start | 先建立远端与失败边界 RED，再实现严格基线同步 |
+| 018 | 019 | Finish-to-start | 实现冻结后同步协议与模板版本 |
+| 019 | 020 | Finish-to-start | 代码、测试与文档齐备后进入回归和合并门禁 |
 
 ## 4. 资源分配
 
@@ -90,6 +101,7 @@
 | M3-PROPAGATE | 2026-08-23 | XiaoLan 更新 | 收敛 dry-run、主远端一致 | QA_VALIDATED | 📝 |
 | M4-CONTAINER-DIRS | 2026-08-26 | 共享初始化器与调用点 | TC-CMDSURF-007~009、回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 | M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
+| M6-WORKTREE-BASE | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip 与结构化证据 | TC-CMDSURF-012~015、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 
 ## 6. Story → Task 映射
 
@@ -106,6 +118,10 @@
 | US-CMDSURF-005 | AC-CMDSURF-005-03 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-006 | AC-CMDSURF-006-01 | TASK-CMDSURF-013~014 | TC-CMDSURF-010 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-006 | AC-CMDSURF-006-02 | TASK-CMDSURF-013、015 | TC-CMDSURF-011 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-007 | AC-CMDSURF-007-01 | TASK-CMDSURF-017~020 | TC-CMDSURF-012 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-007 | AC-CMDSURF-007-02 | TASK-CMDSURF-017~020 | TC-CMDSURF-013 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-007 | AC-CMDSURF-007-03 | TASK-CMDSURF-017~020 | TC-CMDSURF-014 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-007 | AC-CMDSURF-007-04 | TASK-CMDSURF-017~020 | TC-CMDSURF-015 | @qa | ✅ TDD 通过 / 待 QA |
 
 ## 7. 风险登记
 
@@ -118,6 +134,9 @@
 | 共享 helper 在只读路径被误用 | 查询命令污染容器目录 | 纯解析无副作用测试 + 显式调用点清单 | @tdd | 已规划 |
 | 容器路径被文件或链接占位 | 写入失败或越界 | `lstat` 拒绝并在副作用前阻断 | @tdd/@qa | 已规划 |
 | 文档规则重复导致提示词膨胀或漂移 | Agent 行为不一致 | `AGENTS.md` 单一语义入口，Conventions 仅引用 | @tdd/@qa | 已规划 |
+| fetch 或远端 base 失败后仍创建 | 新任务基线不可证明 | 默认 fail closed，断言无 branch/worktree/session | @tdd/@qa | 已规划 |
+| 显式 skip 回退任意 HEAD | 从错误分支创建新任务 | skip 只允许缓存 remote/local base；负向测试缺失两者 | @tdd | 已规划 |
+| 可变 remote ref 与实际 HEAD 竞态 | 输出基线与实际 worktree 不一致 | 解析 commit 后以固定 SHA 创建并比对 HEAD | @tdd | 已规划 |
 
 ## 8. 数据库迁移任务
 
@@ -129,6 +148,7 @@
 
 - 现有 dispatcher 将服务、CI、环境和 app 操作集中在单文件；本轮保持单一执行面，若后续动作显著增长再评估拆分。
 - 任务输入语义只修改 `AGENTS.md`，不新增专家、schema、CLI 参数或 package scripts。
+- Worktree 基线本轮固定使用现有 `origin`、`baseBranch`、`--skip-fetch` 与环境变量；不新增 remote/policy/retry/session 配置面。
 
 ## 10. 变更记录
 
@@ -137,6 +157,7 @@
 | v1.0 | 2026-08-23 | 初始任务拆解 | @task-planning |
 | v1.1 | 2026-08-26 | 增加容器目录按需初始化 TDD 与 QA 关键路径 | @task-planning |
 | v1.2 | 2026-08-27 | 增加短提示词补齐、mutation 显式验收和 Codex 配置清理任务 | @task-planning |
+| v1.3 | 2026-09-01 | 增加 worktree required fetch、固定 SHA、显式 skip 与 QA 任务 | @task-planning |
 
 ## 11. 自检与 Gate 清单
 
@@ -147,4 +168,5 @@
 - [x] 默认矩阵修复 RED 23/26（3 项预期失败）、GREEN 29/29、全量 Node 263/263，并完成目标副本 32/32 解析。
 - [x] 容器目录 RED 19/23（4 项预期失败）、GREEN 25/25；全量 Node 302/304，两个环境项复核为 `/bin/bash` 不可用与 PowerShell PATH，后者补齐运行时后通过。
 - [x] 短提示词门禁 RED 32/35（3 项预期失败）、GREEN 35/35；补齐 Windows 运行时后可运行全量 306/306，另有硬编码 `/bin/bash` 的既有迁移用例在 Windows 不适用。
+- [x] Worktree 基线 RED 1/5（4 项按预期失败）、GREEN 9/9；worktree 核心 40/40、全仓 Node 305/305、setup 56/56。
 - [ ] QA 与传播阶段回写最终状态与证据。

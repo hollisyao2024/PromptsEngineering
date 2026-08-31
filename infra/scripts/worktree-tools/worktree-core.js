@@ -392,6 +392,74 @@ function getBaseRef(mainRoot, config) {
   return 'HEAD';
 }
 
+function resolveCommit(mainRoot, ref) {
+  return runGit(['rev-parse', '--verify', `${ref}^{commit}`], {
+    cwd: mainRoot,
+    capture: true,
+    allowFailure: true,
+  }).trim();
+}
+
+function baseResolutionError(message, details = {}) {
+  const error = new Error(message);
+  Object.assign(error, details);
+  return error;
+}
+
+function getRequiredRemoteBase(mainRoot, config) {
+  const baseBranch = config.baseBranch || 'main';
+  const baseRef = `refs/remotes/origin/${baseBranch}`;
+  const baseCommit = resolveCommit(mainRoot, baseRef);
+  if (!baseCommit) {
+    throw baseResolutionError(`remote base origin/${baseBranch} is unavailable after fetch`, {
+      fetchStatus: 'FAILED',
+      baseRef,
+      baseFreshness: 'UNVERIFIED',
+      nextManualAction: `Restore origin/${baseBranch} and rerun, or explicitly use --skip-fetch with a cached or local ${baseBranch}.`,
+    });
+  }
+  return {
+    baseRef,
+    baseCommit,
+    baseSource: 'remote',
+    baseFreshness: 'VERIFIED',
+    fetchStatus: 'OK',
+  };
+}
+
+function getSkippedBase(mainRoot, config) {
+  const baseBranch = config.baseBranch || 'main';
+  const remoteRef = `refs/remotes/origin/${baseBranch}`;
+  const remoteCommit = resolveCommit(mainRoot, remoteRef);
+  if (remoteCommit) {
+    return {
+      baseRef: remoteRef,
+      baseCommit: remoteCommit,
+      baseSource: 'cached-remote',
+      baseFreshness: 'UNVERIFIED',
+      fetchStatus: 'SKIPPED',
+    };
+  }
+
+  const localRef = `refs/heads/${baseBranch}`;
+  const localCommit = resolveCommit(mainRoot, localRef);
+  if (localCommit) {
+    return {
+      baseRef: localRef,
+      baseCommit: localCommit,
+      baseSource: 'local-base',
+      baseFreshness: 'UNVERIFIED',
+      fetchStatus: 'SKIPPED',
+    };
+  }
+
+  throw baseResolutionError(`no cached origin/${baseBranch} or local ${baseBranch} exists`, {
+    fetchStatus: 'SKIPPED',
+    baseFreshness: 'UNVERIFIED',
+    nextManualAction: `Fetch origin/${baseBranch} or create the local ${baseBranch} branch before retrying --skip-fetch.`,
+  });
+}
+
 function shouldSkipFetch(cli = {}, env = process.env) {
   const envValue = String(env.AGENT_WORKTREE_SKIP_FETCH || '').trim().toLowerCase();
   return Boolean(
@@ -1112,14 +1180,25 @@ function createOrResumeWorktree(options = {}) {
   }
 
   const fetchSkipped = shouldSkipFetch(cli);
-  if (!fetchSkipped) {
-    runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot, allowFailure: true });
+  let base;
+  if (fetchSkipped) {
+    base = getSkippedBase(mainRoot, config);
+  } else {
+    try {
+      runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot });
+    } catch (error) {
+      error.fetchStatus = 'FAILED';
+      error.baseFreshness = 'UNVERIFIED';
+      error.nextManualAction = 'Fix origin access and rerun, or explicitly use --skip-fetch with a cached or local base.';
+      throw error;
+    }
+    base = getRequiredRemoteBase(mainRoot, config);
   }
-  baseRef = getBaseRef(mainRoot, config);
+  ({ baseRef } = base);
   const audit = require('./worktree-audit').auditManagedWorktrees({
     mainRoot,
     config,
-    baseRef,
+    baseRef: base.baseCommit,
     cwd,
     apply: true,
     excludeBranch: branch,
@@ -1132,7 +1211,7 @@ function createOrResumeWorktree(options = {}) {
     runGit(['worktree', 'add', worktreePath, branch], { cwd: mainRoot });
   } else {
     // --no-track 防止 upstream 被设成 origin/main 导致裸 git push silent no-op
-    runGit(['worktree', 'add', '-b', branch, '--no-track', worktreePath, baseRef], { cwd: mainRoot });
+    runGit(['worktree', 'add', '-b', branch, '--no-track', worktreePath, base.baseCommit], { cwd: mainRoot });
   }
 
   const linked = setupSharedLinks(mainRoot, worktreePath, config);
@@ -1181,6 +1260,10 @@ function createOrResumeWorktree(options = {}) {
     config,
     mainRoot,
     baseRef,
+    baseCommit: base.baseCommit,
+    baseSource: base.baseSource,
+    baseFreshness: base.baseFreshness,
+    fetchStatus: base.fetchStatus,
     linked,
     bootstrap,
     audit,
@@ -1203,6 +1286,8 @@ module.exports = {
   createOrResumeWorktree,
   findWorktreeByBranch,
   getBaseRef,
+  getRequiredRemoteBase,
+  getSkippedBase,
   getCurrentBranch,
   getMainRepoRoot,
   getWorktreeRoot,
