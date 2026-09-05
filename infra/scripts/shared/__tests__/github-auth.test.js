@@ -103,7 +103,7 @@ test('buildGitHubShellEnv prepares gh and nested git commands for GitHub origin'
   assert.equal(env.GIT_CONFIG_KEY_0, 'http.https://github.com/.extraheader');
 });
 
-test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', () => {
+test('loadProjectGitHubToken skips a linked-worktree placeholder and preserves explicit overrides', () => {
   const mainRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-auth-main-'));
   const worktreeRoot = `${mainRoot}-worktree`;
   try {
@@ -120,6 +120,7 @@ test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', 
       stdio: 'pipe',
     });
     assert.equal(worktree.status, 0, worktree.stderr);
+    fs.writeFileSync(path.join(worktreeRoot, '.env.local'), 'GH_TOKEN=ghp_xxx\n');
 
     const candidates = getProjectEnvLocalCandidates({ repoRoot: worktreeRoot, cwd: worktreeRoot });
     assert.ok(candidates.includes(path.join(worktreeRoot, '.env.local')));
@@ -129,6 +130,10 @@ test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', 
     const token = loadProjectGitHubToken({ repoRoot: worktreeRoot, cwd: worktreeRoot, env });
     assert.equal(token, 'main-token');
     assert.equal(env.GH_TOKEN, 'main-token');
+
+    fs.writeFileSync(path.join(worktreeRoot, '.env.local'), 'GH_TOKEN=worktree-token\n');
+    const overridden = loadProjectGitHubToken({ repoRoot: worktreeRoot, cwd: worktreeRoot, env: {} });
+    assert.equal(overridden, 'worktree-token');
   } finally {
     spawnSync('git', ['worktree', 'remove', '--force', worktreeRoot], {
       cwd: mainRoot,
@@ -138,4 +143,17 @@ test('loadProjectGitHubToken reads main repo .env.local from linked worktrees', 
     fs.rmSync(worktreeRoot, { recursive: true, force: true });
     fs.rmSync(mainRoot, { recursive: true, force: true });
   }
+});
+
+test('getProjectGitHubToken ignores a placeholder file before using a process token', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-auth-placeholder-'));
+  fs.writeFileSync(path.join(repoRoot, '.env.local'), 'GH_TOKEN=github_pat_xxx\n');
+
+  const token = getProjectGitHubToken({
+    repoRoot,
+    cwd: repoRoot,
+    env: { GH_TOKEN: 'from-shell' },
+  });
+
+  assert.equal(token, 'from-shell');
 });
