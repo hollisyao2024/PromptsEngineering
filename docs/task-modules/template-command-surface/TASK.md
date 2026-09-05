@@ -3,7 +3,7 @@
 > **所属主 TASK**：[TASK.md](../../TASK.md)  
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/template-command-surface/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/template-command-surface/ARCH.md)  
-> **状态**：✅ 多电脑协作 TDD 通过 / 待 QA
+> **状态**：✅ 多电脑协作 QA 验证通过
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
 > **最后更新**：2026-09-05
@@ -44,7 +44,7 @@
 | TASK-CMDSURF-023 | `tdd push` 显式 PR base 与 `qa verify` 双 SHA 回执 | @tdd | 0.5d | P0 | TASK-CMDSURF-021 | ✅ 完成 | PR base/QA receipt 定向通过 |
 | TASK-CMDSURF-024 | `qa merge` 配置主干、期望 head 与非强制更新门禁 | @tdd | 0.75d | P0 | TASK-CMDSURF-022~023 | ✅ 完成 | merge 定向 24/24 |
 | TASK-CMDSURF-025 | 同权、无 CI 和本地状态职责协议同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-024 | ✅ 完成 | policy 与 workflow 所有权测试通过 |
-| TASK-CMDSURF-026 | 定向/全量回归、三 clone 模拟、模板收敛与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-025 | 🔄 TDD/模板通过，待 QA | Windows 可执行全集 342/342；目标副本 22/22 |
+| TASK-CMDSURF-026 | 定向/全量回归、三 clone 模拟、模板收敛与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-025 | ✅ 完成 | Windows 可执行全集 342/342；目标副本 22/22；QA 双 SHA 收据通过 |
 
 ### 2.2 任务详细说明
 
@@ -119,7 +119,7 @@
 | M4-CONTAINER-DIRS | 2026-08-26 | 共享初始化器与调用点 | TC-CMDSURF-007~009、回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 | M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 | M6-WORKTREE-BASE | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip 与结构化证据 | TC-CMDSURF-012~015、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
-| M7-MULTI-HOST | 2026-09-05 | 远端分支恢复、QA 双 SHA 回执、精确合并与三 clone 模拟 | TC-CMDSURF-016~021、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 与模拟通过 / 待 QA |
+| M7-MULTI-HOST | 2026-09-05 | 远端分支恢复、QA 双 SHA 回执、精确合并与三 clone 模拟 | TC-CMDSURF-016~021、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | ✅ QA 验证通过 |
 
 ## 6. Story → Task 映射
 
@@ -140,12 +140,12 @@
 | US-CMDSURF-007 | AC-CMDSURF-007-02 | TASK-CMDSURF-017~020 | TC-CMDSURF-013 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-007 | AC-CMDSURF-007-03 | TASK-CMDSURF-017~020 | TC-CMDSURF-014 | @qa | ✅ TDD 通过 / 待 QA |
 | US-CMDSURF-007 | AC-CMDSURF-007-04 | TASK-CMDSURF-017~020 | TC-CMDSURF-015 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-01 | TASK-CMDSURF-021~022 | TC-CMDSURF-016 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-02 | TASK-CMDSURF-021~022 | TC-CMDSURF-017 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-03 | TASK-CMDSURF-021、023~024 | TC-CMDSURF-018 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-04 | TASK-CMDSURF-021、024、026 | TC-CMDSURF-019 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-05 | TASK-CMDSURF-024~026 | TC-CMDSURF-020 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-008 | AC-CMDSURF-008-06 | TASK-CMDSURF-025~026 | TC-CMDSURF-021 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-008 | AC-CMDSURF-008-01 | TASK-CMDSURF-021~022 | TC-CMDSURF-016 | @qa | ✅ QA 通过 |
+| US-CMDSURF-008 | AC-CMDSURF-008-02 | TASK-CMDSURF-021~022 | TC-CMDSURF-017 | @qa | ✅ QA 通过 |
+| US-CMDSURF-008 | AC-CMDSURF-008-03 | TASK-CMDSURF-021、023~024 | TC-CMDSURF-018 | @qa | ✅ QA 通过 |
+| US-CMDSURF-008 | AC-CMDSURF-008-04 | TASK-CMDSURF-021、024、026 | TC-CMDSURF-019 | @qa | ✅ QA 通过 |
+| US-CMDSURF-008 | AC-CMDSURF-008-05 | TASK-CMDSURF-024~026 | TC-CMDSURF-020 | @qa | ✅ QA 通过 |
+| US-CMDSURF-008 | AC-CMDSURF-008-06 | TASK-CMDSURF-025~026 | TC-CMDSURF-021 | @qa | ✅ QA 通过 |
 
 ## 7. 风险登记
 
@@ -202,4 +202,4 @@
 - [x] 短提示词门禁 RED 32/35（3 项预期失败）、GREEN 35/35；补齐 Windows 运行时后可运行全量 306/306，另有硬编码 `/bin/bash` 的既有迁移用例在 Windows 不适用。
 - [x] Worktree 基线 RED 1/5（4 项按预期失败）、GREEN 9/9；worktree 核心 40/40、全仓 Node 305/305、setup 56/56。
 - [x] 多电脑协作完成 RED/GREEN；定向回归 90/90、补充 merge 回归 24/24、Windows 可执行全集 342/342、三 clone 交错模拟通过；模板副本 dry-run/apply/convergence 收敛且相关测试 22/22。
-- [ ] QA 与传播阶段回写最终状态与证据。
+- [x] QA plan 按模板源规则跳过业务文档生成；QA verify 签发绑定 `main` 与功能分支精确 SHA 的通过收据；PR #69 的 base/head/ref 均已核对。
