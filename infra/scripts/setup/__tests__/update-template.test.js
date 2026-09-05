@@ -15,6 +15,12 @@ const {
 } = require('../update-template');
 
 const TEMPLATE_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const TEMPLATE_PACKAGE_NAME = 'prompts-engineering-agents-router';
+
+function isTemplateSourceRoot() {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(TEMPLATE_ROOT, 'package.json'), 'utf8'));
+  return packageJson.name === TEMPLATE_PACKAGE_NAME;
+}
 
 function mkTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `update-template-${prefix}-`));
@@ -118,6 +124,14 @@ test('initializeEnvironmentFiles fails closed when a required example is missing
   assert.equal(fs.existsSync(path.join(targetRoot, '.env.production')), false);
 });
 
+test('the template source keeps its GitHub token example empty', {
+  skip: !isTemplateSourceRoot(),
+}, () => {
+  const example = fs.readFileSync(path.join(TEMPLATE_ROOT, '.env.example'), 'utf8');
+  assert.match(example, /^GH_TOKEN=\r?$/mu);
+  assert.doesNotMatch(example, /^GH_TOKEN=ghp_xxx\r?$/mu);
+});
+
 test('environment initialization creates six files with the expected Git ownership and then converges', () => {
   const targetRoot = mkTmpDir('env-integration');
   const manifest = JSON.parse(fs.readFileSync(
@@ -139,9 +153,6 @@ test('environment initialization creates six files with the expected Git ownersh
     assert.equal(fs.existsSync(path.join(targetRoot, example)), true);
     assert.equal(fs.existsSync(path.join(targetRoot, runtime)), true);
   }
-  const localEnvironment = fs.readFileSync(path.join(targetRoot, '.env.local'), 'utf8');
-  assert.match(localEnvironment, /^GH_TOKEN=\r?$/mu);
-  assert.doesNotMatch(localEnvironment, /^GH_TOKEN=ghp_xxx\r?$/mu);
 
   git(targetRoot, ['init']);
   for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
