@@ -90,11 +90,11 @@ pnpm agent -- worktree list
 
 任务标识、分支名或描述至少提供一个。创建成功后必须切换到脚本输出的 `NEXT_CWD`。禁止从 worktree A 用绝对路径调用 worktree B 或主仓库脚本。
 
-创建全新 worktree 时，默认必须在 branch、worktree 和 session 副作用前成功执行 `git fetch --prune origin`，严格解析 `refs/remotes/origin/<baseBranch>` 的 commit，并以该固定 SHA 创建新分支。fetch 或远端 base 解析失败时必须 `STATUS=BLOCKED`，禁止继续使用缓存、本地 base 或任意 `HEAD`。只有显式 `--skip-fetch`（或兼容环境变量）可以不联网；该路径只允许缓存 remote base 或本地 base，必须输出 `BASE_FRESHNESS=UNVERIFIED`，两者都不存在时阻断。dry-run 与已有 worktree resume 不触发 fetch，也不自动 rebase。
+创建全新 worktree 时，默认必须在 branch、worktree 和 session 副作用前成功执行 `git fetch --prune origin`，严格解析 `refs/remotes/origin/<baseBranch>` 的 commit，并以该固定 SHA 创建新分支。fetch 或远端 base 解析失败时必须 `STATUS=BLOCKED`，禁止继续使用缓存、本地 base 或任意 `HEAD`。如果 required fetch 后已经存在 `refs/remotes/origin/<branch>`，`worktree new` 必须阻断并提示显式恢复或更名；只有 `worktree resume` 可以从远端分支固定 SHA 创建本机 tracking branch、worktree 和 session。只有显式 `--skip-fetch`（或兼容环境变量）可以不联网；该路径只允许缓存 remote base 或本地 base，必须输出 `BASE_FRESHNESS=UNVERIFIED`，两者都不存在时阻断。dry-run 与已有本机 worktree resume 不触发 fetch，也不自动 rebase；远端恢复必须先刷新目标远端引用。
 
-并行开发状态写入 `../tmp/worktree-sessions/`，锁写入 `../tmp/agent-locks/`。锁包含 PID；仅在确认 owner 不存活后回收 stale lock。
+并行开发状态写入 `../tmp/worktree-sessions/`，锁写入 `../tmp/agent-locks/`。锁包含 PID；仅在确认 owner 不存活后回收 stale lock。这些状态只属于当前电脑，不构成跨电脑分布式锁或权限身份。
 
-合并前按顺序 fetch、rebase、验证、文件集合复查并进入串行 merge queue。合并后先原子记录 HEAD、worktree 路径和 cleanup intent，再清理。出现 HEAD 漂移、dirty worktree 或缺少封印时必须保留并转 `recovery_required`。
+`qa verify` 通过后在本机原子保存绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执。合并前重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；GitHub 合并必须携带期望 head SHA，本地 squash 兜底必须合并固定 head SHA，并只用普通非强制 push 更新配置主干。任何 SHA 漂移、冲突或非快进拒绝都必须停止并要求重新 QA，不得自动 rebase 已验证分支或覆盖远端历史。只有远端主干最终校验和功能分支精确 lease 清理均成功后才清理 worktree 与 session；远端功能分支已经不存在视为幂等成功，无法确认或发现新 head 时保留恢复状态。
 
 ## 6. 长任务状态文件
 
@@ -208,7 +208,7 @@ pnpm agent -- dev|app|build|ship|private|finish
 - 共享基础设施变更执行单元、集成和相关回归；不得用全量失败掩盖定向结果。
 - 测试证据记录命令、退出码和简短结论，不粘贴超长日志。
 
-修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在主分支已合并、工作区干净且与远端一致时返回成功。
+修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 
@@ -220,6 +220,9 @@ pnpm agent -- dev|app|build|ship|private|finish
 
 - GitHub token 变量统一为 `GH_TOKEN`。
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
+- 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
+- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理。
+- TDD、QA 与合并门禁在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录属于实际项目。
 - branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。
 - 不提交凭据、`.env.local`、用户数据、未脱敏日志或本地绝对路径快照。
 - destructive 操作前解析精确路径并验证归属；不对仓库根、HOME、通配符或未解析变量递归删除。

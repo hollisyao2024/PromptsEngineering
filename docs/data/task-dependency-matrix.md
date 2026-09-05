@@ -18,6 +18,12 @@
 | TASK-CMDSURF-017 | TASK-CMDSURF-018 | Finish-to-start | 0 | 是 | Worktree 基线 RED 后实现严格 fetch 与固定 SHA |
 | TASK-CMDSURF-018 | TASK-CMDSURF-019 | Finish-to-start | 0 | 是 | 实现冻结后同步通用约定与模板版本 |
 | TASK-CMDSURF-019 | TASK-CMDSURF-020 | Finish-to-start | 0 | 是 | 代码、测试与协议齐备后进入回归与 QA 合并 |
+| TASK-CMDSURF-021 | TASK-CMDSURF-022 | Finish-to-start | 0 | 是 | 多电脑 RED 后实现远端分支阻断与恢复 |
+| TASK-CMDSURF-021 | TASK-CMDSURF-023 | Finish-to-start | 0 | 是 | 多电脑 RED 后实现 PR base 与 QA 回执 |
+| TASK-CMDSURF-022 | TASK-CMDSURF-024 | Finish-to-start | 0 | 是 | 远端分支状态稳定后实现精确合并 |
+| TASK-CMDSURF-023 | TASK-CMDSURF-024 | Finish-to-start | 0 | 是 | QA 身份证据稳定后实现精确合并 |
+| TASK-CMDSURF-024 | TASK-CMDSURF-025 | Finish-to-start | 0 | 是 | 合并语义冻结后同步同权与无 CI 协议 |
+| TASK-CMDSURF-025 | TASK-CMDSURF-026 | Finish-to-start | 0 | 是 | 代码和协议齐备后执行三 clone 与最终 QA |
 | TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
 | TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
 | TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |
@@ -41,6 +47,12 @@ flowchart LR
   W17[TASK-CMDSURF-017] --> W18[TASK-CMDSURF-018]
   W18 --> W19[TASK-CMDSURF-019]
   W19 --> W20[TASK-CMDSURF-020]
+  H21[TASK-CMDSURF-021] --> H22[TASK-CMDSURF-022]
+  H21 --> H23[TASK-CMDSURF-023]
+  H22 --> H24[TASK-CMDSURF-024]
+  H23 --> H24
+  H24 --> H25[TASK-CMDSURF-025]
+  H25 --> H26[TASK-CMDSURF-026]
   E1[TASK-ENVINIT-001] --> E2[TASK-ENVINIT-002]
   E2 --> E3[TASK-ENVINIT-003]
   E3 --> E4[TASK-ENVINIT-004]

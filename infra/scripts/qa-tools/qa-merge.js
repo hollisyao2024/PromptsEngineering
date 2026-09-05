@@ -45,6 +45,11 @@ const {
   loadProjectGitHubToken,
   sanitizeGitHubRemoteUrl,
 } = require('../shared/github-auth');
+const {
+  readQaVerificationReceipt,
+  removeQaVerificationReceipt,
+  validateQaVerificationReceipt,
+} = require('./qa-verification-state');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 let githubBackend = null;
@@ -237,6 +242,10 @@ function normalizePullRequest(pr) {
     body: pr.body || '',
     url: pr.html_url || pr.url || '',
     mergeable,
+    baseRefName: pr.baseRefName || (pr.base && pr.base.ref) || '',
+    baseRefOid: pr.baseRefOid || (pr.base && pr.base.sha) || '',
+    headRefName: pr.headRefName || (pr.head && pr.head.ref) || '',
+    headRefOid: pr.headRefOid || (pr.head && pr.head.sha) || '',
   };
 }
 
@@ -248,8 +257,8 @@ function getCurrentBranch() {
   return runGit(['branch', '--show-current'], { capture: true, cwd: process.cwd() }).trim();
 }
 
-function isMainBranch(branch) {
-  return ['main', 'master', 'develop'].includes(branch);
+function isMainBranch(branch, baseBranch = 'main') {
+  return branch === baseBranch;
 }
 
 function getRemoteUrl() {
@@ -336,7 +345,7 @@ async function findOpenPR(branch, { backend = getGitHubBackend() } = {}) {
   const args = [
     'pr', 'list',
     '--head', branch,
-    '--json', 'number,title,body,url,mergeable',
+    '--json', 'number,title,body,url,mergeable,baseRefName,baseRefOid,headRefName,headRefOid',
     '--state', 'open',
   ];
   const result = runGh(args);
@@ -347,84 +356,13 @@ async function findOpenPR(branch, { backend = getGitHubBackend() } = {}) {
   }
   try {
     const prs = JSON.parse(result.stdout);
-    return prs.length > 0 ? prs[0] : null;
+    return prs.length > 0 ? normalizePullRequest(prs[0]) : null;
   } catch (error) {
     throw new Error(
       `解析当前分支的 PR 列表失败。\n` +
       `gh 返回了不可解析的 JSON：${error.message}`
     );
   }
-}
-
-/**
- * B3: short-circuit when GitHub already says the PR is MERGEABLE. Saves
- * ~3-8s on the warm path (one fetch + one rev-list + later sleep 3 + a
- * second findOpenPR). Other states (UNKNOWN / BEHIND / CONFLICTING) still
- * fall through to the original fetch+rebase flow.
- */
-function autoRebaseOnMain(currentBranch, dryRun, prMergeable, { runGit: _runGit = runGit } = {}) {
-  if (prMergeable === 'MERGEABLE') {
-    console.log('\x1b[32m分支已 MERGEABLE，跳过 fetch + rebase\x1b[0m');
-    return { rebased: false, commitsBehind: 0, skipped: true };
-  }
-
-  console.log('\x1b[36m获取最新 origin/main...\x1b[0m');
-  _runGit(['fetch', 'origin', 'main']);
-
-  const behindOutput = _runGit(
-    ['rev-list', '--count', 'HEAD..origin/main'],
-    { capture: true }
-  );
-  const commitsBehind = parseInt(behindOutput.trim(), 10) || 0;
-
-  if (commitsBehind === 0) {
-    console.log('\x1b[32m分支已与 main 同步，无需 rebase\x1b[0m');
-    return { rebased: false, commitsBehind: 0 };
-  }
-
-  console.log(
-    `\x1b[33m当前分支落后 origin/main ${commitsBehind} 个提交，` +
-    `${dryRun ? '需要' : '正在执行'} rebase...\x1b[0m`
-  );
-
-  if (dryRun) {
-    return { rebased: false, commitsBehind };
-  }
-
-  const originalHead = _runGit(['rev-parse', 'HEAD'], { capture: true }).trim();
-
-  try {
-    _runGit(['rebase', 'origin/main']);
-  } catch {
-    console.error('\x1b[31mrebase 过程中发现冲突，正在中止...\x1b[0m');
-    try { _runGit(['rebase', '--abort']); } catch { /* ignore */ }
-    try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
-    throw new Error(
-      '自动 rebase 失败：当前分支与 origin/main 存在冲突。\n' +
-	      '请手动解决冲突后重试：\n' +
-	      '  git rebase origin/main\n' +
-	      '  # 解决冲突后：git rebase --continue\n' +
-	      `  node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
-	    );
-  }
-
-  try {
-    console.log('\x1b[36m推送 rebase 后的分支 (force-with-lease)...\x1b[0m');
-    _runGit(['push', '--force-with-lease', 'origin', currentBranch]);
-  } catch (pushError) {
-    console.error('\x1b[31mforce-push 失败，正在恢复分支状态...\x1b[0m');
-    try { _runGit(['reset', '--hard', originalHead]); } catch { /* ignore */ }
-    throw new Error(
-	      `rebase 成功但 force-push 失败：${pushError.message}\n` +
-	      '分支已恢复到 rebase 前的状态。\n' +
-	      `请检查远程权限后手动执行：node infra/scripts/shared/github-auth-run.js -- git push --force-with-lease origin ${currentBranch}`
-	    );
-  }
-
-  console.log(
-    `\x1b[32m自动 rebase 完成：已将 ${commitsBehind} 个 main 提交合入分支基底并推送\x1b[0m`
-  );
-  return { rebased: true, commitsBehind };
 }
 
 async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
@@ -553,41 +491,27 @@ function buildCommitMessage(pr) {
   return parts.join('\n');
 }
 
-async function tryGhMerge(prNumber, { backend = getGitHubBackend() } = {}) {
+function buildGhMergeArgs(prNumber, expectedHeadSha) {
+  return [
+    'pr', 'merge', String(prNumber),
+    '--squash',
+    '--match-head-commit', expectedHeadSha,
+  ];
+}
+
+async function tryGhMerge(prNumber, { backend = getGitHubBackend(), expectedHeadSha } = {}) {
+  if (!expectedHeadSha) throw new Error('expectedHeadSha is required for PR merge');
   if (backend.mode === 'api') {
     console.log(`\x1b[36m尝试 GitHub API squash merge #${prNumber}...\x1b[0m`);
     try {
-      const pr = await backend.apiRequest(
-        'GET',
-        repoApiPath(backend, `/pulls/${prNumber}`),
-        { token: backend.token }
-      );
       await backend.apiRequest(
         'PUT',
         repoApiPath(backend, `/pulls/${prNumber}/merge`),
         {
           token: backend.token,
-          body: { merge_method: 'squash' },
+          body: { merge_method: 'squash', sha: expectedHeadSha },
         }
       );
-      const sameRepo =
-        pr &&
-        pr.head &&
-        pr.head.repo &&
-        pr.head.repo.full_name === `${backend.owner}/${backend.repo}`;
-      if (sameRepo && pr.head.ref) {
-        try {
-          await backend.apiRequest(
-            'DELETE',
-            repoApiPath(backend, `/git/refs/heads/${encodeBranchRef(pr.head.ref)}`),
-            { token: backend.token }
-          );
-        } catch (deleteError) {
-          console.log(
-            `\x1b[33m  远程分支删除失败（不影响合并结果）：${deleteError.message}\x1b[0m`
-          );
-        }
-      }
       console.log('\x1b[32m  GitHub API squash merge 成功\x1b[0m');
       return true;
     } catch (error) {
@@ -601,11 +525,7 @@ async function tryGhMerge(prNumber, { backend = getGitHubBackend() } = {}) {
   }
 
   console.log(`\x1b[36m尝试 gh pr merge #${prNumber} --squash...\x1b[0m`);
-  const result = runGh([
-    'pr', 'merge', String(prNumber),
-    '--squash',
-    '--delete-branch',
-  ]);
+  const result = runGh(buildGhMergeArgs(prNumber, expectedHeadSha));
 
   if (result.status === 0) {
     console.log('\x1b[32m  gh pr merge 成功\x1b[0m');
@@ -651,13 +571,34 @@ function findWorktreePathByBranch(branchName, mainRepoRoot) {
   return null;
 }
 
-function resolveMainWorkspacePath(mainRepoRoot) {
-  return findWorktreePathByBranch('main', mainRepoRoot) || mainRepoRoot;
+function resolveMainWorkspacePath(mainRepoRoot, baseBranch = 'main') {
+  return findWorktreePathByBranch(baseBranch, mainRepoRoot) || mainRepoRoot;
 }
 
 // ==================== 同步本地 main ====================
 
-function syncLocalMain(mainWorkspacePath) {
+function buildBasePushArgs(baseBranch) {
+  if (!baseBranch) throw new Error('configured base branch is required');
+  return ['push', 'origin', `HEAD:refs/heads/${baseBranch}`];
+}
+
+function fetchRemoteRefs(baseBranch, featureBranch, { cwd = process.cwd(), runGit: _runGit = runGit } = {}) {
+  _runGit([
+    'fetch', '--prune', 'origin',
+    `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
+    `+refs/heads/${featureBranch}:refs/remotes/origin/${featureBranch}`,
+  ], { cwd });
+  return {
+    baseSha: _runGit([
+      'rev-parse', '--verify', `refs/remotes/origin/${baseBranch}^{commit}`,
+    ], { capture: true, cwd }).trim().toLowerCase(),
+    headSha: _runGit([
+      'rev-parse', '--verify', `refs/remotes/origin/${featureBranch}^{commit}`,
+    ], { capture: true, cwd }).trim().toLowerCase(),
+  };
+}
+
+function syncLocalMain(mainWorkspacePath, baseBranch = 'main', expectedBaseSha = '') {
   // 始终基于 mainWorkspacePath 的当前分支判断，不依赖 process.cwd()。
   // 这样无论用户在仓库根目录、子目录还是其他 worktree 下运行，
   // 都能保证主工作树最终停在 main 分支。
@@ -666,37 +607,56 @@ function syncLocalMain(mainWorkspacePath) {
     cwd: mainWorkspacePath,
   }).trim();
 
-  if (current !== 'main') {
-    console.log(`\x1b[36m切换 ${mainWorkspacePath} 到 main...\x1b[0m`);
-    runGit(['checkout', 'main'], { cwd: mainWorkspacePath });
+  if (current !== baseBranch) {
+    console.log(`\x1b[36m切换 ${mainWorkspacePath} 到 ${baseBranch}...\x1b[0m`);
+    runGit(['checkout', baseBranch], { cwd: mainWorkspacePath });
   }
 
-  console.log('\x1b[36m拉取最新 main 代码...\x1b[0m');
-  runGit(['fetch', '--prune', 'origin'], { cwd: mainWorkspacePath });
-  runGit(['merge', '--ff-only', 'origin/main'], { cwd: mainWorkspacePath });
+  console.log(`\x1b[36m拉取最新 ${baseBranch} 代码...\x1b[0m`);
+  runGit([
+    'fetch', '--prune', 'origin',
+    `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
+  ], { cwd: mainWorkspacePath });
+  const remoteBaseSha = runGit([
+    'rev-parse', '--verify', `refs/remotes/origin/${baseBranch}^{commit}`,
+  ], { capture: true, cwd: mainWorkspacePath }).trim().toLowerCase();
+  if (expectedBaseSha && remoteBaseSha !== expectedBaseSha.toLowerCase()) {
+    const error = new Error(
+      `origin/${baseBranch} changed after QA: expected ${expectedBaseSha}, actual ${remoteBaseSha}`,
+    );
+    error.code = 'STALE_QA_RECEIPT';
+    throw error;
+  }
+  runGit(['merge', '--ff-only', `origin/${baseBranch}`], { cwd: mainWorkspacePath });
+  return remoteBaseSha;
 }
 
-async function localSquashMerge(featureBranch, pr, mainWorkspacePath) {
+async function localSquashMerge(featureBranch, pr, mainWorkspacePath, {
+  baseBranch = 'main',
+  expectedBaseSha = '',
+  expectedHeadSha = '',
+} = {}) {
   const commitMsg = buildCommitMessage(pr);
 
   try {
-    syncLocalMain(mainWorkspacePath);
+    syncLocalMain(mainWorkspacePath, baseBranch, expectedBaseSha);
 
-    console.log(`\x1b[36m执行 git merge --squash ${featureBranch}...\x1b[0m`);
-    runGit(['merge', '--squash', featureBranch], { cwd: mainWorkspacePath });
+    const mergeTarget = expectedHeadSha || featureBranch;
+    console.log(`\x1b[36m执行 git merge --squash ${mergeTarget}...\x1b[0m`);
+    runGit(['merge', '--squash', mergeTarget], { cwd: mainWorkspacePath });
 
     console.log('\x1b[36m提交 squash merge...\x1b[0m');
     runGit(['commit', '-m', commitMsg], { cwd: mainWorkspacePath });
 
-    console.log('\x1b[36m推送到 origin main...\x1b[0m');
-    runGit(['push', 'origin', 'main'], { cwd: mainWorkspacePath });
+    console.log(`\x1b[36m以普通非强制 push 更新 origin/${baseBranch}...\x1b[0m`);
+    runGit(buildBasePushArgs(baseBranch), { cwd: mainWorkspacePath });
   } catch (error) {
     console.error('\x1b[31m合并过程中出错，尝试回滚...\x1b[0m');
     try {
       runGit(['merge', '--abort'], { capture: true, cwd: mainWorkspacePath });
     } catch { /* 可能不在 merge 状态 */ }
     try {
-      runGit(['reset', '--hard', 'origin/main'], { cwd: mainWorkspacePath });
+      runGit(['reset', '--hard', `origin/${baseBranch}`], { cwd: mainWorkspacePath });
     } catch { /* 忽略 */ }
     try {
       runGit(['checkout', featureBranch]);
@@ -704,14 +664,9 @@ async function localSquashMerge(featureBranch, pr, mainWorkspacePath) {
     throw error;
   }
 
-  await closeAndCleanup(featureBranch, pr, commitMsg);
+  return commitMsg;
 }
 
-/**
- * B6: in the local-merge fallback, `gh pr close` and `git push origin
- * --delete <branch>` are independent network calls. Run them concurrently
- * with Promise.all so total wall time = max(close, delete) instead of sum.
- */
 async function closePullRequest(prNumber, comment, { backend = getGitHubBackend(), runGh: _runGh = runGh } = {}) {
   if (backend.mode === 'api') {
     if (comment) {
@@ -740,34 +695,104 @@ async function closeAndCleanup(
   featureBranch,
   pr,
   commitMsg,
-  { runGh: _runGh = runGh, runGit: _runGit = runGit, closePr: _closePr = closePullRequest } = {}
+  {
+    baseBranch = 'main',
+    runGh: _runGh = runGh,
+    runGit: _runGit = runGit,
+    closePr: _closePr = closePullRequest,
+    expectedHeadSha = '',
+  } = {}
 ) {
-  console.log(`\x1b[36m并行关闭 PR #${pr.number} + 删除远程分支 ${featureBranch}...\x1b[0m`);
+  if (featureBranch === baseBranch) {
+    throw new Error(`refusing to delete configured base branch ${baseBranch}`);
+  }
+  console.log(`\x1b[36m删除已验证远程分支 ${featureBranch}，再关闭 PR #${pr.number}...\x1b[0m`);
+  const deletion = deleteRemoteFeatureBranch(featureBranch, baseBranch, expectedHeadSha, {
+    runGit: _runGit,
+  });
+  if (!deletion.deleted) {
+    throw new Error(
+      `remote feature branch ${featureBranch} changed after QA; it was preserved and the PR was not closed.`,
+    );
+  }
+  try {
+    const result = await _closePr(
+      pr.number,
+      `Squash merged locally to ${baseBranch}.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
+      { runGh: _runGh },
+    );
+    if (result && result.status !== 0) {
+      console.log('\x1b[33m  PR 关闭失败（不影响已验证合并结果）\x1b[0m');
+    }
+  } catch {
+    console.log('\x1b[33m  PR 关闭失败（不影响已验证合并结果）\x1b[0m');
+  }
+}
 
-  const closeP = (async () => {
+function buildFeatureDeleteArgs(featureBranch, baseBranch, expectedHeadSha) {
+  if (featureBranch === baseBranch) {
+    throw new Error(`refusing to delete configured base branch ${baseBranch}`);
+  }
+  if (!expectedHeadSha) throw new Error('expected feature head SHA is required for remote branch cleanup');
+  return [
+    'push',
+    `--force-with-lease=refs/heads/${featureBranch}:${expectedHeadSha}`,
+    'origin',
+    `:refs/heads/${featureBranch}`,
+  ];
+}
+
+function deleteRemoteFeatureBranch(
+  featureBranch,
+  baseBranch,
+  expectedHeadSha,
+  { runGit: _runGit = runGit } = {},
+) {
+  try {
+    _runGit(buildFeatureDeleteArgs(featureBranch, baseBranch, expectedHeadSha), { capture: true });
+    return { deleted: true };
+  } catch (error) {
+    const remoteRef = `refs/heads/${featureBranch}`;
     try {
-      const result = await _closePr(
-        pr.number,
-        `Squash merged locally to main.\n\nCommit message:\n\`\`\`\n${commitMsg}\n\`\`\``,
-        { runGh: _runGh }
-      );
-      if (result && result.status !== 0) {
-        console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
+      const output = String(_runGit(
+        ['ls-remote', '--heads', 'origin', remoteRef],
+        { capture: true },
+      ) || '');
+      const match = output
+        .split(/\r?\n/u)
+        .map((line) => line.trim().split(/\s+/u))
+        .find((parts) => parts.length >= 2 && parts[1] === remoteRef);
+      if (!match) {
+        console.log(`\x1b[36m  远程分支 ${featureBranch} 已不存在\x1b[0m`);
+        return { deleted: true, alreadyAbsent: true };
       }
-    } catch {
-      console.log('\x1b[33m  PR 关闭失败（不影响合并结果）\x1b[0m');
-    }
-  })();
 
-  const deleteP = (async () => {
-    try {
-      _runGit(['push', 'origin', '--delete', featureBranch], { capture: true });
-    } catch {
-      console.log('\x1b[33m  远程分支删除失败（可能已删除）\x1b[0m');
-    }
-  })();
+      const actualHeadSha = String(match[0]).toLowerCase();
+      if (actualHeadSha !== String(expectedHeadSha).toLowerCase()) {
+        console.log(
+          `\x1b[33m  远程分支 ${featureBranch} 在 QA 后已变化，保留该分支与本机恢复状态\x1b[0m`,
+        );
+        return {
+          deleted: false,
+          reason: 'head_drift',
+          expectedHeadSha: String(expectedHeadSha).toLowerCase(),
+          actualHeadSha,
+          error: error.message,
+        };
+      }
 
-  await Promise.all([closeP, deleteP]);
+      console.log(`\x1b[33m  远程分支删除失败且引用仍为已验证 SHA：${error.message}\x1b[0m`);
+      return { deleted: false, reason: 'delete_failed', actualHeadSha, error: error.message };
+    } catch (verificationError) {
+      console.log(`\x1b[33m  无法确认远程分支删除结果：${verificationError.message}\x1b[0m`);
+      return {
+        deleted: false,
+        reason: 'verification_failed',
+        error: error.message,
+        verificationError: verificationError.message,
+      };
+    }
+  }
 }
 
 function getLatestMainCommit(mainWorkspacePath) {
@@ -1102,21 +1127,21 @@ function cleanupOrphanSessions(mainRepoRoot, opts = {}) {
   return removed;
 }
 
-function ensurePrimaryWorkspaceOnMain(mainWorkspacePath) {
+function ensurePrimaryWorkspaceOnMain(mainWorkspacePath, baseBranch = 'main') {
   try {
     const current = runGit(['branch', '--show-current'], {
       capture: true,
       cwd: mainWorkspacePath,
     }).trim();
-    if (current !== 'main') {
-      runGit(['switch', 'main'], { cwd: mainWorkspacePath });
+    if (current !== baseBranch) {
+      runGit(['switch', baseBranch], { cwd: mainWorkspacePath });
     }
   } catch (err) {
-    console.log(`\x1b[33m  回到 main 失败（${err.message}）\x1b[0m`);
+    console.log(`\x1b[33m  回到 ${baseBranch} 失败（${err.message}）\x1b[0m`);
   }
 }
 
-function printCleanupSummary(mainRepoRoot) {
+function printCleanupSummary(mainRepoRoot, baseBranch = 'main') {
   const branchResult = spawnSync(
     'git',
     ['branch', '--list', 'feature/*', 'fix/*'],
@@ -1149,7 +1174,7 @@ function printCleanupSummary(mainRepoRoot) {
 
   console.log('');
   console.log('\x1b[36m仓库清理摘要:\x1b[0m');
-  console.log(`  当前主分支: main`);
+  console.log(`  当前主分支: ${baseBranch}`);
   console.log(`  剩余本地 feature/fix 分支: ${branches.length}`);
   console.log(`  剩余 worktree 数量: ${worktreeCount}`);
   console.log(`  stash 数量: ${stashCount}`);
@@ -1431,9 +1456,29 @@ function commitReleaseAndTag(
   }
 }
 
-function pushMainAndTag(mainRepoRoot, tagName = '') {
-  runGit(['push', 'origin', 'main'], { cwd: mainRepoRoot });
+function pushMainAndTag(mainRepoRoot, tagName = '', baseBranch = 'main') {
+  runGit(buildBasePushArgs(baseBranch), { cwd: mainRepoRoot });
   if (tagName) runGit(['push', 'origin', tagName], { cwd: mainRepoRoot });
+}
+
+function verifyRemoteBase(mainWorkspacePath, baseBranch = 'main') {
+  runGit([
+    'fetch', '--prune', 'origin',
+    `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
+  ], { cwd: mainWorkspacePath });
+  const localSha = runGit(['rev-parse', '--verify', 'HEAD^{commit}'], {
+    capture: true,
+    cwd: mainWorkspacePath,
+  }).trim().toLowerCase();
+  const remoteSha = runGit([
+    'rev-parse', '--verify', `refs/remotes/origin/${baseBranch}^{commit}`,
+  ], { capture: true, cwd: mainWorkspacePath }).trim().toLowerCase();
+  if (localSha !== remoteSha) {
+    throw new Error(
+      `configured base verification failed: local ${baseBranch}=${localSha}, origin/${baseBranch}=${remoteSha}`,
+    );
+  }
+  return { localSha, remoteSha };
 }
 
 // ==================== 摘要输出 ====================
@@ -1459,7 +1504,17 @@ function getResumableBranches(mergedBranch, mainRepoRoot) {
   return { branches, stashes };
 }
 
-function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated, version, mainRepoRoot, cleanupResult = {}) {
+function printSummary(
+  pr,
+  featureBranch,
+  commitHash,
+  strategy,
+  agentStateUpdated,
+  version,
+  mainRepoRoot,
+  cleanupResult = {},
+  baseBranch = 'main',
+) {
   console.log('');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(cleanupResult.deferred
@@ -1467,7 +1522,7 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
     : '\x1b[32m/qa merge 完成\x1b[0m');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
   console.log(`  PR:     #${pr.number} ${pr.title}`);
-  console.log(`  分支:   ${featureBranch} → main`);
+  console.log(`  分支:   ${featureBranch} → ${baseBranch}`);
 
   let finalBranch;
   try {
@@ -1478,11 +1533,11 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   } catch {
     finalBranch = '';
   }
-  if (finalBranch === 'main') {
-    console.log('  当前:   \x1b[32m✓ 已回到 main 分支\x1b[0m');
+  if (finalBranch === baseBranch) {
+    console.log(`  当前:   \x1b[32m✓ 已回到 ${baseBranch} 分支\x1b[0m`);
   } else {
     console.log(
-      `  当前:   \x1b[33m⚠ 当前分支: ${finalBranch || '未知'}（请手动执行 git switch main）\x1b[0m`
+      `  当前:   \x1b[33m⚠ 当前分支: ${finalBranch || '未知'}（请手动执行 git switch ${baseBranch}）\x1b[0m`
     );
   }
 
@@ -1499,7 +1554,7 @@ function printSummary(pr, featureBranch, commitHash, strategy, agentStateUpdated
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
   console.log(cleanupResult.deferred
-    ? '  切换到 main 并执行 tdd-completion-guard；如检测到新提交，按 --recover-as 指引恢复。'
+    ? `  切换到 ${baseBranch} 并执行 tdd-completion-guard；如检测到新提交，按 --recover-as 指引恢复。`
     : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 
@@ -1536,11 +1591,12 @@ async function main() {
     if (isInWorktree) {
       console.log(`\x1b[36m检测到 worktree 环境，主仓库：${mainRepoRoot}\x1b[0m`);
     }
-    const mainWorkspacePath = resolveMainWorkspacePath(mainRepoRoot);
+    const config = loadConfig({ repoRoot });
+    const baseBranch = config.baseBranch || 'main';
+    const mainWorkspacePath = resolveMainWorkspacePath(mainRepoRoot, baseBranch);
     if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
-      console.log(`\x1b[36mmain 当前位于独立 worktree：${mainWorkspacePath}\x1b[0m`);
+      console.log(`\x1b[36m${baseBranch} 当前位于独立 worktree：${mainWorkspacePath}\x1b[0m`);
     }
-    const config = loadConfig({ repoRoot: mainWorkspacePath });
 
     // Step 2: 加载 GH_TOKEN
     loadProjectGitHubToken({ repoRoot });
@@ -1550,17 +1606,17 @@ async function main() {
 
     // Step 4: 确保工作区干净
     // 只检查 cleanliness；不再在主 repo 跑 pnpm install。
-    // 后续步骤在主 repo 只执行纯 git 操作（fetch/rebase/merge --squash/commit/push），
+    // 后续步骤在主 repo 只执行纯 git 操作（fetch/ff-only/merge --squash/commit/push），
     // 而 release commit 已通过 --no-verify 显式豁免 pre-commit hook，
     // 因此 main 工作区不需要 node_modules 即可完成 qa:merge 全流程。
     ensureCleanWorkingTree();
     if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
-      ensureCleanWorkingTreeAt(mainWorkspacePath, 'main 工作区');
+      ensureCleanWorkingTreeAt(mainWorkspacePath, `${baseBranch} 工作区`);
     }
 
     // Step 5: 验证当前分支
     const currentBranch = getCurrentBranch();
-    if (isMainBranch(currentBranch)) {
+    if (isMainBranch(currentBranch, baseBranch)) {
       throw new Error(
         `当前在主干分支 (${currentBranch})，/qa merge 只能在 feature/fix 分支上执行。\n\n` +
         `  只读排查不需要 merge；如需修改 tracked 文件，请先执行 pnpm run worktree:new 创建/恢复 worktree。\n` +
@@ -1569,7 +1625,7 @@ async function main() {
     }
 
     // Step 6: 查找 open PR
-    const pr = await findOpenPR(currentBranch);
+    let pr = await findOpenPR(currentBranch);
     if (!pr) {
       throw new Error(
         `当前分支 (${currentBranch}) 没有 open PR。\n` +
@@ -1579,31 +1635,29 @@ async function main() {
     console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
     console.log(`  URL: ${pr.url}`);
 
-    // Step 7: 自动 rebase（B3 短路：MERGEABLE 时跳过 fetch + rebase）
-    const rebaseResult = autoRebaseOnMain(currentBranch, args.dryRun, pr.mergeable);
+    // Step 7-8: 刷新远端引用、重查 PR，并验证本地 QA 双 SHA 回执。
+    const remoteRefs = fetchRemoteRefs(baseBranch, currentBranch, { cwd: repoRoot });
+    const refreshedPr = await findOpenPR(currentBranch);
+    if (!refreshedPr || refreshedPr.number !== pr.number) {
+      throw new Error(`PR #${pr.number} changed or closed while refreshing remote refs; rerun qa verify.`);
+    }
+    pr = refreshedPr;
+    const qaReceipt = readQaVerificationReceipt(config, mainRepoRoot, repoRoot);
+    validateQaVerificationReceipt(qaReceipt, {
+      baseBranch,
+      branch: currentBranch,
+      baseSha: remoteRefs.baseSha,
+      headSha: remoteRefs.headSha,
+      prBaseRef: pr.baseRefName,
+      prBaseSha: pr.baseRefOid,
+      prHeadRef: pr.headRefName,
+      prHeadSha: pr.headRefOid,
+    });
+    console.log(`\x1b[32mQA 回执有效：BASE_SHA=${qaReceipt.base_sha} HEAD_SHA=${qaReceipt.head_sha}\x1b[0m`);
 
-    // Step 8: rebase 后重新检查 PR 合并状态
-    if (rebaseResult.rebased) {
-      console.log('\x1b[36m等待 GitHub 更新 PR 状态...\x1b[0m');
-      spawnSync('sleep', ['3'], { stdio: 'inherit' });
-
-      const updatedPr = await findOpenPR(currentBranch);
-      if (!updatedPr) {
-        throw new Error(
-          `rebase 并 force-push 后找不到 PR。\n` +
-          `分支 ${currentBranch} 的 PR 可能已被关闭，请检查 GitHub。`
-        );
-      }
-      if (updatedPr.mergeable === 'CONFLICTING') {
-        throw new Error(
-          `PR #${pr.number} 在自动 rebase 后仍存在合并冲突，请手动检查并解决。`
-        );
-      }
-      Object.assign(pr, updatedPr);
-    } else if (!args.dryRun && pr.mergeable === 'CONFLICTING') {
+    if (!args.dryRun && pr.mergeable === 'CONFLICTING') {
       throw new Error(
-        `PR #${pr.number} 存在合并冲突且分支已与 main 同步。\n` +
-        '冲突可能来自 PR 自身的文件变更，请手动检查并解决。'
+        `PR #${pr.number} 存在合并冲突。请同步 ${baseBranch}、解决冲突、重新 push 并再次执行 qa verify。`
       );
     }
 
@@ -1630,27 +1684,24 @@ async function main() {
     if (args.dryRun) {
       console.log('');
       console.log('\x1b[33m[DRY RUN] 将执行以下操作:\x1b[0m');
-      if (rebaseResult.commitsBehind > 0) {
-        console.log(`  0. rebase 到 origin/main（落后 ${rebaseResult.commitsBehind} 个提交）+ force-push`);
-      } else {
-        console.log('  0. 分支已与 main 同步，无需 rebase');
-      }
-      console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → main`);
-      console.log('  2. 同步本地 main');
-      console.log('  3. 清理 worktree（如有）');
-      console.log(`  4. 删除分支 ${currentBranch}`);
-      console.log('  5. 版本递增 + CHANGELOG + AGENT_STATE + tag');
-      console.log('  6. push main + tag');
+      console.log(`  0. 复核 ${baseBranch}=${qaReceipt.base_sha} 与 ${currentBranch}=${qaReceipt.head_sha}`);
+      console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → ${baseBranch}`);
+      console.log(`  2. 同步本地 ${baseBranch}`);
+      console.log('  3. 版本递增 + CHANGELOG + AGENT_STATE + tag');
+      console.log(`  4. 普通非强制 push ${baseBranch} + tag`);
+      console.log('  5. 重新 fetch 并验证本地/远端 SHA 一致');
+      console.log(`  6. 清理 worktree 与分支 ${currentBranch}`);
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
       return;
     }
 
     // Step 11-12: 执行合并（双策略 + 防竞态）
     let strategy;
+    let localCommitMsg = '';
     let mainSyncError = null;
     const syncMainAfterMerge = () => {
       try {
-        syncLocalMain(mainWorkspacePath);
+        syncLocalMain(mainWorkspacePath, baseBranch);
       } catch (error) {
         // Remote merge is already durable. Do not strand the linked worktree
         // merely because a transient fetch/TLS error prevents local sync.
@@ -1658,7 +1709,7 @@ async function main() {
         console.warn(`\x1b[33m主仓库同步延后：${error.message}\x1b[0m`);
       }
     };
-    const ghMerged = await tryGhMerge(pr.number);
+    const ghMerged = await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha });
 
     if (ghMerged) {
       strategy = 'gh';
@@ -1671,55 +1722,34 @@ async function main() {
         strategy = 'gh';
         syncMainAfterMerge();
       } else {
+        const fallbackRefs = fetchRemoteRefs(baseBranch, currentBranch, { cwd: repoRoot });
+        const fallbackPr = await findOpenPR(currentBranch);
+        if (!fallbackPr || fallbackPr.number !== pr.number) {
+          throw new Error(`PR #${pr.number} changed before local fallback; rerun qa verify.`);
+        }
+        validateQaVerificationReceipt(qaReceipt, {
+          baseBranch,
+          branch: currentBranch,
+          baseSha: fallbackRefs.baseSha,
+          headSha: fallbackRefs.headSha,
+          prBaseRef: fallbackPr.baseRefName,
+          prBaseSha: fallbackPr.baseRefOid,
+          prHeadRef: fallbackPr.headRefName,
+          prHeadSha: fallbackPr.headRefOid,
+        });
+        pr = fallbackPr;
         strategy = 'local';
-        await localSquashMerge(currentBranch, pr, mainWorkspacePath);
+        localCommitMsg = await localSquashMerge(currentBranch, pr, mainWorkspacePath, {
+          baseBranch,
+          expectedBaseSha: qaReceipt.base_sha,
+          expectedHeadSha: qaReceipt.head_sha,
+        });
       }
-    }
-
-    // Step 13: 清理 worktree（在删分支前，必须先移除 worktree）
-    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
-    if (cleanupResult.deferred) {
-      console.log('\x1b[33m  合并已完成；worktree 已封印，切换到 main 后由 completion guard 收敛。\x1b[0m');
-    }
-    // A session may also exist for a legacy non-worktree branch; cleanup is a
-    // completion invariant, not merely a worktree side effect.
-    if (!cleanupResult.deferred) removeSession(config, mainRepoRoot, currentBranch);
-
-    // B1: worktree 模式切 VSCode 窗口 — detached + unref，永不阻塞
-    if (isInWorktree) {
-      switchVscodeWindow(mainRepoRoot);
-    }
-
-    // Step 14: 清理本地 feature 分支（两种策略都需要）
-    if (!cleanupResult.deferred) {
-      const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
-      if (branchDeleteResult.reason === 'failed') {
-        throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
-      }
-      if (localBranchExists(currentBranch, mainWorkspacePath)) {
-        throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
-      if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
-        throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
-      if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
-        throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
-      }
-    }
-
-    ensurePrimaryWorkspaceOnMain(mainWorkspacePath);
-    // B5: 单次 cleanupOrphanWorktreeDirs。worktree 移除 + 本地分支删除已完成，
-    // 容器层 worktrees/ 此时是稳定状态，一次扫描足够。
-    if (!cleanupResult.deferred) {
-      cleanupOrphanWorktreeDirs(mainRepoRoot);
-      cleanupOrphanSessions(mainRepoRoot);
-      const containerCleanup = cleanupContainerStorage({ cwd: mainWorkspacePath, options: { apply: true } });
-      console.log(`  容器层清理：已移除 ${containerCleanup.remove.length} 个过期临时/发布产物`);
     }
 
     if (mainSyncError) {
       throw new Error(
-        `PR 已合并但本地 main 同步失败：${mainSyncError.message}。` +
+        `PR 已合并但本地 ${baseBranch} 同步失败：${mainSyncError.message}。` +
         '请稍后在主仓库重试 github-auth-run git fetch --prune origin。'
       );
     }
@@ -1795,10 +1825,69 @@ async function main() {
       console.log('\x1b[36m  无 release/state 文件需要提交\x1b[0m');
     }
 
-    // Step 17: push main + tag
+    // Step 17: 先完成所有 base/tag push，再复核远端，最后才清理恢复状态。
     const tagName = shouldCreateTag && newVersion ? `${tagPrefix}${newVersion}` : '';
-    pushMainAndTag(mainWorkspacePath, tagName);
-    console.log(tagName ? '\x1b[32m  已推送 main + tag 到远端\x1b[0m' : '\x1b[32m  已推送 main 到远端\x1b[0m');
+    pushMainAndTag(mainWorkspacePath, tagName, baseBranch);
+    console.log(
+      tagName
+        ? `\x1b[32m  已推送 ${baseBranch} + tag 到远端\x1b[0m`
+        : `\x1b[32m  已推送 ${baseBranch} 到远端\x1b[0m`,
+    );
+    const verifiedBase = verifyRemoteBase(mainWorkspacePath, baseBranch);
+    console.log(`\x1b[32m  远端复核通过：${baseBranch}=${verifiedBase.remoteSha}\x1b[0m`);
+
+    if (strategy === 'local') {
+      await closeAndCleanup(currentBranch, pr, localCommitMsg, {
+        baseBranch,
+        expectedHeadSha: qaReceipt.head_sha,
+      });
+    } else {
+      const remoteCleanup = deleteRemoteFeatureBranch(
+        currentBranch,
+        baseBranch,
+        qaReceipt.head_sha,
+      );
+      if (!remoteCleanup.deleted) {
+        throw new Error(
+          `remote feature branch ${currentBranch} changed after QA or could not be verified; ` +
+          'the branch and local recovery state were preserved.',
+        );
+      }
+    }
+
+    // Step 18: 所有远端更新均已验证后，才清理 worktree/session/本地分支。
+    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
+    if (cleanupResult.deferred) {
+      console.log(`\x1b[33m  合并已完成；worktree 已封印，切换到 ${baseBranch} 后由 completion guard 收敛。\x1b[0m`);
+    }
+    if (!cleanupResult.deferred) removeSession(config, mainRepoRoot, currentBranch);
+
+    if (isInWorktree) switchVscodeWindow(mainRepoRoot);
+
+    if (!cleanupResult.deferred) {
+      const branchDeleteResult = deleteLocalBranch(currentBranch, mainWorkspacePath);
+      if (branchDeleteResult.reason === 'failed') {
+        throw new Error(`本地分支 ${currentBranch} 删除失败: ${branchDeleteResult.error}`);
+      }
+      if (localBranchExists(currentBranch, mainWorkspacePath)) {
+        throw new Error(`本地分支 ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      if (findWorktreePathByBranch(currentBranch, mainRepoRoot)) {
+        throw new Error(`worktree for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+      if (readSessions(config, mainRepoRoot).some((session) => session.branch === currentBranch)) {
+        throw new Error(`session for ${currentBranch} 仍然存在，拒绝将本次 QA merge 标记为完成。`);
+      }
+    }
+
+    ensurePrimaryWorkspaceOnMain(mainWorkspacePath, baseBranch);
+    if (!cleanupResult.deferred) {
+      cleanupOrphanWorktreeDirs(mainRepoRoot);
+      cleanupOrphanSessions(mainRepoRoot);
+      const containerCleanup = cleanupContainerStorage({ cwd: mainWorkspacePath, options: { apply: true } });
+      console.log(`  容器层清理：已移除 ${containerCleanup.remove.length} 个过期临时/发布产物`);
+    }
+    removeQaVerificationReceipt(config, mainRepoRoot, repoRoot);
 
     printSummary(
       pr,
@@ -1808,9 +1897,10 @@ async function main() {
       agentStateUpdated,
       newVersion,
       mainWorkspacePath,
-      cleanupResult
+      cleanupResult,
+      baseBranch,
     );
-    printCleanupSummary(mainRepoRoot);
+    printCleanupSummary(mainRepoRoot, baseBranch);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
     process.exit(1);
@@ -1825,9 +1915,17 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildBasePushArgs,
+  buildFeatureDeleteArgs,
+  buildGhMergeArgs,
+  deleteRemoteFeatureBranch,
+  fetchRemoteRefs,
   findOpenPR,
   findWorktreePathByBranch,
   resolveMainWorkspacePath,
+  localSquashMerge,
+  syncLocalMain,
+  verifyRemoteBase,
   formatGhError,
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
@@ -1835,7 +1933,6 @@ module.exports = {
   shouldSwitchVscodeWindow,
   switchVscodeWindow,
   runPreMergeChecks,
-  autoRebaseOnMain,
   checkPrState,
   closeAndCleanup,
   closePullRequest,

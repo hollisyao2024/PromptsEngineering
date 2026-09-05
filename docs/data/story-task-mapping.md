@@ -23,6 +23,12 @@
 | US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-018 | 严格 fetch、固定 SHA 与结构化证据 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
 | US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-019 | 协议与模板版本同步 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
 | US-CMDSURF-007 | Worktree 已验证远端基线 | TASK-CMDSURF-020 | 回归与 QA 合并门禁 | AC-CMDSURF-007-01~04 / TC-CMDSURF-012~015 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-021 | RED：远端分支、QA 回执、精确合并与并发契约 | AC-CMDSURF-008-01~06 / TC-CMDSURF-016~021 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-022 | 远端同名分支阻断与显式 resume | AC-CMDSURF-008-01~02 / TC-CMDSURF-016~017 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-023 | PR base 与 QA 双 SHA 回执 | AC-CMDSURF-008-03 / TC-CMDSURF-018 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-024 | 精确 head 与主干乐观并发合并 | AC-CMDSURF-008-03~05 / TC-CMDSURF-018~020 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-025 | 同权、无 CI 与状态职责协议 | AC-CMDSURF-008-05~06 / TC-CMDSURF-020~021 |
+| US-CMDSURF-008 | 无 CI 多电脑同权 Git 安全 | TASK-CMDSURF-026 | 三 clone 模拟、回归与 QA 合并 | AC-CMDSURF-008-01~06 / TC-CMDSURF-016~021 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-001 | RED：首次创建与 Git 所有权契约 | AC-ENVINIT-001-01~02 / TC-ENVINIT-001~002 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-002 | example、manifest 与 ignore 合约 | AC-ENVINIT-001-01~02 / TC-ENVINIT-001~002 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | TASK-ENVINIT-003 | 实际文件初始化器 | AC-ENVINIT-001-01 / TC-ENVINIT-001 |
@@ -33,4 +39,4 @@
 | US-ENVINIT-003 | Dry-run 无副作用 | TASK-ENVINIT-003 | dry-run 初始化计划 | AC-ENVINIT-003-01 / TC-ENVINIT-004 |
 | US-ENVINIT-003 | Dry-run 无副作用 | TASK-ENVINIT-004 | dry-run 集成验收 | AC-ENVINIT-003-01 / TC-ENVINIT-004 |
 
-所有 Story 和 Task 均有映射；环境文件模块沿 RED → example/manifest → 初始化器 → 传播 QA 的关键路径交付。
+所有 Story 和 Task 均有映射；多电脑协作沿 RED → 远端恢复/QA 回执 → 精确合并 → 无 CI 协议 → 三 clone QA 的关键路径交付。

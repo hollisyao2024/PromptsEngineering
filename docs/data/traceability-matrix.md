@@ -17,6 +17,12 @@
 | US-CMDSURF-007 | Worktree 基线失败阻断 | AC-CMDSURF-007-02 | TC-CMDSURF-013 | ✅ TDD 通过 / 待 QA | @qa | fetch/base 失败无 branch、worktree、session 副作用回归通过 |
 | US-CMDSURF-007 | Worktree 显式离线基线 | AC-CMDSURF-007-03 | TC-CMDSURF-014 | ✅ TDD 通过 / 待 QA | @qa | skip 仅缓存 remote/local base 且无任意 HEAD fallback 回归通过 |
 | US-CMDSURF-007 | Worktree 无网络例外路径 | AC-CMDSURF-007-04 | TC-CMDSURF-015 | ✅ TDD 通过 / 待 QA | @qa | dry-run/resume 无 fetch、无 HEAD 变化回归通过 |
+| US-CMDSURF-008 | 远端同名分支保护 | AC-CMDSURF-008-01 | TC-CMDSURF-016 | ✅ TDD 通过 / 待 QA | @qa | worktree new 冲突阻断与三 clone 交错模拟通过 |
+| US-CMDSURF-008 | 跨电脑远端恢复 | AC-CMDSURF-008-02 | TC-CMDSURF-017 | ✅ TDD 通过 / 待 QA | @qa | worktree resume 从精确远端 SHA 建立本机 session |
+| US-CMDSURF-008 | QA 双 SHA 回执 | AC-CMDSURF-008-03 | TC-CMDSURF-018 | ✅ TDD 通过 / 待 QA | @qa | base/head 漂移与 PR ref 失配回归通过 |
+| US-CMDSURF-008 | 主干乐观并发 | AC-CMDSURF-008-04 | TC-CMDSURF-019 | ✅ TDD 通过 / 待 QA | @qa | 期望 head、普通 push 与 stale base 拒绝模拟通过 |
+| US-CMDSURF-008 | 所有电脑同权 | AC-CMDSURF-008-05 | TC-CMDSURF-020 | ✅ TDD 通过 / 待 QA | @qa | 无身份门禁，配置主干 force/delete 拒绝测试通过 |
+| US-CMDSURF-008 | 无 GitHub CI | AC-CMDSURF-008-06 | TC-CMDSURF-021 | ✅ TDD 通过 / 待 QA | @qa | workflows 源与模板目标均未变化；本地门禁测试通过 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | AC-ENVINIT-001-01 | TC-ENVINIT-001 | ✅ TDD 通过 / 待 QA | @qa | 三组 example/实际文件配对初始化 |
 | US-ENVINIT-001 | Git 所有权边界 | AC-ENVINIT-001-02 | TC-ENVINIT-002 | ✅ TDD 通过 / 待 QA | @qa | example 可跟踪、实际文件被忽略 |
 | US-ENVINIT-002 | 已有文件保护 | AC-ENVINIT-002-01 | TC-ENVINIT-003 | ✅ TDD 通过 / 待 QA | @qa | 后续 apply 不修改已有内容 |
@@ -26,13 +32,15 @@
 
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |
-| 总 Story 数 | 10 | - |
-| 已关联测试用例的 Story 数 | 10 | 100% |
-| 总 AC 数 | 18 | - |
-| 已关联测试用例的 AC 数 | 18 | 100% |
+| 总 Story 数 | 11 | - |
+| 已关联测试用例的 Story 数 | 11 | 100% |
+| 总 AC 数 | 24 | - |
+| 已关联测试用例的 AC 数 | 24 | 100% |
 | 测试通过的 AC 数 | 17 | 100% |
 | 测试失败的 AC 数 | 0 | 0 |
 | 需求覆盖率 | 100% | ≥95% |
-| 测试通过率 | 94% | 100% |
+| 测试通过率 | 71% | 100% |
 
 US-CMDSURF-007 已通过 worktree 核心 40/40、全仓 Node 305/305 与 setup 56/56；剩余传播 AC 由目标项目收敛 dry-run 与 QA 合并后更新为已确认。
+
+US-CMDSURF-008 已由用户确认最小实现范围；待完成 TC-CMDSURF-016~021 的定向、三电脑 bare Git 和模板传播验收。

@@ -228,10 +228,18 @@ test('qa merge blocks when a declared predecessor seal cannot be verified', (t) 
   }), /cannot seal superseded worktrees/u);
 });
 
-test('qa merge deferred cleanup does not return before main synchronization and push steps', () => {
+test('qa merge starts cleanup only after the final base push and remote SHA verification', () => {
   const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
   const deferredBlock = source.match(/if \(cleanupResult\.deferred\) \{([\s\S]*?)\n\s*\}/u);
   assert.ok(deferredBlock);
   assert.doesNotMatch(deferredBlock[1], /\breturn\b/u);
-  assert.ok(source.indexOf('pushMainAndTag(mainWorkspacePath') > source.indexOf('cleanupResult = cleanupWorktree'));
+  assert.ok(source.indexOf('cleanupResult = cleanupWorktree') > source.indexOf('pushMainAndTag(mainWorkspacePath'));
+  assert.ok(source.indexOf('cleanupResult = cleanupWorktree') > source.indexOf('verifyRemoteBase(mainWorkspacePath'));
+});
+
+test('qa merge preserves local recovery state when remote feature cleanup detects drift', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'qa-merge.js'), 'utf8');
+  const mainBody = source.slice(source.indexOf('async function main()'));
+  assert.match(mainBody, /const remoteCleanup = deleteRemoteFeatureBranch/u);
+  assert.match(mainBody, /if \(!remoteCleanup\.deleted\)[\s\S]*changed after QA/u);
 });

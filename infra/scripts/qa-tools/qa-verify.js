@@ -18,7 +18,17 @@ const {
   resolveExplicitModules,
   getQaPlanSessionStatePath,
 } = require('./generate-qa');
-const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const {
+  getMainRepoRoot,
+  loadConfig,
+  resolveRepoRoot,
+} = require('../shared/config');
+const { buildGitHubGitEnv } = require('../shared/github-auth');
+const {
+  buildQaVerificationReceipt,
+  removeQaVerificationReceipt,
+  writeQaVerificationReceipt,
+} = require('./qa-verification-state');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
@@ -122,11 +132,12 @@ function parseArgs(argv) {
   };
 }
 
-function runGit(args, { allowFailure = false } = {}) {
+function runGit(args, { allowFailure = false, cwd = repoRoot } = {}) {
   const result = spawnSync('git', args, {
-    cwd: repoRoot,
+    cwd,
     encoding: 'utf8',
     stdio: 'pipe',
+    env: buildGitHubGitEnv({ repoRoot, cwd, args, env: process.env }),
   });
 
   if (result.error) {
@@ -141,6 +152,59 @@ function runGit(args, { allowFailure = false } = {}) {
   }
 
   return result.stdout || '';
+}
+
+function captureQaVerificationIdentity({
+  config = loadConfig({ repoRoot }),
+  runGit: _runGit = runGit,
+  verifiedAt,
+} = {}) {
+  const baseBranch = config.baseBranch || 'main';
+  const branch = _runGit(['branch', '--show-current']).trim();
+  if (!branch) throw new Error('QA verification requires an attached feature branch.');
+  if (branch === baseBranch) {
+    throw new Error(`QA verification must run on a feature branch, not configured base ${baseBranch}.`);
+  }
+
+  _runGit([
+    'fetch', '--prune', 'origin',
+    `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
+    `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+  ]);
+
+  const baseSha = _runGit([
+    'rev-parse', '--verify', `refs/remotes/origin/${baseBranch}^{commit}`,
+  ]).trim().toLowerCase();
+  const remoteHeadSha = _runGit([
+    'rev-parse', '--verify', `refs/remotes/origin/${branch}^{commit}`,
+  ]).trim().toLowerCase();
+  const localHeadSha = _runGit(['rev-parse', '--verify', 'HEAD^{commit}']).trim().toLowerCase();
+
+  if (localHeadSha !== remoteHeadSha) {
+    throw new Error(
+      `local HEAD ${localHeadSha || '<missing>'} does not match origin/${branch} ` +
+      `${remoteHeadSha || '<missing>'}; push the exact branch and rerun qa verify.`,
+    );
+  }
+
+  try {
+    _runGit(['merge-base', '--is-ancestor', baseSha, remoteHeadSha]);
+  } catch {
+    const error = new Error(
+      `origin/${baseBranch} (${baseSha}) is not an ancestor of origin/${branch} (${remoteHeadSha}); ` +
+      'synchronize the feature branch and rerun QA.',
+    );
+    error.code = 'STALE_QA_BASE';
+    throw error;
+  }
+
+  return buildQaVerificationReceipt({
+    baseBranch,
+    branch,
+    baseSha,
+    headSha: remoteHeadSha,
+    verifiedAt,
+  });
 }
 
 function readFile(filePath) {
@@ -202,11 +266,11 @@ function getChangedQaFilesFromWorkingTree() {
     .filter((file) => file === CONFIG.paths.mainQA || /^docs\/qa-modules\/[^/]+\/QA\.md$/i.test(file));
 }
 
-function getChangedFilesForSession() {
+function getChangedFilesForSession(config = loadConfig({ repoRoot })) {
   const fileSet = new Set();
+  const baseBranch = config.baseBranch || 'main';
   const diffSources = [
-    ['diff', '--name-only', '--diff-filter=ACMR', 'origin/main...HEAD'],
-    ['diff', '--name-only', '--diff-filter=ACMR', 'origin/master...HEAD'],
+    ['diff', '--name-only', '--diff-filter=ACMR', `origin/${baseBranch}...HEAD`],
     ['diff', '--name-only', '--diff-filter=ACMR', 'HEAD~1..HEAD'],
   ];
 
@@ -548,21 +612,30 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
 
   const config = loadConfig({ repoRoot });
-  if (config.template && config.template.role === 'source') {
-    log('ℹ️ 模板源仓库跳过业务 QA 验收门禁。', 'yellow');
-    process.exit(0);
-  }
+  const mainRoot = getMainRepoRoot(repoRoot);
+  removeQaVerificationReceipt(config, mainRoot, repoRoot);
 
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');
   log('============================================================', 'cyan');
 
-  if (isTemplateRepository()) {
+  const templateSource = (config.template && config.template.role === 'source') || isTemplateRepository();
+  let exitCode;
+  if (templateSource) {
     log('模板源仓库：跳过业务 PRD/QA 验收门禁。', 'yellow');
-    process.exit(0);
+    exitCode = 0;
+  } else {
+    exitCode = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
   }
 
-  const exitCode = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
+  if (exitCode === 0) {
+    const receipt = captureQaVerificationIdentity({ config });
+    const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
+    log(`QA_RECEIPT=${receiptPath}`, 'green');
+    log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
+    log(`BASE_SHA=${receipt.base_sha}`, 'gray');
+    log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
+  }
   const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
   writeInProgressFields(agentStatePath, {
     step: exitCode === 0 ? '/qa verify 通过，等待 /qa merge' : '/qa verify No-Go，流水线阻塞',
@@ -581,6 +654,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  captureQaVerificationIdentity,
   isTemplateRepository,
   createPnpmRunInvocation,
   parseArgs,

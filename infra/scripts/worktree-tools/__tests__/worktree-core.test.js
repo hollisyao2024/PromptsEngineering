@@ -387,6 +387,22 @@ function advanceRemoteMain(fixture) {
   return runGit(publisher, ['rev-parse', 'HEAD']);
 }
 
+function publishRemoteBranch(fixture, branch) {
+  const publisher = path.join(
+    fixture.container,
+    `publisher-${branch.replace(/[^a-z0-9]+/giu, '-')}`,
+  );
+  runGit(fixture.container, ['clone', fixture.remote, publisher]);
+  runGit(publisher, ['config', 'user.email', 'publisher@example.com']);
+  runGit(publisher, ['config', 'user.name', 'Publisher']);
+  runGit(publisher, ['switch', '-c', branch]);
+  fs.writeFileSync(path.join(publisher, 'REMOTE-BRANCH.md'), `${branch}\n`);
+  runGit(publisher, ['add', 'REMOTE-BRANCH.md']);
+  runGit(publisher, ['commit', '-m', `publish ${branch}`]);
+  runGit(publisher, ['push', '-u', 'origin', branch]);
+  return runGit(publisher, ['rev-parse', 'HEAD']);
+}
+
 function runNodeScript(repo, script, args) {
   return spawnSync(process.execPath, [script, ...args], {
     cwd: repo,
@@ -497,6 +513,53 @@ test('default creation fetches the advanced remote base and records the exact cr
   assert.equal(result.baseRef, 'refs/remotes/origin/main');
   assert.equal(result.baseCommit, remoteHead);
   assert.equal(runGit(result.worktreePath, ['rev-parse', 'HEAD']), remoteHead);
+});
+
+test('worktree new blocks when another computer already pushed the same branch', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  const branch = 'fix/cross-host-collision';
+  const remoteHead = publishRemoteBranch(fixture, branch);
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  assert.throws(
+    () => createOrResumeWorktree({
+      cwd: fixture.repo,
+      cli: { phase: 'tdd', branch },
+    }),
+    (error) => {
+      assert.match(error.message, /remote branch origin\/fix\/cross-host-collision already exists/i);
+      assert.equal(error.remoteBranch, `origin/${branch}`);
+      assert.equal(error.remoteHead, remoteHead);
+      assert.match(error.nextManualAction, /worktree resume/i);
+      return true;
+    },
+  );
+
+  assert.equal(runGit(fixture.repo, ['branch', '--list', branch]), '');
+  assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /cross-host-collision/u);
+});
+
+test('explicit remote resume creates a local worktree at the exact origin branch SHA', (t) => {
+  const fixture = initRemoteWorktreeFixture();
+  const branch = 'fix/cross-host-resume';
+  const remoteHead = publishRemoteBranch(fixture, branch);
+  t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
+
+  const result = createOrResumeWorktree({
+    cwd: fixture.repo,
+    cli: { phase: 'tdd', branch, resumeRemote: true },
+  });
+
+  assert.equal(result.resumed, true);
+  assert.equal(result.resumedRemote, true);
+  assert.equal(result.remoteBranch, `origin/${branch}`);
+  assert.equal(result.remoteHead, remoteHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', 'HEAD']), remoteHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', `refs/remotes/origin/${branch}`]), remoteHead);
+  assert.equal(runGit(result.worktreePath, ['rev-parse', '@{upstream}']), remoteHead);
+  assert.equal(readSessions(result.config, fixture.repo).some((session) => (
+    session.branch === branch && path.resolve(session.worktree) === path.resolve(result.worktreePath)
+  )), true);
 });
 
 test('default creation blocks on fetch failure before branch worktree or session creation', (t) => {

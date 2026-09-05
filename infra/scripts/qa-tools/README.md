@@ -592,87 +592,17 @@ pnpm run qa:generate-test-report && pnpm run qa:coverage-report
 pnpm run qa:check-defect-blockers
 ```
 
-### CI/CD 集成
-在 `.github/workflows/qa-validation.yml` 中添加：
+### 本地 QA 与合并门禁
 
-```yaml
-name: QA Quality Gate
+本模板的 TDD、QA 与合并门禁完全在执行者电脑上运行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`。工作流目录属于实际项目，模板更新保持其内容不变。
 
-on:
-  pull_request:
-    paths:
-      - 'docs/QA.md'
-      - 'docs/qa-modules/**'
-      - 'docs/data/traceability-matrix.md'
-
-jobs:
-  qa-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Run QA Lint
-        run: pnpm run qa:lint
-
-      - name: Check Test Coverage
-        run: pnpm run qa:coverage-report
-
-      - name: Verify PRD ↔ QA Sync
-        run: pnpm run qa:sync-prd-qa-ids
-
-      - name: Check Defect Blockers
-        run: pnpm run qa:check-defect-blockers
+```bash
+pnpm agent -- qa plan
+pnpm agent -- qa verify
+pnpm agent -- qa merge
 ```
 
-### 定时任务（每日聚合）
-在 `.github/workflows/qa-daily-report.yml` 中添加：
-
-```yaml
-name: QA Daily Report
-
-on:
-  schedule:
-    # 每天早上 8:00 运行
-    - cron: '0 0 * * *'
-  workflow_dispatch: # 允许手动触发
-
-jobs:
-  daily-report:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Generate Test Report
-        run: pnpm run qa:generate-test-report
-
-      - name: Generate Coverage Report
-        run: pnpm run qa:coverage-report
-
-      - name: Check Defect Status
-        run: pnpm run qa:check-defect-blockers
-
-      - name: Commit Reports
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          TOKEN_HEADER=$(node -e "process.stdout.write(Buffer.from('x-access-token:' + process.env.GH_TOKEN).toString('base64'))")
-          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $TOKEN_HEADER"
-          git add docs/data/qa-reports/
-          git commit -m "chore: 更新每日 QA 报告 $(date +'%Y-%m-%d')" || echo "No changes"
-          git push
-```
+`qa verify` 通过后会在当前电脑原子写入绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执。`qa merge` 会重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；任一 SHA 漂移、冲突或主干非快进拒绝都会停止合并并保留恢复状态。回执不跨电脑共享：换电脑合并时，在该电脑重新执行 `qa verify` 即可，不需要专用 QA 电脑或账号。
 
 ---
 
