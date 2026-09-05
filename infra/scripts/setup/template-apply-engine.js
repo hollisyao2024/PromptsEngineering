@@ -144,7 +144,9 @@ function appendBlock(sourceRoot, targetRoot, rule, write) {
   let status;
 
   if (current.includes(start) && current.includes(end)) {
-    const pattern = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}\\n?`);
+    const pattern = new RegExp(
+      `${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}(?:\\r\\n|\\n|\\r)?`,
+    );
     next = current.replace(pattern, block);
     status = next === current ? 'unchanged' : 'updated';
   } else {

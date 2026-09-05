@@ -260,6 +260,53 @@ test('removePath rejects traversal and directory removal', () => {
   assert.match(directory[0].reason, /directory removal/);
 });
 
+test('append-block replaces a CRLF marker block without leaving a blank line at EOF', () => {
+  const sourceRoot = mkTmpDir('append-crlf-src');
+  const targetRoot = mkTmpDir('append-crlf-tgt');
+  const rule = {
+    path: '.envrc',
+    source: 'envrc.agent.append',
+    strategy: 'append-block',
+    marker: 'agent-template:envrc',
+  };
+  fs.writeFileSync(path.join(sourceRoot, rule.source), 'new value\n');
+  fs.writeFileSync(
+    path.join(targetRoot, rule.path),
+    '# >>> agent-template:envrc\r\nold value\r\n# <<< agent-template:envrc\r\n',
+  );
+
+  const result = applyRule(sourceRoot, targetRoot, rule, true, new Set());
+
+  assert.equal(result[0].status, 'updated');
+  assert.equal(
+    fs.readFileSync(path.join(targetRoot, rule.path), 'utf8'),
+    '# >>> agent-template:envrc\nnew value\n# <<< agent-template:envrc\n',
+  );
+});
+
+test('append-block preserves one separator after a CRLF marker block with following content', () => {
+  const sourceRoot = mkTmpDir('append-crlf-content-src');
+  const targetRoot = mkTmpDir('append-crlf-content-tgt');
+  const rule = {
+    path: '.gitignore',
+    source: 'gitignore.agent.append',
+    strategy: 'append-block',
+    marker: 'agent-template:gitignore',
+  };
+  fs.writeFileSync(path.join(sourceRoot, rule.source), 'new-entry\n');
+  fs.writeFileSync(
+    path.join(targetRoot, rule.path),
+    '# >>> agent-template:gitignore\r\nold-entry\r\n# <<< agent-template:gitignore\r\n\r\nproject-entry\r\n',
+  );
+
+  applyRule(sourceRoot, targetRoot, rule, true, new Set());
+
+  assert.equal(
+    fs.readFileSync(path.join(targetRoot, rule.path), 'utf8'),
+    '# >>> agent-template:gitignore\nnew-entry\n# <<< agent-template:gitignore\n\r\nproject-entry\r\n',
+  );
+});
+
 const {
   appendTopLevelKeys,
   mergeJsonc,
