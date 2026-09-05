@@ -26,6 +26,14 @@ const GIT_OPTIONS_WITH_VALUES = new Set([
   '--recurse-submodules',
 ]);
 
+const GITHUB_TOKEN_PLACEHOLDER_PATTERNS = Object.freeze([
+  /^(?:gh[pousr]|github_pat)_x{3,}$/iu,
+  /^(?:gh[pousr]|github_pat)_(?:example|placeholder|replace[-_]?me)$/iu,
+  /^(?:your[-_ ]*)?github[-_ ]*(?:pat|token)(?:[-_ ]*here)?$/iu,
+  /^(?:replace[-_ ]?me|change[-_ ]?me)$/iu,
+  /^<[^>]*(?:github|token|pat)[^>]*>$/iu,
+]);
+
 function stripOptionalQuotes(value) {
   let trimmed = String(value || '').trim();
   const commentIndex = trimmed.search(/\s#/);
@@ -65,10 +73,18 @@ function readEnvFile(filePath) {
   }
 }
 
+function usableGitHubToken(value) {
+  const token = String(value || '').trim();
+  if (!token) return '';
+  if (GITHUB_TOKEN_PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(token))) return '';
+  return token;
+}
+
 function tokenFromRepoEnv(repoRoot, cwd = process.cwd()) {
   for (const candidate of getProjectEnvLocalCandidates({ repoRoot, cwd })) {
     const envLocal = readEnvFile(candidate);
-    if (envLocal.GH_TOKEN) return envLocal.GH_TOKEN;
+    const token = usableGitHubToken(envLocal.GH_TOKEN);
+    if (token) return token;
   }
   return '';
 }
@@ -89,7 +105,7 @@ function getProjectEnvLocalCandidates({
 }
 
 function getProjectGitHubToken({ repoRoot = '', cwd = process.cwd(), env = process.env } = {}) {
-  return tokenFromRepoEnv(repoRoot || cwd, cwd) || env.GH_TOKEN || '';
+  return tokenFromRepoEnv(repoRoot || cwd, cwd) || usableGitHubToken(env.GH_TOKEN);
 }
 
 function withProjectGitHubToken(env, token) {
