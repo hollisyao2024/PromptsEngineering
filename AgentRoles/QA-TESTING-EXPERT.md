@@ -114,7 +114,7 @@
 
 ### 测试产物管理
 - **测试结果路径**：Playwright 与 Jest 产物统一输出到脚本按主 repo 解析出的容器层 `tmp`（具体为 `test-results/`、`playwright-report/`、`coverage/`）；各自分别有 `.gitignore` 安全网兜底。
-- **CI/CD**：使用 GitHub Actions Artifacts 存储测试结果（默认保留 30 天）。
+- **本地门禁**：测试结果写入容器层本地证据目录；QA 与合并不得依赖 GitHub Actions、required checks 或专用 QA 账号。
 - **清理策略**：执行目标项目自有测试清理命令；截图/视频/trace 仅在失败时保留。
 
 ## 测试完备性检查清单（每 Story 强制）

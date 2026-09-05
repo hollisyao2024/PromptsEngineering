@@ -7,11 +7,63 @@ const os = require('node:os');
 const path = require('node:path');
 
 const {
+  captureQaVerificationIdentity,
   createPnpmRunInvocation,
   resolveProjectChecks,
   resolveTargetsFromQaPlanState,
   validateQaFile,
 } = require('../qa-verify');
+
+test('qa verify captures the configured remote base and exact remote feature head', () => {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const calls = [];
+  const fakeRunGit = (args) => {
+    calls.push(args);
+    const key = args.join(' ');
+    if (key === 'branch --show-current') return 'fix/verified\n';
+    if (key === 'rev-parse --verify refs/remotes/origin/stable^{commit}') return `${A}\n`;
+    if (key === 'rev-parse --verify refs/remotes/origin/fix/verified^{commit}') return `${B}\n`;
+    if (key === 'rev-parse --verify HEAD^{commit}') return `${B}\n`;
+    return '';
+  };
+
+  const receipt = captureQaVerificationIdentity({
+    config: { baseBranch: 'stable' },
+    runGit: fakeRunGit,
+    verifiedAt: '2026-09-05T00:00:00.000Z',
+  });
+
+  assert.equal(receipt.base_branch, 'stable');
+  assert.equal(receipt.branch, 'fix/verified');
+  assert.equal(receipt.base_sha, A);
+  assert.equal(receipt.head_sha, B);
+  assert.deepEqual(calls[1], [
+    'fetch', '--prune', 'origin',
+    '+refs/heads/stable:refs/remotes/origin/stable',
+    '+refs/heads/fix/verified:refs/remotes/origin/fix/verified',
+  ]);
+  assert.deepEqual(calls.at(-1), ['merge-base', '--is-ancestor', A, B]);
+});
+
+test('qa verify rejects a local HEAD that differs from the pushed feature branch', () => {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const C = 'c'.repeat(40);
+  const fakeRunGit = (args) => {
+    const key = args.join(' ');
+    if (key === 'branch --show-current') return 'fix/verified\n';
+    if (key.includes('refs/remotes/origin/stable')) return `${A}\n`;
+    if (key.includes('refs/remotes/origin/fix/verified')) return `${B}\n`;
+    if (key === 'rev-parse --verify HEAD^{commit}') return `${C}\n`;
+    return '';
+  };
+
+  assert.throws(() => captureQaVerificationIdentity({
+    config: { baseBranch: 'stable' },
+    runGit: fakeRunGit,
+  }), /local HEAD.*origin\/fix\/verified/i);
+});
 
 const repoRoot = path.resolve(__dirname, '../../../..');
 

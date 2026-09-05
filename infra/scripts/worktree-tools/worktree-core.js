@@ -363,6 +363,27 @@ function remoteRefExists(mainRoot, ref) {
   return result.status === 0;
 }
 
+function getRemoteBranch(mainRoot, branch) {
+  const remoteRef = `refs/remotes/origin/${branch}`;
+  const remoteHead = resolveCommit(mainRoot, remoteRef);
+  if (!remoteHead) return null;
+  return {
+    remoteRef,
+    remoteBranch: `origin/${branch}`,
+    remoteHead,
+  };
+}
+
+function remoteBranchConflictError(branch, remote) {
+  const error = new Error(`remote branch origin/${branch} already exists`);
+  error.remoteBranch = remote.remoteBranch;
+  error.remoteHead = remote.remoteHead;
+  error.fetchStatus = 'OK';
+  error.baseFreshness = 'VERIFIED';
+  error.nextManualAction = `Run worktree resume --branch ${branch} to continue that remote branch, or choose a different branch name.`;
+  return error;
+}
+
 function getCurrentBranch(cwd) {
   return runGit(['branch', '--show-current'], {
     cwd,
@@ -1179,7 +1200,10 @@ function createOrResumeWorktree(options = {}) {
     return { branch, worktreePath, config, mainRoot, baseRef, dryRun: true };
   }
 
-  const fetchSkipped = shouldSkipFetch(cli);
+  // A remote-only resume must refresh origin so it never mounts a stale
+  // remote-tracking ref. Existing local worktree resumes return above and
+  // retain their intentional no-network fast path.
+  const fetchSkipped = shouldSkipFetch(cli) && !cli.resumeRemote;
   let base;
   if (fetchSkipped) {
     base = getSkippedBase(mainRoot, config);
@@ -1195,6 +1219,11 @@ function createOrResumeWorktree(options = {}) {
     base = getRequiredRemoteBase(mainRoot, config);
   }
   ({ baseRef } = base);
+  const remote = getRemoteBranch(mainRoot, branch);
+  const localBranchExists = branchExists(mainRoot, branch);
+  if (remote && !localBranchExists && !cli.resumeRemote) {
+    throw remoteBranchConflictError(branch, remote);
+  }
   const audit = require('./worktree-audit').auditManagedWorktrees({
     mainRoot,
     config,
@@ -1207,8 +1236,11 @@ function createOrResumeWorktree(options = {}) {
   assertNoConflictingRecovery(config, mainRoot, cli, branch);
   ensureContainerDirectories(config, mainRoot, ['worktrees', 'tmp']);
 
-  if (branchExists(mainRoot, branch)) {
+  if (localBranchExists) {
     runGit(['worktree', 'add', worktreePath, branch], { cwd: mainRoot });
+  } else if (remote && cli.resumeRemote) {
+    runGit(['worktree', 'add', '-b', branch, '--no-track', worktreePath, remote.remoteHead], { cwd: mainRoot });
+    runGit(['branch', '--set-upstream-to', remote.remoteBranch, branch], { cwd: worktreePath });
   } else {
     // --no-track 防止 upstream 被设成 origin/main 导致裸 git push silent no-op
     runGit(['worktree', 'add', '-b', branch, '--no-track', worktreePath, base.baseCommit], { cwd: mainRoot });
@@ -1224,7 +1256,7 @@ function createOrResumeWorktree(options = {}) {
     branch,
     worktree: worktreePath,
     status: 'in_progress',
-    step: 'created',
+    step: remote && cli.resumeRemote ? 'remote_resumed' : 'created',
     head,
     linked,
     lifecycle,
@@ -1241,7 +1273,7 @@ function createOrResumeWorktree(options = {}) {
     branch,
     worktree: worktreePath,
     status: 'in_progress',
-    step: 'created',
+    step: remote && cli.resumeRemote ? 'remote_resumed' : 'created',
     head,
     linked,
     bootstrap,
@@ -1269,7 +1301,10 @@ function createOrResumeWorktree(options = {}) {
     audit,
     supersession,
     taskBindings,
-    resumed: false,
+    resumed: Boolean(remote && cli.resumeRemote),
+    resumedRemote: Boolean(remote && cli.resumeRemote),
+    remoteBranch: remote ? remote.remoteBranch : '',
+    remoteHead: remote ? remote.remoteHead : '',
     fetchSkipped,
   };
 }
@@ -1289,6 +1324,7 @@ module.exports = {
   getRequiredRemoteBase,
   getSkippedBase,
   getCurrentBranch,
+  getRemoteBranch,
   getMainRepoRoot,
   getWorktreeRoot,
   hasUncommittedChanges,

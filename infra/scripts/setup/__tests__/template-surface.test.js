@@ -182,7 +182,7 @@ test('always-loaded protocol forbids parent-relative patch paths for container w
 
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
-  assert.equal(manifest.templateVersion, '2.1.1');
+  assert.equal(manifest.templateVersion, '2.1.2');
   assert.match(manifest.description, /phase-aware durable tasks/u);
 });
 

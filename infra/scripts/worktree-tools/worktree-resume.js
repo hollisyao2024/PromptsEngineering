@@ -82,11 +82,16 @@ function main() {
       return;
     }
 
-    const result = createOrResumeWorktree({ cli: { ...cli, branch: target }, cwd: mainRoot });
+    const result = createOrResumeWorktree({
+      cli: { ...cli, branch: target, resumeRemote: true },
+      cwd: mainRoot,
+    });
     console.log(result.dryRun ? 'STATUS=DRY_RUN' : 'STATUS=REMOUNTED');
     console.log(`BRANCH_NAME=${result.branch}`);
     console.log(`WORKTREE_PATH=${result.worktreePath}`);
     console.log(`NEXT_CWD=${result.worktreePath}`);
+    if (result.remoteBranch) console.log(`REMOTE_BRANCH=${result.remoteBranch}`);
+    if (result.remoteHead) console.log(`REMOTE_HEAD=${result.remoteHead}`);
     if (result.bootstrap) {
       console.log(`BOOTSTRAP_STATUS=${result.bootstrap.status}`);
       if (result.bootstrap.mode) console.log(`BOOTSTRAP_MODE=${result.bootstrap.mode}`);

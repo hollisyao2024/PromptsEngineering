@@ -3,8 +3,8 @@
 > 模块 ID：`CMDSURF`  
 > 状态：Accepted  
 > 负责人：@template-maintainers  
-> 最后更新：2026-09-01
-> 对应 PRD：[`US-CMDSURF-001~007`](../../prd-modules/template-command-surface/PRD.md)
+> 最后更新：2026-09-05
+> 对应 PRD：[`US-CMDSURF-001~008`](../../prd-modules/template-command-surface/PRD.md)
 
 ## 1. 摘要
 
@@ -16,6 +16,7 @@
 | ADR-003 | 在共享配置层提供显式、按需的容器目录初始化器 | 统一路径校验与失败语义，同时避免配置读取产生副作用 | Accepted |
 | ADR-004 | 任务输入语义集中在 `AGENTS.md`，`createTask()` 只强制 mutation 显式验收 | 以最小模板改动同时获得上下文补齐和可执行门禁，并保持只读任务兼容 | Accepted |
 | ADR-005 | 全新 worktree 默认 required fetch 并从固定远端 base SHA 创建；现有 `--skip-fetch` 是唯一离线逃生口 | 防止陈旧 remote-tracking ref 或任意 HEAD 被误报为最新基线，同时保持显式离线能力 | Accepted |
+| ADR-006 | 本机状态只保护本机生命周期；跨电脑使用远端 SHA 校验与普通非快进更新，不设置机器角色或远程锁 | 以最小改动支持所有电脑同权并阻止同名分支误建、陈旧 QA 与覆盖先到提交 | Accepted |
 
 ## 2. 上下文与边界
 
@@ -30,6 +31,10 @@ flowchart LR
   CLI --> BASE[CMDSURF-SVC-005 Worktree Base Synchronizer]
   BASE --> ORIGIN[origin]
   BASE --> WT[Git branch/worktree creation]
+  CLI --> REMOTE[CMDSURF-SVC-006 Remote Branch Resolver]
+  REMOTE --> ORIGIN
+  CLI --> MERGE[CMDSURF-SVC-007 QA SHA Merge Guard]
+  MERGE --> ORIGIN
 ```
 
 职责：解析稳定动作、校验平台/profile/环境、精确选择配置、执行并输出证据。不负责定义端口、服务名、框架、数据库或签名策略。
@@ -46,6 +51,8 @@ flowchart LR
 | CMDSURF-SVC-003 | Container Directory Initializer | 对声明的容器目录执行解析、拓扑校验、递归创建与真实目录复核 | config、main root、目录 key 集合 | 已校验绝对路径或明确错误 | 模板 |
 | CMDSURF-SVC-004 | Task State Manager | 校验 mutation 显式验收并持久化任务目标、步骤与验收 | task type、goal、acceptance | task state 或明确错误 | 模板 |
 | CMDSURF-SVC-005 | Worktree Base Synchronizer | 在创建副作用前刷新并解析远端 base，或在显式 skip 时解析缓存 remote/local base；输出固定 commit SHA 与新鲜度 | main root、base branch、skip flag | base ref、base commit、fetch status、freshness 或明确错误 | 模板 |
+| CMDSURF-SVC-006 | Remote Branch Resolver | 区分本地/远端分支，新建时阻断远端同名分支，恢复时从远端固定 SHA 建立本机 worktree/session | branch、origin refs、operation | branch source、remote head、worktree/session 或明确错误 | 模板 |
+| CMDSURF-SVC-007 | QA SHA Merge Guard | 记录本机 QA 的 base/head SHA，合并前重新核验并执行 SHA 绑定的 PR merge 或普通非强制 push | base branch、PR、base/head SHA、QA verdict | merge/push/remote verification 状态或陈旧回执错误 | 模板 |
 
 关键调用链：CLI 标准化参数 → Dispatcher 校验必需维度 → Config Resolver 精确查找 → 按动作声明并初始化所需容器目录 → 项目命令执行 → 记录结果。
 
@@ -60,6 +67,10 @@ flowchart LR
 
 Worktree 基线策略：请求与恢复态预检先于网络和文件系统副作用；全新创建的默认路径必须成功执行 `git fetch --prune origin`，随后严格解析 `refs/remotes/origin/<base>^{commit}`。创建命令使用解析出的 commit SHA，不再使用可能被并发 fetch 改写的符号 ref。`--skip-fetch` 只允许缓存 remote base 或本地 base，输出 `BASE_FRESHNESS=UNVERIFIED`；两者都不存在时阻断，禁止回退任意 `HEAD`。dry-run 与已有 worktree resume 不 fetch、不改变已有分支。
 
+多电脑分支策略：默认 new 在 required fetch 后同时检查本地与远端请求分支。本地不存在而远端存在时 fail closed，并提示显式 resume 或更名；显式 resume 从远端 commit SHA 创建本地分支和本机独立 session。分支名和现有 session schema保持兼容，不引入 hostname、机器角色或全局 lease。
+
+QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configured base、branch、PR、`BASE_SHA` 与 `HEAD_SHA` 的临时回执。`qa merge` 必须重新 fetch 并匹配这两个 SHA，且不得在该阶段自动 rebase/force-push 功能分支。GitHub squash merge 使用 expected head SHA；本地 fallback 使用精确 refspec 的普通 push。远端 base/head 漂移、非快进拒绝或结果不明时保留生命周期状态并要求验证/重新 QA，远端确认前禁止清理。
+
 ## 4. 接口视图
 
 ### 提供的接口
@@ -71,6 +82,9 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | `dev restart` | 可选内部 `--target=<profile>` | 结构化执行结果 | missing profile config |
 | `task start` | `--type=<type> --desc=<goal> [--acceptance=<criterion>]` | task state | mutation 缺少显式 acceptance 时拒绝创建 |
 | `worktree new` | identity/phase 与可选 `--skip-fetch` | `FETCH_STATUS`、`BASE_REF`、`BASE_COMMIT`、`BASE_FRESHNESS`、worktree 路径 | 默认 fetch/base 失败或 skip 无可用 configured base 时拒绝创建 |
+| `worktree resume` | 已有本地或远端 branch | `BRANCH_SOURCE`、`REMOTE_HEAD`、worktree 路径和本机 session | 远端缺失、SHA 无法解析或本地冲突时拒绝恢复 |
+| `qa verify` | 当前 branch、PR、configured base 与本地检查 | base/head SHA 绑定的本地通过回执 | HEAD 未推送、PR 不匹配或必需检查失败时不生成通过回执 |
+| `qa merge` | 已通过回执与当前远端 refs | `QA_STATUS`、`MERGE_STATUS`、`PUSH_STATUS`、`REMOTE_MAIN_SHA` | base/head 漂移、非快进、权限或未知远端状态时 fail closed |
 
 用户快捷语法将 `/private restart` 翻译为内部 `dev restart --target=private`；模板文档不把后者呈现为用户快捷命令。
 
@@ -83,6 +97,7 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | 容器路径解析 | `resolveContainerPath()` | 越界路径阻断 |
 | 容器目录初始化 | 显式目录 key 集合；返回绝对路径映射 | 非白名单 key、非法拓扑、非目录目标或创建失败时阻断 |
 | Git `origin` 与 configured base | 默认在线刷新并解析 `refs/remotes/origin/<base>^{commit}` | fetch、鉴权、remote 或 base ref 失败时在创建副作用前阻断 |
+| GitHub PR API/CLI | 查询 PR base/head；merge 时绑定 expected head SHA | PR 缺失、base/head 不符或权限失败时阻断或进入受控本地普通 push fallback |
 
 兼容策略：`config.example.json` 提供完整默认矩阵，项目稀疏 `agent.config.json` 通过深合并继承并可在任意叶级覆盖；已有 package aliases 不删除。项目显式选择未知 profile、平台或环境时不跨维度回退。
 
@@ -95,6 +110,7 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | `app.commands` | JSON 配置，不是数据库表 | action → platform → profile → command | 模板登记规范 alias 默认值；项目稀疏覆盖 |
 | `devops-runs/result.json` | 临时运行证据 | action/platform/target/command/cwd/status | 容器 tmp 策略 |
 | Worktree base result | 进程内证据，不新增持久 schema | fetchStatus/baseRef/baseCommit/freshness | CLI 返回后不单独保留；branch HEAD 提供确定性 Git 证据 |
+| QA verification receipt | 本机临时 JSON | schemaVersion/baseBranch/branch/pr/baseSha/headSha/verdict/verifiedAt | 容器 tmp；跨电脑不复制；SHA 漂移后失效；不保存密钥或大日志 |
 
 无 schema 迁移、事务、并发写入或业务数据保留变化。
 
@@ -109,10 +125,13 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | 可恢复性 | 缺目录首次写入成功，重复调用不改已有内容 | 共享显式初始化器 + recursive mkdir + lstat | 缺失/已存在/文件占位/只读场景测试 |
 | 输入完整性 | mutation 状态均含显式可观察验收 | 文档语义门禁 + 创建时 fail closed | 单元测试与模板内容扫描 |
 | 基线一致性 | 默认新 worktree HEAD 100% 等于本次 fetch 后解析的远端 base commit | required fetch + `rev-parse --verify <ref>^{commit}` + SHA 创建 | bare remote 集成测试与 HEAD 比对 |
+| 多机分支一致性 | 远端同名分支 0 次被 new 从主干误建 | local/remote ref 分类 + 显式 remote resume | 三 clone 集成测试 |
+| QA 新鲜度 | base/head 任一漂移 100% 阻断旧回执 | 双 SHA 回执 + merge 前 required fetch | 单元与并发负向测试 |
+| 主干完整性 | 模板对配置主干 0 次 force push；并发更新不丢先到提交 | expected head merge + 普通非快进 push | 参数断言与 bare remote 并发测试 |
 
 ## 7. 安全与隐私
 
-不新增身份或权限。远端操作继续复用 `buildGitHubGitEnv()`，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。命令字符串只来自受版本控制的配置或既有环境覆盖；显式 profile 不得回退 default。
+不新增身份或权限。专家阶段不作为授权身份，所有授权电脑运行同一合约。远端操作继续复用 `buildGitHubGitEnv()`，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。模板不创建、触发或依赖 GitHub CI；`.github/workflows` 保持 project-owned。配置主干禁止 force push 与删除，功能分支策略由项目决定。
 
 ## 8. 部署与运行
 
@@ -129,6 +148,9 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | 集成 | 远端 base 前进、默认 fetch、固定 SHA 创建 | local bare Git remote | worktree-core tests |
 | 负向集成 | fetch 失败、远端 base 缺失、skip 无缓存/local base | local invalid/bare Git remote | 无 branch/worktree/session 副作用断言 |
 | 兼容 | dry-run、已有 worktree resume、显式 skip | Node process integration | 不 fetch、不改变已有 HEAD |
+| 多机集成 | 远端同名分支、新电脑恢复、两个并发主干更新 | 三份 clone + 本地 bare remote | 精确 HEAD、陈旧 QA 与非快进断言 |
+| GitHub 合约 | PR base/head 解析、expected head SHA merge | mock API/CLI | 请求体和参数断言，不访问真实 GitHub |
+| 模板传播 | CI-free 与 workflows 所有权 | template apply dry-run/apply/convergence | `.github/workflows` 字节级不变 |
 
 ## 10. 风险与验证表
 
@@ -142,6 +164,10 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | R-006 | 把用户原始目标机械复制为验收 | 任务看似完整但不可验证 | mutation 禁止目标回退；文档要求可观察验收 | TDD Gate |
 | R-007 | fetch 失败仍使用陈旧缓存 | 新任务起点不可证明 | 默认 fetch 失败即阻断；缓存只由显式 skip 使用 | TDD Gate |
 | R-008 | base ref 在解析与创建之间变化 | 记录 SHA 与实际 HEAD 不一致 | 创建命令使用已解析的 commit SHA，并在测试中比对 HEAD | TDD Gate |
+| R-009 | 远端同名任务分支被误建 | 不同电脑的历史争用同一 ref | new 阻断远端同名；resume 从远端 SHA 恢复 | TDD Gate |
+| R-010 | QA 后 base/head 漂移 | 未验证提交或组合进入主干 | 双 SHA 回执、merge 前 fetch 与 expected head | TDD/QA Gate |
+| R-011 | 本机锁被当成跨电脑锁 | 两台电脑同时进入 merge | 文档边界 + Git 远端非快进协调 | QA 并发模拟 |
+| R-012 | 无 CI 且所有人可直接 push | 原始 Git 命令可绕过模板 QA | 明确信任模型；不宣称远端强制，主干仅禁止 force/delete | 用户已接受 |
 
 ## 11. 实现约束
 
@@ -158,6 +184,10 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 - 必须：新分支以解析出的 commit SHA 创建，并输出 `FETCH_STATUS=OK`、`BASE_REF`、`BASE_COMMIT`、`BASE_FRESHNESS=VERIFIED`。
 - 必须：`--skip-fetch` 继续作为兼容入口，只允许缓存 remote base 或本地 base，输出 `BASE_FRESHNESS=UNVERIFIED`。
 - 禁止：默认 fetch 失败后继续、回退任意 `HEAD`、在 resume 中 fetch/rebase，或新增 remote/policy/retry 配置面。
+- 必须：new 在远端分支存在时阻断误建；显式 resume 可 fetch 并从该远端分支的固定 SHA 恢复，不沿用旧“resume 无网络”限制处理跨电脑恢复。
+- 必须：QA 回执至少绑定 configured base SHA 与远端 feature head SHA；任一漂移时禁止继续 merge。
+- 必须：PR merge 绑定 expected head SHA；本地 fallback 只允许普通非强制 push 配置主干。
+- 禁止：以专家阶段、机器环境变量或 hostname 控制合并权限；禁止依赖 GitHub CI 或把本机锁描述为分布式 merge queue。
 
 ## 12. Story/Component 追溯表
 
@@ -170,6 +200,7 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 | US-CMDSURF-005 | CMDSURF-SVC-003、CMDSURF-SVC-001 |
 | US-CMDSURF-006 | CMDSURF-SVC-004、AGENTS 任务输入规则、Codex 配置模板 |
 | US-CMDSURF-007 | CMDSURF-API-001、CMDSURF-SVC-005、Git origin/base 与 worktree lifecycle |
+| US-CMDSURF-008 | CMDSURF-API-001、CMDSURF-SVC-005~007、Git origin/PR/base 与本机 session lifecycle |
 
 ## 13. 完成检查
 

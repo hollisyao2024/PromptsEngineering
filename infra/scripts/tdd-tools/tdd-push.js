@@ -111,8 +111,8 @@ function getCurrentBranch() {
   return runGit(['branch', '--show-current'], { capture: true }).trim();
 }
 
-function isMainBranch(branch) {
-  return ['main', 'master', 'develop'].includes(branch);
+function isMainBranch(branch, baseBranch = 'main') {
+  return branch === baseBranch;
 }
 
 function buildAutoCommitMessage(branch) {
@@ -302,11 +302,21 @@ function getRemoteUrl() {
 /**
  * Push 后自动创建 PR，失败时降级为输出手动链接
  */
-function createPullRequest(reviewDecision) {
+function buildPrCreateArgs({ title, body, branch, baseBranch }) {
+  return [
+    'pr', 'create',
+    '--title', title,
+    '--body', body,
+    '--head', branch,
+    '--base', baseBranch,
+  ];
+}
+
+function createPullRequest(reviewDecision, baseBranch) {
   const branch = getCurrentBranch();
 
   // 主干分支不创建 PR
-  if (isMainBranch(branch)) {
+  if (isMainBranch(branch, baseBranch)) {
     console.log('\u001b[33m跳过 PR 创建：当前在主干分支。\u001b[0m');
     return;
   }
@@ -351,7 +361,7 @@ function createPullRequest(reviewDecision) {
   ].join('\n');
 
   // 创建 PR（--head 显式指定分支，避免 upstream tracking 未设置时 gh 报错）
-  const result = runGh(['pr', 'create', '--title', title, '--body', body, '--head', branch]);
+  const result = runGh(buildPrCreateArgs({ title, body, branch, baseBranch }));
 
   if (result.status === 0) {
     const prUrl = (result.stdout || '').trim();
@@ -375,19 +385,21 @@ function main() {
     const cliArgs = parseCliArgs(process.argv.slice(2));
     const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     const branch = getCurrentBranch();
-    console.log(`\x1b[36m/tdd push 作用域：${scopeLabel}。本次仅操作当前分支与对应 PR。\x1b[0m`);
-    if (isMainBranch(branch)) {
-      throw new Error(`当前位于主干分支 ${branch}，禁止执行 /tdd push。请先切换到 feature/* 或 fix/* 分支。`);
-    }
     const mainRoot = getMainRepoRoot(repoRoot);
     const lifecycleConfig = loadConfig({ repoRoot: mainRoot });
+    const baseBranch = lifecycleConfig.baseBranch || 'main';
+    const reviewBaseBranch = cliArgs.baseBranch || baseBranch;
+    console.log(`\x1b[36m/tdd push 作用域：${scopeLabel}。本次仅操作当前分支与对应 PR。\x1b[0m`);
+    if (isMainBranch(branch, baseBranch)) {
+      throw new Error(`当前位于主干分支 ${branch}，禁止执行 /tdd push。请先切换到 feature/* 或 fix/* 分支。`);
+    }
     assertSessionCanResume(lifecycleConfig, mainRoot, branch);
 
     const autoCommitResult = autoCommitWorkingTreeIfNeeded(branch, {
       dryRun: cliArgs.dryRun,
     });
     const reviewDecision = analyzeReviewGate({
-      baseBranch: cliArgs.baseBranch,
+      baseBranch: reviewBaseBranch,
       branchName: branch,
     });
 
@@ -405,7 +417,7 @@ function main() {
     pushBranch();
 
     // 自动创建 PR（失败不阻断，push 已完成）
-    createPullRequest(reviewDecision);
+    createPullRequest(reviewDecision, baseBranch);
     printReviewDecision(reviewDecision);
 
     // 更新 IN_PROGRESS：写入 pr 号和当前 step，并单独提交推送（避免残留未提交变更）
@@ -448,5 +460,6 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildPrCreateArgs,
   main,
 };

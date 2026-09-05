@@ -1,16 +1,16 @@
 # PromptsEngineering 模板任务计划（总纲）
 
-日期：2026-09-01　版本：v1.3
+日期：2026-09-05　版本：v1.4
 
 ## 1. 项目概述
 
-按测试先行顺序交付模板客户端/服务端通用命令面与环境文件首次初始化。环境文件模块先冻结首次创建、Git ignore、dry-run 和已有内容保护行为，再实现 manifest 与初始化器，最后执行传播收敛验收。
+按测试先行顺序交付模板客户端/服务端通用命令面、环境文件首次初始化，以及无 GitHub CI 的多电脑同权 Git 协作保护。多电脑增量保持现有分支命名、squash merge 和本地阶段入口，仅增加远端同名分支、QA 双 SHA 回执、精确 PR head 与主干非强制更新门禁。
 
 ## 2. 模块任务索引
 
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | 🔄 Worktree 基线 TDD 通过 / 待 QA | 现有 Agent CLI、worktree lifecycle、Git origin/base | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-01 |
+| 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 多电脑协作 QA 验证通过 | 现有 Agent CLI、worktree lifecycle、Git origin/base、GitHub PR API | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-05 |
 | 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 🔄 TDD 完成 / 待 QA | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-08-24 |
 
 ## 3. 全局里程碑（跨模块）
@@ -23,6 +23,7 @@
 | M4-ENVINIT | 六环境文件初始化 | 2026-08-24 | example sources、manifest、初始化器、测试 | 首次创建六文件、实际文件 ignored、第二次 apply 零变化 | 🔄 待 QA |
 | M5-CONTAINER-DIRS | 容器目录按需初始化 | 2026-08-26 | 共享初始化器、调用点、测试与文档 | 缺失目录自动创建、重复幂等、非法目标阻断、只读无副作用 | 🔄 TDD 通过 / 待 QA |
 | M6-WORKTREE-BASE | Worktree 最新远端基线 | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip、测试与协议 | TC-CMDSURF-012~015、全量回归与 QA merge 通过 | 🔄 TDD 通过 / 待 QA |
+| M7-MULTI-HOST | 无 CI 多电脑同权 Git 安全 | 2026-09-05 | 远端恢复、QA 双 SHA 回执、精确合并、三 clone 模拟 | TC-CMDSURF-016~021、模板收敛与 QA merge 通过 | ✅ QA 验证通过 |
 
 ## 4. 跨模块依赖关系
 
@@ -48,6 +49,12 @@ flowchart LR
   W1[Worktree base RED] --> W2[Strict fetch and SHA implementation]
   W2 --> W3[Protocol and template version]
   W3 --> W4[Regression and QA merge]
+  H1[Multi-host RED] --> H2[Remote branch guard and resume]
+  H1 --> H3[QA receipt and PR base]
+  H2 --> H4[Exact-head optimistic merge]
+  H3 --> H4
+  H4 --> H5[No-CI protocol]
+  H5 --> H6[Three-clone simulation and QA merge]
 ```
 
 关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。
@@ -61,6 +68,10 @@ flowchart LR
 - 环境文件覆盖风险：实际文件使用 exclusive create，sentinel 回归验证已有内容不变。
 - 容器目录副作用边界：解析 API 保持纯函数，写入命令显式声明目录；文件/符号链接占位必须 fail closed。
 - Worktree 基线陈旧风险：默认 fetch 或远端 base 解析失败在创建副作用前阻断；显式 skip 才允许未验证缓存，且禁止任意 HEAD fallback。
+- 多电脑同名分支风险：`worktree new` 在刷新远端后检测冲突，只有显式 `worktree resume` 可从远端固定 SHA 恢复。
+- 本地 QA 回执陈旧风险：回执同时绑定配置主干与功能分支 SHA，合并前重新 fetch 并逐项比较。
+- 同权主干更新竞态：GitHub 合并携带期望 head SHA；本地兜底只允许普通 push，非快进拒绝后必须重新同步和 QA。
+- 无 GitHub CI 的信任边界：模板提供可审计的本地门禁，但不能阻止拥有仓库写权限的协作者绕过工具裸推；该边界由项目团队治理承担。
 
 ## 7. 模块同步与相关文档
 

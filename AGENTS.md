@@ -76,7 +76,8 @@
 - `apply_patch` 不继承 shell `workdir`：创建 worktree 后，其所有目标必须使用经校验、位于 `NEXT_CWD` 下的绝对路径；写入容器层目录时先用 `resolveContainerPath()` 解析绝对路径。禁止以 `../` 等父级相对路径调用 `apply_patch`。若发生错误写入，删除错文件后还必须复核并清理遗留的空父目录。
 - 依赖用 `pnpm agent -- worktree bootstrap` 建立；不得跨 worktree 调脚本或共享依赖目录。
 - 合并后清理由 session 封印和补偿器完成；存在未提交变更、HEAD 漂移或缺少封印时转为恢复状态，禁止删除。
-- 多 worktree 可并行开发，合并必须通过串行 merge queue。
+- 多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。
+- `worktree new` 在 required fetch 后发现远端同名分支时必须阻断；只有显式 `worktree resume` 可以按远端分支的固定 SHA 建立本机 worktree 和 session。
 
 ## 长任务断点续跑
 
@@ -126,6 +127,10 @@ pnpm agent -- finish
 
 - 远端 Git/GitHub 操作只能走 `github-auth-run.js` 或仓库脚本，token 变量仅用 `GH_TOKEN`。
 - 不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。
+- PRD、ARCH、TASK、TDD、QA、DEVOPS 是阶段职责，不是电脑或账号身份；所有已获仓库权限的协作者均可在任意电脑执行任意阶段、合并 PR，或对配置主干执行普通非强制 push。
+- `tdd push` 必须显式以 `config.baseBranch` 为 PR base。`qa verify` 通过后在本机原子写入绑定 base、branch、`BASE_SHA` 和 `HEAD_SHA` 的回执；`qa merge` 必须重新 fetch，并把回执与 PR base/head refs 逐项复验，任一漂移都阻断并要求重新 QA。
+- 配置主干禁止 force push 和删除；功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。主干并发更新失败时不得覆盖远端历史。
+- TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；该目录始终由实际项目自行维护。
 - 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。
 - 不记录或提交密钥、凭据、个人信息和大段原始日志。
 

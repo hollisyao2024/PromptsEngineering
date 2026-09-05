@@ -10,6 +10,11 @@ flowchart LR
   API --> B[CMDSURF-SVC-005 Worktree Base Synchronizer]
   O[Git origin/base] --> B
   B --> W[Git branch/worktree creation]
+  API --> R[CMDSURF-SVC-006 Remote Branch Resolver]
+  O --> R
+  R --> W
+  API --> Q[CMDSURF-SVC-007 QA SHA Merge Guard]
+  O --> Q
   M[ENVINIT-SVC-001 Manifest Apply] --> I[ENVINIT-SVC-002 Environment File Initializer]
   G[ENVINIT-SVC-003 Gitignore Merge] --> I
 ```
@@ -21,6 +26,8 @@ flowchart LR
 | CMDSURF-SVC-002 | 合并配置 | CMDSURF-SVC-001 | 显式 profile 不回退 |
 | CMDSURF-SVC-003 | CMDSURF-SVC-002、main repo root | CMDSURF-SVC-001、状态/worktree 写入器 | 显式按需创建，拒绝非目录与符号链接目标 |
 | CMDSURF-SVC-005 | CMDSURF-API-001、Git origin/base、configured base branch | Git branch/worktree creation | 默认在线基线必须验证并固定为 commit SHA；显式 skip 才可使用未验证缓存 |
+| CMDSURF-SVC-006 | CMDSURF-API-001、Git origin/feature | Git branch/worktree creation、本机 session | new 阻断远端同名误建；resume 从远端固定 SHA 恢复 |
+| CMDSURF-SVC-007 | CMDSURF-API-001、Git origin/base/feature、GitHub PR、本地 QA 回执 | 配置主干、PR 与 worktree cleanup | base/head SHA 必须匹配；只允许 expected-head merge 或普通非快进 push |
 | ENVINIT-SVC-001 | 模板源 | ENVINIT-SVC-002 | example 必须先完成 init-if-missing |
 | ENVINIT-SVC-002 | ENVINIT-SVC-001、目标 example | 目标实际文件 | exclusive create，已有文件不修改 |
 | ENVINIT-SVC-003 | `.gitignore` 模板块 | 目标实际文件 | 三个实际文件精确忽略 |
