@@ -216,8 +216,16 @@ test('Xirang identity, official upstream, and natural-language sync route propag
     schemaVersion: 1,
     convergenceRequired: true,
   });
-  assert.equal(packageJson.name, 'xirang-agent-template');
-  assert.equal(packageJson.version, manifest.templateVersion);
+  // Package identity belongs to each project. Only the source release must
+  // use the Xirang package name and match the template release version.
+  const projectConfigPath = path.join(ROOT, 'agent.config.json');
+  const projectConfig = fs.existsSync(projectConfigPath)
+    ? JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'))
+    : {};
+  if (projectConfig.template?.role === 'source') {
+    assert.equal(packageJson.name, 'xirang-agent-template');
+    assert.equal(packageJson.version, manifest.templateVersion);
+  }
   assert.match(agents, /更新息壤模板/u);
   assert.match(agents, /pnpm agent -- template sync/u);
   assert.match(conventions, /更新息壤模板/u);

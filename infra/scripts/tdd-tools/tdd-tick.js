@@ -66,7 +66,7 @@ function isNoTaskBranchAllowed(branchName) {
   // 非编码阶段（PRD/ARCH/TASK/QA/DevOps）与小需求/补丁分支允许 no-op 放行。
   // 与 worktree-core.js 的 phase→branch 前缀映射保持一致：
   //   prd|arch|task → docs/, qa → qa/, devops → ops/, fix → fix/, feature → feature/
-  const allowedPrefixes = ['fix/', 'feature/', 'docs/', 'qa/', 'ops/', 'chore/', 'hotfix/'];
+  const allowedPrefixes = ['fix/', 'feature/', 'docs/', 'qa/', 'ops/', 'chore/', 'hotfix/', 'codex/'];
   return allowedPrefixes.some((prefix) => normalized.startsWith(prefix));
 }
 

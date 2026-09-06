@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+'use strict';
+
 /**
  * sync-prd-arch-ids.js - PRD ↔ ARCH ID 双向追溯工具
  *
@@ -14,6 +16,11 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveRepoRoot } = require('../shared/config');
+const {
+  COMPONENT_ID_SOURCE,
+  STORY_OR_FEATURE_ID_SOURCE,
+  searchPattern,
+} = require('../shared/governance-ids');
 const {
   replaceGeneratedContentPreservingProtectedSections,
 } = require('./protected-sections');
@@ -64,8 +71,7 @@ const isReportMode = args.includes('--report');
  * 提取 Story ID（格式：US-{MODULE}-{NNN}、FEAT-{MODULE}-{NNN}）
  */
 function extractStoryIDs(content, filePath) {
-  const regex = /(US|FEAT)-[A-Z]+-\d{3}/g;
-  const matches = content.matchAll(regex);
+  const matches = content.matchAll(searchPattern(STORY_OR_FEATURE_ID_SOURCE));
   const results = [];
 
   for (const match of matches) {
@@ -78,23 +84,31 @@ function extractStoryIDs(content, filePath) {
 }
 
 /**
+ * PRD canonical definitions only. Body references must not inflate both sides
+ * of a traceability check.
+ */
+function extractStoryDefinitions(content, filePath) {
+  const regex = new RegExp(
+    `^#{2,6}\\s+(${STORY_OR_FEATURE_ID_SOURCE})(?=[:：\\s])`,
+    'gm',
+  );
+  const results = [];
+  for (const match of String(content).matchAll(regex)) {
+    const line = content.substring(0, match.index).split('\n').length;
+    results.push({ storyID: match[1], file: filePath, line });
+  }
+  return results;
+}
+
+/**
  * 提取 Component ID（格式：{MODULE}-{TYPE}-{NNN}）
  */
 function extractComponentIDs(content, filePath) {
-  // 匹配格式：USER-SVC-001、PAY-DB-001
-  const regex = /\b([A-Z]+)-([A-Z]+)-(\d{3})\b/g;
-  const matches = content.matchAll(regex);
+  const matches = content.matchAll(searchPattern(COMPONENT_ID_SOURCE));
   const results = [];
 
   for (const match of matches) {
     const componentID = match[0];
-    // 验证 TYPE 是否合法
-    const type = match[2];
-    const validTypes = ['SVC', 'DB', 'CACHE', 'MQ', 'API', 'JOB'];
-    if (!validTypes.includes(type)) {
-      continue; // 跳过不合法的 TYPE
-    }
-
     const line = content.substring(0, match.index).split('\n').length;
     results.push({ componentID, file: filePath, line });
   }
@@ -147,7 +161,7 @@ function scanPRDForStoryIDs() {
   // 扫描主 PRD 文档
   if (fs.existsSync(PRD_FILE)) {
     const content = fs.readFileSync(PRD_FILE, 'utf8');
-    const results = extractStoryIDs(content, 'PRD.md');
+    const results = extractStoryDefinitions(content, 'PRD.md');
 
     results.forEach(({ storyID, file, line }) => {
       if (!storyIDsInPRD.has(storyID)) {
@@ -165,7 +179,7 @@ function scanPRDForStoryIDs() {
       const prdFile = path.join(PRD_MODULES_DIR, dir.name, 'PRD.md');
       if (fs.existsSync(prdFile)) {
         const content = fs.readFileSync(prdFile, 'utf8');
-        const results = extractStoryIDs(content, `prd-modules/${dir.name}/PRD.md`);
+        const results = extractStoryDefinitions(content, `prd-modules/${dir.name}/PRD.md`);
 
         results.forEach(({ storyID, file, line }) => {
           if (!storyIDsInPRD.has(storyID)) {
@@ -278,6 +292,16 @@ function validateComponentIDTraceability() {
   return { graphReferencesNotInModules };
 }
 
+function traceabilityHasErrors(storyResults, componentResults, counts) {
+  return counts.inArch === 0
+    || counts.inPRD === 0
+    || counts.inGraph === 0
+    || counts.inModules === 0
+    || storyResults.archReferencesNotInPRD.length > 0
+    || storyResults.prdDefinitionsNotInArch.length > 0
+    || componentResults.graphReferencesNotInModules.length > 0;
+}
+
 /**
  * 生成追溯报告（Markdown 格式）
  */
@@ -348,8 +372,12 @@ function outputResults(storyResults, componentResults) {
     // JSON 输出
     const jsonOutput = {
       timestamp: new Date().toISOString(),
-      status: (storyResults.archReferencesNotInPRD.length === 0 &&
-               componentResults.graphReferencesNotInModules.length === 0) ? 'pass' : 'fail',
+      status: traceabilityHasErrors(storyResults, componentResults, {
+        inArch: storyIDsInArch.size,
+        inPRD: storyIDsInPRD.size,
+        inGraph: componentIDsInGraph.size,
+        inModules: componentIDsInModules.size,
+      }) ? 'fail' : 'pass',
       summary: {
         storyIDs: {
           inArch: storyIDsInArch.size,
@@ -431,6 +459,10 @@ function outputResults(storyResults, componentResults) {
  * 主函数
  */
 function main() {
+  storyIDsInArch.clear();
+  storyIDsInPRD.clear();
+  componentIDsInGraph.clear();
+  componentIDsInModules.clear();
   if (!isJsonMode) {
     console.log('\n🔍 PRD ↔ ARCH ID Traceability Check...\n');
   }
@@ -457,8 +489,12 @@ function main() {
   outputResults(storyResults, componentResults);
 
   // 7. 退出码
-  const hasErrors = storyResults.archReferencesNotInPRD.length > 0 ||
-                    componentResults.graphReferencesNotInModules.length > 0;
+  const hasErrors = traceabilityHasErrors(storyResults, componentResults, {
+    inArch: storyIDsInArch.size,
+    inPRD: storyIDsInPRD.size,
+    inGraph: componentIDsInGraph.size,
+    inModules: componentIDsInModules.size,
+  });
 
   if (hasErrors) {
     if (!isJsonMode) {
@@ -467,14 +503,20 @@ function main() {
       console.log('   - Add missing Component IDs to module architecture documents');
       console.log('   - Or remove invalid references from ARCH/Graph\n');
     }
-    process.exit(1);
+    return 1;
   } else {
     if (!isJsonMode) {
       console.log('✅ PASS: All ID references are consistent\n');
     }
-    process.exit(0);
+    return 0;
   }
 }
 
-// 运行
-main();
+if (require.main === module) process.exitCode = main();
+
+module.exports = {
+  extractComponentIDs,
+  extractStoryDefinitions,
+  extractStoryIDs,
+  traceabilityHasErrors,
+};

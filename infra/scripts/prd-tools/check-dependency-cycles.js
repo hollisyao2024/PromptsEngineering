@@ -11,6 +11,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  STORY_ID_SOURCE,
+  extractIds,
+} = require('../shared/governance-ids');
 
 // 配置
 const CONFIG = {
@@ -36,27 +40,34 @@ function parseDependencies(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
   const dependencies = new Map();
 
-  // 匹配 Story 和依赖
-  // 格式: ### US-MODULE-NNN: Title
-  //      **依赖**：US-XXX-YYY, US-ZZZ-WWW
-  const storyRegex = /###?\s+(US-[A-Z]+-\d{3}):([^#]+)/g;
-  let match;
+  const storyHeading = new RegExp(
+    `^(#{2,6})\\s+(${STORY_ID_SOURCE})(?=[:：\\s])`,
+  );
+  let activeStory = null;
+  let activeStoryLevel = null;
 
-  while ((match = storyRegex.exec(content)) !== null) {
-    const storyId = match[1];
-    const storyContent = match[2];
+  for (const line of content.split(/\r?\n/)) {
+    const heading = line.match(/^(#{1,6})\s+/);
+    const story = line.match(storyHeading);
+    if (story) {
+      activeStory = story[2];
+      activeStoryLevel = story[1].length;
+      if (!dependencies.has(activeStory)) dependencies.set(activeStory, []);
+      continue;
+    }
+    if (heading && activeStoryLevel !== null && heading[1].length <= activeStoryLevel) {
+      activeStory = null;
+      activeStoryLevel = null;
+    }
+    if (!activeStory) continue;
 
-    // 提取依赖
-    const depMatch = storyContent.match(/\*\*依赖[：:]\*\*\s*([^\n]+)/);
-    if (depMatch) {
-      const depString = depMatch[1];
-      // 提取所有 US-XXX-YYY 格式的 ID
-      const depIds = (depString.match(/US-[A-Z]+-\d{3}/g) || [])
-        .filter(id => id !== storyId); // 排除自己
-
-      dependencies.set(storyId, depIds);
-    } else {
-      dependencies.set(storyId, []);
+    const depMatch = line.match(/\*\*依赖(?:[：:]\*\*|\*\*[：:])\s*(.+)$/);
+    if (!depMatch) continue;
+    const current = dependencies.get(activeStory);
+    for (const dependencyId of extractIds(depMatch[1], STORY_ID_SOURCE)) {
+      if (dependencyId !== activeStory && !current.includes(dependencyId)) {
+        current.push(dependencyId);
+      }
     }
   }
 
@@ -153,6 +164,16 @@ function detectInvalidDependencies(dependencies) {
   return invalidDeps;
 }
 
+function validateDependencyGraph(dependencies) {
+  const cycles = detectCycles(dependencies);
+  const invalidDeps = detectInvalidDependencies(dependencies);
+  return {
+    passed: dependencies.size > 0 && cycles.length === 0 && invalidDeps.length === 0,
+    cycles,
+    invalidDeps,
+  };
+}
+
 // 主函数
 function main() {
   log('='.repeat(60), 'cyan');
@@ -171,7 +192,7 @@ function main() {
 
   // 检测循环依赖
   log('\n🔍 检测循环依赖...', 'cyan');
-  const cycles = detectCycles(dependencies);
+  const { passed, cycles, invalidDeps } = validateDependencyGraph(dependencies);
 
   if (cycles.length === 0) {
     log('✅ 未发现循环依赖', 'green');
@@ -185,8 +206,6 @@ function main() {
 
   // 检测无效依赖
   log('\n🔍 检测无效依赖...', 'cyan');
-  const invalidDeps = detectInvalidDependencies(dependencies);
-
   if (invalidDeps.length === 0) {
     log('✅ 所有依赖关系有效', 'green');
   } else {
@@ -201,7 +220,7 @@ function main() {
   log('检查结果汇总:', 'cyan');
   log('='.repeat(60), 'cyan');
 
-  if (cycles.length === 0 && invalidDeps.length === 0) {
+  if (passed) {
     log('✅ 依赖关系健康，无循环依赖和无效依赖！', 'green');
     process.exit(0);
   } else {
@@ -231,4 +250,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseDependencies, collectAllDependencies, detectCycles, detectInvalidDependencies };
+module.exports = {
+  collectAllDependencies,
+  detectCycles,
+  detectInvalidDependencies,
+  parseDependencies,
+  validateDependencyGraph,
+};

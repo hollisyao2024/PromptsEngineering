@@ -16,6 +16,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  STORY_ID_SOURCE,
+  TEST_CASE_ID_SOURCE,
+  exactPattern,
+  extractIds,
+  markdownCells,
+} = require('../shared/governance-ids');
 const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
@@ -27,12 +34,6 @@ const CONFIG = {
   traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
   coverageSummaryPath: path.join(__dirname, '../../../docs/data/qa-reports/coverage-summary.md'),
 };
-
-// Story ID 格式正则（US-MODULE-NNN）
-const STORY_ID_PATTERN = /US-[A-Z]+-\d{3}/g;
-
-// Test Case ID 格式正则（TC-MODULE-NNN）
-const TC_ID_PATTERN = /TC-[A-Z]+-\d{3}/g;
 
 // 颜色输出
 const colors = {
@@ -47,51 +48,95 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+function stripMarkdown(value) {
+  return String(value).trim().replace(/^(`|\*\*|__)+|(`|\*\*|__)+$/g, '').trim();
+}
+
+function contentStoryDefinitions(content, moduleName) {
+  const stories = new Map();
+  const exactStory = exactPattern(STORY_ID_SOURCE);
+  const headingPattern = new RegExp(
+    `^(#{2,6})\\s+(${STORY_ID_SOURCE})(?=[:：\\s])([^\\n]*)`,
+  );
+  let active = null;
+
+  for (const line of String(content).split(/\r?\n/)) {
+    const storyHeading = line.match(headingPattern);
+    const heading = line.match(/^(#{1,6})\s+/);
+    if (storyHeading) {
+      active = {
+        id: storyHeading[2],
+        level: storyHeading[1].length,
+      };
+      stories.set(active.id, {
+        module: moduleName,
+        priority: 'P2',
+        title: storyHeading[3].replace(/^\s*[:：]\s*/, '').trim(),
+      });
+      continue;
+    }
+    if (heading && active && heading[1].length <= active.level) active = null;
+    if (active) {
+      const priority = line.match(/\*\*优先级(?:[：:]\*\*|\*\*[：:])\s*(P[0-2])/);
+      if (priority) stories.get(active.id).priority = priority[1];
+    }
+
+    const cells = markdownCells(line);
+    if (cells.length === 0) continue;
+    const storyId = stripMarkdown(cells[0]);
+    if (!exactStory.test(storyId)) continue;
+    const priorityCell = cells.map(stripMarkdown).find((cell) => /^P[0-2]$/.test(cell));
+    if (!stories.has(storyId)) {
+      stories.set(storyId, {
+        module: moduleName,
+        priority: priorityCell || 'P2',
+        title: '',
+      });
+    } else if (priorityCell && stories.get(storyId).priority === 'P2') {
+      stories.get(storyId).priority = priorityCell;
+    }
+  }
+  return stories;
+}
+
+function mergeStoryDefinitions(target, source) {
+  for (const [storyId, info] of source) {
+    const previous = target.get(storyId);
+    if (!previous || (previous.module === 'main' && info.module !== 'main')) {
+      target.set(storyId, info);
+    }
+  }
+}
+
+function moduleFiles(directory, filename) {
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => ({
+      module: entry.name,
+      filePath: path.join(directory, entry.name, filename),
+    }))
+    .filter(({ filePath }) => fs.existsSync(filePath));
+}
+
 // 解析 PRD 中的 Story ID
-function parseStoriesFromPRD() {
+function parseStoriesFromPRD(config = CONFIG) {
   log('\n📖 解析 PRD 中的 Story ID...', 'cyan');
 
   const stories = new Map(); // story_id => { module, priority, title }
 
   // 解析主 PRD
-  if (fs.existsSync(CONFIG.prdPath)) {
-    const prdContent = fs.readFileSync(CONFIG.prdPath, 'utf-8');
-    const matches = prdContent.match(STORY_ID_PATTERN) || [];
-    matches.forEach(id => {
-      if (!stories.has(id)) {
-        stories.set(id, { module: 'main', priority: 'P2', title: '' });
-      }
-    });
+  if (fs.existsSync(config.prdPath)) {
+    const prdContent = fs.readFileSync(config.prdPath, 'utf-8');
+    mergeStoryDefinitions(stories, contentStoryDefinitions(prdContent, 'main'));
   }
 
   // 解析模块 PRD
-  if (fs.existsSync(CONFIG.prdModulesDir)) {
-    const entries = fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true });
-    const moduleDirs = entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
-
-    moduleDirs.forEach(dir => {
-      const prdFilePath = path.join(CONFIG.prdModulesDir, dir.name, 'PRD.md');
-      if (fs.existsSync(prdFilePath)) {
-        const prdContent = fs.readFileSync(prdFilePath, 'utf-8');
-
-        // 查找所有 Story ID 及其优先级
-        const storyMatches = prdContent.match(/US-[A-Z]+-\d{3}:[^\n]+/g) || [];
-        storyMatches.forEach(storyLine => {
-          const storyId = storyLine.match(/US-[A-Z]+-\d{3}/)[0];
-          const title = storyLine.replace(/US-[A-Z]+-\d{3}:\s*/, '');
-
-          // 尝试提取优先级
-          const priorityMatch = prdContent.substring(
-            prdContent.indexOf(storyLine),
-            prdContent.indexOf(storyLine) + 500
-          ).match(/\*\*优先级[：:]\*\*\s*(P[0-2])/);
-
-          const priority = priorityMatch ? priorityMatch[1] : 'P2';
-
-          stories.set(storyId, { module: dir.name, priority, title });
-        });
-      }
-    });
+  for (const entry of moduleFiles(config.prdModulesDir, 'PRD.md')) {
+    mergeStoryDefinitions(
+      stories,
+      contentStoryDefinitions(fs.readFileSync(entry.filePath, 'utf8'), entry.module),
+    );
   }
 
   log(`✅ 找到 ${stories.size} 个用户故事`, 'green');
@@ -99,74 +144,26 @@ function parseStoriesFromPRD() {
 }
 
 // 解析 QA 文档中的 Test Case ID 及其关联的 Story
-function parseTestCasesFromQA() {
+function parseTestCasesFromQA(config = CONFIG) {
   log('\n📖 解析 QA 文档中的 Test Case ID...', 'cyan');
 
   const testCases = new Map(); // tc_id => { story_id, module }
   const testCaseToStory = new Map(); // tc_id => story_id
 
-  // 解析主 QA
-  if (fs.existsSync(CONFIG.qaPath)) {
-    const qaContent = fs.readFileSync(CONFIG.qaPath, 'utf-8');
-
-    // 查找所有 Test Case
-    const tcMatches = qaContent.match(/TC-[A-Z]+-\d{3}:[^\n]+/g) || [];
-    tcMatches.forEach(tcLine => {
-      const tcId = tcLine.match(/TC-[A-Z]+-\d{3}/)[0];
-
-      // 查找该 TC 后面的内容，提取 Story ID
-      const tcIndex = qaContent.indexOf(tcLine);
-      const nextTCIndex = qaContent.indexOf('TC-', tcIndex + tcLine.length);
-      const tcContent = qaContent.substring(
-        tcIndex,
-        nextTCIndex > 0 ? nextTCIndex : qaContent.length
-      );
-
-      const storyMatch = tcContent.match(/US-[A-Z]+-\d{3}/);
-      if (storyMatch) {
-        const storyId = storyMatch[0];
-        testCases.set(tcId, { story_id: storyId, module: 'main' });
-        testCaseToStory.set(tcId, storyId);
-      } else {
-        testCases.set(tcId, { story_id: null, module: 'main' });
-      }
-    });
-  }
-
-  // 解析模块 QA
-  if (fs.existsSync(CONFIG.qaModulesDir)) {
-    const entries = fs.readdirSync(CONFIG.qaModulesDir, { withFileTypes: true });
-    const moduleDirs = entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
-
-    moduleDirs.forEach(dir => {
-      const qaFilePath = path.join(CONFIG.qaModulesDir, dir.name, 'QA.md');
-      if (fs.existsSync(qaFilePath)) {
-        const qaContent = fs.readFileSync(qaFilePath, 'utf-8');
-
-        // 查找所有 Test Case
-        const tcMatches = qaContent.match(/TC-[A-Z]+-\d{3}:[^\n]+/g) || [];
-        tcMatches.forEach(tcLine => {
-          const tcId = tcLine.match(/TC-[A-Z]+-\d{3}/)[0];
-
-          // 查找该 TC 后面的内容，提取 Story ID
-          const tcIndex = qaContent.indexOf(tcLine);
-          const nextTCIndex = qaContent.indexOf('TC-', tcIndex + tcLine.length);
-          const tcContent = qaContent.substring(
-            tcIndex,
-            nextTCIndex > 0 ? nextTCIndex : qaContent.length
-          );
-
-          const storyMatch = tcContent.match(/US-[A-Z]+-\d{3}/);
-          if (storyMatch) {
-            const storyId = storyMatch[0];
-            testCases.set(tcId, { story_id: storyId, module: dir.name });
-            testCaseToStory.set(tcId, storyId);
-          } else {
-            testCases.set(tcId, { story_id: null, module: dir.name });
-          }
-        });
-      }
-    });
+  const qaFiles = [];
+  if (fs.existsSync(config.qaPath)) qaFiles.push({ module: 'main', filePath: config.qaPath });
+  qaFiles.push(...moduleFiles(config.qaModulesDir, 'QA.md'));
+  for (const { module: moduleName, filePath } of qaFiles) {
+    const content = fs.readFileSync(filePath, 'utf8');
+    for (const line of content.split(/\r?\n/)) {
+      const cells = markdownCells(line);
+      if (cells.length === 0) continue;
+      const tcId = extractIds(line, TEST_CASE_ID_SOURCE)[0];
+      const storyId = extractIds(line, STORY_ID_SOURCE)[0];
+      if (!tcId) continue;
+      testCases.set(tcId, { story_id: storyId || null, module: moduleName });
+      if (storyId) testCaseToStory.set(tcId, storyId);
+    }
   }
 
   log(`✅ 找到 ${testCases.size} 个测试用例`, 'green');
@@ -174,39 +171,49 @@ function parseTestCasesFromQA() {
 }
 
 // 解析追溯矩阵
-function parseTraceabilityMatrix() {
+function parseTraceabilityMatrix(config = CONFIG) {
   log('\n📖 解析追溯矩阵...', 'cyan');
 
-  if (!fs.existsSync(CONFIG.traceabilityMatrixPath)) {
+  if (!fs.existsSync(config.traceabilityMatrixPath)) {
     log('⚠️  追溯矩阵不存在，跳过', 'yellow');
     return new Map();
   }
 
-  log(`✅ 追溯矩阵存在: ${CONFIG.traceabilityMatrixPath}`);
+  log(`✅ 追溯矩阵存在: ${config.traceabilityMatrixPath}`);
 
-  const matrixContent = fs.readFileSync(CONFIG.traceabilityMatrixPath, 'utf-8');
+  const matrixContent = fs.readFileSync(config.traceabilityMatrixPath, 'utf-8');
   const storyToTestCases = new Map(); // story_id => [tc_ids]
 
   // 解析表格行（简化处理）
   const lines = matrixContent.split('\n');
   lines.forEach(line => {
-    const storyMatch = line.match(/US-[A-Z]+-\d{3}/);
-    const tcMatch = line.match(/TC-[A-Z]+-\d{3}/);
+    const storyIds = extractIds(line, STORY_ID_SOURCE);
+    let tcIds = extractIds(line, TEST_CASE_ID_SOURCE);
+    if (tcIds.length === 0) {
+      tcIds = line.match(/TC-[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-\d{3}(?:-[A-Z][A-Z0-9]*)*/g) || [];
+    }
 
-    if (storyMatch && tcMatch) {
-      const storyId = storyMatch[0];
-      const tcId = tcMatch[0];
-
-      if (!storyToTestCases.has(storyId)) {
-        storyToTestCases.set(storyId, []);
+    if (storyIds.length > 0 && tcIds.length > 0) {
+      for (const storyId of storyIds) {
+        if (!storyToTestCases.has(storyId)) {
+          storyToTestCases.set(storyId, []);
+        }
+        for (const tcId of tcIds) {
+          if (!storyToTestCases.get(storyId).includes(tcId)) {
+            storyToTestCases.get(storyId).push(tcId);
+          }
+        }
       }
-      storyToTestCases.get(storyId).push(tcId);
     }
   });
 
   log(`📊 映射关系数: ${storyToTestCases.size} 个 Story → ${Array.from(storyToTestCases.values()).flat().length} 个 Test Case`);
 
   return storyToTestCases;
+}
+
+function coverageExitCode(totalCoverage, threshold) {
+  return totalCoverage >= threshold ? 0 : 1;
 }
 
 // 分析覆盖率
@@ -404,13 +411,14 @@ function main() {
     log('\nℹ️ 未写入覆盖率报告（只校验模式，设置 QA_WRITE_REPORTS=1 可写入）', 'yellow');
   }
 
-  process.exit(0);
+  return coverageExitCode(totalCoverage, threshold)
+    || (stories.size === 0 || uncovered.length > 0 || orphans.length > 0 ? 1 : 0);
 }
 
 // 运行
 if (require.main === module) {
   try {
-    main();
+    process.exitCode = main();
   } catch (error) {
     log(`\n❌ 执行出错: ${error.message}`, 'red');
     console.error(error);
@@ -418,4 +426,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseStoriesFromPRD, parseTestCasesFromQA, analyzeCoverage };
+module.exports = {
+  analyzeCoverage,
+  coverageExitCode,
+  parseStoriesFromPRD,
+  parseTestCasesFromQA,
+  parseTraceabilityMatrix,
+};

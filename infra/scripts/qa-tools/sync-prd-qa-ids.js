@@ -17,6 +17,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  STORY_ID_SOURCE,
+  extractIds,
+} = require('../shared/governance-ids');
+const {
+  extractAcceptanceCriteriaIdsFromText,
+} = require('../task-tools/sync-prd-task-ids');
 
 // 配置
 const CONFIG = {
@@ -26,13 +33,6 @@ const CONFIG = {
   qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
   traceabilityMatrixPath: path.join(__dirname, '../../../docs/data/traceability-matrix.md'),
 };
-
-// Story ID 格式正则（US-MODULE-NNN）。MODULE 槽位允许字母数字混排
-// （如 E2E / V3 / K8S），与 qa-verify.js 已采用的 [A-Z0-9]+ 保持一致。
-const STORY_ID_PATTERN = /US-[A-Z0-9]+-\d{3}/g;
-
-// AC ID 格式正则（AC-MODULE-NNN-NN）
-const AC_ID_PATTERN = /AC-[A-Z0-9]+-\d{3}-\d{2}/g;
 
 // 颜色输出
 const colors = {
@@ -47,6 +47,74 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+function parseStoriesAndACsFromContent(content, moduleName) {
+  const stories = new Map();
+  const headingPattern = new RegExp(
+    `^(#{2,6})\\s+(${STORY_ID_SOURCE})(?=[:：\\s])`,
+  );
+  let active = null;
+
+  for (const line of String(content).split(/\r?\n/)) {
+    const heading = line.match(/^(#{1,6})\s+/);
+    const storyHeading = line.match(headingPattern);
+    if (storyHeading) {
+      const existing = stories.get(storyHeading[2]);
+      active = {
+        id: storyHeading[2],
+        level: storyHeading[1].length,
+        priority: existing?.priority || 'P2',
+        acs: new Set(existing?.acs || []),
+      };
+      stories.set(active.id, active);
+      continue;
+    }
+    if (heading && active && heading[1].length <= active.level) {
+      active = null;
+    }
+    if (!active) continue;
+
+    const priority = line.match(/\*\*优先级(?:[：:]\*\*|\*\*[：:])\s*(P[0-2])/);
+    if (priority) active.priority = priority[1];
+    for (const ac of extractAcceptanceCriteriaIdsFromText(line)) active.acs.add(ac);
+  }
+
+  return new Map([...stories].map(([id, info]) => [id, {
+    module: moduleName,
+    priority: info.priority,
+    acs: [...info.acs],
+  }]));
+}
+
+function mergeStories(target, source) {
+  for (const [id, info] of source) {
+    const existing = target.get(id);
+    if (!existing) {
+      target.set(id, info);
+      continue;
+    }
+    target.set(id, {
+      module: existing.module,
+      priority: existing.priority !== 'P2' ? existing.priority : info.priority,
+      acs: [...new Set([...existing.acs, ...info.acs])],
+    });
+  }
+}
+
+function collectACRefsFromContents(contents) {
+  const refs = new Set();
+  for (const content of contents) {
+    for (const ac of extractAcceptanceCriteriaIdsFromText(content)) refs.add(ac);
+  }
+  return refs;
+}
+
+function findStoriesWithoutACs(stories) {
+  return [...stories]
+    .filter(([, info]) => info.acs.length === 0)
+    .map(([storyId]) => storyId)
+    .sort();
+}
+
 // 解析 PRD 中的 Story ID 和 AC
 function parseStoriesAndACsFromPRD() {
   log('\n📖 解析 PRD 中的 Story ID...', 'cyan');
@@ -56,12 +124,7 @@ function parseStoriesAndACsFromPRD() {
   // 解析主 PRD
   if (fs.existsSync(CONFIG.prdPath)) {
     const prdContent = fs.readFileSync(CONFIG.prdPath, 'utf-8');
-    const matches = prdContent.match(STORY_ID_PATTERN) || [];
-    matches.forEach(id => {
-      if (!stories.has(id)) {
-        stories.set(id, { module: 'main', priority: 'P2', acs: [] });
-      }
-    });
+    mergeStories(stories, parseStoriesAndACsFromContent(prdContent, 'main'));
   }
 
   // 解析模块 PRD
@@ -74,39 +137,7 @@ function parseStoriesAndACsFromPRD() {
       if (fs.existsSync(prdFilePath)) {
         const prdContent = fs.readFileSync(prdFilePath, 'utf-8');
 
-        // 查找所有 Story ID 及其优先级。模块 PRD 存在表格行、标题行、
-        // traceability 行等多种格式，不能只匹配旧的 `US-XXX-001:`。
-        const storyMatches = Array.from(prdContent.matchAll(STORY_ID_PATTERN));
-        storyMatches.forEach((storyMatch, index) => {
-          const storyId = storyMatch[0];
-
-          // 尝试提取优先级
-          const storyIndex = storyMatch.index ?? 0;
-          const nextStoryIndex = storyMatches[index + 1]?.index ?? prdContent.length;
-          const storyContent = prdContent.substring(
-            storyIndex,
-            nextStoryIndex
-          );
-
-          const priorityMatch = storyContent.match(/\*\*优先级[：:]\*\*\s*(P[0-2])/);
-          const priority = priorityMatch ? priorityMatch[1] : 'P2';
-
-          // 提取该 Story 的所有 AC
-          const acMatches = storyContent.match(AC_ID_PATTERN) || [];
-          const acs = [...new Set(acMatches)]; // 去重
-
-          const previous = stories.get(storyId);
-          if (previous) {
-            stories.set(storyId, {
-              module: previous.module,
-              priority: previous.priority !== 'P2' ? previous.priority : priority,
-              acs: [...new Set([...previous.acs, ...acs])],
-            });
-            return;
-          }
-
-          stories.set(storyId, { module: dir.name, priority, acs });
-        });
+        mergeStories(stories, parseStoriesAndACsFromContent(prdContent, dir.name));
       }
     });
   }
@@ -135,7 +166,7 @@ function parseStoryRefsFromQA() {
   // 解析主 QA
   if (fs.existsSync(CONFIG.qaPath)) {
     const qaContent = fs.readFileSync(CONFIG.qaPath, 'utf-8');
-    const matches = qaContent.match(STORY_ID_PATTERN) || [];
+    const matches = extractIds(qaContent, STORY_ID_SOURCE);
     matches.forEach(id => storyRefs.add(id));
   }
 
@@ -148,7 +179,7 @@ function parseStoryRefsFromQA() {
       const qaFilePath = path.join(CONFIG.qaModulesDir, dir.name, 'QA.md');
       if (fs.existsSync(qaFilePath)) {
         const qaContent = fs.readFileSync(qaFilePath, 'utf-8');
-        const matches = qaContent.match(STORY_ID_PATTERN) || [];
+        const matches = extractIds(qaContent, STORY_ID_SOURCE);
         matches.forEach(id => storyRefs.add(id));
       }
     });
@@ -157,7 +188,7 @@ function parseStoryRefsFromQA() {
   // 解析追溯矩阵
   if (fs.existsSync(CONFIG.traceabilityMatrixPath)) {
     const matrixContent = fs.readFileSync(CONFIG.traceabilityMatrixPath, 'utf-8');
-    const matches = matrixContent.match(STORY_ID_PATTERN) || [];
+    const matches = extractIds(matrixContent, STORY_ID_SOURCE);
     matches.forEach(id => storyRefs.add(id));
   }
 
@@ -247,8 +278,7 @@ function checkACCoverage(stories) {
   let testedACs = new Set();
   if (fs.existsSync(CONFIG.traceabilityMatrixPath)) {
     const matrixContent = fs.readFileSync(CONFIG.traceabilityMatrixPath, 'utf-8');
-    const acMatches = matrixContent.match(AC_ID_PATTERN) || [];
-    acMatches.forEach(ac => testedACs.add(ac));
+    testedACs = collectACRefsFromContents([matrixContent]);
   }
 
   // 按模块统计 AC 覆盖率
@@ -363,13 +393,19 @@ function main() {
   }
   log('   3. 定期运行此脚本，保持 PRD ↔ QA 同步');
 
-  process.exit(0);
+  return allValid
+    && stories.size > 0
+    && findStoriesWithoutACs(stories).length === 0
+    && orphanStories.length === 0
+    && untestedACs.length === 0
+    ? 0
+    : 1;
 }
 
 // 运行
 if (require.main === module) {
   try {
-    main();
+    process.exitCode = main();
   } catch (error) {
     log(`\n❌ 执行出错: ${error.message}`, 'red');
     console.error(error);
@@ -377,4 +413,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseStoriesAndACsFromPRD, parseStoryRefsFromQA, validateStoryIds };
+module.exports = {
+  collectACRefsFromContents,
+  findStoriesWithoutACs,
+  parseStoriesAndACsFromContent,
+  parseStoriesAndACsFromPRD,
+  parseStoryRefsFromQA,
+  validateStoryIds,
+};
