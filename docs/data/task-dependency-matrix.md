@@ -24,6 +24,12 @@
 | TASK-CMDSURF-023 | TASK-CMDSURF-024 | Finish-to-start | 0 | 是 | QA 身份证据稳定后实现精确合并 |
 | TASK-CMDSURF-024 | TASK-CMDSURF-025 | Finish-to-start | 0 | 是 | 合并语义冻结后同步同权与无 CI 协议 |
 | TASK-CMDSURF-025 | TASK-CMDSURF-026 | Finish-to-start | 0 | 是 | 代码和协议齐备后执行三 clone 与最终 QA |
+| TASK-CMDSURF-027 | TASK-CMDSURF-028 | Finish-to-start | 0 | 是 | 身份与自然语言契约 RED 后实现传播协议 |
+| TASK-CMDSURF-028 | TASK-CMDSURF-029 | Finish-to-start | 0 | 是 | 固定身份和 CLI 入口后实现官方源 fetch |
+| TASK-CMDSURF-029 | TASK-CMDSURF-030 | Finish-to-start | 0 | 是 | 不可变 SHA 快照就绪后实现最新 updater 自举 |
+| TASK-CMDSURF-030 | TASK-CMDSURF-031 | Finish-to-start | 0 | 是 | 编排稳定后补齐 apply convergence 门禁 |
+| TASK-CMDSURF-031 | TASK-CMDSURF-032 | Finish-to-start | 0 | 是 | 行为冻结后同步名称、配置和模板版本 |
+| TASK-CMDSURF-032 | TASK-CMDSURF-033 | Finish-to-start | 0 | 是 | 代码与传播协议齐备后执行回归和 QA |
 | TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
 | TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
 | TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |
@@ -53,6 +59,12 @@ flowchart LR
   H23 --> H24
   H24 --> H25[TASK-CMDSURF-025]
   H25 --> H26[TASK-CMDSURF-026]
+  X27[TASK-CMDSURF-027] --> X28[TASK-CMDSURF-028]
+  X28 --> X29[TASK-CMDSURF-029]
+  X29 --> X30[TASK-CMDSURF-030]
+  X30 --> X31[TASK-CMDSURF-031]
+  X31 --> X32[TASK-CMDSURF-032]
+  X32 --> X33[TASK-CMDSURF-033]
   E1[TASK-ENVINIT-001] --> E2[TASK-ENVINIT-002]
   E2 --> E3[TASK-ENVINIT-003]
   E3 --> E4[TASK-ENVINIT-004]

@@ -22,6 +22,10 @@ test('unified agent CLI routes stable workflow commands', () => {
     script: 'infra/scripts/qa-tools/qa-verify.js',
     args: [],
   });
+  assert.deepEqual(resolveCommand(['template', 'sync', '--dry-run']), {
+    script: 'infra/scripts/setup/template-sync.js',
+    args: ['--dry-run'],
+  });
   assert.deepEqual(resolveCommand(['finish']), {
     script: 'infra/scripts/tdd-tools/tdd-finish.js',
     args: [],

@@ -20,6 +20,7 @@ const ROUTES = new Map([
   ['worktree:remove', 'infra/scripts/worktree-tools/worktree-remove.js'],
   ['worktree:cancel', 'infra/scripts/worktree-tools/worktree-cancel.js'],
   ['worktree:audit', 'infra/scripts/worktree-tools/worktree-audit-cli.js'],
+  ['template:sync', 'infra/scripts/setup/template-sync.js'],
   ['template:update', 'infra/scripts/setup/update-template.js'],
   ['template:backfill', 'infra/scripts/setup/backfill-template.js'],
 ]);
@@ -102,7 +103,7 @@ Core commands:
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
   tdd <sync|push|finish|guard>
   qa <plan|verify|merge>
-  template <update|backfill>
+  template <sync|update|backfill>
   dev <start|restart|stop|status|logs>
   dev app <platform>
   app <dev|build> --platform=<platform>

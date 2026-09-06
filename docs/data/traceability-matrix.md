@@ -23,6 +23,11 @@
 | US-CMDSURF-008 | 主干乐观并发 | AC-CMDSURF-008-04 | TC-CMDSURF-019 | ✅ QA 通过 | @qa | 期望 head、普通 push 与 stale base 拒绝模拟通过 |
 | US-CMDSURF-008 | 所有电脑同权 | AC-CMDSURF-008-05 | TC-CMDSURF-020 | ✅ QA 通过 | @qa | 无身份门禁，配置主干 force/delete 拒绝测试通过 |
 | US-CMDSURF-008 | 无 GitHub CI | AC-CMDSURF-008-06 | TC-CMDSURF-021 | ✅ QA 通过 | @qa | workflows 源与模板目标均未变化；所有门禁本地完成 |
+| US-CMDSURF-009 | 息壤身份与自然语言路由 | AC-CMDSURF-009-01 | TC-CMDSURF-022 | ✅ QA 通过 | @qa | 身份、官方源、自然语言与 CLI 路由传播通过 |
+| US-CMDSURF-009 | 官方模板固定 SHA 同步 | AC-CMDSURF-009-02 | TC-CMDSURF-023 | ✅ QA 通过 | @qa | required fetch、远端前进、固定 SHA 与源执行器自举通过 |
+| US-CMDSURF-009 | 模板来源失败阻断 | AC-CMDSURF-009-03 | TC-CMDSURF-024 | ✅ QA 通过 | @qa | fetch/source/manifest gap 均在目标 tracked 写入前阻断 |
+| US-CMDSURF-009 | 模板所有权与收敛应用 | AC-CMDSURF-009-04 | TC-CMDSURF-025 | ✅ QA 通过 | @qa | dry-run、冲突阻断、apply 与 project-owned sentinel 通过 |
+| US-CMDSURF-009 | 模板同步幂等与审计输出 | AC-CMDSURF-009-05 | TC-CMDSURF-026 | ✅ QA 通过 | @qa | 二次收敛、固定审计字段与临时快照清理通过 |
 | US-ENVINIT-001 | 首次创建六个环境文件 | AC-ENVINIT-001-01 | TC-ENVINIT-001 | ✅ TDD 通过 / 待 QA | @qa | 三组 example/实际文件配对初始化 |
 | US-ENVINIT-001 | Git 所有权边界 | AC-ENVINIT-001-02 | TC-ENVINIT-002 | ✅ TDD 通过 / 待 QA | @qa | example 可跟踪、实际文件被忽略 |
 | US-ENVINIT-002 | 已有文件保护 | AC-ENVINIT-002-01 | TC-ENVINIT-003 | ✅ TDD 通过 / 待 QA | @qa | 后续 apply 不修改已有内容 |
@@ -32,15 +37,17 @@
 
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |
-| 总 Story 数 | 11 | - |
-| 已关联测试用例的 Story 数 | 11 | 100% |
-| 总 AC 数 | 24 | - |
-| 已关联测试用例的 AC 数 | 24 | 100% |
-| 测试通过的 AC 数 | 23 | 100% |
+| 总 Story 数 | 12 | - |
+| 已关联测试用例的 Story 数 | 12 | 100% |
+| 总 AC 数 | 29 | - |
+| 已关联测试用例的 AC 数 | 29 | 100% |
+| 测试通过的 AC 数 | 28 | 100% |
 | 测试失败的 AC 数 | 0 | 0 |
 | 需求覆盖率 | 100% | ≥95% |
-| 测试通过率 | 96% | 100% |
+| 测试通过率 | 97% | 100% |
 
 US-CMDSURF-007 已通过 worktree 核心 40/40、全仓 Node 305/305 与 setup 56/56；剩余传播 AC 由目标项目收敛 dry-run 与 QA 合并后更新为已确认。
 
 US-CMDSURF-008 已完成 TC-CMDSURF-016~021：定向回归、三电脑 bare Git、模板传播收敛与 QA 双 SHA 收据均通过；GitHub workflows 保持 project-owned 且未被触碰。
+
+US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模板引导与全量 Node 回归均零失败，QA receipt 已绑定当前 base/head，等待合并门禁。

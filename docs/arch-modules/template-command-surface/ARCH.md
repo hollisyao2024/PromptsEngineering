@@ -3,12 +3,12 @@
 > 模块 ID：`CMDSURF`  
 > 状态：Accepted  
 > 负责人：@template-maintainers  
-> 最后更新：2026-09-05
-> 对应 PRD：[`US-CMDSURF-001~008`](../../prd-modules/template-command-surface/PRD.md)
+> 最后更新：2026-09-06
+> 对应 PRD：[`US-CMDSURF-001~009`](../../prd-modules/template-command-surface/PRD.md)
 
 ## 1. 摘要
 
-目标是以单一模板执行面覆盖本地服务、客户端开发、客户端构建和环境部署。模板配置登记稳定的规范 alias，项目实现或覆盖 alias；产品参数继续外置。非目标是规定具体客户端框架或真实部署实现。
+目标是以单一模板执行面覆盖本地服务、客户端开发、客户端构建、环境部署和息壤模板自身生命周期。模板配置登记稳定的规范 alias、模板身份与官方来源，项目实现或覆盖业务 alias；产品参数继续外置。非目标是规定具体客户端框架、真实部署实现或后台模板更新服务。
 
 | ID | 决策 | 原因 | 状态 |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@
 | ADR-004 | 任务输入语义集中在 `AGENTS.md`，`createTask()` 只强制 mutation 显式验收 | 以最小模板改动同时获得上下文补齐和可执行门禁，并保持只读任务兼容 | Accepted |
 | ADR-005 | 全新 worktree 默认 required fetch 并从固定远端 base SHA 创建；现有 `--skip-fetch` 是唯一离线逃生口 | 防止陈旧 remote-tracking ref 或任意 HEAD 被误报为最新基线，同时保持显式离线能力 | Accepted |
 | ADR-006 | 本机状态只保护本机生命周期；跨电脑使用远端 SHA 校验与普通非快进更新，不设置机器角色或远程锁 | 以最小改动支持所有电脑同权并阻止同名分支误建、陈旧 QA 与覆盖先到提交 | Accepted |
+| ADR-007 | 实际项目通过轻量引导器 required fetch 固定息壤官方源，以不可变 SHA 快照中的最新应用器执行更新 | 避免旧项目自引用旧模板，同时保证来源、版本、失败边界和收敛证据 | Accepted |
 
 ## 2. 上下文与边界
 
@@ -35,6 +36,12 @@ flowchart LR
   REMOTE --> ORIGIN
   CLI --> MERGE[CMDSURF-SVC-007 QA SHA Merge Guard]
   MERGE --> ORIGIN
+  CLI --> XF[CMDSURF-SVC-008 Xirang Upstream Fetcher]
+  XI[Template-owned Xirang Identity] --> XF
+  XF --> XG[Official GitHub Repository]
+  XF --> XS[Immutable SHA Snapshot]
+  XS --> XA[CMDSURF-SVC-009 Template Sync Orchestrator]
+  XA --> TW[Target Linked Worktree]
 ```
 
 职责：解析稳定动作、校验平台/profile/环境、精确选择配置、执行并输出证据。不负责定义端口、服务名、框架、数据库或签名策略。
@@ -53,6 +60,8 @@ flowchart LR
 | CMDSURF-SVC-005 | Worktree Base Synchronizer | 在创建副作用前刷新并解析远端 base，或在显式 skip 时解析缓存 remote/local base；输出固定 commit SHA 与新鲜度 | main root、base branch、skip flag | base ref、base commit、fetch status、freshness 或明确错误 | 模板 |
 | CMDSURF-SVC-006 | Remote Branch Resolver | 区分本地/远端分支，新建时阻断远端同名分支，恢复时从远端固定 SHA 建立本机 worktree/session | branch、origin refs、operation | branch source、remote head、worktree/session 或明确错误 | 模板 |
 | CMDSURF-SVC-007 | QA SHA Merge Guard | 记录本机 QA 的 base/head SHA，合并前重新核验并执行 SHA 绑定的 PR merge 或普通非强制 push | base branch、PR、base/head SHA、QA verdict | merge/push/remote verification 状态或陈旧回执错误 | 模板 |
+| CMDSURF-SVC-008 | Xirang Upstream Fetcher | 校验息壤身份与官方源，在容器临时目录 required fetch 默认分支并检出不可变 SHA 快照 | target root、template identity、official repo/branch、GitHub auth | source repo/branch/commit、detached snapshot 或明确错误 | 模板 |
+| CMDSURF-SVC-009 | Template Sync Orchestrator | 要求目标为 linked worktree，调用固定 SHA 快照内的最新更新器完成 dry-run、apply、convergence 和结构化报告 | target worktree、immutable snapshot、template manifest | fetch/apply/convergence 状态、修改文件、报告路径或明确错误 | 模板 |
 
 关键调用链：CLI 标准化参数 → Dispatcher 校验必需维度 → Config Resolver 精确查找 → 按动作声明并初始化所需容器目录 → 项目命令执行 → 记录结果。
 
@@ -71,6 +80,10 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 
 QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configured base、branch、PR、`BASE_SHA` 与 `HEAD_SHA` 的临时回执。`qa merge` 必须重新 fetch 并匹配这两个 SHA，且不得在该阶段自动 rebase/force-push 功能分支。GitHub squash merge 使用 expected head SHA；本地 fallback 使用精确 refspec 的普通 push。远端 base/head 漂移、非快进拒绝或结果不明时保留生命周期状态并要求验证/重新 QA，远端确认前禁止清理。
 
+息壤同步策略：模板默认配置提供 `template.identity` 与 `template.upstream`；原有 `template.sourceRepo` 保留为项目向本地模板工作区回灌时的兼容配置，不承担在线更新事实源。同步引导器先验证调用目录属于 Git linked worktree、模板 ID 为 `xirang`、官方 URL/branch 合法，再在容器 `tmp/template-sync-runs/<run-id>` 初始化隔离 Git 仓库，通过 `buildGitHubGitEnv()` 执行 required shallow fetch。`FETCH_HEAD^{commit}` 是本次唯一模板版本，detached checkout 后还需验证 manifest、最新 update 脚本和身份字段。只有上述步骤与首次 dry-run 全部成功，最新快照内的更新器才可写目标；写入后立即再次 dry-run，任何非收敛结果均阻断交付。临时快照按精确目录安全清理，报告保留在目标容器 tmp。
+
+自然语言策略：template-owned `AGENTS.md` 将“更新息壤模板”定义为修改任务入口，要求 Agent 在实际项目先创建/恢复专用 worktree，再执行 `pnpm agent -- template sync` 并完成该项目自身 TDD/QA/合并门禁。CLI 提供确定性机制，语言模型不负责自行猜测模板 URL 或手工拼接更新步骤。
+
 ## 4. 接口视图
 
 ### 提供的接口
@@ -85,6 +98,7 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | `worktree resume` | 已有本地或远端 branch | `BRANCH_SOURCE`、`REMOTE_HEAD`、worktree 路径和本机 session | 远端缺失、SHA 无法解析或本地冲突时拒绝恢复 |
 | `qa verify` | 当前 branch、PR、configured base 与本地检查 | base/head SHA 绑定的本地通过回执 | HEAD 未推送、PR 不匹配或必需检查失败时不生成通过回执 |
 | `qa merge` | 已通过回执与当前远端 refs | `QA_STATUS`、`MERGE_STATUS`、`PUSH_STATUS`、`REMOTE_MAIN_SHA` | base/head 漂移、非快进、权限或未知远端状态时 fail closed |
+| `template sync` | 无位置参数；测试/受控 fork 可显式注入 source repo/branch | `TEMPLATE_ID/NAME/REPO/BRANCH/COMMIT` 与 fetch/apply/convergence 状态 | 非 linked worktree、身份/URL/ref/source shape、fetch、dry-run、冲突或收敛失败时 fail closed |
 
 用户快捷语法将 `/private restart` 翻译为内部 `dev restart --target=private`；模板文档不把后者呈现为用户快捷命令。
 
@@ -98,6 +112,8 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | 容器目录初始化 | 显式目录 key 集合；返回绝对路径映射 | 非白名单 key、非法拓扑、非目录目标或创建失败时阻断 |
 | Git `origin` 与 configured base | 默认在线刷新并解析 `refs/remotes/origin/<base>^{commit}` | fetch、鉴权、remote 或 base ref 失败时在创建副作用前阻断 |
 | GitHub PR API/CLI | 查询 PR base/head；merge 时绑定 expected head SHA | PR 缺失、base/head 不符或权限失败时阻断或进入受控本地普通 push fallback |
+| 息壤官方 GitHub 源 | template-owned URL 与 branch；通过进程级 extraheader fetch | 获取失败、ref 缺失或 SHA 不可解析时在目标 tracked mutation 前阻断 |
+| 固定 SHA 模板快照 | 必须包含有效 identity、manifest、`update-template.js` 与 apply engine | 形状或身份不匹配时阻断，不调用目标项目内旧应用器 |
 
 兼容策略：`config.example.json` 提供完整默认矩阵，项目稀疏 `agent.config.json` 通过深合并继承并可在任意叶级覆盖；已有 package aliases 不删除。项目显式选择未知 profile、平台或环境时不跨维度回退。
 
@@ -111,6 +127,8 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | `devops-runs/result.json` | 临时运行证据 | action/platform/target/command/cwd/status | 容器 tmp 策略 |
 | Worktree base result | 进程内证据，不新增持久 schema | fetchStatus/baseRef/baseCommit/freshness | CLI 返回后不单独保留；branch HEAD 提供确定性 Git 证据 |
 | QA verification receipt | 本机临时 JSON | schemaVersion/baseBranch/branch/pr/baseSha/headSha/verdict/verifiedAt | 容器 tmp；跨电脑不复制；SHA 漂移后失效；不保存密钥或大日志 |
+| Xirang template identity | template-owned JSON 配置 | id/name/upstream repository/branch | 随模板传播；实际项目无需复制到稀疏配置 |
+| Template sync run | 临时 Git 工作区与文本报告 | repo/branch/commit/fetch/apply/convergence | 唯一运行目录；快照结束后清理，报告按容器 tmp 策略保留 |
 
 无 schema 迁移、事务、并发写入或业务数据保留变化。
 
@@ -128,14 +146,18 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | 多机分支一致性 | 远端同名分支 0 次被 new 从主干误建 | local/remote ref 分类 + 显式 remote resume | 三 clone 集成测试 |
 | QA 新鲜度 | base/head 任一漂移 100% 阻断旧回执 | 双 SHA 回执 + merge 前 required fetch | 单元与并发负向测试 |
 | 主干完整性 | 模板对配置主干 0 次 force push；并发更新不丢先到提交 | expected head merge + 普通非快进 push | 参数断言与 bare remote 并发测试 |
+| 模板来源完整性 | 普通同步 100% 来自本次官方 fetch 后 SHA | 固定 URL/branch + required fetch + detached SHA snapshot | bare remote 前进、SHA 和 source executor 断言 |
+| 失败原子边界 | 来源、fetch、ref、shape 或首次 dry-run 失败时目标 tracked 文件 0 修改 | mutation 前置验证 + isolated run directory | sentinel 与 `git status --porcelain` 断言 |
+| 自更新能力 | 实际项目内旧模板快照不决定应用内容 | 由 fetch 快照内最新 updater/manifest 执行 | old-target/new-source 集成测试 |
+| 幂等性 | 成功应用后 convergence dry-run 为 0 差异 | apply 后强制二次 dry-run | 重复同步与 summary 断言 |
 
 ## 7. 安全与隐私
 
-不新增身份或权限。专家阶段不作为授权身份，所有授权电脑运行同一合约。远端操作继续复用 `buildGitHubGitEnv()`，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。模板不创建、触发或依赖 GitHub CI；`.github/workflows` 保持 project-owned。配置主干禁止 force push 与删除，功能分支策略由项目决定。
+不新增用户身份或权限。专家阶段不作为授权身份，所有授权电脑运行同一合约。远端操作继续复用 `buildGitHubGitEnv()`，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。普通息壤同步只读取 template-owned 官方源；测试和明确 fork 场景的 source 注入必须显式，不改变“更新息壤模板”的默认含义。模板不创建、触发或依赖 GitHub CI；`.github/workflows` 保持 project-owned。配置主干禁止 force push 与删除，功能分支策略由项目决定。
 
 ## 8. 部署与运行
 
-无新部署单元、daemon 或端口。模板更新通过 manifest 传播；真实客户端和服务端命令由目标项目执行并负责其健康/产物验收。
+无新部署单元、daemon 或端口。模板更新通过 manifest 传播；`template sync` 仅在用户请求时短暂访问 GitHub并创建隔离快照。真实客户端和服务端命令由目标项目执行并负责其健康/产物验收。
 
 ## 9. 可测试性
 
@@ -151,6 +173,10 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | 多机集成 | 远端同名分支、新电脑恢复、两个并发主干更新 | 三份 clone + 本地 bare remote | 精确 HEAD、陈旧 QA 与非快进断言 |
 | GitHub 合约 | PR base/head 解析、expected head SHA merge | mock API/CLI | 请求体和参数断言，不访问真实 GitHub |
 | 模板传播 | CI-free 与 workflows 所有权 | template apply dry-run/apply/convergence | `.github/workflows` 字节级不变 |
+| 单元 | 息壤配置、CLI 路由、URL/branch/linked-worktree 预检 | Node unit | identity 与负向参数断言 |
+| 集成 | 官方分支前进、required fetch、固定 SHA 与最新 updater 自举 | local bare Git remote + old target fixture | repo/branch/SHA、目标内容与执行器来源断言 |
+| 负向集成 | fetch、ref、source shape、dry-run conflict 失败 | invalid/local bare remotes + sentinel target | 非零状态与目标 tracked 文件零修改 |
+| 系统 | apply 后 convergence 与 project-owned 保护 | template source/target fixtures | 二次 dry-run 0 差异、`RULES.md`/业务文件字节级不变 |
 
 ## 10. 风险与验证表
 
@@ -168,6 +194,10 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | R-010 | QA 后 base/head 漂移 | 未验证提交或组合进入主干 | 双 SHA 回执、merge 前 fetch 与 expected head | TDD/QA Gate |
 | R-011 | 本机锁被当成跨电脑锁 | 两台电脑同时进入 merge | 文档边界 + Git 远端非快进协调 | QA 并发模拟 |
 | R-012 | 无 CI 且所有人可直接 push | 原始 Git 命令可绕过模板 QA | 明确信任模型；不宣称远端强制，主干仅禁止 force/delete | 用户已接受 |
+| R-013 | 实际项目用旧快照更新自身 | 宣称成功但遗漏官方模板变化 | required fetch + 固定 SHA 快照内最新 updater | TDD/QA Gate |
+| R-014 | 网络或认证失败后使用缓存 | 模板来源新鲜度无法证明 | 普通路径 fail closed，不提供隐式缓存降级 | TDD Gate |
+| R-015 | 临时快照路径或清理越界 | 删除目标或泄露运行内容 | 容器 tmp 解析、唯一目录与 no-follow 精确清理 | 安全负向测试 |
+| R-016 | 应用后未收敛 | 部分更新或非幂等规则进入项目 | 强制 convergence dry-run，非零差异阻断交付 | QA Gate |
 
 ## 11. 实现约束
 
@@ -188,6 +218,12 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 - 必须：QA 回执至少绑定 configured base SHA 与远端 feature head SHA；任一漂移时禁止继续 merge。
 - 必须：PR merge 绑定 expected head SHA；本地 fallback 只允许普通非强制 push 配置主干。
 - 禁止：以专家阶段、机器环境变量或 hostname 控制合并权限；禁止依赖 GitHub CI 或把本机锁描述为分布式 merge queue。
+- 必须：模板身份使用 `xirang`/“息壤”；普通 `template sync` 的默认来源是 template-owned 官方 GitHub URL 与 `main`，且用户短语“更新息壤模板”只能映射该入口。
+- 必须：同步先验证 linked worktree，再 required fetch；使用 `FETCH_HEAD^{commit}` 固定 SHA 和 detached source snapshot，调用快照中的最新 updater 与 manifest。
+- 必须：首次 dry-run、冲突检查、apply、convergence dry-run 顺序固定；fetch/ref/source/dry-run 失败时目标 tracked 文件零修改。
+- 必须：所有 GitHub 凭据仅通过既有进程环境注入；结构化输出不得包含 token、extraheader 或未脱敏远端错误正文。
+- 必须：既有 `template.sourceRepo` 的本地 backfill 语义保持兼容；在线息壤来源使用独立 `template.identity`/`template.upstream`，避免 URL 被 `path.resolve()` 误解。
+- 禁止：普通同步静默使用项目内旧模板、缓存快照、可变 symbolic ref 或任意第三方 URL；禁止直接在主 worktree 写模板更新。
 
 ## 12. Story/Component 追溯表
 
@@ -201,6 +237,7 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | US-CMDSURF-006 | CMDSURF-SVC-004、AGENTS 任务输入规则、Codex 配置模板 |
 | US-CMDSURF-007 | CMDSURF-API-001、CMDSURF-SVC-005、Git origin/base 与 worktree lifecycle |
 | US-CMDSURF-008 | CMDSURF-API-001、CMDSURF-SVC-005~007、Git origin/PR/base 与本机 session lifecycle |
+| US-CMDSURF-009 | CMDSURF-API-001、CMDSURF-SVC-008~009、息壤 identity、官方 GitHub 源、template manifest 与目标 linked worktree |
 
 ## 13. 完成检查
 

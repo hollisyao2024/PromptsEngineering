@@ -1,16 +1,16 @@
-# PromptsEngineering 模板任务计划（总纲）
+# 息壤（Xirang）模板任务计划（总纲）
 
-日期：2026-09-05　版本：v1.4
+日期：2026-09-06　版本：v1.5
 
 ## 1. 项目概述
 
-按测试先行顺序交付模板客户端/服务端通用命令面、环境文件首次初始化，以及无 GitHub CI 的多电脑同权 Git 协作保护。多电脑增量保持现有分支命名、squash merge 和本地阶段入口，仅增加远端同名分支、QA 双 SHA 回执、精确 PR head 与主干非强制更新门禁。
+按测试先行顺序交付模板客户端/服务端通用命令面、环境文件首次初始化、无 GitHub CI 的多电脑同权 Git 协作保护，以及息壤模板从实际项目发起的官方源自更新。新增范围保持现有 apply 所有权和本地治理入口，以固定 GitHub 源、required fetch、不可变 SHA 快照和最新应用器自举补齐模板来源链。
 
 ## 2. 模块任务索引
 
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 多电脑协作 QA 验证通过 | 现有 Agent CLI、worktree lifecycle、Git origin/base、GitHub PR API | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-05 |
+| 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 息壤 QA 通过，待合并 | Agent CLI、GitHub auth、template apply、worktree lifecycle、固定官方源 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 🔄 TDD 完成 / 待 QA | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-08-24 |
 
 ## 3. 全局里程碑（跨模块）
@@ -24,6 +24,7 @@
 | M5-CONTAINER-DIRS | 容器目录按需初始化 | 2026-08-26 | 共享初始化器、调用点、测试与文档 | 缺失目录自动创建、重复幂等、非法目标阻断、只读无副作用 | 🔄 TDD 通过 / 待 QA |
 | M6-WORKTREE-BASE | Worktree 最新远端基线 | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip、测试与协议 | TC-CMDSURF-012~015、全量回归与 QA merge 通过 | 🔄 TDD 通过 / 待 QA |
 | M7-MULTI-HOST | 无 CI 多电脑同权 Git 安全 | 2026-09-05 | 远端恢复、QA 双 SHA 回执、精确合并、三 clone 模拟 | TC-CMDSURF-016~021、模板收敛与 QA merge 通过 | ✅ QA 验证通过 |
+| M8-XIRANG-SYNC | 息壤官方模板自更新 | 2026-09-06 | 模板身份、自然语言路由、`template sync`、固定 SHA 自举与传播验证 | TC-CMDSURF-022~026、全量回归、目标副本收敛与 QA merge 通过 | ✅ QA 通过，待合并 |
 
 ## 4. 跨模块依赖关系
 
@@ -55,6 +56,11 @@ flowchart LR
   H3 --> H4
   H4 --> H5[No-CI protocol]
   H5 --> H6[Three-clone simulation and QA merge]
+  X1[Xirang sync RED] --> X2[Identity and CLI route]
+  X2 --> X3[Required fetch and immutable SHA snapshot]
+  X3 --> X4[Latest updater bootstrap and convergence]
+  X4 --> X5[Template propagation and regression]
+  X5 --> X6[QA merge]
 ```
 
 关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。
@@ -72,6 +78,9 @@ flowchart LR
 - 本地 QA 回执陈旧风险：回执同时绑定配置主干与功能分支 SHA，合并前重新 fetch 并逐项比较。
 - 同权主干更新竞态：GitHub 合并携带期望 head SHA；本地兜底只允许普通 push，非快进拒绝后必须重新同步和 QA。
 - 无 GitHub CI 的信任边界：模板提供可审计的本地门禁，但不能阻止拥有仓库写权限的协作者绕过工具裸推；该边界由项目团队治理承担。
+- 息壤来源陈旧风险：普通同步 required fetch 固定官方源并锁定 SHA，禁止项目内旧快照和缓存回退。
+- 自举风险：轻量引导器只负责获取与校验，实际 apply 必须调用固定 SHA 快照中的最新更新器。
+- 同步部分写入风险：来源、linked-worktree 预检和首次 dry-run 全部前置，应用后强制 convergence dry-run。
 
 ## 7. 模块同步与相关文档
 

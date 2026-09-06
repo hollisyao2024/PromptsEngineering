@@ -1,10 +1,11 @@
-# Agents Router 模板（v2.0.0 · 2026-07-12）
+# 息壤（Xirang）工程智能体模板（v2.2.0 · 2026-09-06）
 
-这是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家提示词工程模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
+“息壤”是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家工程智能体模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
 
 请注意：本仓库本身是**纯模板仓库**，交付的是角色协议、目录约定、文档骨架与自动化脚本示例；它不代表当前仓库存在一个真实产品需求、开发任务、QA 验收或部署任务需要执行。把模板复制到具体项目后，再根据那个项目的真实目标激活专家、生成产物并推进阶段状态。
 
-当前版本重点强化了四件事：
+当前版本重点强化了五件事：
+- **一句话官方升级**：模板应用一次后，在实际项目中说“更新息壤模板”，Agent 会在专用 worktree 执行 `pnpm agent -- template sync`，required fetch 固定 GitHub 上游并从本次远端 SHA 自举最新 updater。
 - **轻量路由**：任一时刻只激活 1 位专家，先读专家短卡片，再按需点读 Playbook 章节。
 - **Worktree-First 并行任务**：只读排查不建 worktree；任何会修改 tracked 文件的任务自动创建/恢复专属 worktree，创建后进入 `WORKTREE_PATH` 开发。
 - **Scalar 风格仓库拓扑**：主 `repo/` 保持在 `main` 作为协调区；并行 worktree、缓存、构建产物和临时报告放在容器层 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`。
@@ -43,15 +44,18 @@
 ## 快速开始
 1. 在模板仓库 `repo/` 下执行一键应用或升级，目标路径支持相对路径：
    `pnpm agent:update-template -- ../target-project/repo`
-2. `package.json` 不复制、不覆盖；脚本只通过 `infra/templates/agent/package-scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
-3. 变量统一放到目标项目根目录的 `agent.config.json`、环境变量或 CLI 参数；不要修改 `infra/templates/agent/` 下的 template-owned 文件。
-4. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
-5. 只读排查直接执行，不创建 worktree；若任务会修改 tracked 文件，执行 `node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js` 创建/恢复 worktree。
-6. 创建成功后进入脚本输出的 `WORKTREE_PATH`：VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令以该目录为 CWD。
-7. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
+2. 完成这一次引导安装后，以后只需在实际项目中对 Agent 说“更新息壤模板”；模板协议会自动建立修改 worktree、从官方 GitHub 获取最新 SHA，并执行安全升级与项目交付门禁。
+3. `package.json` 不复制、不覆盖；脚本只通过 `infra/templates/agent/package-scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
+4. 变量统一放到目标项目根目录的 `agent.config.json`、环境变量或 CLI 参数；不要修改 `infra/templates/agent/` 下的 template-owned 文件。
+5. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
+6. 只读排查直接执行，不创建 worktree；若任务会修改 tracked 文件，执行 `node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js` 创建/恢复 worktree。
+7. 创建成功后进入脚本输出的 `WORKTREE_PATH`：VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令以该目录为 CWD。
+8. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
 
 ## 一键应用与重复升级
 `update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。首次应用时还会补齐 `.env.example`、`.env.staging.example`、`.env.production.example`、`.env.local`、`.env.staging`、`.env.production`；已有环境文件永不追加或覆盖。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
+
+`template sync` 是实际项目的官方升级入口。它只在干净的 linked worktree 中运行，通过现有 GitHub 鉴权封装 required fetch `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main`，固定本次 commit SHA，在隔离快照中校验息壤身份和 manifest，再调用该 SHA 自带的最新版 `update-template.js`。fetch 或源校验失败时不会改动目标 tracked 文件，也不会回退到项目内旧副本；成功应用后必须再次 dry-run 证明收敛。
 
 ```bash
 # 首次应用或重复升级，目标路径支持相对路径
@@ -59,6 +63,9 @@ pnpm agent:update-template -- ../target-project/repo
 
 # 仅预览，不写入
 pnpm agent:update-template -- ../target-project/repo --dry-run
+
+# 已完成引导安装的实际项目：必须在专用 linked worktree 中执行
+pnpm agent -- template sync
 
 # 部署/cron 快捷命令保留；项目耦合脚本由目标项目通过 agent.config.json 接入
 ```
