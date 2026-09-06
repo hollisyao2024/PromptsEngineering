@@ -1,29 +1,40 @@
 #!/usr/bin/env node
 
+'use strict';
+
 /**
- * Story → Task 映射验证脚本
+ * PRD → TASK canonical traceability gate.
  *
- * 检查项：
- * - 解析 PRD 中的所有 Story ID
- * - 解析 TASK 中的所有 Task ID
- * - 验证 Story → Task 映射表完整性
- * - 检测孤儿 Story（无 Task 实现）
- * - 检测孤儿 Task（无对应 Story）
+ * Canonical definitions are deliberately narrower than free-form references:
+ * - Story/AC definitions come from Story heading blocks in PRD documents.
+ * - Task definitions come from Task-ID-first tables or Task detail headings.
+ * - Mapping rows must start with one exact Story ID.
+ *
+ * This prevents reference-only prose from inflating both sides of the gate and
+ * makes multi-segment IDs such as US-RUNTIME-TRUST-001 fail closed correctly.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
+const { resolveRepoRoot } = require('../shared/config');
+const {
+  AC_ID_SOURCE,
+  STORY_ID_SOURCE,
+  TASK_ID_SOURCE,
+  exactPattern,
+  extractIds,
+  markdownCells,
+} = require('../shared/governance-ids');
 
-// 配置
+const PROJECT_ROOT = resolveRepoRoot({ scriptDir: __dirname });
 const CONFIG = {
-  prdPath: path.join(__dirname, '../../../docs/PRD.md'),
-  prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
-  taskPath: path.join(__dirname, '../../../docs/TASK.md'),
-  taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
-  storyTaskMappingPath: path.join(__dirname, '../../../docs/data/story-task-mapping.md'),
+  prdPath: path.join(PROJECT_ROOT, 'docs/PRD.md'),
+  prdModulesDir: path.join(PROJECT_ROOT, 'docs/prd-modules'),
+  taskPath: path.join(PROJECT_ROOT, 'docs/TASK.md'),
+  taskModulesDir: path.join(PROJECT_ROOT, 'docs/task-modules'),
+  storyTaskMappingPath: path.join(PROJECT_ROOT, 'docs/data/story-task-mapping.md'),
 };
 
-// 颜色输出
 const colors = {
   reset: '\x1b[0m',
   green: '\x1b[32m',
@@ -36,299 +47,309 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-// 从文件中提取 Story ID
+function canonicalModuleFiles(directory, filename) {
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => path.join(directory, entry.name, filename))
+    .filter((filePath) => fs.existsSync(filePath))
+    .sort();
+}
+
+function stripMarkdown(value) {
+  return String(value).trim().replace(/^(`|\*\*|__)+|(`|\*\*|__)+$/g, '').trim();
+}
+
+function addNumericRange(target, canonicalId, endSuffix, width) {
+  const parts = canonicalId.split('-');
+  const start = Number(parts.pop());
+  const prefix = parts.join('-');
+  const end = endSuffix === undefined ? start : Number(endSuffix);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) return;
+  for (let suffix = start; suffix <= end; suffix += 1) {
+    target.add(`${prefix}-${String(suffix).padStart(width, '0')}`);
+  }
+}
+
+function extractAcceptanceCriteriaIdsFromText(content) {
+  const ids = new Set();
+  const pattern = new RegExp(
+    `(?<![A-Z0-9-])(${AC_ID_SOURCE})(?!-[A-Z0-9])(?:\\.\\.(\\d{2}))?((?:\\s*[、,，]\\s*\\d{2}(?:\\.\\.\\d{2})?)*)`,
+    'g',
+  );
+
+  for (const match of String(content).matchAll(pattern)) {
+    addNumericRange(ids, match[1], match[2], 2);
+    const parts = match[1].split('-');
+    parts.pop();
+    const base = parts.join('-');
+    for (const sparse of match[3].matchAll(/[、,，]\s*(\d{2})(?:\.\.(\d{2}))?/g)) {
+      addNumericRange(ids, `${base}-${sparse[1]}`, sparse[2], 2);
+    }
+  }
+  return ids;
+}
+
+function extractTaskIdsFromText(content) {
+  const ids = new Set();
+  const pattern = new RegExp(
+    `(?<![A-Z0-9-])(${TASK_ID_SOURCE})(?!-[A-Z0-9])(?:\\.\\.(\\d{3}))?`,
+    'g',
+  );
+  for (const match of String(content).matchAll(pattern)) {
+    addNumericRange(ids, match[1], match[2], 3);
+  }
+  return ids;
+}
+
 function extractStoryIds(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return new Set();
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const storyIds = new Set();
-
-  // 匹配 US-MODULE-NNN 格式
-  const matches = content.match(/US-[A-Z]+-\d{3}/g) || [];
-  matches.forEach(id => storyIds.add(id));
-
-  return storyIds;
+  if (!fs.existsSync(filePath)) return new Set();
+  return new Set(extractIds(fs.readFileSync(filePath, 'utf8'), STORY_ID_SOURCE));
 }
 
-// 从文件中提取 Task ID
 function extractTaskIds(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return new Set();
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const taskIds = new Set();
-
-  // 匹配 TASK-MODULE-NNN 格式
-  const matches = content.match(/TASK-[A-Z]+-\d{3}/g) || [];
-  matches.forEach(id => taskIds.add(id));
-
-  return taskIds;
+  if (!fs.existsSync(filePath)) return new Set();
+  return extractTaskIdsFromText(fs.readFileSync(filePath, 'utf8'));
 }
 
-// 收集所有 Story ID
+function extractCanonicalPrdIdsFromContent(content) {
+  const storyIds = new Set();
+  const acceptanceCriteriaIds = new Set();
+  const storyHeading = new RegExp(
+    `^(#{2,6})\\s+(${STORY_ID_SOURCE})(?=[:：\\s])`,
+  );
+  let activeStoryLevel = null;
+
+  for (const line of String(content).split(/\r?\n/)) {
+    const heading = line.match(/^(#{1,6})\s+/);
+    const story = line.match(storyHeading);
+    if (story) {
+      activeStoryLevel = story[1].length;
+      storyIds.add(story[2]);
+    } else if (heading && activeStoryLevel !== null && heading[1].length <= activeStoryLevel) {
+      activeStoryLevel = null;
+    }
+
+    if (activeStoryLevel !== null) {
+      for (const id of extractAcceptanceCriteriaIdsFromText(line)) acceptanceCriteriaIds.add(id);
+    }
+  }
+
+  return { storyIds, acceptanceCriteriaIds };
+}
+
+function extractCanonicalTaskIdsFromContent(content) {
+  const ids = new Set();
+  const exactTask = exactPattern(TASK_ID_SOURCE);
+  const taskHeading = new RegExp(
+    `^#{2,6}\\s+(?:\\d+(?:\\.\\d+)*\\s+)?(${TASK_ID_SOURCE})(?=[:：\\s])`,
+  );
+  let taskIdFirstTable = false;
+
+  for (const line of String(content).split(/\r?\n/)) {
+    const heading = line.match(taskHeading);
+    if (heading) ids.add(heading[1]);
+
+    const cells = markdownCells(line);
+    if (cells.length === 0) {
+      taskIdFirstTable = false;
+      continue;
+    }
+
+    const firstCell = stripMarkdown(cells[0]);
+    if (/^Task ID$/i.test(firstCell)) {
+      taskIdFirstTable = true;
+      continue;
+    }
+    if (/^:?-{3,}:?$/.test(firstCell)) continue;
+    if (taskIdFirstTable && exactTask.test(firstCell)) ids.add(firstCell);
+  }
+
+  return ids;
+}
+
+function collectCanonicalPrdIds() {
+  const storyIds = new Set();
+  const acceptanceCriteriaIds = new Set();
+  const files = [
+    CONFIG.prdPath,
+    ...canonicalModuleFiles(CONFIG.prdModulesDir, 'PRD.md'),
+  ].filter((filePath) => fs.existsSync(filePath));
+
+  for (const filePath of files) {
+    const parsed = extractCanonicalPrdIdsFromContent(fs.readFileSync(filePath, 'utf8'));
+    for (const id of parsed.storyIds) storyIds.add(id);
+    for (const id of parsed.acceptanceCriteriaIds) acceptanceCriteriaIds.add(id);
+  }
+  return { storyIds, acceptanceCriteriaIds };
+}
+
 function collectAllStoryIds() {
-  const allStories = new Set();
-
-  // 读取主 PRD
-  if (fs.existsSync(CONFIG.prdPath)) {
-    const stories = extractStoryIds(CONFIG.prdPath);
-    stories.forEach(id => allStories.add(id));
-  }
-
-  // 读取模块 PRD
-  if (fs.existsSync(CONFIG.prdModulesDir)) {
-    const entries = fs.readdirSync(CONFIG.prdModulesDir, { withFileTypes: true });
-
-    entries.forEach(entry => {
-      if (entry.isDirectory()) {
-        // 扫描模块子目录下的 PRD.md
-        const modulePrdPath = path.join(CONFIG.prdModulesDir, entry.name, 'PRD.md');
-        if (fs.existsSync(modulePrdPath)) {
-          const stories = extractStoryIds(modulePrdPath);
-          stories.forEach(id => allStories.add(id));
-        }
-      }
-    });
-  }
-
-  return allStories;
+  return collectCanonicalPrdIds().storyIds;
 }
 
-// 收集所有 Task ID
+function collectAllAcceptanceCriteriaIds() {
+  return collectCanonicalPrdIds().acceptanceCriteriaIds;
+}
+
 function collectAllTaskIds() {
-  const allTasks = new Set();
-
-  // 读取主 TASK
-  if (fs.existsSync(CONFIG.taskPath)) {
-    const tasks = extractTaskIds(CONFIG.taskPath);
-    tasks.forEach(id => allTasks.add(id));
+  const ids = new Set();
+  const files = [
+    CONFIG.taskPath,
+    ...canonicalModuleFiles(CONFIG.taskModulesDir, 'TASK.md'),
+  ].filter((filePath) => fs.existsSync(filePath));
+  for (const filePath of files) {
+    const parsed = extractCanonicalTaskIdsFromContent(fs.readFileSync(filePath, 'utf8'));
+    for (const id of parsed) ids.add(id);
   }
-
-  // 读取模块 TASK
-  if (fs.existsSync(CONFIG.taskModulesDir)) {
-    const entries = fs.readdirSync(CONFIG.taskModulesDir, { withFileTypes: true });
-
-    entries.forEach(entry => {
-      if (entry.isDirectory()) {
-        // 扫描模块子目录下的 TASK.md
-        const moduleTaskPath = path.join(CONFIG.taskModulesDir, entry.name, 'TASK.md');
-        if (fs.existsSync(moduleTaskPath)) {
-          const tasks = extractTaskIds(moduleTaskPath);
-          tasks.forEach(id => allTasks.add(id));
-        }
-      }
-    });
-  }
-
-  return allTasks;
+  return ids;
 }
 
-// 解析 Story → Task 映射表
+function parseStoryTaskMappingContent(content) {
+  const mapping = new Map();
+  const mappedStories = new Set();
+  const mappedAcceptanceCriteria = new Set();
+  const mappedTasks = new Set();
+  const exactStory = exactPattern(STORY_ID_SOURCE);
+
+  for (const line of String(content).split(/\r?\n/)) {
+    const cells = markdownCells(line);
+    if (cells.length < 2) continue;
+    const storyId = stripMarkdown(cells[0]);
+    if (!exactStory.test(storyId)) continue;
+
+    const taskIds = [...extractTaskIdsFromText(cells.slice(1).join(' | '))];
+    const acIds = extractAcceptanceCriteriaIdsFromText(cells.slice(1).join(' | '));
+    mappedStories.add(storyId);
+    for (const id of acIds) mappedAcceptanceCriteria.add(id);
+    for (const id of taskIds) mappedTasks.add(id);
+
+    const existing = mapping.get(storyId) || [];
+    for (const id of taskIds) {
+      if (!existing.includes(id)) existing.push(id);
+    }
+    mapping.set(storyId, existing);
+  }
+
+  return { mapping, mappedStories, mappedAcceptanceCriteria, mappedTasks };
+}
+
 function parseStoryTaskMapping() {
   if (!fs.existsSync(CONFIG.storyTaskMappingPath)) {
-    return { mapping: new Map(), mappedStories: new Set(), mappedTasks: new Set() };
+    return {
+      mapping: new Map(),
+      mappedStories: new Set(),
+      mappedAcceptanceCriteria: new Set(),
+      mappedTasks: new Set(),
+    };
   }
-
-  const content = fs.readFileSync(CONFIG.storyTaskMappingPath, 'utf-8');
-  const mapping = new Map(); // Story ID → [Task IDs]
-  const mappedStories = new Set();
-  const mappedTasks = new Set();
-
-  // 匹配表格行: | US-XXX-YYY | ... | TASK-XXX-YYY | ...
-  const tableRowRegex = /\|\s*(US-[A-Z]+-\d{3})\s*\|[^|]*\|\s*(TASK-[A-Z]+-\d{3})\s*\|/g;
-  let match;
-
-  while ((match = tableRowRegex.exec(content)) !== null) {
-    const storyId = match[1];
-    const taskId = match[2];
-
-    mappedStories.add(storyId);
-    mappedTasks.add(taskId);
-
-    if (mapping.has(storyId)) {
-      mapping.get(storyId).push(taskId);
-    } else {
-      mapping.set(storyId, [taskId]);
-    }
-  }
-
-  return { mapping, mappedStories, mappedTasks };
+  return parseStoryTaskMappingContent(fs.readFileSync(CONFIG.storyTaskMappingPath, 'utf8'));
 }
 
-// 主函数
+function sortedDifference(source, target) {
+  return [...source].filter((id) => !target.has(id)).sort();
+}
+
+function validateRepositoryTraceability(input = {}) {
+  const stories = input.stories || collectAllStoryIds();
+  const acceptanceCriteria = input.acceptanceCriteria || collectAllAcceptanceCriteriaIds();
+  const tasks = input.tasks || collectAllTaskIds();
+  const mapping = input.mapping || parseStoryTaskMapping();
+
+  const orphanStories = sortedDifference(stories, mapping.mappedStories);
+  const orphanAcceptanceCriteria = sortedDifference(
+    acceptanceCriteria,
+    mapping.mappedAcceptanceCriteria,
+  );
+  const orphanTasks = sortedDifference(tasks, mapping.mappedTasks);
+  const invalidStories = sortedDifference(mapping.mappedStories, stories);
+  const invalidAcceptanceCriteria = sortedDifference(
+    mapping.mappedAcceptanceCriteria,
+    acceptanceCriteria,
+  );
+  const invalidTasks = sortedDifference(mapping.mappedTasks, tasks);
+  const emptyInputs = stories.size === 0 || acceptanceCriteria.size === 0 || tasks.size === 0;
+  const emptyMapping = mapping.mappedStories.size === 0
+    || mapping.mappedAcceptanceCriteria.size === 0
+    || mapping.mappedTasks.size === 0;
+
+  return {
+    passed: !emptyInputs
+      && !emptyMapping
+      && orphanStories.length === 0
+      && orphanAcceptanceCriteria.length === 0
+      && orphanTasks.length === 0
+      && invalidStories.length === 0
+      && invalidAcceptanceCriteria.length === 0
+      && invalidTasks.length === 0,
+    emptyInputs,
+    emptyMapping,
+    orphanStories,
+    orphanAcceptanceCriteria,
+    orphanTasks,
+    invalidStories,
+    invalidAcceptanceCriteria,
+    invalidTasks,
+    counts: {
+      stories: stories.size,
+      acceptanceCriteria: acceptanceCriteria.size,
+      tasks: tasks.size,
+      mappedStories: mapping.mappedStories.size,
+      mappedAcceptanceCriteria: mapping.mappedAcceptanceCriteria.size,
+      mappedTasks: mapping.mappedTasks.size,
+    },
+  };
+}
+
+function printList(label, values, color = 'yellow') {
+  if (values.length === 0) return;
+  log(`${label}: ${values.length}`, color);
+  for (const id of values.slice(0, 12)) log(`   - ${id}`, color);
+  if (values.length > 12) log(`   ... 还有 ${values.length - 12} 个`, color);
+}
+
 function main() {
   log('='.repeat(60), 'cyan');
-  log('Story → Task 映射验证工具 v1.0', 'cyan');
+  log('PRD → TASK canonical traceability gate v2.0', 'cyan');
   log('='.repeat(60), 'cyan');
+  const result = validateRepositoryTraceability();
+  const counts = result.counts;
 
-  // 收集 Story ID
-  log('\n📖 解析 PRD 中的 Story ID...', 'cyan');
-  const allStories = collectAllStoryIds();
+  log(`Canonical PRD: ${counts.stories} Story / ${counts.acceptanceCriteria} AC`, 'cyan');
+  log(`Canonical TASK: ${counts.tasks} Task`, 'cyan');
+  log(
+    `Mapping: ${counts.mappedStories} Story / ${counts.mappedAcceptanceCriteria} AC / ${counts.mappedTasks} Task`,
+    'cyan',
+  );
+  printList('Orphan Story', result.orphanStories);
+  printList('Orphan AC', result.orphanAcceptanceCriteria);
+  printList('Orphan Task', result.orphanTasks);
+  printList('Invalid Story reference', result.invalidStories, 'red');
+  printList('Invalid AC reference', result.invalidAcceptanceCriteria, 'red');
+  printList('Invalid Task reference', result.invalidTasks, 'red');
 
-  if (allStories.size === 0) {
-    log('⚠️  未找到任何用户故事，请先创建 PRD 文档', 'yellow');
-    process.exit(0);
+  if (!result.passed) {
+    if (result.emptyInputs || result.emptyMapping) log('❌ Empty canonical input/mapping is forbidden', 'red');
+    log('❌ Traceability is incomplete; failing closed', 'red');
+    return 1;
   }
-
-  log(`✅ 找到 ${allStories.size} 个用户故事`, 'green');
-
-  // 收集 Task ID
-  log('\n📖 解析 TASK 中的 Task ID...', 'cyan');
-  const allTasks = collectAllTaskIds();
-
-  if (allTasks.size === 0) {
-    log('⚠️  未找到任何任务，请先创建 TASK 文档', 'yellow');
-    process.exit(0);
-  }
-
-  log(`✅ 找到 ${allTasks.size} 个任务`, 'green');
-
-  // 解析映射表
-  log('\n🔍 验证 Story → Task 映射...', 'cyan');
-
-  if (!fs.existsSync(CONFIG.storyTaskMappingPath)) {
-    log('❌ Story → Task 映射表不存在', 'red');
-    log(`   路径: ${CONFIG.storyTaskMappingPath}`, 'yellow');
-    log('\n建议：创建映射表，参考模板：/docs/data/story-task-mapping.md', 'yellow');
-    process.exit(1);
-  }
-
-  log(`✅ 映射表存在: ${CONFIG.storyTaskMappingPath}`, 'green');
-
-  const { mapping, mappedStories, mappedTasks } = parseStoryTaskMapping();
-
-  log(`📊 映射表记录数: ${mappedStories.size} 个 Story，${mappedTasks.size} 个 Task`, 'cyan');
-
-  // 检测孤儿 Story（无 Task 实现）
-  log('\n🔍 检测孤儿 Story（无 Task 实现）...', 'cyan');
-  const orphanStories = Array.from(allStories).filter(story => !mappedStories.has(story));
-
-  if (orphanStories.length === 0) {
-    log('✅ 所有 Story 都有对应的 Task', 'green');
-  } else {
-    log(`⚠️  发现 ${orphanStories.length} 个孤儿 Story:`, 'yellow');
-    orphanStories.slice(0, 10).forEach(story => {
-      log(`   - ${story}`, 'yellow');
-    });
-    if (orphanStories.length > 10) {
-      log(`   ... 还有 ${orphanStories.length - 10} 个`, 'yellow');
-    }
-  }
-
-  // 检测孤儿 Task（无对应 Story）
-  log('\n🔍 检测孤儿 Task（无对应 Story）...', 'cyan');
-  const orphanTasks = Array.from(allTasks).filter(task => !mappedTasks.has(task));
-
-  if (orphanTasks.length === 0) {
-    log('✅ 所有 Task 都有对应的 Story', 'green');
-  } else {
-    log(`⚠️  发现 ${orphanTasks.length} 个孤儿 Task:`, 'yellow');
-    orphanTasks.slice(0, 10).forEach(task => {
-      log(`   - ${task}`, 'yellow');
-    });
-    if (orphanTasks.length > 10) {
-      log(`   ... 还有 ${orphanTasks.length - 10} 个`, 'yellow');
-    }
-  }
-
-  // 检测映射表中的无效引用
-  log('\n🔍 检测映射表中的无效引用...', 'cyan');
-  const invalidStories = Array.from(mappedStories).filter(story => !allStories.has(story));
-  const invalidTasks = Array.from(mappedTasks).filter(task => !allTasks.has(task));
-
-  if (invalidStories.length === 0 && invalidTasks.length === 0) {
-    log('✅ 映射表中所有引用有效', 'green');
-  } else {
-    if (invalidStories.length > 0) {
-      log(`⚠️  映射表引用了 ${invalidStories.length} 个不存在的 Story:`, 'yellow');
-      invalidStories.slice(0, 5).forEach(story => {
-        log(`   - ${story}`, 'yellow');
-      });
-    }
-    if (invalidTasks.length > 0) {
-      log(`⚠️  映射表引用了 ${invalidTasks.length} 个不存在的 Task:`, 'yellow');
-      invalidTasks.slice(0, 5).forEach(task => {
-        log(`   - ${task}`, 'yellow');
-      });
-    }
-  }
-
-  // 统计
-  log('\n📊 统计信息:', 'cyan');
-  log(`   PRD 中的 Story: ${allStories.size}`, 'cyan');
-  log(`   TASK 中的 Task: ${allTasks.size}`, 'cyan');
-  log(`   映射表中的 Story: ${mappedStories.size}`, 'cyan');
-  log(`   映射表中的 Task: ${mappedTasks.size}`, 'cyan');
-  log(`   孤儿 Story: ${orphanStories.length}`, orphanStories.length > 0 ? 'yellow' : 'green');
-  log(`   孤儿 Task: ${orphanTasks.length}`, orphanTasks.length > 0 ? 'yellow' : 'green');
-
-  // 计算覆盖率
-  const storyCoverage = allStories.size > 0 ? ((mappedStories.size / allStories.size) * 100).toFixed(1) : 0;
-  const taskCoverage = allTasks.size > 0 ? ((mappedTasks.size / allTasks.size) * 100).toFixed(1) : 0;
-
-  log(`   Story 覆盖率: ${storyCoverage}%`, storyCoverage >= 95 ? 'green' : 'yellow');
-  log(`   Task 覆盖率: ${taskCoverage}%`, taskCoverage >= 95 ? 'green' : 'yellow');
-
-  // 汇总结果
-  log('\n' + '='.repeat(60), 'cyan');
-  log('检查结果汇总:', 'cyan');
-  log('='.repeat(60), 'cyan');
-
-  if (orphanStories.length === 0 && orphanTasks.length === 0 && invalidStories.length === 0 && invalidTasks.length === 0) {
-    log('✅ Story → Task 映射完整，需求追溯健康！', 'green');
-    process.exit(0);
-  } else {
-    if (orphanStories.length > 0 || invalidStories.length > 0 || storyCoverage < 95) {
-      log('⚠️  发现问题，建议修正：', 'yellow');
-      if (orphanStories.length > 0) {
-        log(`   - ${orphanStories.length} 个 Story 缺少 Task 实现`, 'yellow');
-      }
-      if (invalidStories.length > 0) {
-        log(`   - ${invalidStories.length} 个映射引用了不存在的 Story`, 'yellow');
-      }
-    }
-    if (orphanTasks.length > 0 || invalidTasks.length > 0) {
-      log('ℹ️  发现孤儿 Task（可能是基础设施任务）：', 'cyan');
-      if (orphanTasks.length > 0) {
-        log(`   - ${orphanTasks.length} 个 Task 没有对应 Story`, 'cyan');
-      }
-      if (invalidTasks.length > 0) {
-        log(`   - ${invalidTasks.length} 个映射引用了不存在的 Task`, 'yellow');
-      }
-    }
-
-    log('\n建议：', 'yellow');
-    log('1. 为孤儿 Story 补充对应的 Task', 'yellow');
-    log('2. 为孤儿 Task 关联对应的 Story（或标记为基础设施任务）', 'yellow');
-    log('3. 更新 /docs/data/story-task-mapping.md', 'yellow');
-
-    // 孤儿 Story 是严重问题，孤儿 Task 是警告
-    if (orphanStories.length > 0 || invalidStories.length > 0 || invalidTasks.length > 0) {
-      process.exit(1);
-    } else {
-      process.exit(0);
-    }
-  }
+  log('✅ Canonical traceability is complete', 'green');
+  return 0;
 }
 
-// 运行
-if (require.main === module) {
-  try {
-    main();
-  } catch (error) {
-    log(`\n❌ 执行出错: ${error.message}`, 'red');
-    console.error(error);
-    process.exit(1);
-  }
-}
+if (require.main === module) process.exitCode = main();
 
 module.exports = {
-  extractStoryIds,
-  extractTaskIds,
+  CONFIG,
+  collectAllAcceptanceCriteriaIds,
   collectAllStoryIds,
   collectAllTaskIds,
-  parseStoryTaskMapping
+  extractAcceptanceCriteriaIdsFromText,
+  extractCanonicalPrdIdsFromContent,
+  extractCanonicalTaskIdsFromContent,
+  extractStoryIds,
+  extractTaskIds,
+  parseStoryTaskMapping,
+  parseStoryTaskMappingContent,
+  validateRepositoryTraceability,
 };
