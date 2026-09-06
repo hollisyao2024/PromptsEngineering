@@ -11,11 +11,13 @@ const { applyRule } = require('../template-apply-engine');
 const {
   createBackfillBaseline,
   ENVIRONMENT_FILE_PAIRS,
+  hasConvergenceDrift,
   initializeEnvironmentFiles,
+  parseApplyCounts,
 } = require('../update-template');
 
 const TEMPLATE_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
-const TEMPLATE_PACKAGE_NAME = 'prompts-engineering-agents-router';
+const TEMPLATE_PACKAGE_NAME = 'xirang-agent-template';
 
 function isTemplateSourceRoot() {
   const packageJson = JSON.parse(fs.readFileSync(path.join(TEMPLATE_ROOT, 'package.json'), 'utf8'));
@@ -28,6 +30,12 @@ function mkTmpDir(prefix) {
 
 function git(root, args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+function writeFile(root, relativePath, content) {
+  const filePath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
 }
 
 test('createBackfillBaseline snapshots template updates without changing the caller index', () => {
@@ -174,4 +182,85 @@ test('environment initialization creates six files with the expected Git ownersh
   for (const [file, content] of sentinels) {
     assert.equal(fs.readFileSync(path.join(targetRoot, file), 'utf8'), content);
   }
+});
+
+test('template convergence accepts only no-drift apply counts', () => {
+  assert.deepEqual(
+    parseApplyCounts('STATUS=DRY_RUN\nCOUNTS={"unchanged":4,"skipped":2}\n'),
+    { unchanged: 4, skipped: 2 },
+  );
+  assert.equal(hasConvergenceDrift({ unchanged: 4, skipped: 2 }), false);
+  assert.equal(hasConvergenceDrift({ unchanged: 4, updated: 1 }), true);
+  assert.equal(hasConvergenceDrift({ skipped: 2, conflicts: 1 }), true);
+  assert.throws(() => parseApplyCounts('STATUS=DRY_RUN\n'), /COUNTS/u);
+});
+
+test('the released Xirang manifest bootstraps an actual project with the sync route and converges', (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-template-bootstrap-'));
+  const mainRoot = path.join(container, 'repo');
+  const linkedRoot = path.join(container, 'worktrees', 'bootstrap');
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+
+  fs.mkdirSync(mainRoot, { recursive: true });
+  git(mainRoot, ['init']);
+  git(mainRoot, ['config', 'user.name', 'Template Bootstrap Test']);
+  git(mainRoot, ['config', 'user.email', 'template-bootstrap@example.invalid']);
+  git(mainRoot, ['branch', '-M', 'main']);
+  writeFile(mainRoot, 'README.md', 'PROJECT_README_SENTINEL\n');
+  writeFile(mainRoot, 'RULES.md', 'PROJECT_RULES_SENTINEL\n');
+  writeFile(mainRoot, 'src/business.js', 'module.exports = "PROJECT_BUSINESS_SENTINEL";\n');
+  writeFile(mainRoot, 'package.json', `${JSON.stringify({
+    name: 'actual-project',
+    private: true,
+    scripts: {},
+  }, null, 2)}\n`);
+  git(mainRoot, ['add', '--all']);
+  git(mainRoot, ['commit', '-m', 'actual project seed']);
+  fs.mkdirSync(path.dirname(linkedRoot), { recursive: true });
+  git(mainRoot, ['worktree', 'add', '-b', 'test/xirang-bootstrap', linkedRoot, 'main']);
+
+  const updater = path.join(TEMPLATE_ROOT, 'infra/scripts/setup/update-template.js');
+  const invoke = () => spawnSync(process.execPath, [
+    updater,
+    linkedRoot,
+    '--source',
+    TEMPLATE_ROOT,
+  ], {
+    cwd: TEMPLATE_ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, GH_TOKEN: '' },
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  const first = invoke();
+  const firstOutput = `${first.stdout || ''}${first.stderr || ''}`;
+  assert.equal(first.status, 0, firstOutput.slice(-5000));
+  assert.match(firstOutput, /^CONVERGENCE_STATUS=OK$/mu);
+  assert.match(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), /更新息壤模板/u);
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULES_SENTINEL\n');
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'README.md'), 'utf8'), 'PROJECT_README_SENTINEL\n');
+  assert.equal(
+    fs.readFileSync(path.join(linkedRoot, 'src/business.js'), 'utf8'),
+    'module.exports = "PROJECT_BUSINESS_SENTINEL";\n',
+  );
+  const defaults = JSON.parse(fs.readFileSync(
+    path.join(linkedRoot, 'infra/templates/agent/config.example.json'),
+    'utf8',
+  ));
+  assert.deepEqual(defaults.template.identity, {
+    id: 'xirang',
+    name: '息壤',
+    englishName: 'Xirang',
+  });
+  const help = spawnSync(process.execPath, [
+    path.join(linkedRoot, 'infra/scripts/agent-runner/agent-cli.js'),
+    '--help',
+  ], { cwd: linkedRoot, encoding: 'utf8' });
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /template <sync\|update\|backfill>/u);
+
+  const second = invoke();
+  const secondOutput = `${second.stdout || ''}${second.stderr || ''}`;
+  assert.equal(second.status, 0, secondOutput.slice(-5000));
+  assert.match(secondOutput, /^CONVERGENCE_STATUS=OK$/mu);
 });

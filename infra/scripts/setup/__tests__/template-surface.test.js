@@ -182,8 +182,46 @@ test('always-loaded protocol forbids parent-relative patch paths for container w
 
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
-  assert.equal(manifest.templateVersion, '2.1.3');
+  assert.equal(manifest.templateVersion, '2.2.0');
   assert.match(manifest.description, /phase-aware durable tasks/u);
+});
+
+test('Xirang identity, official upstream, and natural-language sync route propagate to projects', () => {
+  const config = JSON.parse(read('infra/templates/agent/config.example.json'));
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  const packageJson = JSON.parse(read('package.json'));
+  const agents = read('AGENTS.md');
+  const conventions = read('docs/CONVENTIONS.md');
+
+  assert.deepEqual(config.template.identity, {
+    id: 'xirang',
+    name: '息壤',
+    englishName: 'Xirang',
+  });
+  assert.deepEqual(config.template.upstream, {
+    repository: 'https://github.com/hollisyao2024/PromptsEngineering.git',
+    branch: 'main',
+    fetchRequired: true,
+  });
+  assert.equal(config.template.role, 'consumer');
+  assert.equal(config.template.sourceRepo, '', 'local backfill source keeps its existing meaning');
+  assert.deepEqual(manifest.template, {
+    id: 'xirang',
+    name: '息壤',
+    englishName: 'Xirang',
+    repository: 'https://github.com/hollisyao2024/PromptsEngineering.git',
+    branch: 'main',
+  });
+  assert.deepEqual(manifest.capabilities.officialSync, {
+    schemaVersion: 1,
+    convergenceRequired: true,
+  });
+  assert.equal(packageJson.name, 'xirang-agent-template');
+  assert.equal(packageJson.version, manifest.templateVersion);
+  assert.match(agents, /更新息壤模板/u);
+  assert.match(agents, /pnpm agent -- template sync/u);
+  assert.match(conventions, /更新息壤模板/u);
+  assert.match(conventions, /TEMPLATE_COMMIT/u);
 });
 
 test('agent config is initialized sparsely instead of merged with every default', () => {

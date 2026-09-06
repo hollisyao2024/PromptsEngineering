@@ -72,6 +72,17 @@
     "autoMerge": false
   },
   "template": {
+    "role": "consumer",
+    "identity": {
+      "id": "xirang",
+      "name": "息壤",
+      "englishName": "Xirang"
+    },
+    "upstream": {
+      "repository": "https://github.com/hollisyao2024/PromptsEngineering.git",
+      "branch": "main",
+      "fetchRequired": true
+    },
     "manifest": "infra/templates/agent/template.manifest.json",
     "applyReportDir": "../tmp/template-apply-reports",
     "sourceRepo": ""

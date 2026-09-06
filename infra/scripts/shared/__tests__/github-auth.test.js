@@ -149,11 +149,17 @@ test('getProjectGitHubToken ignores a placeholder file before using a process to
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-auth-placeholder-'));
   fs.writeFileSync(path.join(repoRoot, '.env.local'), 'GH_TOKEN=github_pat_xxx\n');
 
+  assert.deepEqual(
+    getProjectEnvLocalCandidates({ repoRoot, cwd: repoRoot }),
+    [path.join(repoRoot, '.env.local')],
+    'a non-Git fixture must not inherit credentials from the template repository',
+  );
+
   const token = getProjectGitHubToken({
     repoRoot,
     cwd: repoRoot,
     env: { GH_TOKEN: 'from-shell' },
   });
 
-  assert.equal(token, 'from-shell');
+  assert.equal(token === 'from-shell', true, 'placeholder must fall through to the supplied process token');
 });

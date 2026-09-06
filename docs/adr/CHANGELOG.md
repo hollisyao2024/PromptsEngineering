@@ -7,3 +7,4 @@
 | [ADR-003](003-arch-container-directory-initialization.md) | 2026-08-26 | Accepted | 容器目录由写入命令显式按需初始化，配置读取保持无副作用 |
 | [ADR-005](005-arch-worktree-required-base-sync.md) | 2026-09-01 | Accepted | 全新 worktree 默认要求远端基线刷新成功并从固定 commit SHA 创建 |
 | [ADR-006](006-arch-multi-host-optimistic-git-coordination.md) | 2026-09-05 | Accepted | 所有电脑同权；本机状态只管本机，跨电脑以远端 SHA 和普通非快进更新协调 |
+| [ADR-007](007-arch-xirang-official-template-sync.md) | 2026-09-06 | Accepted | 实际项目 required fetch 息壤固定官方源，以不可变 SHA 快照内最新应用器完成模板自更新 |

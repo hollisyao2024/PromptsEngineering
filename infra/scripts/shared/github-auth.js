@@ -95,11 +95,13 @@ function getProjectEnvLocalCandidates({
 } = {}) {
   const roots = [repoRoot];
   for (const candidate of [cwd, repoRoot]) {
-    try {
-      roots.push(getMainRepoRoot(candidate));
-    } catch {
-      // ignore non-worktree paths
-    }
+    const insideWorktree = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: candidate,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    if (insideWorktree.status !== 0 || insideWorktree.stdout.trim() !== 'true') continue;
+    roots.push(getMainRepoRoot(candidate));
   }
   return [...new Set(roots.filter(Boolean).map((root) => path.join(root, '.env.local')))];
 }

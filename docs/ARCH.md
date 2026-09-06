@@ -1,18 +1,18 @@
-# PromptsEngineering 模板架构总纲
+# 息壤（Xirang）模板架构总纲
 
-**日期**：2026-09-05
-**版本**：v1.4
+**日期**：2026-09-06
+**版本**：v1.5
 **状态**：✅ 已确认
 
 ## 1. 总览
 
-本架构覆盖通用客户端命令面、基于模板 manifest 和初始化器的环境文件首次创建，以及不依赖 GitHub CI 的多电脑同权 Git 协作。模板持有协议和安全骨架；目标项目持有后续内容与真实凭据。
+本架构覆盖通用客户端命令面、基于模板 manifest 和初始化器的环境文件首次创建、不依赖 GitHub CI 的多电脑同权 Git 协作，以及由实际项目主动发起的息壤官方模板自更新。模板持有协议、身份、官方来源和安全骨架；目标项目持有后续内容与真实凭据。
 
 ## 2. 功能域架构索引
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 依赖/Gate | Traceability ID | 阻塞/待办 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ v1.4 已确认 | TDD/QA 定向测试与三电脑模拟 | US-CMDSURF-001~008 | 无 | 2026-09-05 |
+| 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ v1.5 已确认 | TDD/QA 定向测试、模板源模拟与传播收敛 | US-CMDSURF-001~009 | 无 | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [ARCH.md](arch-modules/environment-file-initialization/ARCH.md) | ✅ 已确认 | init-if-missing / Git ignore 验收 | US-ENVINIT-001~003 | 无 | 2026-08-24 |
 
 ## 3. 架构视图
@@ -34,6 +34,11 @@ flowchart LR
   R --> O
   A --> Q[QA SHA 回执与合并门禁]
   Q --> O
+  A --> X[息壤模板同步引导器]
+  X --> XO[固定官方 GitHub 源]
+  X --> XS[固定 SHA 临时快照]
+  XS --> XA[最新模板应用器]
+  XA --> T[实际项目专用 worktree]
 ```
 
 ### 3.2 运行时视图
@@ -63,9 +68,11 @@ sequenceDiagram
 
 多电脑运行时不共享 PID、锁、worktree 路径或 task/session 文件。`worktree new` 在 fetch 后检查远端同名分支并阻断误建；`worktree resume` 可从远端分支的固定 SHA 建立本机 worktree/session。`qa verify` 记录 `BASE_SHA` 与 `HEAD_SHA`，`qa merge` 再次 fetch 并要求二者未漂移；GitHub squash merge 绑定 head SHA，本地 fallback 只允许普通非强制 push。主干或功能分支变化时旧回执立即失效。
 
+息壤模板同步由实际项目中随模板传播的轻量引导器发起。引导器只在实际项目的 linked worktree 中运行，读取 template-owned 的息壤身份和官方 GitHub URL/branch，通过既有 GitHub 鉴权环境在容器 `tmp` 的唯一运行目录执行 required shallow fetch，解析 `FETCH_HEAD^{commit}` 后以 detached checkout 形成不可变模板快照。随后必须调用该快照中的最新 `update-template.js` 和 manifest 对调用 worktree执行 dry-run/apply/convergence；因此实际项目内携带的旧应用器不会成为模板内容事实源。来源或预检失败只允许留下容器层诊断证据，不得写入目标 tracked 文件。
+
 ### 3.3 数据视图
 
-无数据库、持久业务实体或迁移。配置事实源为模板默认 `config.example.json` 与项目稀疏 `agent.config.json` 的深合并结果；运行证据写入容器层 `tmp/`。QA 回执是本机临时状态，只保存配置主干、分支、PR 与 base/head SHA，不作为跨电脑授权或远端锁。
+无数据库、持久业务实体或迁移。配置事实源为模板默认 `config.example.json` 与项目稀疏 `agent.config.json` 的深合并结果；运行证据写入容器层 `tmp/`。QA 回执是本机临时状态，只保存配置主干、分支、PR 与 base/head SHA，不作为跨电脑授权或远端锁。息壤身份和官方源位于 template-owned 默认配置；每次同步的 source repo、branch、commit 和阶段状态只作为命令输出及报告保存，临时 Git 快照在调用结束后安全清理，不形成可被误用为“最新”的持久缓存。
 
 ### 3.4 接口视图
 
@@ -73,10 +80,11 @@ sequenceDiagram
 - 输出：`STATUS`、`ACTION`、`PLATFORM`、`TARGET`、`CWD`、`RUN_DIR`、`COMMAND` 和退出码。
 - 错误：缺失维度、缺失命令、非法位置参数和项目命令失败均 fail closed。
 - Git 协作输出：`BASE_BRANCH`、`BASE_SHA`、`HEAD_SHA`、`REMOTE_MAIN_SHA`、`QA_STATUS`、`MERGE_STATUS`、`PUSH_STATUS` 和 `NEXT_ACTION`。
+- 息壤同步输出：`TEMPLATE_ID`、`TEMPLATE_NAME`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS`、`TEMPLATE_CONVERGENCE_STATUS` 和退出码。
 
 ### 3.5 运维视图
 
-模板自身无部署单元。执行器随模板文件传播，目标项目命令在调用 worktree 内运行；`/build` 只生成产物，`/ship` 才允许改变远端环境状态。
+模板自身无部署单元。执行器随模板文件传播，目标项目命令在调用 worktree 内运行；`/build` 只生成产物，`/ship` 才允许改变远端环境状态。`template sync` 是用户触发的短生命周期联网操作，不创建 daemon、后台更新器或定时任务。
 
 ### 3.6 安全与合规视图
 
@@ -87,6 +95,8 @@ sequenceDiagram
 - 专家阶段不是机器身份或 GitHub 权限；所有授权电脑使用同一命令合约。
 - GitHub CI 不参与 QA/合并；模板不创建、修改或触发 project-owned workflows。
 - 配置主干只允许普通更新，模板永不对其执行 force push 或删除。
+- 普通“更新息壤模板”只使用 template-owned 官方 GitHub URL 与 branch；远端凭据继续通过进程级 Git extraheader 注入，不写入 URL、日志或目标文件。
+- 模板 fetch、commit 解析、快照形状验证和 dry-run 必须先于目标 tracked 文件写入；失败不得回退项目内旧快照。
 
 ## 4. 技术选型与 ADR
 
@@ -102,6 +112,8 @@ sequenceDiagram
 | 默认 required fetch，并从本次解析的 commit SHA 创建 | 采用 | 在副作用前建立可验证基线；现有 `--skip-fetch` 保留显式离线边界 | [ADR-005](adr/005-arch-worktree-required-base-sync.md) |
 | 固定 QA 电脑、机器角色或远程 merge lock | 不采用 | 每台电脑都可能承担任意专家阶段；新增授权面和服务会扩大复杂度 | [ADR-006](adr/006-arch-multi-host-optimistic-git-coordination.md) |
 | 本地状态保护本机生命周期，远端 SHA 与非快进更新协调多电脑 | 采用 | 复用 Git 原子引用更新，以最小改动阻止误建、陈旧 QA 和覆盖先到提交 | [ADR-006](adr/006-arch-multi-host-optimistic-git-coordination.md) |
+| 实际项目使用自身携带的模板快照或依赖人工维护本地模板仓库 | 不采用 | 无法保证来源新鲜度，旧脚本也无法可靠升级自身 | [ADR-007](adr/007-arch-xirang-official-template-sync.md) |
+| 固定官方源 required fetch、固定 SHA 临时快照并调用快照内最新应用器 | 采用 | 同时建立来源、版本、执行器自举和失败零写入的可验证边界 | [ADR-007](adr/007-arch-xirang-official-template-sync.md) |
 
 ## 5. 跨模块依赖关系
 
@@ -123,6 +135,9 @@ sequenceDiagram
 | 本机锁被误当成跨电脑 merge queue | 并发合并仍可同时进入临界区 | 明确本机状态边界；base/head SHA 回执与普通非快进更新协调 | QA 合并并发测试 |
 | QA 后 base/head 漂移 | 未验证组合进入主干 | merge 前重新 fetch；任一 SHA 不同即使旧回执失效 | SHA 负向测试 |
 | 所有人可直接更新主干且无 CI | 原始 Git 命令可绕过本地流程 | 明确信任边界；GitHub 仅强制禁止主干 force push/删除，模板提供防误操作而不宣称零信任 | 文档与内容扫描 |
+| 实际项目误把旧模板快照当成官方最新版 | 模板更新成功但没有获得中央改动 | required fetch 固定官方源，锁定 SHA，并调用快照内最新执行器 | 本地 bare remote 前进测试 |
+| fetch、认证或远端 ref 异常后继续写入 | 产生来源不明或部分模板更新 | 所有来源验证和 dry-run 位于目标 tracked mutation 前，失败即阻断 | 失败零写入测试 |
+| 同步过程中官方分支继续前进 | dry-run 与 apply 使用不同版本 | 首次 fetch 后仅使用不可变 commit SHA 的 detached 快照 | SHA 一致性断言 |
 
 ## 7. 文档审查与更新节奏
 
@@ -133,6 +148,7 @@ sequenceDiagram
 | v1.2 | 2026-08-26 | 用户确认容器目录自动创建 | 模板命令面 | @architect | Traceability 已建立 / QA 待执行 | 增加显式按需初始化器与只读边界 |
 | v1.3 | 2026-09-01 | 用户确认 worktree 最新远端基线门禁 | 模板命令面 | @architect | Traceability 已建立 / QA 待执行 | 增加 required fetch、固定 SHA 与显式 skip 边界 |
 | v1.4 | 2026-09-05 | 用户确认多电脑同权且禁用 GitHub CI | 模板命令面 | @architect | Traceability 已建立 / QA 待执行 | 增加远端分支保护、QA 双 SHA 回执与主干乐观并发 |
+| v1.5 | 2026-09-06 | 用户确认息壤命名与实际项目自更新 | 模板命令面 | @architect | Traceability 已建立 / QA 待执行 | 增加固定官方源、SHA 快照、自举应用器和收敛门禁 |
 
 ## 8. 相关文档
 
@@ -145,3 +161,4 @@ sequenceDiagram
 - [ADR-003](adr/003-arch-container-directory-initialization.md)
 - [ADR-005](adr/005-arch-worktree-required-base-sync.md)
 - [ADR-006](adr/006-arch-multi-host-optimistic-git-coordination.md)
+- [ADR-007](adr/007-arch-xirang-official-template-sync.md)

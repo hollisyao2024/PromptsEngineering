@@ -1,7 +1,7 @@
 {
-  "name": "prompts-engineering-agents-router",
-  "version": "2.0.0",
-  "description": "多模型编码场景的提示词工程模板，支持 Codex CLI / Claude Code CLI / Gemini CLI",
+  "name": "xirang-agent-template",
+  "version": "2.2.0",
+  "description": "息壤（Xirang）多模型工程智能体模板，支持从固定 GitHub 上游安全同步",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
     "agent": "node infra/scripts/agent-runner/agent-cli.js",

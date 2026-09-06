@@ -4,7 +4,8 @@
  *
  * It runs a dry-run first, blocks on package script conflicts, writes the
  * template update, validates critical JSON files, records a local backfill
- * baseline snapshot for Git targets, and prints git diff status.
+ * baseline snapshot for Git targets, verifies a convergence dry-run, and
+ * prints git diff status.
  */
 
 const fs = require('fs');
@@ -88,6 +89,29 @@ function run(command, args, options = {}) {
     stderr: result.stderr || '',
     output: `${result.stdout || ''}${result.stderr || ''}`,
   };
+}
+
+function parseApplyCounts(output) {
+  const lines = String(output || '').match(/^COUNTS=(.+)$/gmu) || [];
+  if (lines.length === 0) throw new Error('template apply output is missing COUNTS');
+  const value = lines.at(-1).slice('COUNTS='.length);
+  let counts;
+  try {
+    counts = JSON.parse(value);
+  } catch (error) {
+    throw new Error(`template apply COUNTS is invalid JSON: ${error.message}`);
+  }
+  if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
+    throw new Error('template apply COUNTS must be an object');
+  }
+  return counts;
+}
+
+function hasConvergenceDrift(counts) {
+  const noDriftStatuses = new Set(['unchanged', 'skipped']);
+  return Object.entries(counts || {}).some(([status, count]) => (
+    !noDriftStatuses.has(status) && Number(count) > 0
+  ));
 }
 
 function writeLog(filePath, content) {
@@ -258,6 +282,7 @@ function main() {
   const runId = `${timestamp()}__${sanitize(path.basename(targetRoot))}`;
   const dryRunLog = path.join(reportDir, `${runId}__dry-run.log`);
   const writeLogPath = path.join(reportDir, `${runId}__write.log`);
+  const convergenceLog = path.join(reportDir, `${runId}__convergence.log`);
 
   const includeArgs = [];
   const includes = Array.isArray(args.include)
@@ -276,6 +301,18 @@ function main() {
   if (dryRun.status !== 0) {
     block('dry-run failed', { dry_run_log: dryRunLog });
   }
+  let dryRunCounts;
+  try {
+    dryRunCounts = parseApplyCounts(dryRun.output);
+  } catch (error) {
+    block(error.message, { dry_run_log: dryRunLog });
+  }
+  if (Number(dryRunCounts.blocked || 0) > 0) {
+    block('dry-run reported blocked template rules; target was not modified', {
+      dry_run_log: dryRunLog,
+      counts: JSON.stringify(dryRunCounts),
+    });
+  }
   if (!allowConflicts && /\bconflicts=/.test(dryRun.output)) {
     block('package.json script conflicts found; existing target scripts were not overwritten', {
       dry_run_log: dryRunLog,
@@ -283,6 +320,7 @@ function main() {
     });
   }
   if (dryRunOnly) {
+    console.log('CONVERGENCE_STATUS=SKIPPED');
     console.log('STATUS=DRY_RUN_ONLY');
     console.log(`REPORT_DIR=${reportDir}`);
     console.log(`DRY_RUN_LOG=${dryRunLog}`);
@@ -327,12 +365,36 @@ function main() {
     console.log('REASON=target is not a git worktree');
   }
 
+  const convergenceRun = run(process.execPath, baseArgs, { cwd: sourceRoot });
+  writeLog(convergenceLog, convergenceRun.output);
+  process.stdout.write(convergenceRun.output);
+  if (convergenceRun.status !== 0) {
+    block('convergence dry-run failed', { convergence_log: convergenceLog });
+  }
+  let convergenceCounts;
+  try {
+    convergenceCounts = parseApplyCounts(convergenceRun.output);
+  } catch (error) {
+    block(error.message, { convergence_log: convergenceLog });
+  }
+  if (
+    hasConvergenceDrift(convergenceCounts)
+    || /\bconflicts=|\bmanual-sync=/u.test(convergenceRun.output)
+  ) {
+    block('convergence dry-run found remaining template drift', {
+      convergence_log: convergenceLog,
+      counts: JSON.stringify(convergenceCounts),
+    });
+  }
+  console.log('CONVERGENCE_STATUS=OK');
+
   console.log('STATUS=UPDATED');
   console.log(`SOURCE=${sourceRoot}`);
   console.log(`TARGET=${targetRoot}`);
   console.log(`REPORT_DIR=${reportDir}`);
   console.log(`DRY_RUN_LOG=${dryRunLog}`);
   console.log(`WRITE_LOG=${writeLogPath}`);
+  console.log(`CONVERGENCE_LOG=${convergenceLog}`);
 }
 
 if (require.main === module) {
@@ -346,6 +408,8 @@ if (require.main === module) {
 module.exports = {
   createBackfillBaseline,
   ENVIRONMENT_FILE_PAIRS,
+  hasConvergenceDrift,
   initializeEnvironmentFiles,
+  parseApplyCounts,
   parseArgs,
 };

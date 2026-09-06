@@ -3,15 +3,15 @@
 > **所属主 TASK**：[TASK.md](../../TASK.md)  
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/template-command-surface/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/template-command-surface/ARCH.md)  
-> **状态**：✅ 多电脑协作 QA 验证通过
+> **状态**：🧪 息壤模板自更新 QA 中
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-09-05
-> **版本**：v1.4
+> **最后更新**：2026-09-06
+> **版本**：v1.5
 
 ## 1. 模块概述
 
-交付单一模板执行面下的客户端 dev/build、private 本地服务快捷语法和多电脑同权 Git 生命周期保护，保持真实命令与 GitHub 工作流 project-owned。交付物包括测试、配置默认结构、CLI/dispatcher、远端分支恢复、QA 双 SHA 回执、精确 PR 合并、通用约定和三 clone 传播证据。
+交付单一模板执行面下的客户端 dev/build、private 本地服务快捷语法、多电脑同权 Git 生命周期保护和息壤模板官方源自更新，保持真实业务命令与 GitHub 工作流 project-owned。新增交付物包括息壤身份、自然语言路由、同步引导器、固定 SHA 模板快照、最新更新器自举、收敛门禁及目标项目传播证据。
 
 ## 2. WBS（工作分解结构）
 
@@ -45,6 +45,13 @@
 | TASK-CMDSURF-024 | `qa merge` 配置主干、期望 head 与非强制更新门禁 | @tdd | 0.75d | P0 | TASK-CMDSURF-022~023 | ✅ 完成 | merge 定向 24/24 |
 | TASK-CMDSURF-025 | 同权、无 CI 和本地状态职责协议同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-024 | ✅ 完成 | policy 与 workflow 所有权测试通过 |
 | TASK-CMDSURF-026 | 定向/全量回归、三 clone 模拟、模板收敛与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-025 | ✅ 完成 | Windows 可执行全集 342/342；目标副本 22/22；QA 双 SHA 收据通过 |
+| TASK-CMDSURF-027 | RED：息壤身份、路由、官方源、失败零写入与收敛契约 | @tdd | 0.5d | P0 | ADR-007 | ✅ 完成 | TC-CMDSURF-022~026 RED 已复现 |
+| TASK-CMDSURF-028 | 息壤 template-owned 身份、自然语言规则与 CLI 路由 | @tdd | 0.25d | P0 | TASK-CMDSURF-027 | ✅ 完成 | identity/config/CLI/surface 测试通过 |
+| TASK-CMDSURF-029 | 官方源 required fetch、ref 校验与不可变 SHA 快照 | @tdd | 0.5d | P0 | TASK-CMDSURF-027~028 | ✅ 完成 | 本地上游前进、固定 SHA 与失败零写入通过 |
+| TASK-CMDSURF-030 | 最新快照更新器自举、linked-worktree 门禁与结构化输出 | @tdd | 0.5d | P0 | TASK-CMDSURF-029 | ✅ 完成 | fetched updater marker、角色/路径门禁通过 |
+| TASK-CMDSURF-031 | Update wrapper 应用后 convergence 与失败边界 | @tdd | 0.25d | P0 | TASK-CMDSURF-030 | ✅ 完成 | source gap/conflict pre-write block 与二次收敛通过 |
+| TASK-CMDSURF-032 | 模板命名、默认配置、manifest 版本与传播契约同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-028~031 | ✅ 完成 | v2.2.0 完整 manifest 引导与重复应用通过 |
+| TASK-CMDSURF-033 | 定向/全量回归、目标副本同步、语义审查与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-032 | 🚧 进行中 | 全量回归通过，等待 QA receipt/merge |
 
 ### 2.2 任务详细说明
 
@@ -74,6 +81,13 @@
 - TASK-CMDSURF-024：`qa merge` 重新 fetch 并校验回执、PR base/head 和远端引用；GitHub 合并提交期望 head SHA，本地 squash 兜底只普通 push 配置主干，任何非快进或 SHA 漂移均阻断且保留恢复状态。
 - TASK-CMDSURF-025：在 `AGENTS.md`、`docs/CONVENTIONS.md` 和直接相关 QA 文档明确专家阶段不绑定电脑、所有授权协作者同权、主干禁止 force/delete、门禁完全本地执行，并将模板版本提升为 `2.1.2`；不触碰 `.github/workflows`。
 - TASK-CMDSURF-026：执行定向与全量测试、三个 clone 的交错提交模拟、模板 dry-run/apply/convergence 与固定 tdd/qa 门禁，最终证明本地和远端配置主干一致。
+- TASK-CMDSURF-027：先写 TC-CMDSURF-022~026，覆盖身份/路由、远端前进、旧目标/新源自举、fetch/ref/source 失败零写入、冲突保护、固定 SHA、project-owned sentinel 与重复收敛。
+- TASK-CMDSURF-028：在 template-owned 默认配置和 `AGENTS.md` 登记 `xirang`/“息壤”/官方源/默认分支，将“更新息壤模板”绑定稳定 `template sync` 路由。
+- TASK-CMDSURF-029：实现跨平台 Node Git 调度，在经校验容器 tmp 唯一目录 required fetch 官方分支，解析 `FETCH_HEAD^{commit}` 并 detached checkout；所有 GitHub 凭据复用既有环境封装。
+- TASK-CMDSURF-030：要求调用目录为实际项目 linked worktree，校验快照 identity/manifest/updater/apply engine，调用固定 SHA 中最新 updater 并输出完整模板来源与阶段状态。
+- TASK-CMDSURF-031：补齐现有 update wrapper 的 apply 后 convergence dry-run，非收敛或冲突时非零阻断并保留报告证据。
+- TASK-CMDSURF-032：同步模板名称、配置 schema、CLI help、manifest 版本和模板传播内容测试，保持 `sourceRepo` 的本地 backfill 兼容语义。
+- TASK-CMDSURF-033：执行 setup/CLI/template 定向测试、全量 Node 回归、真实目标 fixture 从旧快照升级与二次收敛，记录高风险外部 Git/跨文件语义审查后完成标准 QA 合并链。
 
 每项验收均采用 Given-When-Then：Given 前置任务完成，When 执行对应测试或传播 Gate，Then 输出明确成功证据且无范围外文件变化。
 
@@ -101,6 +115,12 @@
 | 022~023 | 024 | Finish-to-start | 远端恢复和 QA 身份证据稳定后实现精确合并 |
 | 024 | 025 | Finish-to-start | 合并行为冻结后同步同权、无 CI 和状态职责协议 |
 | 025 | 026 | Finish-to-start | 代码、测试与协议齐备后执行三 clone 与最终 QA |
+| 027 | 028 | Finish-to-start | 先冻结身份与自然语言传播 RED，再写模板协议 |
+| 027~028 | 029 | Finish-to-start | 来源契约和 CLI 入口明确后实现 required fetch |
+| 029 | 030 | Finish-to-start | 固定 SHA 快照可用后实现最新 updater 自举 |
+| 030 | 031 | Finish-to-start | 同步编排稳定后补齐 apply 后收敛门禁 |
+| 028~031 | 032 | Finish-to-start | 行为冻结后同步名称、版本与传播内容 |
+| 032 | 033 | Finish-to-start | 代码、测试和协议齐备后进入回归与 QA |
 
 ## 4. 资源分配
 
@@ -120,6 +140,7 @@
 | M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 | M6-WORKTREE-BASE | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip 与结构化证据 | TC-CMDSURF-012~015、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
 | M7-MULTI-HOST | 2026-09-05 | 远端分支恢复、QA 双 SHA 回执、精确合并与三 clone 模拟 | TC-CMDSURF-016~021、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | ✅ QA 验证通过 |
+| M8-XIRANG-SYNC | 2026-09-06 | 息壤身份、固定官方源同步、最新 updater 自举与传播 | TC-CMDSURF-022~026、失败零写入、全量回归、目标收敛与 completion guard 全绿 | QA_VALIDATED | 🧪 QA 中 |
 
 ## 6. Story → Task 映射
 
@@ -146,6 +167,11 @@
 | US-CMDSURF-008 | AC-CMDSURF-008-04 | TASK-CMDSURF-021、024、026 | TC-CMDSURF-019 | @qa | ✅ QA 通过 |
 | US-CMDSURF-008 | AC-CMDSURF-008-05 | TASK-CMDSURF-024~026 | TC-CMDSURF-020 | @qa | ✅ QA 通过 |
 | US-CMDSURF-008 | AC-CMDSURF-008-06 | TASK-CMDSURF-025~026 | TC-CMDSURF-021 | @qa | ✅ QA 通过 |
+| US-CMDSURF-009 | AC-CMDSURF-009-01 | TASK-CMDSURF-027~028、032 | TC-CMDSURF-022 | @qa | ✅ TDD / 待 QA |
+| US-CMDSURF-009 | AC-CMDSURF-009-02 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-023 | @qa | ✅ TDD / 待 QA |
+| US-CMDSURF-009 | AC-CMDSURF-009-03 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-024 | @qa | ✅ TDD / 待 QA |
+| US-CMDSURF-009 | AC-CMDSURF-009-04 | TASK-CMDSURF-027、030~032 | TC-CMDSURF-025 | @qa | ✅ TDD / 待 QA |
+| US-CMDSURF-009 | AC-CMDSURF-009-05 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa | ✅ TDD / 待 QA |
 
 ## 7. 风险登记
 
@@ -165,6 +191,10 @@
 | QA 后 base/head 漂移 | 未验证代码或陈旧基线被合并 | 本地回执双 SHA + 合并前 fetch/PR ref 复核 | @tdd/@qa | 已规划 |
 | 两台电脑同时更新主干 | 后到操作覆盖先到提交 | 期望 head SHA、配置主干精确值和普通非强制 push | @tdd/@qa | 已规划 |
 | 无 CI 且协作者可绕过工具 | 服务端无法证明本地 QA | 明确信任边界、保留审计证据并禁止模板触碰 workflows | @qa | 已接受 |
+| 实际项目旧 updater 自引用 | 无法获得中央模板新能力 | 轻量引导器 fetch 后调用固定 SHA 快照内最新 updater | @tdd | 已规划 |
+| 普通同步隐式缓存降级 | 陈旧模板被误报为最新 | required fetch，任何来源异常在目标 tracked 写入前阻断 | @tdd/@qa | 已规划 |
+| 临时 Git 快照清理越界 | 目标数据受损 | 容器 tmp 唯一目录、no-follow 精确清理和负向路径测试 | @tdd/@qa | 已规划 |
+| apply 后规则不收敛 | 实际项目处于部分或非幂等更新 | 强制二次 dry-run并验证零模板差异 | @tdd/@qa | 已规划 |
 
 ## 8. 数据库迁移任务
 
@@ -180,6 +210,9 @@
 - 多电脑增量不新增 machine role、QA 专用身份、远程锁、candidate worktree、随机分支后缀或配置字段；本机 session/锁不承担跨电脑互斥。
 - 保留 squash merge；功能分支可按正常协作需要使用 `--force-with-lease`，配置主干只允许普通非强制 push，且所有主干引用必须来自 `config.baseBranch`。
 - `.github/workflows` 是 project-owned，模板测试只确认本轮 diff 与传播结果没有创建、修改、触发或依赖 workflow/required checks。
+- `template.sourceRepo` 保留本地 backfill 路径语义；在线官方源新增独立 `template.identity` 与 `template.upstream`，不得让 URL 进入旧 `path.resolve()` 路径。
+- 普通 `template sync` 不提供隐式离线缓存、后台更新、自动重试或第三方源猜测；测试/fork source 注入必须显式。
+- 同步命令只在实际项目 linked worktree 执行，不负责替代任务状态、TDD、QA 或主分支交付门禁。
 
 ## 10. 变更记录
 
@@ -190,6 +223,7 @@
 | v1.2 | 2026-08-27 | 增加短提示词补齐、mutation 显式验收和 Codex 配置清理任务 | @task-planning |
 | v1.3 | 2026-09-01 | 增加 worktree required fetch、固定 SHA、显式 skip 与 QA 任务 | @task-planning |
 | v1.4 | 2026-09-05 | 增加无 CI 多电脑同权协作、远端恢复、QA 双 SHA 和主干乐观并发任务 | @task-planning |
+| v1.5 | 2026-09-06 | 增加息壤身份、官方源 required fetch、固定 SHA 自举、收敛和传播验证任务 | @task-planning |
 
 ## 11. 自检与 Gate 清单
 
@@ -203,3 +237,4 @@
 - [x] Worktree 基线 RED 1/5（4 项按预期失败）、GREEN 9/9；worktree 核心 40/40、全仓 Node 305/305、setup 56/56。
 - [x] 多电脑协作完成 RED/GREEN；定向回归 90/90、补充 merge 回归 24/24、Windows 可执行全集 342/342、三 clone 交错模拟通过；模板副本 dry-run/apply/convergence 收敛且相关测试 22/22。
 - [x] QA plan 按模板源规则跳过业务文档生成；QA verify 签发绑定 `main` 与功能分支精确 SHA 的通过收据；PR #69 的 base/head/ref 均已核对。
+- [x] 息壤新增任务覆盖 US-CMDSURF-009 的全部 AC，并按 RED → 身份/路由 → fetch/SHA → 自举/收敛 → 传播/QA 排列关键路径。

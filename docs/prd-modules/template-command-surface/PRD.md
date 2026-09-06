@@ -2,13 +2,13 @@
 
 > **所属主 PRD**：[PRD.md](../../PRD.md)  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-09-05
+> **最后更新**：2026-09-06
 > **状态**：✅ 已确认  
 > **追溯说明**：Story/AC 维护在 `docs/data/traceability-matrix.md`
 
 ## 1. 模块概述
 
-建立跨项目可复用的客户端和服务端命令协议。模板负责稳定语义、规范 package alias 默认矩阵、配置解析、阻断策略和结构化输出；项目负责实现或覆盖 alias，以及平台、profile、环境和验收细节。
+建立跨项目可复用的客户端、服务端和模板生命周期命令协议。息壤模板负责稳定语义、规范 package alias 默认矩阵、配置解析、官方模板身份与来源、阻断策略和结构化输出；项目负责实现或覆盖业务 alias，以及平台、profile、环境和验收细节。
 
 ## 2. 范围与约束
 
@@ -26,6 +26,10 @@ In Scope：
 - 专家阶段不绑定电脑或 GitHub 权限；所有授权协作者均可执行任意阶段、合并 PR 或普通 push 配置主干。
 - 不依赖 GitHub CI；本地 QA 通过回执绑定配置主干 SHA 与功能分支 SHA，任一漂移都阻断旧回执继续合并。
 - 跨电脑合并采用远端 SHA 比较与普通非强制 push 的乐观并发；主干禁止 force push 和删除。
+- 模板正式身份为“息壤（Xirang）”，稳定标识为 `xirang`；模板应用到实际项目后，“更新息壤模板”必须路由到 `pnpm agent -- template sync`。
+- `template sync` 从固定官方 GitHub 仓库及默认分支执行 required fetch，解析确定 commit SHA，并从该 SHA 的模板内容更新当前实际项目，不得把项目内携带的旧模板快照冒充最新版。
+- 模板同步在目标 tracked 文件写入前完成来源验证和 dry-run；冲突、fetch 失败、远端分支缺失或 SHA 无法解析时 fail closed。
+- 成功同步必须执行 apply 后收敛 dry-run，输出模板 ID、仓库、分支、commit、fetch、apply 与 convergence 状态，并继续遵守 template-owned/project-owned 边界。
 
 Out of Scope：
 
@@ -33,7 +37,8 @@ Out of Scope：
 - 不硬编码 `private` 的端口、服务名、数据库、框架或部署方式。
 - 不覆盖目标项目 `RULES.md`、`agent.config.json` 或已有 package aliases。
 - 不新增 intake schema、CLI 参数、专家角色或治理模块。
-- 不新增可配置 remote、自动重试、fetch policy schema 或已有分支自动 rebase。
+- 不提供后台、定时或无用户请求的模板更新，不在失败时自动重试或静默使用缓存。
+- 不把 GitHub 仓库重命名纳入本次范围，不允许普通“更新息壤模板”触发任意第三方模板源。
 - 不新增固定 QA 电脑、机器角色、专用合并账号、远程分布式锁或 GitHub CI。
 - 不提供能够证明原始 `git push` 已执行本地 QA 的服务端零信任门禁。
 
@@ -62,6 +67,11 @@ Out of Scope：
 | US-CMDSURF-008 | AC-CMDSURF-008-04：Given 两台电脑并发更新配置主干，When 第一台已完成更新，Then 第二台不得覆盖已进入远端的提交，而应被 SHA 门禁或非快进 push 拒绝并要求重新 QA。 | TASK-CMDSURF-021、024、026 | TC-CMDSURF-019 | @qa |
 | US-CMDSURF-008 | AC-CMDSURF-008-05：Given 项目协作者在任意电脑激活任意专家阶段，When 创建、验证或合并任务，Then 模板不读取机器角色或 QA 专用身份，且允许相同权限的协作者合并 PR 或普通更新配置主干；主干永不 force push。 | TASK-CMDSURF-024~026 | TC-CMDSURF-020 | @qa |
 | US-CMDSURF-008 | AC-CMDSURF-008-06：Given 目标项目禁止 GitHub CI，When 应用模板并完成 TDD/QA/合并，Then 模板不创建、修改、触发或依赖 `.github/workflows` 与 required checks，所有门禁在本地执行。 | TASK-CMDSURF-025~026 | TC-CMDSURF-021 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-01：Given 息壤模板已应用到实际项目，When 用户提出“更新息壤模板”，Then 项目规则将其确定性路由到 `pnpm agent -- template sync`，并识别模板 ID `xirang`、中文名“息壤”和固定官方 GitHub 源。 | TASK-CMDSURF-027~028、032 | TC-CMDSURF-022 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-02：Given 官方模板默认分支存在比实际项目内模板快照更新的提交，When 在实际项目专用 worktree 中执行 `template sync`，Then 命令通过 GitHub 鉴权入口成功 fetch、锁定本次远端 commit SHA，并从该 SHA 的执行器和 manifest 应用模板。 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-023 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-03：Given GitHub fetch 失败、官方分支不存在、SHA 无法解析或模板源形状非法，When 执行普通 `template sync`，Then 命令以非零状态在目标 tracked 文件修改前阻断，且不得静默回退到缓存或项目内旧快照。 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-024 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-04：Given 官方模板来源有效，When 同步涉及已有实际项目文件，Then 命令先 dry-run、冲突时阻断、无冲突时 apply 并再次 dry-run，最终只改变 manifest 允许的 template-owned 内容且保护 `RULES.md`、业务源码和 project-owned 配置。 | TASK-CMDSURF-027、030~032 | TC-CMDSURF-025 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-05：Given 实际项目已同步到该模板 SHA，When 再次执行同步或检查结果，Then 收敛结果为无模板差异，并输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 和 `TEMPLATE_CONVERGENCE_STATUS`。 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa |
 
 ## 4. 非功能需求（NFR）
 
@@ -74,10 +84,13 @@ Out of Scope：
 - NFR-CMDSURF-007：任务输入规则保持单一入口、短小且可测试；诊断、研究和运维任务继续允许以目标作为默认验收，保持兼容。
 - NFR-CMDSURF-008：全新 worktree 的默认基线必须由本次成功 fetch 后的确定 commit SHA 表示；缓存或本地基线只能由显式跳过路径使用，且不得把任意 `HEAD` 当作 configured base。
 - NFR-CMDSURF-009：本机 session/锁只承担本机生命周期职责；跨电脑协调必须使用远端 branch/PR/base SHA 和普通非强制更新，且所有主干引用来自 `config.baseBranch`。
+- NFR-CMDSURF-010：息壤模板同步必须绑定固定官方仓库、默认分支和本次 fetch 后的不可变 commit SHA；来源验证失败不得产生目标 tracked 文件修改。
+- NFR-CMDSURF-011：模板同步在 macOS、Linux 与 Windows 上使用 Node argv 调度和 GitHub 鉴权封装，不依赖 shell 拼接、全局临时工作区或项目业务工具。
+- NFR-CMDSURF-012：模板身份与同步触发规则必须随 template-owned 文件传播，实际项目无需复制完整默认配置，也不得在 project-owned `agent.config.json` 中强制保存本机绝对路径。
 
 ## 5. 依赖与风险
 
-依赖现有 `agent-cli.js`、`devops-run.js`、配置加载器、GitHub 鉴权环境构建器、worktree 生命周期脚本与模板 manifest。主要风险是把项目 alias 当成模板规范、private profile 隐式回退到 default、目录创建发生得过早而污染只读操作、把陈旧 remote-tracking ref 误报为最新基线，以及把本机 session/锁误当作跨电脑协调源；通过显式语法、按需初始化边界、默认 fetch 强门禁、远端 SHA 回执、非快进更新与定向负向测试缓解。
+依赖现有 `agent-cli.js`、`devops-run.js`、配置加载器、GitHub 鉴权环境构建器、worktree 生命周期脚本、模板 apply 引擎与 manifest。主要风险是把项目 alias 当成模板规范、private profile 隐式回退到 default、目录创建发生得过早而污染只读操作、把陈旧 remote-tracking ref 误报为最新基线、把本机 session/锁误当作跨电脑协调源，以及让实际项目误用自身旧模板快照；通过显式语法、按需初始化边界、默认 fetch 强门禁、固定模板 SHA、远端 SHA 回执、非快进更新与定向负向测试缓解。
 
 ## 6. 里程碑与 Gate
 
@@ -106,6 +119,7 @@ Out of Scope：
 | v1.2 | 2026-08-27 | 增加短提示词补齐与 mutation 显式验收门禁，并收敛 Codex 审批策略示例 | @template-maintainers |
 | v1.3 | 2026-09-01 | 增加全新 worktree 的远端基线强制刷新、固定 SHA 创建与显式 skip 边界 | @template-maintainers |
 | v1.4 | 2026-09-05 | 增加无 GitHub CI 的多电脑同权协作、远端分支恢复、QA 双 SHA 回执与主干乐观并发边界 | @template-maintainers |
+| v1.5 | 2026-09-06 | 模板命名为息壤，增加实际项目自然语言触发、固定官方 GitHub 源与 SHA 锁定的模板自更新协议 | @template-maintainers |
 
 ## 11. 自检清单
 

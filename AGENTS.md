@@ -136,6 +136,9 @@ pnpm agent -- finish
 
 ## 模板所有权与升级
 
+- 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。
+- 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：按任务门禁创建或恢复专用 linked worktree，并在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链；无需再次询问模板名称、仓库或命令。
+- `template sync` 必须 required fetch 官方分支、锁定本次 commit SHA，并从该 SHA 内的 updater 应用；fetch、ref 或源校验失败必须阻断，禁止退回缓存或项目内旧模板。该命令只允许在实际项目的干净 linked worktree 执行，模板源仓库和主 worktree 均阻断。
 - 模板提供 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 和协议模板。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
 - `RULES.md`、业务源码、真实项目文档和部署实现属于项目；模板更新不得覆盖。
