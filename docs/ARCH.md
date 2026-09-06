@@ -68,7 +68,7 @@ sequenceDiagram
 
 多电脑运行时不共享 PID、锁、worktree 路径或 task/session 文件。`worktree new` 在 fetch 后检查远端同名分支并阻断误建；`worktree resume` 可从远端分支的固定 SHA 建立本机 worktree/session。`qa verify` 记录 `BASE_SHA` 与 `HEAD_SHA`，`qa merge` 再次 fetch 并要求二者未漂移；GitHub squash merge 绑定 head SHA，本地 fallback 只允许普通非强制 push。主干或功能分支变化时旧回执立即失效。
 
-息壤模板同步由实际项目中随模板传播的轻量引导器发起。引导器只在实际项目的 linked worktree 中运行，读取 template-owned 的息壤身份和官方 GitHub URL/branch，通过既有 GitHub 鉴权环境在容器 `tmp` 的唯一运行目录执行 required shallow fetch，解析 `FETCH_HEAD^{commit}` 后以 detached checkout 形成不可变模板快照。随后必须调用该快照中的最新 `update-template.js` 和 manifest 对调用 worktree执行 dry-run/apply/convergence；因此实际项目内携带的旧应用器不会成为模板内容事实源。来源或预检失败只允许留下容器层诊断证据，不得写入目标 tracked 文件。
+息壤模板同步由实际项目中随模板传播的轻量引导器发起。引导器只在实际项目的 linked worktree 中运行，读取 template-owned 的息壤身份和官方 GitHub URL/branch，通过独立匿名 HTTPS Git 环境在容器 `tmp` 的唯一运行目录执行 required shallow fetch，解析 `FETCH_HEAD^{commit}` 后以 detached checkout 形成不可变模板快照。随后必须调用该快照中的最新 `update-template.js` 和 manifest 对调用 worktree执行 dry-run/apply/convergence；因此实际项目内携带的旧应用器不会成为模板内容事实源。来源或预检失败只允许留下容器层诊断证据，不得写入目标 tracked 文件。
 
 ### 3.3 数据视图
 
@@ -95,7 +95,7 @@ sequenceDiagram
 - 专家阶段不是机器身份或 GitHub 权限；所有授权电脑使用同一命令合约。
 - GitHub CI 不参与 QA/合并；模板不创建、修改或触发 project-owned workflows。
 - 配置主干只允许普通更新，模板永不对其执行 force push 或删除。
-- 普通“更新息壤模板”只使用 template-owned 官方 GitHub URL 与 branch；远端凭据继续通过进程级 Git extraheader 注入，不写入 URL、日志或目标文件。
+- 普通“更新息壤模板”只使用 template-owned 官方 GitHub URL 与 branch；官方下载不读取项目 token、不发送 Authorization/Cookie，并隔离用户 Git 配置；项目自身远端操作继续走原鉴权入口。
 - 模板 fetch、commit 解析、快照形状验证和 dry-run 必须先于目标 tracked 文件写入；失败不得回退项目内旧快照。
 
 ## 4. 技术选型与 ADR

@@ -28,6 +28,7 @@ In Scope：
 - 跨电脑合并采用远端 SHA 比较与普通非强制 push 的乐观并发；主干禁止 force push 和删除。
 - 模板正式身份为“息壤（Xirang）”，稳定标识为 `xirang`；模板应用到实际项目后，“更新息壤模板”必须路由到 `pnpm agent -- template sync`。
 - `template sync` 从固定官方 GitHub 仓库及默认分支执行 required fetch，解析确定 commit SHA，并从该 SHA 的模板内容更新当前实际项目，不得把项目内携带的旧模板快照冒充最新版。
+- 官方公开模板通过匿名 HTTPS 获取；项目 token 未配置、失效或仅授权业务仓库均不得影响官方模板下载，且不得向模板源发送项目凭据。
 - 模板同步在目标 tracked 文件写入前完成来源验证和 dry-run；冲突、fetch 失败、远端分支缺失或 SHA 无法解析时 fail closed。
 - 成功同步必须执行 apply 后收敛 dry-run，输出模板 ID、仓库、分支、commit、fetch、apply 与 convergence 状态，并继续遵守 template-owned/project-owned 边界。
 
@@ -68,10 +69,11 @@ Out of Scope：
 | US-CMDSURF-008 | AC-CMDSURF-008-05：Given 项目协作者在任意电脑激活任意专家阶段，When 创建、验证或合并任务，Then 模板不读取机器角色或 QA 专用身份，且允许相同权限的协作者合并 PR 或普通更新配置主干；主干永不 force push。 | TASK-CMDSURF-024~026 | TC-CMDSURF-020 | @qa |
 | US-CMDSURF-008 | AC-CMDSURF-008-06：Given 目标项目禁止 GitHub CI，When 应用模板并完成 TDD/QA/合并，Then 模板不创建、修改、触发或依赖 `.github/workflows` 与 required checks，所有门禁在本地执行。 | TASK-CMDSURF-025~026 | TC-CMDSURF-021 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-01：Given 息壤模板已应用到实际项目，When 用户提出“更新息壤模板”，Then 项目规则将其确定性路由到 `pnpm agent -- template sync`，并识别模板 ID `xirang`、中文名“息壤”和固定官方 GitHub 源。 | TASK-CMDSURF-027~028、032 | TC-CMDSURF-022 | @qa |
-| US-CMDSURF-009 | AC-CMDSURF-009-02：Given 官方模板默认分支存在比实际项目内模板快照更新的提交，When 在实际项目专用 worktree 中执行 `template sync`，Then 命令通过 GitHub 鉴权入口成功 fetch、锁定本次远端 commit SHA，并从该 SHA 的执行器和 manifest 应用模板。 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-023 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-02：Given 官方模板默认分支存在比实际项目内模板快照更新的提交，When 在实际项目专用 worktree 中执行 `template sync`，Then 命令通过仓库脚本匿名 HTTPS 成功 fetch、锁定本次远端 commit SHA，并从该 SHA 的执行器和 manifest 应用模板。 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-023 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-03：Given GitHub fetch 失败、官方分支不存在、SHA 无法解析或模板源形状非法，When 执行普通 `template sync`，Then 命令以非零状态在目标 tracked 文件修改前阻断，且不得静默回退到缓存或项目内旧快照。 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-024 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-04：Given 官方模板来源有效，When 同步涉及已有实际项目文件，Then 命令先 dry-run、冲突时阻断、无冲突时 apply 并再次 dry-run，最终只改变 manifest 允许的 template-owned 内容且保护 `RULES.md`、业务源码和 project-owned 配置。 | TASK-CMDSURF-027、030~032 | TC-CMDSURF-025 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-05：Given 实际项目已同步到该模板 SHA，When 再次执行同步或检查结果，Then 收敛结果为无模板差异，并输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 和 `TEMPLATE_CONVERGENCE_STATUS`。 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa |
+| US-CMDSURF-009 | AC-CMDSURF-009-06：Given 项目 GH_TOKEN 缺失、无效或仅授权业务仓库且存在 Git 凭据配置，When 获取官方公开模板，Then 请求不携带项目 token、Authorization 或 Cookie，不调用 credential helper/askpass、不应用用户 URL 重写，仍锁定远端 SHA；HTTP 拒绝或网络失败时阻断且不改变目标 tracked 文件，项目自身 GitHub 操作继续沿用原鉴权。 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa |
 
 ## 4. 非功能需求（NFR）
 
@@ -85,7 +87,7 @@ Out of Scope：
 - NFR-CMDSURF-008：全新 worktree 的默认基线必须由本次成功 fetch 后的确定 commit SHA 表示；缓存或本地基线只能由显式跳过路径使用，且不得把任意 `HEAD` 当作 configured base。
 - NFR-CMDSURF-009：本机 session/锁只承担本机生命周期职责；跨电脑协调必须使用远端 branch/PR/base SHA 和普通非强制更新，且所有主干引用来自 `config.baseBranch`。
 - NFR-CMDSURF-010：息壤模板同步必须绑定固定官方仓库、默认分支和本次 fetch 后的不可变 commit SHA；来源验证失败不得产生目标 tracked 文件修改。
-- NFR-CMDSURF-011：模板同步在 macOS、Linux 与 Windows 上使用 Node argv 调度和 GitHub 鉴权封装，不依赖 shell 拼接、全局临时工作区或项目业务工具。
+- NFR-CMDSURF-011：模板同步在 macOS、Linux 与 Windows 上使用 Node argv 调度和仓库内 Git 封装；官方匿名下载隔离项目凭据及 Git 配置，不依赖 shell 拼接、全局临时工作区或项目业务工具，项目自身 GitHub 鉴权不变。
 - NFR-CMDSURF-012：模板身份与同步触发规则必须随 template-owned 文件传播，实际项目无需复制完整默认配置，也不得在 project-owned `agent.config.json` 中强制保存本机绝对路径。
 
 ## 5. 依赖与风险
@@ -120,6 +122,7 @@ Out of Scope：
 | v1.3 | 2026-09-01 | 增加全新 worktree 的远端基线强制刷新、固定 SHA 创建与显式 skip 边界 | @template-maintainers |
 | v1.4 | 2026-09-05 | 增加无 GitHub CI 的多电脑同权协作、远端分支恢复、QA 双 SHA 回执与主干乐观并发边界 | @template-maintainers |
 | v1.5 | 2026-09-06 | 模板命名为息壤，增加实际项目自然语言触发、固定官方 GitHub 源与 SHA 锁定的模板自更新协议 | @template-maintainers |
+| v1.6 | 2026-09-06 | 官方公开模板匿名 HTTPS 下载，与实际项目 token、Git 凭据和 URL 重写隔离 | @template-maintainers |
 
 ## 11. 自检清单
 

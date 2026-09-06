@@ -224,6 +224,43 @@ test('required fetch failure blocks without changing target tracked files or usi
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), '# local old template\n');
 });
 
+test('official anonymous fetch failure never falls back to project credentials or writes the target', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-official-reject-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { linkedRoot } = createTarget(root);
+  const program = `
+    const assert = require('node:assert/strict');
+    const cp = require('node:child_process');
+    const spawn = cp.spawnSync;
+    let fetches = 0;
+    cp.spawnSync = (command, args, options) => {
+      if (command === 'git' && args[0] === 'fetch') {
+        fetches++;
+        assert.ok(!options.env.GH_TOKEN && !options.env.GITHUB_TOKEN, 'anonymous request');
+        return { status: 128, stdout: '', stderr: 'test-only upstream denial' };
+      }
+      return spawn(command, args, options);
+    };
+    const sync = require(process.argv[1]);
+    assert.throws(() => sync.executeTemplateSync([], { cwd: process.cwd() }), error => {
+      assert.equal(error.stage, 'fetch');
+      assert.equal(error.audit.authMode, 'ANONYMOUS');
+      assert.equal(error.audit.fetchStatus, 'BLOCKED');
+      assert.equal(error.audit.applyStatus, 'NOT_STARTED');
+      return true;
+    });
+    assert.equal(fetches, 1, 'no credential retry');
+    console.log('OFFICIAL_FAILURE_ZERO_WRITE');
+  `;
+  const result = spawnSync(process.execPath, ['-e', program, SYNC_SCRIPT], {
+    cwd: linkedRoot, encoding: 'utf8',
+    env: { ...process.env, GH_TOKEN: 'invalid-test-credential' },
+  });
+  assert.equal(result.status, 0, combinedOutput(result));
+  assert.equal(git(linkedRoot, ['status', '--porcelain']), '');
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), '# local old template\n');
+});
+
 test('invalid fetched template shape blocks before any target tracked write', (t) => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-invalid-source-'));
   t.after(() => fs.rmSync(testRoot, { recursive: true, force: true }));

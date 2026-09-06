@@ -55,7 +55,11 @@
 ## 一键应用与重复升级
 `update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。首次应用时还会补齐 `.env.example`、`.env.staging.example`、`.env.production.example`、`.env.local`、`.env.staging`、`.env.production`；已有环境文件永不追加或覆盖。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
 
-`template sync` 是实际项目的官方升级入口。它只在干净的 linked worktree 中运行，通过现有 GitHub 鉴权封装 required fetch `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main`，固定本次 commit SHA，在隔离快照中校验息壤身份和 manifest，再调用该 SHA 自带的最新版 `update-template.js`。fetch 或源校验失败时不会改动目标 tracked 文件，也不会回退到项目内旧副本；成功应用后必须再次 dry-run 证明收敛。
+`template sync` 是实际项目的官方升级入口。它只在干净的 linked worktree 中运行，通过独立匿名 HTTPS Git 环境 required fetch `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main`，固定本次 commit SHA，在隔离快照中校验息壤身份和 manifest，再调用该 SHA 自带的最新版 `update-template.js`。fetch 或源校验失败时不会改动目标 tracked 文件，也不会回退到项目内旧副本；成功应用后必须再次 dry-run 证明收敛。
+
+官方模板下载不要求项目 token 拥有息壤仓库权限：项目 `GH_TOKEN` 未配置或失效都不影响此下载步骤，日志显示 `TEMPLATE_AUTH_MODE=ANONYMOUS`；项目自身的 worktree 基线刷新、推送和 PR 仍需要该项目的正常鉴权。匿名下载屏蔽用户 Git 配置，不修改这些配置；只写在 Git 配置里的代理/CA 需改用 `HTTPS_PROXY`、`GIT_SSL_CAINFO` 或 `GIT_SSL_CAPATH` 环境变量。TLS 校验保持开启，不跟随重定向。官方仓库若不再公开，同步会阻断。
+
+从 v2.2.0 升级到此版本时，第一次启动仍使用项目内的旧引导器；若旧引导器因无效 token 阻断，可在息壤源仓库通过 `pnpm agent -- template update <目标项目专用-worktree>` 完成一次引导升级。之后官方获取即与项目 token 隔离。
 
 ```bash
 # 首次应用或重复升级，目标路径支持相对路径

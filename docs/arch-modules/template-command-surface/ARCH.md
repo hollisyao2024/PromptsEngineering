@@ -18,6 +18,7 @@
 | ADR-005 | 全新 worktree 默认 required fetch 并从固定远端 base SHA 创建；现有 `--skip-fetch` 是唯一离线逃生口 | 防止陈旧 remote-tracking ref 或任意 HEAD 被误报为最新基线，同时保持显式离线能力 | Accepted |
 | ADR-006 | 本机状态只保护本机生命周期；跨电脑使用远端 SHA 校验与普通非快进更新，不设置机器角色或远程锁 | 以最小改动支持所有电脑同权并阻止同名分支误建、陈旧 QA 与覆盖先到提交 | Accepted |
 | ADR-007 | 实际项目通过轻量引导器 required fetch 固定息壤官方源，以不可变 SHA 快照中的最新应用器执行更新 | 避免旧项目自引用旧模板，同时保证来源、版本、失败边界和收敛证据 | Accepted |
+| ADR-008 | 官方公开模板采用独立匿名 HTTPS Git 环境，项目鉴权保持原入口 | 下载不依赖项目 token，隔离凭据与 URL 重写 | Accepted |
 
 ## 2. 上下文与边界
 
@@ -60,7 +61,7 @@ flowchart LR
 | CMDSURF-SVC-005 | Worktree Base Synchronizer | 在创建副作用前刷新并解析远端 base，或在显式 skip 时解析缓存 remote/local base；输出固定 commit SHA 与新鲜度 | main root、base branch、skip flag | base ref、base commit、fetch status、freshness 或明确错误 | 模板 |
 | CMDSURF-SVC-006 | Remote Branch Resolver | 区分本地/远端分支，新建时阻断远端同名分支，恢复时从远端固定 SHA 建立本机 worktree/session | branch、origin refs、operation | branch source、remote head、worktree/session 或明确错误 | 模板 |
 | CMDSURF-SVC-007 | QA SHA Merge Guard | 记录本机 QA 的 base/head SHA，合并前重新核验并执行 SHA 绑定的 PR merge 或普通非强制 push | base branch、PR、base/head SHA、QA verdict | merge/push/remote verification 状态或陈旧回执错误 | 模板 |
-| CMDSURF-SVC-008 | Xirang Upstream Fetcher | 校验息壤身份与官方源，在容器临时目录 required fetch 默认分支并检出不可变 SHA 快照 | target root、template identity、official repo/branch、GitHub auth | source repo/branch/commit、detached snapshot 或明确错误 | 模板 |
+| CMDSURF-SVC-008 | Xirang Upstream Fetcher | 校验息壤身份与官方源，在容器临时目录匿名 required fetch 默认分支并检出不可变 SHA 快照 | target root、template identity、official repo/branch、独立匿名环境 | source repo/branch/commit、detached snapshot 或明确错误 | 模板 |
 | CMDSURF-SVC-009 | Template Sync Orchestrator | 要求目标为 linked worktree，调用固定 SHA 快照内的最新更新器完成 dry-run、apply、convergence 和结构化报告 | target worktree、immutable snapshot、template manifest | fetch/apply/convergence 状态、修改文件、报告路径或明确错误 | 模板 |
 
 关键调用链：CLI 标准化参数 → Dispatcher 校验必需维度 → Config Resolver 精确查找 → 按动作声明并初始化所需容器目录 → 项目命令执行 → 记录结果。
@@ -80,7 +81,7 @@ Worktree 基线策略：请求与恢复态预检先于网络和文件系统副�
 
 QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configured base、branch、PR、`BASE_SHA` 与 `HEAD_SHA` 的临时回执。`qa merge` 必须重新 fetch 并匹配这两个 SHA，且不得在该阶段自动 rebase/force-push 功能分支。GitHub squash merge 使用 expected head SHA；本地 fallback 使用精确 refspec 的普通 push。远端 base/head 漂移、非快进拒绝或结果不明时保留生命周期状态并要求验证/重新 QA，远端确认前禁止清理。
 
-息壤同步策略：模板默认配置提供 `template.identity` 与 `template.upstream`；原有 `template.sourceRepo` 保留为项目向本地模板工作区回灌时的兼容配置，不承担在线更新事实源。同步引导器先验证调用目录属于 Git linked worktree、模板 ID 为 `xirang`、官方 URL/branch 合法，再在容器 `tmp/template-sync-runs/<run-id>` 初始化隔离 Git 仓库，通过 `buildGitHubGitEnv()` 执行 required shallow fetch。`FETCH_HEAD^{commit}` 是本次唯一模板版本，detached checkout 后还需验证 manifest、最新 update 脚本和身份字段。只有上述步骤与首次 dry-run 全部成功，最新快照内的更新器才可写目标；写入后立即再次 dry-run，任何非收敛结果均阻断交付。临时快照按精确目录安全清理，报告保留在目标容器 tmp。
+息壤同步策略：模板默认配置提供 `template.identity` 与 `template.upstream`；原有 `template.sourceRepo` 保留为项目向本地模板工作区回灌时的兼容配置，不承担在线更新事实源。同步引导器先验证调用目录属于 Git linked worktree、模板 ID 为 `xirang`、官方 URL/branch 合法，再在容器 `tmp/template-sync-runs/<run-id>` 初始化隔离 Git 仓库，通过独立匿名 HTTPS 环境执行 required shallow fetch，屏蔽项目 token、用户 Git 配置、helper、askpass 和 URL 重写。`FETCH_HEAD^{commit}` 是本次唯一模板版本，detached checkout 后还需验证 manifest、最新 update 脚本和身份字段。只有上述步骤与首次 dry-run 全部成功，最新快照内的更新器才可写目标；写入后立即再次 dry-run，任何非收敛结果均阻断交付。临时快照按精确目录安全清理，报告保留在目标容器 tmp。
 
 自然语言策略：template-owned `AGENTS.md` 将“更新息壤模板”定义为修改任务入口，要求 Agent 在实际项目先创建/恢复专用 worktree，再执行 `pnpm agent -- template sync` 并完成该项目自身 TDD/QA/合并门禁。CLI 提供确定性机制，语言模型不负责自行猜测模板 URL 或手工拼接更新步骤。
 
@@ -112,7 +113,7 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | 容器目录初始化 | 显式目录 key 集合；返回绝对路径映射 | 非白名单 key、非法拓扑、非目录目标或创建失败时阻断 |
 | Git `origin` 与 configured base | 默认在线刷新并解析 `refs/remotes/origin/<base>^{commit}` | fetch、鉴权、remote 或 base ref 失败时在创建副作用前阻断 |
 | GitHub PR API/CLI | 查询 PR base/head；merge 时绑定 expected head SHA | PR 缺失、base/head 不符或权限失败时阻断或进入受控本地普通 push fallback |
-| 息壤官方 GitHub 源 | template-owned URL 与 branch；通过进程级 extraheader fetch | 获取失败、ref 缺失或 SHA 不可解析时在目标 tracked mutation 前阻断 |
+| 息壤官方 GitHub 源 | template-owned URL 与 branch；匿名 HTTPS fetch，无 Authorization/Cookie | 获取失败、ref 缺失或 SHA 不可解析时在目标 tracked mutation 前阻断 |
 | 固定 SHA 模板快照 | 必须包含有效 identity、manifest、`update-template.js` 与 apply engine | 形状或身份不匹配时阻断，不调用目标项目内旧应用器 |
 
 兼容策略：`config.example.json` 提供完整默认矩阵，项目稀疏 `agent.config.json` 通过深合并继承并可在任意叶级覆盖；已有 package aliases 不删除。项目显式选择未知 profile、平台或环境时不跨维度回退。
@@ -153,7 +154,9 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 
 ## 7. 安全与隐私
 
-不新增用户身份或权限。专家阶段不作为授权身份，所有授权电脑运行同一合约。远端操作继续复用 `buildGitHubGitEnv()`，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。普通息壤同步只读取 template-owned 官方源；测试和明确 fork 场景的 source 注入必须显式，不改变“更新息壤模板”的默认含义。模板不创建、触发或依赖 GitHub CI；`.github/workflows` 保持 project-owned。配置主干禁止 force push 与删除，功能分支策略由项目决定。
+不新增用户身份或权限。专家阶段不作为授权身份，所有授权电脑运行同一合约。项目远端操作继续复用 `buildGitHubGitEnv()`；官方公开模板使用独立匿名环境，不得把 token、HTTP header 或完整敏感 stderr 写入结构化输出。普通息壤同步只读取 template-owned 官方源；测试和明确 fork 场景的 source 注入必须显式，不改变“更新息壤模板”的默认含义。模板不创建、触发或依赖 GitHub CI；`.github/workflows` 保持 project-owned。配置主干禁止 force push 与删除，功能分支策略由项目决定。
+
+官方匿名获取遵循 [ADR-008](../../adr/008-arch-xirang-anonymous-fetch.md)：隔离继承的 Git 配置和凭据，不读取项目 GH_TOKEN；官方源与显式测试/fork override 使用不同环境，项目自身 GitHub 操作保持既有鉴权入口。
 
 ## 8. 部署与运行
 
@@ -221,7 +224,7 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 - 必须：模板身份使用 `xirang`/“息壤”；普通 `template sync` 的默认来源是 template-owned 官方 GitHub URL 与 `main`，且用户短语“更新息壤模板”只能映射该入口。
 - 必须：同步先验证 linked worktree，再 required fetch；使用 `FETCH_HEAD^{commit}` 固定 SHA 和 detached source snapshot，调用快照中的最新 updater 与 manifest。
 - 必须：首次 dry-run、冲突检查、apply、convergence dry-run 顺序固定；fetch/ref/source/dry-run 失败时目标 tracked 文件零修改。
-- 必须：所有 GitHub 凭据仅通过既有进程环境注入；结构化输出不得包含 token、extraheader 或未脱敏远端错误正文。
+- 必须：项目 GitHub 凭据仅通过既有进程环境注入；官方模板获取禁用该凭据注入；结构化输出不得包含 token、extraheader 或未脱敏远端错误正文。
 - 必须：既有 `template.sourceRepo` 的本地 backfill 语义保持兼容；在线息壤来源使用独立 `template.identity`/`template.upstream`，避免 URL 被 `path.resolve()` 误解。
 - 禁止：普通同步静默使用项目内旧模板、缓存快照、可变 symbolic ref 或任意第三方 URL；禁止直接在主 worktree 写模板更新。
 

@@ -64,9 +64,9 @@ Manifest 支持以下策略：
 
 实际项目中的自然语言“更新息壤模板”确定性映射为 `pnpm agent -- template sync`。执行器必须先建立 mutation 任务及专用 linked worktree，再在干净的 `NEXT_CWD` 运行命令，并继续项目既有的 TDD/QA 交付链。模板源角色或主 worktree 不得运行同步。
 
-普通同步始终 required fetch，不提供静默离线降级：在容器 tmp 的隔离目录拉取配置分支，解析并固定 `FETCH_HEAD^{commit}`，校验息壤身份、manifest 和同步能力，再调用该固定 SHA 中的最新版 updater。fetch、分支、SHA 或源形状异常时，必须在目标 tracked 文件写入前非零退出；凭据仍只通过 `GH_TOKEN` 与共享 GitHub 鉴权封装注入。
+普通同步始终 required fetch，不提供静默离线降级：在容器 tmp 的隔离目录拉取配置分支，解析并固定 `FETCH_HEAD^{commit}`，校验息壤身份、manifest 和同步能力，再调用该固定 SHA 中的最新版 updater。fetch、分支、SHA 或源形状异常时，必须在目标 tracked 文件写入前非零退出；官方公开仓库通过匿名 HTTPS 获取，不读取或发送项目 `GH_TOKEN`，并屏蔽 Git system/global 配置、helper、askpass、额外认证头、Cookie 和 URL 重写；项目自身远端操作继续使用共享 GitHub 鉴权封装。匿名 fetch 失败不切换 token 重试，官方源改为私有时阻断。
 
-updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run，并只按 manifest 修改 template-owned 内容。命令固定输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 与 `TEMPLATE_CONVERGENCE_STATUS`；失败不得改用缓存或目标项目内的旧快照。
+updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run，并只按 manifest 修改 template-owned 内容。命令固定输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_AUTH_MODE`（官方为 `ANONYMOUS`）、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 与 `TEMPLATE_CONVERGENCE_STATUS`；失败不得改用缓存或目标项目内的旧快照。
 
 ## 4. 文档与阶段状态
 

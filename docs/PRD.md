@@ -43,7 +43,7 @@
 
 | 功能域 | 优先级/阶段 | 负责人 | 文档链接 | 依赖状态/Traceability | 当前 Gate 状态 |
 | --- | --- | --- | --- | --- | --- |
-| 模板命令面 | P0 / PRD v1.5 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | 息壤同步 Traceability 已初始化 | 进入 ARCH |
+| 模板命令面 | P0 / PRD v1.6 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | 息壤匿名获取 AC/Traceability 已确认 | 进入 ARCH |
 | 环境文件初始化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/environment-file-initialization/PRD.md) | Traceability 已初始化 | 进入 ARCH |
 
 ## 6. 里程碑与依赖
@@ -55,7 +55,7 @@
 | M2 传播验收 | 目标项目模板 dry-run/apply/convergence | project-owned 文件不变 | 依赖模板源合并 |
 | M3 环境文件初始化 | 六个环境文件首次生成 | example 可跟踪、实际文件被忽略、已有内容不变 | 依赖模板 apply 引擎与 `.gitignore` 合并 |
 | M4 多机同权协作 | 远端分支恢复、QA SHA 回执、配置主干安全合并 | 三份独立 clone 模拟、相关回归与模板收敛通过 | 依赖 Git origin、GitHub PR API 和本地 QA 命令 |
-| M5 息壤模板自更新 | 固定官方源、自然语言路由与 `template sync` | 远端前进、失败阻断、所有权保护及二次收敛验证通过 | 依赖 GitHub 远端、鉴权封装、模板 manifest 与实际项目 worktree |
+| M5 息壤模板自更新 | 固定官方源、自然语言路由与 `template sync` | 远端前进、失败阻断、所有权保护及二次收敛验证通过 | 依赖公开 GitHub 远端、匿名获取环境、模板 manifest 与实际项目 worktree |
 
 ## 7. 风险与开放问题
 
