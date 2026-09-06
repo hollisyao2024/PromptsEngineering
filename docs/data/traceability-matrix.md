@@ -32,6 +32,7 @@
 | US-ENVINIT-001 | Git 所有权边界 | AC-ENVINIT-001-02 | TC-ENVINIT-002 | ✅ TDD 通过 / 待 QA | @qa | example 可跟踪、实际文件被忽略 |
 | US-ENVINIT-002 | 已有文件保护 | AC-ENVINIT-002-01 | TC-ENVINIT-003 | ✅ TDD 通过 / 待 QA | @qa | 后续 apply 不修改已有内容 |
 | US-ENVINIT-003 | Dry-run 无副作用 | AC-ENVINIT-003-01 | TC-ENVINIT-004 | ✅ TDD 通过 / 待 QA | @qa | 只报告缺失文件，不写盘 |
+| US-CMDSURF-009 | 官方模板匿名获取 | AC-CMDSURF-009-06 | TC-CMDSURF-027 | ✅ TDD 通过 | @qa | 官方无/无效 token、HTTP 请求无凭据、401 单次阻断、真实匿名 fetch 及项目鉴权回归通过 |
 
 ## 覆盖率统计
 
@@ -39,9 +40,9 @@
 | --- | --- | --- |
 | 总 Story 数 | 12 | - |
 | 已关联测试用例的 Story 数 | 12 | 100% |
-| 总 AC 数 | 29 | - |
-| 已关联测试用例的 AC 数 | 29 | 100% |
-| 测试通过的 AC 数 | 28 | 100% |
+| 总 AC 数 | 30 | - |
+| 已关联测试用例的 AC 数 | 30 | 100% |
+| 测试通过的 AC 数 | 29 | 100% |
 | 测试失败的 AC 数 | 0 | 0 |
 | 需求覆盖率 | 100% | ≥95% |
 | 测试通过率 | 97% | 100% |
