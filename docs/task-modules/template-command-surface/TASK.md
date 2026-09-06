@@ -3,11 +3,11 @@
 > **所属主 TASK**：[TASK.md](../../TASK.md)  
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/template-command-surface/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/template-command-surface/ARCH.md)  
-> **状态**：✅ 息壤模板自更新 QA 通过，待合并
+> **状态**：✅ 官方匿名获取回归通过
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
 > **最后更新**：2026-09-06
-> **版本**：v1.5
+> **版本**：v1.6
 
 ## 1. 模块概述
 
@@ -52,8 +52,15 @@
 | TASK-CMDSURF-031 | Update wrapper 应用后 convergence 与失败边界 | @tdd | 0.25d | P0 | TASK-CMDSURF-030 | ✅ 完成 | source gap/conflict pre-write block 与二次收敛通过 |
 | TASK-CMDSURF-032 | 模板命名、默认配置、manifest 版本与传播契约同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-028~031 | ✅ 完成 | v2.2.0 完整 manifest 引导与重复应用通过 |
 | TASK-CMDSURF-033 | 定向/全量回归、目标副本同步、语义审查与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-032 | 🧪 QA 通过，待合并 | 全量回归与 QA receipt 通过；Codex review skipped by policy |
+| TASK-CMDSURF-034 | RED：匿名环境、官方路由与 HTTP 请求凭据缺失 | @tdd | 0.25d | P0 | ADR-008 | ✅ 完成 | 4 项 RED 复现 |
+| TASK-CMDSURF-035 | 官方匿名 Git 环境、审计输出与协议同步 | @tdd | 0.5d | P0 | TASK-CMDSURF-034 | ✅ 完成 | 定向及全量回归通过 |
+| TASK-CMDSURF-036 | 凭据/模板传播回归、真实公开 fetch 与 QA 合并 | @qa | 0.25d | P0 | TASK-CMDSURF-035 | ✅ 本地验证通过 | 合并生命周期由 task/session 跟踪 |
 
 ### 2.2 任务详细说明
+
+- TASK-CMDSURF-034：TC-CMDSURF-027 覆盖无效/缺失 token、Git 配置及 helper 隔离、父环境不变、HTTP 请求无 Authorization/Cookie、401 无凭据重试与官方 URL 分流。
+- TASK-CMDSURF-035：只在官方固定 URL 使用独立匿名环境；项目鉴权与显式非官方测试/fork 保持兼容，同步 AGENTS/CONVENTIONS/README 与模板 patch 版本。
+- TASK-CMDSURF-036：运行模板和共享鉴权回归、真实官方只读 fetch、文档门禁与固定 TDD/QA 交付链；无需 DB、UI、部署或 GitHub CI。
 
 - TASK-CMDSURF-001：为 `/private restart` 文档口径、`app dev/build` CLI 路由、平台/profile 精确选择和缺失配置阻断先写失败测试。
 - TASK-CMDSURF-002：在模板默认配置增加空 `app.commands.dev/build`，在 Agent CLI 增加 `app` domain，不新增 package alias。
@@ -121,6 +128,8 @@
 | 030 | 031 | Finish-to-start | 同步编排稳定后补齐 apply 后收敛门禁 |
 | 028~031 | 032 | Finish-to-start | 行为冻结后同步名称、版本与传播内容 |
 | 032 | 033 | Finish-to-start | 代码、测试和协议齐备后进入回归与 QA |
+| 034 | 035 | Finish-to-start | 请求凭据隔离 RED 后实现匿名环境 |
+| 035 | 036 | Finish-to-start | 匿名获取与协议完成后回归及合并 |
 
 ## 4. 资源分配
 
@@ -172,6 +181,7 @@
 | US-CMDSURF-009 | AC-CMDSURF-009-03 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-024 | @qa | ✅ QA 通过 |
 | US-CMDSURF-009 | AC-CMDSURF-009-04 | TASK-CMDSURF-027、030~032 | TC-CMDSURF-025 | @qa | ✅ QA 通过 |
 | US-CMDSURF-009 | AC-CMDSURF-009-05 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa | ✅ QA 通过 |
+| US-CMDSURF-009 | AC-CMDSURF-009-06 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa | ✅ TDD 通过 |
 
 ## 7. 风险登记
 

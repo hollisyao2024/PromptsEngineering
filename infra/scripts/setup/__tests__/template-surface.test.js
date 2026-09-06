@@ -182,7 +182,7 @@ test('always-loaded protocol forbids parent-relative patch paths for container w
 
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
-  assert.equal(manifest.templateVersion, '2.2.0');
+  assert.equal(manifest.templateVersion, '2.2.1');
   assert.match(manifest.description, /phase-aware durable tasks/u);
 });
 
@@ -230,6 +230,9 @@ test('Xirang identity, official upstream, and natural-language sync route propag
   assert.match(agents, /pnpm agent -- template sync/u);
   assert.match(conventions, /更新息壤模板/u);
   assert.match(conventions, /TEMPLATE_COMMIT/u);
+  assert.match(agents, /匿名 HTTPS/u);
+  assert.match(conventions, /TEMPLATE_AUTH_MODE/u);
+  assert.match(conventions, /不读取或发送项目/u);
 });
 
 test('agent config is initialized sparsely instead of merged with every default', () => {

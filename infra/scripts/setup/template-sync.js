@@ -8,6 +8,7 @@
  */
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
@@ -94,6 +95,7 @@ function run(command, args, options = {}) {
     stdio: 'pipe',
     shell: false,
     maxBuffer: 10 * 1024 * 1024,
+    timeout: options.timeout,
   });
   return {
     error: result.error,
@@ -260,9 +262,55 @@ function ensureRealDirectory(directoryPath, label) {
   }
 }
 
+function buildAnonymousGitEnvironment(env = process.env) {
+  const output = { ...env };
+  for (const key of Object.keys(output)) {
+    if (/^(?:GIT_|GCM_)/iu.test(key) || /^(?:GH_TOKEN|GITHUB_TOKEN|SSH_ASKPASS)$/iu.test(key)) {
+      delete output[key];
+    }
+  }
+  // Keep transport CA paths, but never inherit client certificates or TLS bypass.
+  for (const key of ['GIT_SSL_CAINFO', 'GIT_SSL_CAPATH']) {
+    if (env[key]) output[key] = env[key];
+  }
+  Object.assign(output, {
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_SYSTEM: os.devNull,
+    GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'Never',
+  });
+  const config = [
+    ['credential.helper', ''],
+    ['credential.interactive', 'false'],
+    ['core.askPass', ''],
+    ['init.templateDir', ''],
+    // Empty named headers suppress libcurl-generated auth (including .netrc).
+    ['http.extraHeader', 'Authorization:'],
+    ['http.extraHeader', 'Cookie:'],
+    ['http.emptyAuth', 'false'],
+    ['http.proactiveAuth', 'none'],
+    ['http.followRedirects', 'false'],
+    ['http.sslVerify', 'true'],
+    ['http.lowSpeedLimit', '1'],
+    ['http.lowSpeedTime', '30'],
+    ['protocol.allow', 'never'],
+    ['protocol.https.allow', 'always'],
+  ];
+  output.GIT_CONFIG_COUNT = String(config.length);
+  config.forEach(([key, value], index) => {
+    output[`GIT_CONFIG_KEY_${index}`] = key;
+    output[`GIT_CONFIG_VALUE_${index}`] = value;
+  });
+  return output;
+}
+
 function fetchTemplateSnapshot({ audit, repository, branch, runDirectory, targetRoot }) {
+  const anonymous = repository === EXPECTED_UPSTREAM.repository;
+  audit.authMode = anonymous ? 'ANONYMOUS' : 'PROJECT_DEFAULT';
+  const snapshotEnv = anonymous ? buildAnonymousGitEnvironment() : process.env;
   const sourceRoot = path.join(runDirectory, 'source');
-  const init = runGit(runDirectory, ['init', '--quiet', sourceRoot]);
+  const init = runGit(runDirectory, ['init', '--quiet', sourceRoot], snapshotEnv);
   if (init.status !== 0) {
     audit.fetchStatus = 'BLOCKED';
     throw new TemplateSyncError('unable to initialize isolated template snapshot', 'fetch', audit);
@@ -281,13 +329,13 @@ function fetchTemplateSnapshot({ audit, repository, branch, runDirectory, target
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'Never',
   };
-  const fetchEnv = buildGitHubGitEnv({
+  const fetchEnv = anonymous ? snapshotEnv : buildGitHubGitEnv({
     repoRoot: targetRoot,
     cwd: sourceRoot,
     args: fetchArgs,
     env: baseEnv,
   });
-  const fetched = runGit(sourceRoot, fetchArgs, fetchEnv);
+  const fetched = run('git', fetchArgs, { cwd: sourceRoot, env: fetchEnv, timeout: 120_000 });
   if (fetched.status !== 0) {
     audit.fetchStatus = 'BLOCKED';
     throw new TemplateSyncError(
@@ -298,15 +346,16 @@ function fetchTemplateSnapshot({ audit, repository, branch, runDirectory, target
     );
   }
 
-  const resolved = runGit(sourceRoot, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}']);
+  const resolved = runGit(sourceRoot, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], snapshotEnv);
   const commit = resolved.stdout.trim();
   if (resolved.status !== 0 || !/^[0-9a-f]{40,64}$/u.test(commit)) {
     audit.fetchStatus = 'BLOCKED';
     throw new TemplateSyncError('fetched template commit could not be resolved', 'fetch', audit);
   }
 
-  const checkout = runGit(sourceRoot, ['checkout', '--quiet', '--detach', commit]);
-  const checkedOut = gitValue(sourceRoot, ['rev-parse', 'HEAD']);
+  const checkout = runGit(sourceRoot, ['checkout', '--quiet', '--detach', commit], snapshotEnv);
+  const head = runGit(sourceRoot, ['rev-parse', 'HEAD'], snapshotEnv);
+  const checkedOut = head.status === 0 ? head.stdout.trim() : '';
   if (checkout.status !== 0 || checkedOut !== commit) {
     audit.fetchStatus = 'BLOCKED';
     throw new TemplateSyncError('fetched template commit could not be checked out exactly', 'fetch', audit);
@@ -352,6 +401,7 @@ function createAudit(repository = '', branch = '') {
     repository: repositoryForOutput(repository),
     branch: singleLine(branch),
     commit: '',
+    authMode: repository === EXPECTED_UPSTREAM.repository ? 'ANONYMOUS' : 'PROJECT_DEFAULT',
     fetchStatus: 'NOT_STARTED',
     applyStatus: 'NOT_STARTED',
     convergenceStatus: 'NOT_STARTED',
@@ -466,6 +516,7 @@ function printAudit(audit) {
   console.log(`TEMPLATE_REPO=${repositoryForOutput(audit.repository)}`);
   console.log(`TEMPLATE_BRANCH=${singleLine(audit.branch)}`);
   console.log(`TEMPLATE_COMMIT=${singleLine(audit.commit)}`);
+  console.log(`TEMPLATE_AUTH_MODE=${singleLine(audit.authMode)}`);
   console.log(`TEMPLATE_FETCH_STATUS=${singleLine(audit.fetchStatus)}`);
   console.log(`TEMPLATE_APPLY_STATUS=${singleLine(audit.applyStatus)}`);
   console.log(`TEMPLATE_CONVERGENCE_STATUS=${singleLine(audit.convergenceStatus)}`);
@@ -504,6 +555,7 @@ module.exports = {
   EXPECTED_IDENTITY,
   EXPECTED_UPSTREAM,
   assertEligibleTarget,
+  buildAnonymousGitEnvironment,
   buildUpdaterEnvironment,
   executeTemplateSync,
   fetchTemplateSnapshot,

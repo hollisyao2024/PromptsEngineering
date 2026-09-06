@@ -30,6 +30,8 @@
 | TASK-CMDSURF-030 | TASK-CMDSURF-031 | Finish-to-start | 0 | 是 | 编排稳定后补齐 apply convergence 门禁 |
 | TASK-CMDSURF-031 | TASK-CMDSURF-032 | Finish-to-start | 0 | 是 | 行为冻结后同步名称、配置和模板版本 |
 | TASK-CMDSURF-032 | TASK-CMDSURF-033 | Finish-to-start | 0 | 是 | 代码与传播协议齐备后执行回归和 QA |
+| TASK-CMDSURF-034 | TASK-CMDSURF-035 | Finish-to-start | 0 | 是 | 匿名凭据隔离 RED 后实现传输环境 |
+| TASK-CMDSURF-035 | TASK-CMDSURF-036 | Finish-to-start | 0 | 是 | 实现及协议完成后回归与 QA |
 | TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
 | TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
 | TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |

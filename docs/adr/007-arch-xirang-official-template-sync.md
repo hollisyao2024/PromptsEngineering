@@ -3,6 +3,7 @@
 - 状态：Accepted
 - 日期：2026-09-06
 - 关联：US-CMDSURF-009、CR-20260906-001
+- 后续修订：官方源的项目 token 鉴权已由 [ADR-008](008-arch-xirang-anonymous-fetch.md) 取代为匿名 HTTPS；本文件保留原决策历史。
 
 ## 背景
 
