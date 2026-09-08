@@ -155,6 +155,8 @@ function main() {
   const scope = parseScope(argv);
 
   const config = loadConfig({ repoRoot });
+  try { require('../shared/architecture-check').runArchitectureCheck(repoRoot); }
+  catch (error) { console.error(`STATUS=BLOCKED\nREASON=${error.message}`); process.exit(1); }
   if (!runMigrationRegistryCheck(config)) {
     console.error('❌ /tdd sync 失败：Migration Registry Gate 未通过');
     process.exit(1);

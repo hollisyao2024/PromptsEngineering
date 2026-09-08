@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "applications": [
+    {
+      "id": "web",
+      "stack": "react-vite",
+      "path": "apps/web"
+    },
+    {
+      "id": "api",
+      "stack": "node",
+      "path": "apps/server"
+    }
+  ],
+  "datastores": [
+    {
+      "id": "platform",
+      "engine": "sqlite",
+      "path": "packages/database",
+      "consumers": [
+        "api"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "observability",
+      "path": "packages/observability"
+    },
+    {
+      "id": "contracts",
+      "path": "packages/contracts"
+    }
+  ],
+  "profiles": []
+}

@@ -1,4 +1,17 @@
-# 息壤（Xirang）工程智能体模板（v2.2.0 · 2026-09-06）
+# 息壤（Xirang）
+
+息壤提供两类能力：规范大模型的工程作业流程，并按照实际项目的技术选择初始化、检查和升级应用架构。两个包共享可审查、可恢复的文件更新引擎。
+
+| 目录/入口 | 职责 |
+| --- | --- |
+| [agent/](agent/README.md) | PRD → ARCH → TASK → TDD → QA、worktree、恢复与交付；旧 AgentRoles/infra/scripts 路径保留兼容 |
+| [architecture/](architecture/README.md) | 技术标准、选型配置、前后端/数据库骨架、shadcn/DataTable、公共模块及技术检查 |
+| tooling/xirang/ | 冻结计划、文件所有权、三方合并、版本基线与断点恢复 |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | 模型作业通用协议；应用目录与技术标准独立引用 |
+
+采用作业包不会生成业务应用。需要架构能力时在目标项目专用 worktree 执行 `pnpm agent -- template sync --include architecture`，再依次执行 `architecture detect`、确定项目配置、`architecture plan`、`architecture init` 和 `architecture check`。源仓库安装目标项目使用 `pnpm agent -- template update <目标-worktree> --include architecture`。
+
+更新明确区分模板覆盖、三方合并、只追加、仅初始化和项目所有权。缺少可信基线或本地内容冲突时先报告；项目 RULES.md、业务文件与真实技术选择不会被默认覆盖。[完整方案与操作手册](architecture/README.md)。
 
 “息壤”是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家工程智能体模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
 

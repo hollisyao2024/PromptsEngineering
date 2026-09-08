@@ -1,6 +1,6 @@
 # 通用工程约定
 
-本文件定义模板可复用的详细协议。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
+本文件定义模型作业包的详细协议；应用技术架构独立维护于 `architecture/`。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
 
 ## 1. 路径与仓库拓扑
 
@@ -18,6 +18,8 @@
 脚本必须使用 `infra/scripts/shared/config.js` 的 `resolveRepoRoot()`、`getMainRepoRoot()` 和 `resolveContainerPath()` 解析路径。linked worktree 中禁止以 `../tmp` 猜测容器位置。
 
 写入型稳定命令首次需要容器目录时必须通过共享初始化器自动递归创建：worktree 生命周期声明 `worktrees`/`tmp`，任务与模板运行状态声明 `tmp`，项目命令执行前声明 `tmp`/`cache`/`artifacts`。初始化必须幂等并保护已有内容；配置加载、纯路径解析与无需写入的只读命令不得为补齐目录而产生副作用。目标被文件或符号链接占位、路径非法或创建失败时必须 fail closed，禁止继续后续命令副作用。
+
+应用内部目录规范见 [directories.md](../architecture/standards/directories.md)：`apps/<app>/` 放独立应用，`packages/` 放共享模块，`infra/` 放交付实现，`tooling/` 放工程工具；按实际需要初始化。项目选型与路径写 `architecture.config.json`，采用后的技术约束以 `docs/standards/` 为准，模板源位于 `architecture/standards/`；技术选择不重复写入 `RULES.md`。
 
 主 worktree 保持在 base branch。修改 tracked 文件只在专属 worktree 中进行；只读诊断可在任意 worktree。每个 worktree 独立安装依赖，包内容复用交给包管理器 store。
 
@@ -42,11 +44,13 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 
 ## 3. 模板所有权
 
-Manifest 支持以下策略：
+作业包入口 `agent/manifest.json`，架构包入口 `architecture/manifest.json`；共用 `tooling/xirang` 的冻结计划与版本化基线。`xirang.lock.json` 与 `.xirang/baselines/` 随项目提交，运行日志位于容器 tmp。Manifest 支持以下策略：
 
-- `overwrite`：模板协议文件可升级覆盖。
+- `overwrite`：模板自有文件升级，先比对已安装基线并阻断未经接管的本地修改。
+- `update` / `merge-json`：基线、项目当前、新模板三方合并；重叠修改明确冲突。
+- `append` / `append-json` / `append-lines`：只追加新文件或稳定 ID 条目，重复去重；已有迁移不改写。
+- `managed-block`：只更新受管块，块外文本归项目。
 - `init-if-missing`：仅初始化，已有项目文件不覆盖。
-- `merge-json` / `merge-lines`：只合并协议允许的缺失项。
 - `project-owned`：模板永不写入。
 
 `RULES.md`、真实项目文档、源码、业务部署脚本和已有 `agent.config.json` 均属于项目。模板更新流程必须：
@@ -56,8 +60,9 @@ Manifest 支持以下策略：
 3. apply 后校验哈希和文件范围；
 4. 再次 dry-run，预期无差异。
 
-模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
+架构命令使用 `pnpm agent -- architecture catalog|detect|validate|plan|init|update|adopt|check`。初次获取架构目录用 `template sync --include architecture`；默认同步更新作业包及已采用模块，`--scope agent` 只更新作业包。采用 React/shadcn 后必须按 [UI 标准](../architecture/standards/ui.md) 使用基础控件和唯一 DataTable，禁止业务层原生交互控件；框架选择仍由项目决定。
 
+模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
 ### 息壤官方同步
 
 模板的稳定身份为“息壤”（`xirang` / `Xirang`），默认上游是 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。`template.sourceRepo` 继续只表示本地回灌来源，不得复用为官方只读上游；官方来源由 `template.identity` 与 `template.upstream` 独立声明。
@@ -128,7 +133,6 @@ pnpm agent -- worktree list
 - 完成或清理状态。
 
 状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
-
 ### 命令
 
 任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。

@@ -6,12 +6,13 @@
 
 ## 1. 总览
 
-本架构覆盖通用客户端命令面、基于模板 manifest 和初始化器的环境文件首次创建、不依赖 GitHub CI 的多电脑同权 Git 协作，以及由实际项目主动发起的息壤官方模板自更新。模板持有协议、身份、官方来源和安全骨架；目标项目持有后续内容与真实凭据。
+新增应用架构能力见 [双能力包与架构落地](arch-modules/architecture-platform/ARCH.md)。既有架构覆盖通用客户端命令面、基于模板 manifest 和初始化器的环境文件首次创建、不依赖 GitHub CI 的多电脑同权 Git 协作，以及由实际项目主动发起的息壤官方模板自更新。模板持有协议、身份、官方来源和安全骨架；目标项目持有后续内容与真实凭据。
 
 ## 2. 功能域架构索引
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 依赖/Gate | Traceability ID | 阻塞/待办 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 双能力包与架构落地 | @template-maintainers | [ARCH.md](arch-modules/architecture-platform/ARCH.md) | 已定义 | 初始化/升级/生成项目验证 | US-ARCHPLAT-001~009 | 无 | 2026-09-09 |
 | 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ v1.5 已确认 | TDD/QA 定向测试、模板源模拟与传播收敛 | US-CMDSURF-001~009 | 无 | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [ARCH.md](arch-modules/environment-file-initialization/ARCH.md) | ✅ 已确认 | init-if-missing / Git ignore 验收 | US-ENVINIT-001~003 | 无 | 2026-08-24 |
 

@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "applications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+          },
+          "stack": {
+            "enum": [
+              "react-vite",
+              "react-next",
+              "node",
+              "go",
+              "tauri"
+            ]
+          },
+          "sourceDir": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "components": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ui": {
+                "type": "string",
+                "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              },
+              "dataTable": {
+                "type": "string",
+                "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              }
+            },
+            "required": []
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "stack"
+        ]
+      }
+    },
+    "datastores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+          },
+          "engine": {
+            "enum": [
+              "postgres",
+              "sqlite"
+            ]
+          },
+          "consumers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "engine",
+          "consumers"
+        ]
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "enum": [
+              "observability",
+              "contracts",
+              "runtime-assets",
+              "plugins"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+          }
+        },
+        "required": [
+          "id",
+          "path"
+        ]
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "kind": {
+            "const": "private"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+          },
+          "edition": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "environment": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "denyPatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "edition",
+          "environment",
+          "applications",
+          "denyPatterns"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "applications"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "agent",
+  "version": "3.0.0",
+  "applyManifest": "infra/templates/agent/template.manifest.json",
+  "protocolRoots": [
+    "AGENTS.md",
+    "AgentRoles",
+    "docs/CONVENTIONS.md"
+  ],
+  "scriptRoot": "infra/scripts",
+  "templateRoot": "infra/templates",
+  "sharedEngine": "tooling/xirang",
+  "description": "Independent agent workflow package; legacy public paths remain compatible."
+}

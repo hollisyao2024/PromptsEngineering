@@ -247,8 +247,14 @@ function loadConfig(options = {}) {
   const cli = options.cli || parseCliArgs(options.argv);
   const localPath = path.join(repoRoot, 'agent.config.json');
 
+  let defaults = DEFAULT_CONFIG;
+  const architecturePath = path.join(repoRoot, 'architecture.config.json');
+  if (fs.existsSync(architecturePath)) {
+    const architecture = readJsonIfExists(architecturePath);
+    defaults = deepMerge(defaults, { paths: require('../../../tooling/xirang/paths').derivePaths(architecture) });
+  }
   return deepMerge(
-    deepMerge(deepMerge(DEFAULT_CONFIG, readJsonIfExists(localPath)), envOverrides(options.env || process.env)),
+    deepMerge(deepMerge(defaults, readJsonIfExists(localPath)), envOverrides(options.env || process.env)),
     cliOverrides(cli)
   );
 }

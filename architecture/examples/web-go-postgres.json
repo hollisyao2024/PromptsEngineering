@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "applications": [
+    {
+      "id": "web",
+      "stack": "react-vite",
+      "path": "apps/web"
+    },
+    {
+      "id": "api",
+      "stack": "go",
+      "path": "apps/api"
+    }
+  ],
+  "datastores": [
+    {
+      "id": "platform",
+      "engine": "postgres",
+      "path": "db/platform",
+      "consumers": [
+        "api"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "observability",
+      "path": "packages/observability"
+    },
+    {
+      "id": "contracts",
+      "path": "packages/contracts"
+    }
+  ],
+  "profiles": []
+}

@@ -1,10 +1,10 @@
 # 息壤（Xirang）模板需求总纲
 
-日期：2026-09-06　版本：v1.5
+日期：2026-09-08　版本：v2.0
 
 ## 1. 产品概述
 
-息壤（Xirang，代码仓库为 PromptsEngineering）为目标仓库提供可移植的 Agent 工程治理模板。本轮目标覆盖稳定命令协议、目标项目首次初始化时的环境变量文件骨架、不依赖 GitHub CI 的多电脑同权协作与主干合并保护，以及由实际项目主动发起的官方模板自更新能力。
+息壤（Xirang，代码仓库为 PromptsEngineering）为目标仓库提供可移植的 Agent 工程治理模板。新增核心能力见 [双能力包与架构落地](prd-modules/architecture-platform/PRD.md)：作业流程与应用架构分离，按项目要求初始化，并以明确所有权安全升级。既有目标覆盖稳定命令协议、目标项目首次初始化时的环境变量文件骨架、不依赖 GitHub CI 的多电脑同权协作与主干合并保护，以及由实际项目主动发起的官方模板自更新能力。
 
 成功指标：模板命令协议定向测试 100% 通过；mac、win、ios、android 的 dev/build、private 变体、本地服务生命周期及服务端 build 环境矩阵在模板更新后均可解析；平台不支持、profile 不存在或项目显式清空命令时 100% fail closed；全新 worktree 默认仅在 `origin` 基线刷新成功后创建且初始 HEAD 等于本次解析的远端 base commit；远端同名任务分支不会被误建、可由另一台电脑精确恢复；QA 与合并绑定配置主干和功能分支 SHA；并发更新不得覆盖已进入远端主干的提交；实际项目应用模板后可通过“更新息壤模板”触发稳定同步入口，100% 从固定官方 GitHub 仓库本次 fetch 后的确定 SHA 应用模板，获取或验证失败时不修改目标 tracked 文件；模板默认值不包含目标项目产品参数。
 
@@ -12,7 +12,7 @@
 
 - 功能域：[模板命令面](prd-modules/template-command-surface/PRD.md)、[环境文件初始化](prd-modules/environment-file-initialization/PRD.md)。
 - In Scope：本地服务生命周期、客户端开发启动、客户端发行构建、服务端构建与部署的语义边界及统一入口；首次初始化缺失的环境 example 与本地实际文件；稳定命令按需自动创建缺失的容器层目录；全新 worktree 的远端基线刷新、确定 SHA 创建与显式离线逃生语义；远端同名分支保护、跨电脑恢复、QA 双 SHA 回执、配置主干合并与普通非强制 push 并发保护；息壤模板身份、自然语言触发约定、固定官方 GitHub 源、模板 SHA 锁定、目标项目内的安全同步与收敛验证。
-- Out of Scope：具体端口、进程名、框架、签名、公证、部署拓扑、认证账号、数据库路径和真实部署默认命令；固定专家电脑、机器角色、远程分布式锁、GitHub CI、GitHub merge queue、GitHub 仓库重命名、后台自动更新、定时更新，以及对本地 QA 的服务端零信任证明。
+- Out of Scope：具体业务端口、进程名、强制单一框架、真实签名、公证、部署拓扑、认证账号、数据库路径和真实部署默认命令；固定专家电脑、机器角色、远程分布式锁、GitHub CI、GitHub merge queue、GitHub 仓库重命名、后台自动更新、定时更新，以及对本地 QA 的服务端零信任证明。
 - `RULES.md`、`agent.config.json`、业务源码与部署脚本继续由目标项目拥有。
 
 ## 3. 用户角色与核心场景
@@ -43,6 +43,7 @@
 
 | 功能域 | 优先级/阶段 | 负责人 | 文档链接 | 依赖状态/Traceability | 当前 Gate 状态 |
 | --- | --- | --- | --- | --- | --- |
+| 双能力包与架构落地 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/architecture-platform/PRD.md) | TC-ARCHPLAT-001~009 | 进入 ARCH |
 | 模板命令面 | P0 / PRD v1.6 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | 息壤匿名获取 AC/Traceability 已确认 | 进入 ARCH |
 | 环境文件初始化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/environment-file-initialization/PRD.md) | Traceability 已初始化 | 进入 ARCH |
 

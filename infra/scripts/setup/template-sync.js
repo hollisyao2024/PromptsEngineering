@@ -54,9 +54,11 @@ function parseArgs(argv) {
     ['source-repo', 'sourceRepo'],
     ['source-branch', 'sourceBranch'],
     ['include', 'include'],
+    ['scope', 'scope'],
   ]);
   const booleanFlags = new Map([
     ['dry-run', 'dryRun'],
+    ['adopt', 'adopt'],
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -387,6 +389,8 @@ function runFetchedUpdater({ args, sourceRoot, targetRoot }) {
   const updater = path.join(sourceRoot, 'infra/scripts/setup/update-template.js');
   const updaterArgs = [updater, targetRoot, '--source', sourceRoot];
   for (const include of args.include || []) updaterArgs.push('--include', include);
+  if (args.scope) updaterArgs.push('--scope', args.scope);
+  if (args.adopt) updaterArgs.push('--adopt');
   if (args.dryRun) updaterArgs.push('--dry-run');
   return run(process.execPath, updaterArgs, {
     cwd: targetRoot,

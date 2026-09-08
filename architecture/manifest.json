@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "architecture",
+  "version": "3.0.0",
+  "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
+  "stacks": {
+    "react-vite": {
+      "kind": "web",
+      "language": "typescript",
+      "template": "stacks/frontend/react-vite",
+      "targets": [
+        "web"
+      ],
+      "ui": "shadcn"
+    },
+    "react-next": {
+      "kind": "web",
+      "language": "typescript",
+      "template": "stacks/frontend/react-next",
+      "targets": [
+        "web"
+      ],
+      "ui": "shadcn"
+    },
+    "node": {
+      "kind": "api",
+      "language": "javascript",
+      "template": "stacks/backend/node",
+      "targets": [
+        "server"
+      ]
+    },
+    "go": {
+      "kind": "api",
+      "language": "go",
+      "template": "stacks/backend/go",
+      "targets": [
+        "server"
+      ]
+    },
+    "tauri": {
+      "kind": "desktop",
+      "language": "rust+typescript",
+      "template": "stacks/frontend/tauri",
+      "targets": [
+        "mac-arm64",
+        "mac-x64",
+        "win-x64",
+        "win-arm64",
+        "linux-x64",
+        "linux-arm64"
+      ],
+      "ui": "shadcn"
+    }
+  },
+  "databases": {
+    "postgres": {
+      "template": "stacks/database/postgres"
+    },
+    "sqlite": {
+      "template": "stacks/database/sqlite"
+    }
+  },
+  "modules": {
+    "observability": {
+      "template": "modules/observability"
+    },
+    "contracts": {
+      "template": "modules/contracts"
+    },
+    "runtime-assets": {
+      "template": "modules/runtime-assets"
+    },
+    "plugins": {
+      "template": "modules/plugins"
+    }
+  },
+  "profiles": {
+    "private": {
+      "template": "profiles/private"
+    }
+  },
+  "standards": [
+    "directories",
+    "application-boundaries",
+    "ui",
+    "contracts",
+    "data",
+    "observability",
+    "delivery",
+    "upgrades"
+  ]
+}
