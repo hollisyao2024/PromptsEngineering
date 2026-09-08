@@ -33,19 +33,28 @@
 | US-ENVINIT-002 | 已有文件保护 | AC-ENVINIT-002-01 | TC-ENVINIT-003 | ✅ TDD 通过 / 待 QA | @qa | 后续 apply 不修改已有内容 |
 | US-ENVINIT-003 | Dry-run 无副作用 | AC-ENVINIT-003-01 | TC-ENVINIT-004 | ✅ TDD 通过 / 待 QA | @qa | 只报告缺失文件，不写盘 |
 | US-CMDSURF-009 | 官方模板匿名获取 | AC-CMDSURF-009-06 | TC-CMDSURF-027 | ✅ TDD 通过 | @qa | 官方无/无效 token、HTTP 请求无凭据、401 单次阻断、真实匿名 fetch 及项目鉴权回归通过 |
+| US-ARCHPLAT-001 | 独立模型作业包 | AC-ARCHPLAT-001-01 | TC-ARCHPLAT-001 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-002 | 多应用与多存储选型 | AC-ARCHPLAT-002-01 | TC-ARCHPLAT-002 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-003 | 按配置初始化 | AC-ARCHPLAT-003-01 | TC-ARCHPLAT-003 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-004 | 既有项目检测和接管 | AC-ARCHPLAT-004-01 | TC-ARCHPLAT-004 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-005 | shadcn 与公共表格 | AC-ARCHPLAT-005-01 | TC-ARCHPLAT-005 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-006 | 按所有权更新 | AC-ARCHPLAT-006-01 | TC-ARCHPLAT-006 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-007 | 冻结计划与中断恢复 | AC-ARCHPLAT-007-01 | TC-ARCHPLAT-007 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-008 | 可选工程模块 | AC-ARCHPLAT-008-01 | TC-ARCHPLAT-008 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-009 | 旧版模板兼容 | AC-ARCHPLAT-009-01 | TC-ARCHPLAT-009 | ✅ TDD 通过 / 待 QA | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
 
 ## 覆盖率统计
 
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |
-| 总 Story 数 | 12 | - |
-| 已关联测试用例的 Story 数 | 12 | 100% |
-| 总 AC 数 | 30 | - |
-| 已关联测试用例的 AC 数 | 30 | 100% |
-| 测试通过的 AC 数 | 29 | 100% |
+| 总 Story 数 | 21 | - |
+| 已关联测试用例的 Story 数 | 21 | 100% |
+| 总 AC 数 | 40 | - |
+| 已关联测试用例的 AC 数 | 40 | 100% |
+| 测试通过的 AC 数 | 39 | 100% |
 | 测试失败的 AC 数 | 0 | 0 |
 | 需求覆盖率 | 100% | ≥95% |
-| 测试通过率 | 97% | 100% |
+| 测试通过率 | 98% | 100% |
 
 US-CMDSURF-007 已通过 worktree 核心 40/40、全仓 Node 305/305 与 setup 56/56；剩余传播 AC 由目标项目收敛 dry-run 与 QA 合并后更新为已确认。
 

@@ -503,6 +503,16 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
   const targetRoot = path.resolve(args.target || process.cwd());
+  // The public CLI always uses the frozen, baseline-aware engine. Legacy
+  // applyRule exports remain for callers testing individual old strategies.
+  const unified = path.join(sourceRoot, 'tooling/xirang/template.js');
+  if (fs.existsSync(unified)) {
+    return require(unified).runTemplate(args, sourceRoot, targetRoot);
+  }
+  const advertisedManifest = path.join(sourceRoot, DEFAULT_MANIFEST);
+  if (fs.existsSync(advertisedManifest) && readJson(advertisedManifest).capabilities?.ownershipUpdates) {
+    throw new Error('baseline-aware update capability advertised but shared engine missing');
+  }
   const manifestPath = args.manifest
     ? path.resolve(sourceRoot, args.manifest)
     : path.join(sourceRoot, DEFAULT_MANIFEST);

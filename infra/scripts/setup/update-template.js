@@ -21,7 +21,7 @@ const {
 function parseArgs(argv) {
   const cli = { include: [] };
   const positionals = [];
-  const valueFlags = new Set(['target', 'source', 'include']);
+  const valueFlags = new Set(['target', 'source', 'include', 'scope']);
 
   for (let i = 0; i < argv.length; i += 1) {
     const raw = argv[i];
@@ -293,7 +293,11 @@ function main() {
   for (const include of includes) includeArgs.push('--include', include);
 
   const baseArgs = [applyEngine, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
-  const dryRun = run(process.execPath, baseArgs, { cwd: sourceRoot });
+  if (args.scope) baseArgs.push('--scope', args.scope);
+  if (args.adopt) baseArgs.push('--adopt');
+  const unified = fs.existsSync(path.join(sourceRoot, 'tooling/xirang/template.js'));
+  const planPath = path.join(reportDir, `${runId}__plan.json`);
+  const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
   reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, false));
@@ -327,7 +331,7 @@ function main() {
     return;
   }
 
-  const writeRun = run(process.execPath, [...baseArgs, '--write'], { cwd: sourceRoot });
+  const writeRun = run(process.execPath, [...baseArgs, '--write', ...(unified ? ['--plan', planPath] : [])], { cwd: sourceRoot });
   writeLog(writeLogPath, writeRun.output);
   process.stdout.write(writeRun.output);
   if (writeRun.status !== 0) {

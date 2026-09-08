@@ -139,7 +139,9 @@ pnpm agent -- finish
 - 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。
 - 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：按任务门禁创建或恢复专用 linked worktree，并在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链；无需再次询问模板名称、仓库或命令。
 - `template sync` 必须通过匿名 HTTPS required fetch 官方公开分支（不读取项目 GH_TOKEN，并隔离 Git 凭据配置）、锁定本次 commit SHA，并从该 SHA 内的 updater 应用；fetch、ref 或源校验失败必须阻断，禁止退回缓存或项目内旧模板。该命令只允许在实际项目的干净 linked worktree 执行，模板源仓库和主 worktree 均阻断。
-- 模板提供 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 和协议模板。
+- 模型作业包由 `agent/manifest.json` 登记，保留 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 兼容路径；技术标准、选型与初始化由独立 `architecture/` 包提供。
+- 架构规划先按项目需求选择应用、存储、平台与目录，记录 `architecture.config.json`；用 `architecture plan/init/update/check` 落地。已选 shadcn 的控件和 DataTable 约束见架构标准，`RULES.md` 不重复抄写。
+- 升级按文件/字段所有权执行，`xirang.lock.json` 与 `.xirang/baselines` 保存版本依据；未知基线、覆盖漂移、合并冲突或恢复态阻断，不静默丢弃定制。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
 - `RULES.md`、业务源码、真实项目文档和部署实现属于项目；模板更新不得覆盖。
 - 应用模板：`pnpm agent -- template update <target>`；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。
@@ -151,4 +153,4 @@ pnpm agent -- finish
 
 ## 稳定命令入口
 
-优先使用 `pnpm agent -- <domain> <action>`：`task`、`worktree`、`tdd`、`qa`、`template`、`dev`、`ship`、`finish`。已有项目中的旧 package aliases 作为兼容入口保留；新模板不继续扩张别名集合。
+优先使用 `pnpm agent -- <domain> <action>`：`task`、`worktree`、`tdd`、`qa`、`template`、`architecture`、`dev`、`ship`、`finish`。已有项目中的旧 package aliases 作为兼容入口保留；新模板不继续扩张别名集合。

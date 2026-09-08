@@ -614,6 +614,7 @@ function main() {
   const config = loadConfig({ repoRoot });
   const mainRoot = getMainRepoRoot(repoRoot);
   removeQaVerificationReceipt(config, mainRoot, repoRoot);
+  require('../shared/architecture-check').runArchitectureCheck(repoRoot);
 
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');

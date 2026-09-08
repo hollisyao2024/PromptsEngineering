@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "applications": [
+    {
+      "id": "web",
+      "stack": "react-vite",
+      "path": "apps/web"
+    },
+    {
+      "id": "api",
+      "stack": "node",
+      "path": "apps/server"
+    },
+    {
+      "id": "desktop",
+      "stack": "tauri",
+      "path": "apps/desktop",
+      "targets": [
+        "mac-arm64",
+        "win-x64"
+      ]
+    }
+  ],
+  "datastores": [
+    {
+      "id": "platform",
+      "engine": "postgres",
+      "path": "packages/database/platform",
+      "consumers": [
+        "api"
+      ]
+    },
+    {
+      "id": "local",
+      "engine": "sqlite",
+      "path": "packages/database/local",
+      "consumers": [
+        "desktop"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "observability",
+      "path": "packages/observability"
+    },
+    {
+      "id": "contracts",
+      "path": "packages/contracts"
+    },
+    {
+      "id": "runtime-assets",
+      "path": "packages/runtime-assets"
+    },
+    {
+      "id": "plugins",
+      "path": "packages/plugins"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "private",
+      "edition": "private",
+      "environment": "staging",
+      "applications": [
+        "web",
+        "api",
+        "desktop"
+      ],
+      "path": "infra/private",
+      "denyPatterns": []
+    }
+  ]
+}

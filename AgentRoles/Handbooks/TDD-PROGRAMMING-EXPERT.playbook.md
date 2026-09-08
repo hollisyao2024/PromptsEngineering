@@ -11,14 +11,9 @@
 - 单测 colocate 在源码旁；集成测试在 `apps/*/tests/`；e2e 在根 `e2e/`
 - `<migrations-dir>/`：数据库脚本按日期+序号命名，任何结构变化同步项目的数据视图文档
 
-### 数据库迁移文件命名规范
+### 数据库迁移约定
 
-> **唯一规范源：** `docs/CONVENTIONS.md#数据库迁移文件规范`
-
-命名格式、脚本使用方法、模板示例与提交前验证清单已统一收录在 Conventions。TDD 专家需确保：
-- **创建与验证**：严格按 Conventions 中的优先顺序执行 `create-migration.sh` / Supabase CLI 等命令，禁止手填时间戳；若发现模板缺失或命名不符，立即回写该章节。
-- **传递信息**：在 PR / 交付说明中引用对应迁移文件名，并注明已按 Conventions 运行本地多次验证；若规范更新，应同步通知团队并在本 Playbook 记录参考日期。
-- **数据库迁移脚本幂等性**：详见 Expert §B.5 及 `docs/CONVENTIONS.md` §数据库迁移幂等性原则。
+迁移文件规范独立见 `architecture/standards/data.md`，实际命名与目录以所采用模块和 architecture.config.json 为准。初始化只生成文件，执行需显式环境与迁移命令。已应用迁移只追加，注册项和校验和必须一致；无关技术栈不强制使用 Supabase、Prisma 或 Node 业务运行时。
 
 ---
 

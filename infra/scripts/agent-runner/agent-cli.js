@@ -49,6 +49,9 @@ function slashAppRoute(action, rest, target = '') {
 function resolveCommand(argv) {
   const args = normalizeArgv(argv);
   const [domain = '', action = '', ...rest] = args;
+  if (domain === 'architecture') {
+    return { script: 'architecture/scripts/cli.js', args: [action || 'help', ...rest] };
+  }
   if (domain === 'task') {
     if (!action) throw new Error('task requires an action');
     return { script: 'infra/scripts/agent-runner/agent-task.js', args: [action, ...rest] };
@@ -104,6 +107,7 @@ Core commands:
   tdd <sync|push|finish|guard>
   qa <plan|verify|merge>
   template <sync|update|backfill>
+  architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>
   dev <start|restart|stop|status|logs>
   dev app <platform>
   app <dev|build> --platform=<platform>

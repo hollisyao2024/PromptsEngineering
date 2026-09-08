@@ -1,11 +1,11 @@
 {
   "name": "xirang-agent-template",
-  "version": "2.2.1",
-  "description": "息壤（Xirang）多模型工程智能体模板，支持从固定 GitHub 上游安全同步",
+  "version": "3.0.0",
+  "description": "息壤：模型作业与应用架构双能力包，支持可选择初始化和所有权升级",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
     "agent": "node infra/scripts/agent-runner/agent-cli.js",
-    "test": "node --test infra/scripts/*/__tests__/*.test.js",
+    "test": "node --test infra/scripts/*/__tests__/*.test.js architecture/__tests__/*.test.js",
     "preinstall": "node infra/scripts/setup/preinstall-guard.js && npx only-allow pnpm",
     "prd:lint": "node infra/scripts/prd-tools/check-completeness.js",
     "prd:check-dependency-cycles": "node infra/scripts/prd-tools/check-dependency-cycles.js",

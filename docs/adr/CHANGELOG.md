@@ -9,3 +9,5 @@
 | [ADR-006](006-arch-multi-host-optimistic-git-coordination.md) | 2026-09-05 | Accepted | 所有电脑同权；本机状态只管本机，跨电脑以远端 SHA 和普通非快进更新协调 |
 | [ADR-007](007-arch-xirang-official-template-sync.md) | 2026-09-06 | Accepted | 实际项目 required fetch 息壤固定官方源，以不可变 SHA 快照内最新应用器完成模板自更新 |
 | [ADR-008](008-arch-xirang-anonymous-fetch.md) | 2026-09-06 | Accepted | 官方公开模板匿名 HTTPS 获取；隔离项目 token 与 Git 凭据，保留项目远端鉴权 |
+
+- 2026-09-08：[ADR 026](026-arch-architecture-platform-packages.md)，独立能力包、架构配置与所有权升级引擎。

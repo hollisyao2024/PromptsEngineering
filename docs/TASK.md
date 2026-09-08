@@ -92,3 +92,7 @@ flowchart LR
 - [Story → Task](data/story-task-mapping.md)
 
 模块状态、里程碑和 Gate 结果由模块 TASK 维护并在 TDD/QA 阶段同步。
+
+## 应用架构平台任务
+
+[模块任务与依赖](task-modules/architecture-platform/TASK.md)：TASK-ARCHPLAT-001~006，覆盖 US-ARCHPLAT-001~009。
