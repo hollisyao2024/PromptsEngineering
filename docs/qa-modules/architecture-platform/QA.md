@@ -4,7 +4,7 @@
 
 ## 1. 范围与输入
 
-验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～009。模板源版本 3.0.0。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
+验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～009。第 2～6 节记录 3.0.0 基线；3.0.1 兼容升级复验见第 7 节。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
 
 ## 2. 验收追踪与执行
 
@@ -59,3 +59,29 @@ Review-Class: REQUIRED。Domain-Hit: 共享基础库、文件写入、事务/并
 本轮发现并关闭的生成问题见 [defect-log.md](defect-log.md)。本模块 9 项 AC 均有对应验证，无遗留阻断缺陷；Go（模板源码交付）。实际项目采用后仍应补业务授权、数据接口和各平台发布配置。
 
 外部证据：容器 `tmp/architecture-platform-validation/` 的 full-test-final.log、postgres-live.json、legacy-upgrade.json、architecture-negative.json 及隔离项目；浏览器摘要 `tmp/test-results/architecture-platform/browser-smoke.json`。本机交付 receipt 位于 worktree-sessions，具体 commit 由 receipt/PR 记录，避免在受测提交内写入自身 SHA。
+
+## 7. 3.0.1 依赖兼容升级复验
+
+日期：2026-09-09。范围为既有 shadcn/Radix、前端框架、类型与测试依赖，复验 TC-003、005、006、009；公共 DataTable 的 Props、`ColumnDef<Row>[]` 和项目业务回调合约保持兼容。24 个官方 Registry JSON 的 SHA-256 均与前次相同，基础组件改用官方 `cn` 导入；26 项直接依赖的 latest/selected/原因见 [dependency-audit.json](../../../architecture/dependency-audit.json)。
+
+| 验证 | 环境与方法 | 结果 |
+| --- | --- | --- |
+| 源码回归 | `pnpm test`，新增生成配置、Registry 固定依赖闭包和工具函数保留测试 | 403/403，0 失败、0 跳过 |
+| 全新应用 | Vite 应用内 UI、Vite 共享 UI、Next 共享 UI、Tauri Web；各自独立安装依赖 | 每个应用 11/11 DOM 测试，类型检查和生产构建通过 |
+| 最低 Node 版本 | Node 22.22.2 实际运行 Vite 的 11 项测试、类型检查和构建；Next 生产构建 | Pass；其余组合使用 Node 26.7.0 |
+| 原始消费者升级 | 由 3.0.0 快照生成 Vite + 共享 UI，再应用 3.0.1 | 按钮样式、页面、工具函数和 package script 定制均保留；cn 依赖生效；再次 plan 零差异；11 项测试、类型检查、构建通过 |
+| 架构与 Registry | 对全新和升级样本运行 architecture check，构建 25 项 Registry | 全部通过，无重复依赖版本或遗漏运行时导入 |
+| 真实浏览器 | CUA 在全新 Vite 样本复验跨页多选、空态清除、列显隐三条旅程，并检查截图 | 选中 1/11 后第 3/3 页仍显示已选 2；末页按钮禁用；空态清除恢复 24 条；列显隐不改变记录数 |
+
+新增 3 项基础组件 DOM 回归覆盖 `cn` 类名合并、Dialog/Button 组合与 Escape 焦点恢复、受控 Select/Switch/禁用 Checkbox；与原有 8 项 DataTable 回归一起执行。浏览器旅程为实际 CUA 验收，不计入自动化用例数。本轮没有修改后端、数据库或 Rust 原生代码，也不以 Tauri Web 构建代表原生发布验证。
+
+以下选择有实际兼容性证据：
+
+- TanStack Table latest 9.2.4 改变 `ColumnDef` 泛型并替换 `useReactTable`；使用原有业务列定义的独立编译探针出现 TS2707，因此保留最新 V8 8.21.3。
+- TypeScript latest 7.0.2 不再导出架构检查使用的 `createSourceFile/readConfigFile/resolveModuleName`；安装后实际探针确认缺失，因此升级到 API 兼容的最新 V6 6.0.3。
+- `@types/node` 使用 Node 22 分支最新 22.20.1，避免在最低支持环境暴露不存在的 Node 26 API。前端 engines 与依赖交集对齐为 `^22.22.2 || ^24.15.0 || >=26.0.0`。
+- `lib/utils.ts` 改为仅缺失时初始化；既有项目辅助函数保持原样。保留 clsx/tailwind-merge 依赖以兼容旧工具函数，基础控件直接使用新 cn。
+
+Review-Class: REQUIRED；Domain-Hit: 共享基础库、生成配置和跨文件升级。语义检查确认依赖来自统一固定版本目录、项目定制走既有所有权策略、不自动迁移破坏性业务接口。Codex review skipped by policy。测试 Passed，无遗留阻断缺陷；交付结论仍以当前提交的 QA receipt 和合并门禁为准。
+
+本轮证据在容器 `tmp/shadcn-compatible-latest/`：`npm-snapshot.json`、`upstream-components.json`、`source-tests-final.log`、`next-recheck.json`、`upgrade-result.json`、`upgrade-validation.json`、`node22-validation.json`、`browser-smoke.json` 及各样本的测试/类型/构建日志。临时浏览器标签和开发服务已关闭。首次失败和修复后的复验分别保留，最终 Next 结论以 `next-recheck.json` 为准。

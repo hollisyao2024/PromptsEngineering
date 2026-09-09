@@ -6,10 +6,14 @@ function buildRegistry(source=path.resolve(__dirname,'../..')) {
   const versions=JSON.parse(read(source,'architecture/dependencies.json')).frontend;
   const index=new Map(registry.items.map(item=>[item.name,item]));
   const build=item=>{
-    const visited=new Set(),files=new Map(),dependencies=new Set(['clsx','tailwind-merge','class-variance-authority','react','react-dom','lucide-react','radix-ui'].map(name=>`${name}@${versions[name]}`));
+    const visited=new Set(),files=new Map(),dependencies=new Set(['cn','clsx','tailwind-merge','class-variance-authority','react','react-dom','lucide-react','radix-ui'].map(name=>`${name}@${versions[name]}`));
     function include(name){if(visited.has(name))return;visited.add(name);const current=index.get(name);if(!current)throw new Error(`Registry dependency missing: ${name}`);
       for(const dep of current.registryDependencies||[])include(dep);
-      for(const dep of current.dependencies||[])dependencies.add(dep);
+      for(const dep of current.dependencies||[]) {
+        const name=dep.slice(0,dep.lastIndexOf('@'));
+        if(!versions[name])throw new Error(`Registry dependency is not pinned in architecture/dependencies.json: ${dep}`);
+        dependencies.add(`${name}@${versions[name]}`);
+      }
       for(const file of current.files) {
         const content=read(root,file.path);
         if(content===null)throw new Error(`Registry source missing: ${file.path}`);
@@ -18,7 +22,7 @@ function buildRegistry(source=path.resolve(__dirname,'../..')) {
       }
     }
     include(item.name);
-    files.set('utils.ts',{path:'utils.ts',type:'registry:lib',target:'@lib/utils.ts',content:'import { clsx, type ClassValue } from "clsx";\nimport { twMerge } from "tailwind-merge";\nexport function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }\n'});
+    files.set('utils.ts',{path:'utils.ts',type:'registry:lib',target:'@lib/utils.ts',content:'export { cn } from "cn";\n'});
     files.set('SHADCN-LICENSE',{path:'SHADCN-LICENSE',type:'registry:file',target:'~/SHADCN-LICENSE',content:read(root,'LICENSE')});
     return {$schema:'https://ui.shadcn.com/schema/registry-item.json',name:item.name,type:item.type,title:item.title,dependencies:[...dependencies].sort(),files:[...files.values()]};
   };

@@ -8,6 +8,7 @@
 - append / append-json / append-lines：文件或稳定 ID 条目只追加，重复去重，既有迁移不可改写。
 - managed-block：只更新指定标记块，块外文本保持原样。
 - init-if-missing：只在缺失时创建；之后归项目维护。
+- 应用和共享包的 lib/utils.ts 只初始化，防止组件升级覆盖项目 helper。shadcn 基础控件直接引用固定版本的 cn 包；保留 clsx/tailwind-merge 兼容既有业务导入。
 - project-owned：永不写入，如 RULES.md、真实业务文件与未被选中资产。
 
 先生成完整计划、校验来源/目标/lock/基线、确认无冲突，再写入；执行日志位于容器 tmp。中断用 resume 逐项核对 before/after 哈希，出现第三种状态即阻断。日志和 Git worktree 保留审查/恢复证据。未选中模块不得自动启用，已有文件不得因上游目录消失而静默删除。

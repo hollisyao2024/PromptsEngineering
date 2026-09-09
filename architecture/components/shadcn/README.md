@@ -1,6 +1,10 @@
 # shadcn 与公共 DataTable
 
-24 个基础控件来自官方 `new-york-v4` registry，来源 URL 与原始响应 SHA-256 见 provenance.json，MIT 许可证随生成项目分发。仅将 `cn` 与 registry imports 映射到项目别名。没有使用原生 Select。
+24 个基础控件来自官方 `new-york-v4` registry，来源 URL、核对时间与原始响应 SHA-256 见 provenance.json，MIT 许可证随生成项目分发。保留上游从 `cn` 包导入的实现，只将 registry imports 映射到项目别名。没有使用原生 Select。
+
+依赖固定版本及兼容性决定见 [dependencies.json](../../dependencies.json) 和 [dependency-audit.json](../../dependency-audit.json)。3.0.1 采用 `cn` 0.2.6、React 19.2.8、Lucide 1.43.0、TypeScript 6.0.3、Vitest 5.0.0 和 Next 16.3.4。TanStack Table 保留最新 V8 8.21.3，避免 V9 的 `ColumnDef` 类型变化破坏项目业务代码；TypeScript 7 缺少当前检查使用的 Compiler API，使用最新兼容 V6。
+
+新项目的 `lib/utils.ts` 转导出 `cn`。已有应用或共享包的工具文件只在缺失时初始化，项目添加的 helper 和原有 `cn` 实现保留；`clsx`、`tailwind-merge` 继续作为兼容依赖提供。公共控件直接使用新 `cn` 包，不依赖改写项目工具文件。
 
 `registry/ui/` 保存基础控件；`registry/data-table/` 保存组合表格。`tokens.css` 是项目可修改的语义 Token 起点。`tests/` 随应用生成并执行真实 DOM 交互验证。
 

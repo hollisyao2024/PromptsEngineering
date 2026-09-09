@@ -31,7 +31,7 @@ ARCH 专家根据需求和 detect 结果维护项目配置，记录架构/ADR �
 
 ## 初始化与安装
 
-应用样本要求 Node.js 22.13+、pnpm 和 Git；所选 Go/Tauri 实现还需要对应 Go/Rust 与平台构建工具链。
+前端应用及测试要求 Node.js 22.22.2+（22.x）、24.15.0+（24.x）或 26+，并需要 pnpm 和 Git；此范围与 jsdom/Vitest 的实际运行要求一致。所选 Go/Tauri 实现还需要对应 Go/Rust 与平台构建工具链。依赖固定值见 [dependencies.json](dependencies.json)，已核对的最新版本及兼容保留理由见 [dependency-audit.json](dependency-audit.json)。
 
 ```bash
 pnpm agent -- architecture init --config architecture.config.json
@@ -100,7 +100,7 @@ shadcn 基础控件默认 `<app>/<sourceDir>/components/ui/`，公共表格 `<ap
 | package.json 等共享 JSON | 字段三方合并；项目独有字段保留 |
 | 迁移文件/迁移注册表 | append / append-json；既有 ID 不改写 |
 | .gitignore/.envrc 受管块 | managed-block；块外文本保留 |
-| 业务起始代码、真实 ARCH、配置、环境 example | init-if-missing；后续归项目维护 |
+| 业务起始代码、项目 lib/utils.ts、真实 ARCH、配置、环境 example | init-if-missing；后续归项目维护 |
 | RULES.md、项目独有文件、未选模块 | 不写入 |
 
 ```bash
