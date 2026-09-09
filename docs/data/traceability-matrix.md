@@ -49,13 +49,13 @@
 
 | Story ID | AC ID | Test Case ID | 状态 | 证据 |
 | --- | --- | --- | --- | --- |
-| US-ARCHPLAT-010 | AC-ARCHPLAT-010-01 | TC-ARCHPLAT-010 | TDD 通过 / 待 QA | 公共表单与面板 |
-| US-ARCHPLAT-011 | AC-ARCHPLAT-011-01 | TC-ARCHPLAT-011 | TDD 通过 / 待 QA | 本地/异步选择器 |
-| US-ARCHPLAT-012 | AC-ARCHPLAT-012-01 | TC-ARCHPLAT-012 | TDD 通过 / 待 QA | 日期及表格筛选 |
-| US-ARCHPLAT-013 | AC-ARCHPLAT-013-01 | TC-ARCHPLAT-013 | TDD 通过 / 待 QA | 反馈、确认、状态 |
-| US-ARCHPLAT-014 | AC-ARCHPLAT-014-01 | TC-ARCHPLAT-014 | TDD 通过 / 待 QA | 按需生成与消费者升级 |
+| US-ARCHPLAT-010 | AC-ARCHPLAT-010-01 | TC-ARCHPLAT-010 | Pass | [表单、校验及嵌套面板 QA](../qa-modules/architecture-platform/QA.md)；D13/D14 Closed |
+| US-ARCHPLAT-011 | AC-ARCHPLAT-011-01 | TC-ARCHPLAT-011 | Pass | [选择器与失败恢复 QA](../qa-modules/architecture-platform/QA.md)；D11 Closed |
+| US-ARCHPLAT-012 | AC-ARCHPLAT-012-01 | TC-ARCHPLAT-012 | Pass | [日期边界、时区及弹层 QA](../qa-modules/architecture-platform/QA.md)；D14 Closed |
+| US-ARCHPLAT-013 | AC-ARCHPLAT-013-01 | TC-ARCHPLAT-013 | Pass | [反馈、确认、状态 QA](../qa-modules/architecture-platform/QA.md) |
+| US-ARCHPLAT-014 | AC-ARCHPLAT-014-01 | TC-ARCHPLAT-014 | Pass | [按需生成与消费者升级 QA](../qa-modules/architecture-platform/QA.md)；D12 Closed |
 
-下表为 3.0 基线统计；本次新增 5 项 Story/AC 由上表单独记录并在 QA 收口。
+下表为 3.0 基线统计；3.1 新增 5 项 Story/AC 由上表单独记录，覆盖及通过均为 5/5。
 
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |

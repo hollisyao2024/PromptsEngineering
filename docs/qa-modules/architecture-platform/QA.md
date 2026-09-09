@@ -4,7 +4,7 @@
 
 ## 1. 范围与输入
 
-验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～009。第 2～6 节记录 3.0.0 基线；3.0.1 兼容升级复验见第 7 节。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
+验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～014。第 2～6 节记录 3.0.0 基线；3.0.1 兼容升级复验见第 7 节，3.1 公共 UI 见第 8 节。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
 
 ## 2. 验收追踪与执行
 
@@ -85,3 +85,36 @@ Review-Class: REQUIRED。Domain-Hit: 共享基础库、文件写入、事务/并
 Review-Class: REQUIRED；Domain-Hit: 共享基础库、生成配置和跨文件升级。语义检查确认依赖来自统一固定版本目录、项目定制走既有所有权策略、不自动迁移破坏性业务接口。Codex review skipped by policy。测试 Passed，无遗留阻断缺陷；交付结论仍以当前提交的 QA receipt 和合并门禁为准。
 
 本轮证据在容器 `tmp/shadcn-compatible-latest/`：`npm-snapshot.json`、`upstream-components.json`、`source-tests-final.log`、`next-recheck.json`、`upgrade-result.json`、`upgrade-validation.json`、`node22-validation.json`、`browser-smoke.json` 及各样本的测试/类型/构建日志。临时浏览器标签和开发服务已关闭。首次失败和修复后的复验分别保留，最终 Next 结论以 `next-recheck.json` 为准。
+
+## 8. 3.1 公共 UI 与按需初始化验收
+
+日期：2026-09-09。范围：US-ARCHPLAT-010～014，各 1 项 AC，关联 TASK-ARCHPLAT-007～010。四组公共交互、DataTable 集成、选择式生成和升级均有实现及验证；33 个官方基础组件与 6 个组合 Registry 项共用固定依赖闭包。RHF/Zod 按选择安装；既有 DataTable Props 不变，新增多选数组及日历字符串范围筛选。
+
+| TC / Story 后缀 | 完整路径、边界、失败恢复 | 自动化与浏览器证据 | 结果 |
+| --- | --- | --- | --- |
+| 010 | 新增填写并保存；必填/dirty 取消/继续编辑；失败后原值保留并重试；Dialog/Sheet 焦点恢复 | forms 5 + RHF 2 项 DOM；Vite 新增旅程、Next 生产弹窗和侧栏两种视口 | Pass |
+| 011 | 标签多选与远程负责人选择；无匹配与禁用选项；远程加载失败、恢复服务后重试，取消及乱序保护 | selectors 3 项 DOM；多选保存、无匹配和服务失败重试 3 条浏览器路径 | Pass |
+| 012 | 日期和范围应用到表单及 DataTable；无效日/反向区间/min/max；纠正日期后恢复，跨时区一致 | dates 3 + forms-dates 2 项 DOM；筛选纠错与嵌套表单浏览器复验；UTC/Honolulu 各 3 项 | Pass |
+| 013 | 确认删除与成功通知；取消不删除/空态/加载禁用；失败提示与重试 | feedback 2 项 DOM、DataTable 9 项回归；删除、表单失败、独立异步按钮、5,000 行搜索/分页路径 | Pass |
+| 014 | 全新按集初始化；空集/共享闭包/不兼容目录；升级保留定制、取消选择保留已安装依赖并收敛 | component-sets 9 项源码集成；5 应用真实生成和 3.0.1 消费者升级，冲突阻断及再次零差异 | Pass |
+
+浏览器路径通过 CUA 的真实语义操作执行，核对页面状态和结果数据，包含成功、边界和错误恢复；相同旅程可覆盖多个 Story，不与 DOM 用例相加计算自动化数量。014 的对应端到端入口为 CLI/文件系统，三个维度由生成、负向配置、升级/收敛集成验证。没有变更认证授权、生产数据写入或服务延迟合约，不宣称业务权限或生产容量验证。
+
+| 验证层 | 组合与结果 |
+| --- | --- |
+| 模板全量回归 | `pnpm test`：412/412，0 失败、0 跳过；覆盖原有生命周期、更新引擎及新增 9 项组件集集成 |
+| 应用内完整 UI | React/Vite：29/29 DOM、类型检查、生产构建通过 |
+| 共享 UI | Next 及 Tauri Web 共用 packages/ui：各 29/29 DOM、类型检查、生产构建通过；实际 Next 生产服务浏览器验证通过 |
+| 按需集合 | 显式空集合：3/3；仅 forms：10/10；均类型/构建通过，不安装未选中的 Table/RHF/日期依赖 |
+| 最低 Node | Node 22.22.2：完整 Vite 29/29、类型检查和生产构建通过；主矩阵 Node 26.7.0 |
+| 旧版升级 | 原始 3.0.1 初始化的共享 UI 消费者升级到 3.1：20/20、类型/构建通过；按钮、页面、utils 和 script 定制保留；初次升级 258 项、零冲突，再次计划零差异；最终修复补丁应用后再次零差异 |
+| 架构与 Registry | 全新/升级样本 architecture check 通过；39 项 Registry 的依赖与组件导入闭包由源码测试验证 |
+| 浏览器 | Next 弹窗及 Vite 侧栏在 1280×720、390×640；Vite 综合表单另验 390×844。5,000 行列表末页包含 5000、下一页禁用；无匹配为 0 且已选 1，清除恢复 5000 且保留选择 |
+
+QA 曾因 Next 生产弹窗内日期弹层超出可用高度给出 No-Go，并回流 TDD。修复后 Calendar/Input/Apply 在可用空间内滚动，日期提交不再误触 dirty 关闭；新增 Dialog/Sheet 两项嵌套回归，桌面与窄屏均重新操作并保存正确值。共享 React 实例和面板焦点问题也已修复，详见 [缺陷记录](defect-log.md)。最终浏览器检查未捕获 console warning/error；开发服务早期视口切换曾记录一次 ResizeObserver 通知，不作为生产运行结论，后续生产和窄屏复验未再出现。
+
+性能边界：完整演示入口一次引入所有组件，Vite 主 JS 约 570 kB（gzip 174 kB），保留超过 500 kB 的构建提示；升级 DataTable 样本约 516 kB（gzip 159 kB）。这不是预算通过或性能压测结论，实际项目可按路由拆分和按需选集。未执行本轮 Tauri 原生签名/发行或跨浏览器、屏幕阅读器认证。
+
+Review-Class: REQUIRED；Domain-Hit: 共享基础库、异步并发、跨文件初始化和升级所有权。已复核防重与取消/乱序、RHF 校验及转换结果、失败保留、日期时区与边界、旧 owner ID、共享目录依赖和取消选择语义。Codex review skipped by policy。5/5 新增 AC 通过，无遗留阻断缺陷，Go（模板源码）；最终交付以当前提交 QA receipt、合并及 completion guard 为准。
+
+本轮证据：容器 `tmp/ui-foundations/` 中 `upstream.json`、`npm-new.json`、`source-tests-final.log`、`*-test.log`、`*-build.log`、`*-final.log`、`*-architecture-check-final.json`、`upgrade-result.json`、`*-final-update.json` 及隔离样本；真实浏览器摘要为 `tmp/test-results/ui-foundations/browser-smoke.json`。临时浏览器标签和服务已关闭，证据保留。具体 base/head SHA 由回执与 PR 保存，文档不嵌入自身提交 SHA。

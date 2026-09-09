@@ -2,6 +2,22 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v3.1.0] - 2026-09-09
+
+### 公共交互组件
+
+- 提供 FormField/Section、FormDialog/Sheet、可选 React Hook Form 适配；统一字段关联、提交防重、失败保留、未保存关闭确认和焦点恢复。
+- 提供本地单选/多选、异步搜索选择、日期/日期范围、确认对话框、异步按钮、加载/空态/错误状态及通知，继续由 shadcn 基础组件组合实现。
+- DataTable 复用公共确认和状态，增加受控多选与日期范围列筛选，保留原有 Props、稳定选择、CRUD 和导出合约。
+- 新增 9 个官方基础组件，合计 33 个基础控件、39 个 Registry 项；依赖与官方来源摘要统一管理。
+
+### 初始化与升级
+
+- 支持 applications[].componentSets 按需选择；默认 DataTable 自动安装其依赖，表单与 React Hook Form 独立可选，显式空集合仅保留基础 UI。
+- 组件可放在应用内或 packages/ui；共享消费者合并依赖，初始化、Registry 和架构检查共用同一组件闭包。
+- 兼容旧配置默认值与组件 owner ID；取消选择不自动卸载已安装源码及其依赖。旧项目的页面、utils、按钮定制和自有脚本保持保留。
+- 修复共享组件重复 React 实例、受控面板关闭焦点和受限视口中日期弹层被裁切的问题；验证范围及证据见 docs/qa-modules/architecture-platform/QA.md 第 8 节。
+
 ## [v3.0.1] - 2026-09-09
 
 ### 兼容性升级

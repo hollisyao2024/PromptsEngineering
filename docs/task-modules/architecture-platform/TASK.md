@@ -29,7 +29,7 @@ TC-ARCHPLAT-001~009 由引擎单元/集成、architecture 消费者测试、生�
 
 ## 4. 公共 UI 3.1 实施计划
 
-状态：TDD 通过，待浏览器 QA（2026-09-09）；负责人：@template-maintainers；单工作树顺序实施。
+状态：TASK-ARCHPLAT-007～010 已实施并通过 QA（2026-09-09），Go；负责人：@template-maintainers；单工作树顺序实施。交付以合并门禁为准。
 
 | Task ID | Story | 交付物与验收 | 依赖 | 估算 |
 | --- | --- | --- | --- | --- |
@@ -44,4 +44,4 @@ DB（Expand/Migrate/Contract、Backfill/对账/回滚）：不适用，无数据
 
 风险与验证：旧 owner ID、utils 定制和三方合并用 3.0.1 消费者回归；共享依赖与别名用多应用真实类型/构建；异步防重与乱序用受控 Promise；日期以日历字符串跨时区测试；键盘、焦点与面板交互用 DOM 和真实浏览器验收。对应 TC-ARCHPLAT-010～014。
 
-TDD 证据：412 项源码测试通过；完整 Vite/Next 27 项 DOM 用例通过，Tauri Web 与独立组件集测试/类型/构建通过；Node 22.22.2 和 UTC/夏威夷日期验证通过。3.0.1 消费者升级保留按钮、页面、工具函数与脚本定制，二次计划零差异。语义审查：Review-Class REQUIRED；Domain-Hit 共享基础库、异步并发和升级文件所有权；已检查请求取消/乱序、表单防重、受控面板焦点恢复、旧 owner ID 与组件保留。Codex review skipped by policy。
+TDD/QA 证据：412 项源码测试通过；完整 Vite/Next/Tauri Web 各 29 项 DOM、类型/构建通过；forms 独立 10 项、空集 3 项通过；Node 22.22.2 和 UTC/夏威夷日期验证通过。3.0.1 消费者升级 20 项测试通过，保留按钮、页面、工具函数与脚本定制，二次计划零差异。QA 曾将日期弹层裁切回流 TDD，新增嵌套面板回归后，桌面/窄屏真实浏览器复验通过。详情见 [模块 QA 第 8 节](../../qa-modules/architecture-platform/QA.md)。语义审查：Review-Class REQUIRED；Domain-Hit 共享基础库、异步并发和升级文件所有权；已检查请求取消/乱序、表单防重、受控面板焦点恢复、旧 owner ID 与组件保留。Codex review skipped by policy。
