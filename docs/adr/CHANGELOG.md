@@ -11,3 +11,7 @@
 | [ADR-008](008-arch-xirang-anonymous-fetch.md) | 2026-09-06 | Accepted | 官方公开模板匿名 HTTPS 获取；隔离项目 token 与 Git 凭据，保留项目远端鉴权 |
 
 - 2026-09-08：[ADR 026](026-arch-architecture-platform-packages.md)，独立能力包、架构配置与所有权升级引擎。
+
+## 2026-09-09
+
+- [ADR 027](027-arch-ui-component-sets.md)：四组公共 UI、可选择组件集、依赖闭包和日历日期合约。

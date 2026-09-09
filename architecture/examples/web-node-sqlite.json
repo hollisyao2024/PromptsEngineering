@@ -4,7 +4,11 @@
     {
       "id": "web",
       "stack": "react-vite",
-      "path": "apps/web"
+      "path": "apps/web",
+      "componentSets": [
+        "data-table",
+        "react-hook-form"
+      ]
     },
     {
       "id": "api",

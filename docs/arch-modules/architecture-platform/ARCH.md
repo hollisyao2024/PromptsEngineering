@@ -59,3 +59,21 @@ xirang.lock.json 记录 installed package/module 版本、来源 commit、生成
 核心引擎使用真实临时目录、文件内容及 Git 三方合并测试；覆盖冲突、部分写入恢复、哈希漂移、旧版接管和幂等。生成 UI 执行 TypeScript、构建及 DOM 交互验证；Node/Go 骨架按本机可用工具运行；异构组合做配置/目录/模块生成验证。原生跨平台发布不以配置测试代替。TC-ARCHPLAT-001~009 与 QA 文档保持对应。
 
 ADR：[版本化能力包与所有权引擎](../../adr/026-arch-architecture-platform-packages.md)。
+
+## 8. 四组公共 UI 与按需组件集（3.1）
+
+依据 US-ARCHPLAT-010～014，新增 forms、selectors、dates、feedback 四组公共实现。源码仍在 architecture/components/shadcn/registry；项目通过 applications[].componentSets 选择组件集，通过 components.forms/selectors/feedback 映射目录。dates 与 selectors 共用 selectors 目录。省略 componentSets 保持旧项目的 data-table 默认入口；显式空数组只安装既有基础控件。选择 data-table 带入 selectors、dates、feedback，选择 react-hook-form 带入 forms，forms/selectors 按实际导入带入 feedback。只补齐依赖闭包，移除选择不自动删除项目文件。
+
+| 组件 | 实现和边界 | Story |
+| --- | --- | --- |
+| CMP-ARCHPLAT-FORMS | shadcn Field 与表单分组；受控 FormDialog/FormSheet 负责提交互斥、错误保留、dirty 关闭确认。字段状态属于项目；react-hook-form 为可选适配，不强制所有表单使用同一状态库 | US-ARCHPLAT-010 |
+| CMP-ARCHPLAT-SELECTORS | Command/Popover 组合单选、多选；异步选项使用 AbortSignal 和请求序号隔离竞态，选中项独立回显，回调失败可重试 | US-ARCHPLAT-011 |
+| CMP-ARCHPLAT-DATES | Calendar/Popover 与带标签 Input 组合；公共值为 YYYY-MM-DD 的日历日期字符串，范围为 from/to；严格解析、限制与有序校验，不用 UTC 序列化日历日期 | US-ARCHPLAT-012 |
+| CMP-ARCHPLAT-FEEDBACK | Alert/Empty/Spinner/Sonner 组合公共状态、异步按钮和确认；DataTable 复用确认、状态，并新增多选/日期列筛选 | US-ARCHPLAT-012、013 |
+| CMP-ARCHPLAT-COMPONENT-SETS | Registry 依赖图与组件集映射统一驱动资产、运行依赖、测试及示例；应用内/共享路径使用同一别名；选择、所有权和闭包进入版本锁 | US-ARCHPLAT-014 |
+
+运行时：用户操作 → 受控值/表单状态 → 异步业务回调 → 成功关闭或失败保留 → 项目更新数据。公共组件不内置 API、权限、业务模型或存储。提交 callback 返回 false 表示校验未通过、保持打开；抛错展示提交失败；成功才关闭。日期列 accessor 应返回日历日期字符串；时间戳转换由项目明确时区后完成。远程选择器不持久缓存用户数据。
+
+生成时先展开组件集与 Registry 引用，再按文件映射生成；共享包取消费者所需依赖并集，避免多应用重复版本和 React/表单上下文分裂。旧 ui/table owner 标识保留；新增组合按目录拥有者更新；项目 lib/utils.ts、业务示例保持 init-if-missing；模板基础/组合源码三方更新。配置和依赖清单按字段合并，失败仍走冻结计划阻断。
+
+验证：组件集负向/闭包、共享目录、旧基线升级、类型/构建；表单错误恢复/未保存关闭、异步请求乱序、日期无效/时区、多选筛选和已有表格回归。浏览器至少覆盖表单保存与失败恢复、选择器搜索/多选、日期筛选与清除。无服务端/schema/部署变化。ADR：[可选择公共组件集](../../adr/027-arch-ui-component-sets.md)。

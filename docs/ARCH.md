@@ -12,7 +12,7 @@
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 依赖/Gate | Traceability ID | 阻塞/待办 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 双能力包与架构落地 | @template-maintainers | [ARCH.md](arch-modules/architecture-platform/ARCH.md) | 已定义 | 初始化/升级/生成项目验证 | US-ARCHPLAT-001~009 | 无 | 2026-09-09 |
+| 双能力包与架构落地 | @template-maintainers | [ARCH.md](arch-modules/architecture-platform/ARCH.md) | 已定义 | 初始化/升级/生成项目验证 | US-ARCHPLAT-001~014 | 无 | 2026-09-09 |
 | 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ v1.5 已确认 | TDD/QA 定向测试、模板源模拟与传播收敛 | US-CMDSURF-001~009 | 无 | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [ARCH.md](arch-modules/environment-file-initialization/ARCH.md) | ✅ 已确认 | init-if-missing / Git ignore 验收 | US-ENVINIT-001~003 | 无 | 2026-08-24 |
 
@@ -163,3 +163,6 @@ sequenceDiagram
 - [ADR-005](adr/005-arch-worktree-required-base-sync.md)
 - [ADR-006](adr/006-arch-multi-host-optimistic-git-coordination.md)
 - [ADR-007](adr/007-arch-xirang-official-template-sync.md)
+## 公共 UI 扩展索引
+
+3.1 表单、选择器、日期与反馈组件及初始化依赖闭包见 [架构模块 §8](arch-modules/architecture-platform/ARCH.md#8-四组公共-ui-与按需组件集31)。

@@ -58,7 +58,8 @@ test('upgrading cn preserves existing project utility exports and converges', t 
 });
 
 test('registry output installs one pinned version per runtime import, including upstream cn', () => {
-  const versions = require('../dependencies.json').frontend;
+  const catalog = require('../dependencies.json');
+  const versions = { ...catalog.frontend, ...catalog.components };
   const items = buildRegistry(source);
   for (const item of items) {
     const names = item.dependencies.map(value => value.slice(0, value.lastIndexOf('@')));

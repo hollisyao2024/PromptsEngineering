@@ -45,6 +45,18 @@
 
 ## 覆盖率统计
 
+3.1 公共 UI 扩展追踪：
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-ARCHPLAT-010 | AC-ARCHPLAT-010-01 | TC-ARCHPLAT-010 | TDD 通过 / 待 QA | 公共表单与面板 |
+| US-ARCHPLAT-011 | AC-ARCHPLAT-011-01 | TC-ARCHPLAT-011 | TDD 通过 / 待 QA | 本地/异步选择器 |
+| US-ARCHPLAT-012 | AC-ARCHPLAT-012-01 | TC-ARCHPLAT-012 | TDD 通过 / 待 QA | 日期及表格筛选 |
+| US-ARCHPLAT-013 | AC-ARCHPLAT-013-01 | TC-ARCHPLAT-013 | TDD 通过 / 待 QA | 反馈、确认、状态 |
+| US-ARCHPLAT-014 | AC-ARCHPLAT-014-01 | TC-ARCHPLAT-014 | TDD 通过 / 待 QA | 按需生成与消费者升级 |
+
+下表为 3.0 基线统计；本次新增 5 项 Story/AC 由上表单独记录并在 QA 收口。
+
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |
 | 总 Story 数 | 21 | - |

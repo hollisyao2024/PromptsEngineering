@@ -65,3 +65,12 @@ describe('TC-ARCHPLAT-005 common table', () => {
     expect(()=>render(<DataTable data={data} columns={columns} getRowId={getRowId} mode="server" />)).toThrow(/Server DataTable/);
   });
 });
+it('TC-ARCHPLAT-012 table combines controlled date and multi-select filters and clears them', async () => {
+  const user=userEvent.setup(), changed=vi.fn();
+  type D={id:string;status:string;date:string};const rows:D[]=[{id:'a',status:'active',date:'2026-09-09'},{id:'b',status:'paused',date:'2026-09-09'},{id:'c',status:'active',date:'2026-09-20'}];
+  const cols:ColumnDef<D>[]=[{accessorKey:'id',header:'ID',enableColumnFilter:false},{accessorKey:'status',header:'状态',meta:{filterVariant:'multi-select',filterOptions:[{value:'active',label:'启用'},{value:'paused',label:'暂停'}]}},{accessorKey:'date',header:'日期',meta:{filterVariant:'date-range'}}];
+  function Demo(){const [query,setQuery]=useState<TableQuery>({pagination:{pageIndex:0,pageSize:10},search:'',sorting:[],filters:[{id:'status',value:['active']},{id:'date',value:{from:'2026-09-01',to:'2026-09-10'}}]});return <DataTable data={rows} columns={cols} getRowId={r=>r.id} query={query} onQueryChange={q=>{setQuery(q);changed(q);}}/>;}
+  render(<Demo/>);expect(screen.getByText('a')).toBeVisible();expect(screen.queryByText('b')).toBeNull();expect(screen.queryByText('c')).toBeNull();
+  await user.click(screen.getByRole('button',{name:'清除筛选'}));expect(screen.getByText('b')).toBeVisible();expect(screen.getByText('c')).toBeVisible();expect(changed.mock.lastCall?.[0].filters).toEqual([]);
+  await user.click(screen.getByRole('combobox',{name:'筛选 状态'}));await user.click(screen.getByRole('option',{name:'暂停'}));await user.keyboard('{Escape}');expect(screen.queryByText('a')).toBeNull();expect(screen.getByText('b')).toBeVisible();
+});

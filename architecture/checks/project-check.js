@@ -4,6 +4,7 @@ const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
 const { validateConfig, walk, catalog } = require('../scripts/project');
 const { safePath, hash, parseJson, read } = require('../../tooling/xirang/engine');
+const { componentCatalog, resolveComponentSets } = require('../scripts/component-sets');
 const RAW_UI = new Set(['button','input','select','option','textarea','dialog','details','summary','table']);
 function checkProject(target, raw, { source, syntax = true } = {}) {
   optionCache.clear();
@@ -24,7 +25,10 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
       if (tsconfig.error) { fail(app.id,'Cannot parse tsconfig.json'); continue; }
       const parsed = ts.parseJsonConfigFileContent(tsconfig.config, ts.sys, dir);
       const opts = parsed.options;
-      for (const [alias, expected, probe] of [[components.aliases?.ui,app.components.ui,'button'],['@/components/data-table',app.components.dataTable,'data-table']]) {
+      const sets = resolveComponentSets(app.componentSets, componentCatalog(source)).sets;
+      const probes = [[components.aliases?.ui, app.components.ui, 'button']];
+      for (const [set,kind,alias,probe] of [['data-table','dataTable','data-table','data-table'],['forms','forms','forms','form-field'],['selectors','selectors','selectors','search-select'],['dates','selectors','selectors','date-picker'],['feedback','feedback','feedback','confirm-dialog']]) if (sets.includes(set)) probes.push([`@/components/${alias}`,app.components[kind],probe]);
+      for (const [alias, expected, probe] of probes) {
         const result = alias && ts.resolveModuleName(`${alias}/${probe}`,path.join(dir,app.sourceDir,'__xirang_check__.tsx'),opts,ts.sys).resolvedModule;
         if (!result || path.resolve(result.resolvedFileName) !== path.resolve(target,expected,`${probe}.tsx`)) fail(app.id,`Component alias does not resolve to configured path: ${alias}`);
       }
