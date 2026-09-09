@@ -78,5 +78,14 @@
         "feedback.test.tsx"
       ]
     }
-  }
+  },
+  "integrationTests": [
+    {
+      "requires": [
+        "forms",
+        "dates"
+      ],
+      "file": "forms-dates.test.tsx"
+    }
+  ]
 }

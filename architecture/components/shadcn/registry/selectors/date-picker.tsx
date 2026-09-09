@@ -74,7 +74,10 @@ export function DatePicker({
           {value || label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto max-w-[95vw] space-y-3">
+      <PopoverContent
+        align="start"
+        className="w-auto max-w-[95vw] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto space-y-3"
+      >
         <Calendar
           mode="single"
           locale={zhCN}
@@ -185,7 +188,10 @@ export function DateRangePicker({
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto max-w-[95vw] space-y-3">
+      <PopoverContent
+        align="start"
+        className="w-auto max-w-[95vw] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto space-y-3"
+      >
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
             <Button

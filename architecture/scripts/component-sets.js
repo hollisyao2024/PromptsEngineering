@@ -113,6 +113,9 @@ function resolveComponentSets(selection, cat) {
       "setup.ts",
       "primitives.test.tsx",
       ...sets.flatMap((name) => cat.definition.sets[name].tests),
+      ...(cat.definition.integrationTests || [])
+        .filter((test) => test.requires.every((name) => sets.includes(name)))
+        .map((test) => test.file),
     ],
   };
 }
