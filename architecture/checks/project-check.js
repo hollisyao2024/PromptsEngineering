@@ -65,6 +65,7 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
     checks.push(`application:${app.id}`);
   }
   for (const store of config.datastores) {
+    if(store.access==='prisma')continue;
     try {
       const registry = parseJson(read(target,`${store.path}/migrations.json`) || 'null','migration registry');
       if (!Array.isArray(registry)) throw new Error('Missing migration registry');
@@ -91,6 +92,7 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
     const { derivePaths }=require('../scripts/project'); const paths=parseJson(agent,'agent.config.json').paths || {}, derived=derivePaths(config);
     for(const key of ['primaryApp','webAppDir','apiAppDir','databaseDir','migrationsDir']) if(paths[key] && derived[key] && paths[key]!==derived[key]) fail(`paths.${key}`,`agent.config.json conflicts with architecture mapping: ${paths[key]} != ${derived[key]}`);
   }
+  if(config.schemaVersion===2){const workspace=require('./workspace-check').checkWorkspace(target,config,{syntax});checks.push(...workspace.checks);failures.push(...workspace.failures);}
   return { status: failures.length ? 'BLOCKED' : 'OK', checks, failures };
 }
 const optionCache = new Map();

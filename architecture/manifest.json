@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
@@ -51,6 +51,14 @@
         "linux-arm64"
       ],
       "ui": "shadcn"
+    },
+    "node-ts": {
+      "kind": "api",
+      "language": "typescript",
+      "template": "stacks/backend/node-ts",
+      "targets": [
+        "server"
+      ]
     }
   },
   "databases": {
@@ -63,16 +71,38 @@
   },
   "modules": {
     "observability": {
-      "template": "modules/observability"
+      "template": "modules/observability",
+      "workspaceTemplate": "modules/workspace-observability"
     },
     "contracts": {
-      "template": "modules/contracts"
+      "template": "modules/contracts",
+      "workspaceTemplate": "modules/workspace-contracts"
     },
     "runtime-assets": {
       "template": "modules/runtime-assets"
     },
     "plugins": {
       "template": "modules/plugins"
+    },
+    "domain": {
+      "template": "modules/workspace-domain",
+      "requiresWorkspace": true
+    },
+    "api-client": {
+      "template": "modules/workspace-api-client",
+      "requiresWorkspace": true
+    },
+    "query": {
+      "template": "modules/workspace-query",
+      "requiresWorkspace": true
+    },
+    "platform": {
+      "template": "modules/workspace-platform",
+      "requiresWorkspace": true
+    },
+    "config": {
+      "template": "modules/workspace-config",
+      "requiresWorkspace": true
     }
   },
   "profiles": {
@@ -90,5 +120,19 @@
     "delivery",
     "upgrades"
   ],
-  "componentSets": "components/shadcn/component-sets.json"
+  "componentSets": "components/shadcn/component-sets.json",
+  "blueprints": {
+    "admin-api": {
+      "template": "blueprints/admin-api.json"
+    },
+    "fullstack": {
+      "template": "blueprints/fullstack.json"
+    },
+    "web-desktop": {
+      "template": "blueprints/web-desktop.json"
+    },
+    "local-private": {
+      "template": "blueprints/local-private.json"
+    }
+  }
 }

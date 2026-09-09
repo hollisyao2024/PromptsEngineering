@@ -2,6 +2,17 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v3.2.0] - 2026-09-09
+
+### 多端 Monorepo 与 Prisma
+
+- 新增 v2 架构选择、pnpm workspace、共享包 exports 和四种可展开蓝图；目录按项目配置，v1 项目保持兼容。
+- 新 Node TypeScript / Prisma 7.10 数据访问包支持 PostgreSQL、SQLite，独立客户端/环境/迁移历史；迁移完整性守卫阻断历史缺失、改写和失败状态。
+- 提供 OpenAPI 3.1 类型与运行时校验、无 React API client、Query 缓存、配置与观测、AppShell 和 Browser/Tauri 平台适配。
+- 任务示例通过公共 shadcn DataTable 联动真实 API，支持分页、多列排序、筛选、多选、CRUD、导出、权限和并发失败恢复。
+- YAML 三方更新保留项目键与注释；业务 schema/合约/页面仅初始化、迁移只追加、包管理器持有依赖锁。真实 3.1 升级保留定制并收敛。
+- 固定兼容安全依赖覆盖；模板源保留源码、生成器与必要 updater 工具，应用依赖只在选定消费者安装。验证与限制见 docs/qa-modules/monorepo-platform/QA.md。
+
 ## [v3.1.0] - 2026-09-09
 
 ### 公共交互组件

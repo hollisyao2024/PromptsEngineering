@@ -14,6 +14,8 @@ repo/
 ├── packages/             # 应用间共享模块
 │   ├── domain/           # 领域模型和规则
 │   ├── ui/               # 跨应用组件（选用）
+│   ├── query/            # React 查询适配
+│   ├── platform/         # 多端宿主能力
 │   ├── api-client/       # API 客户端
 │   ├── contracts/        # 合约和生成类型
 │   ├── database/         # 共享存储实现（选用）
@@ -44,3 +46,5 @@ apps/<app>/<sourceDir>/components/
 ```
 
 共享时推荐对应映射 packages/ui/src/{ui,data-table,forms,selectors,feedback}。共享组件的依赖也必须在共享包，不能反向导入 apps；共享相同源码的应用必须使用一致的依赖目录映射。技术源在 architecture/components/shadcn/registry，实际项目代码从上述 apps/packages 导入。
+
+v2 Monorepo 默认共享 UI，单根 workspace/lock；数据库包使用 packages/database/<store>，各自维护 prisma/schema.prisma、prisma/migrations 和 src/generated。初始化与实际依赖安装见 [Monorepo 指南](../../architecture/guides/monorepo.md)。目录可以映射，技术选择由项目配置决定。

@@ -18,3 +18,11 @@
 architecture.config.json 用稳定应用/存储/模块 ID 和消费者引用描述选型。xirang.lock.json 的 files 字典以相对路径关联 owner、strategy、version 和 base SHA-256；base 指向 .xirang/baselines/<sha256>。packages 字典记录已安装能力及参数摘要。一个目标文件只能属于一个 owner。
 
 这些关系是文件协议，不在 app_metadata 中存储，也不要求项目采用特定数据库。字段与约束见 [dictionary.md](dictionary.md)。
+
+## v2 Prisma 任务示例
+
+选择 Prisma 的存储独立建立 `Task` 和 Prisma 自有 `_prisma_migrations`，与旧 SQL 骨架不混用。`Task` 是无外键的任务聚合；版本号用于并发修改检查，批量删除在同一事务内校验全部 ID。各存储拥有独立 Schema、生成客户端和迁移历史；本示例不包含账户/租户实体。
+
+`Task_createdAt_id_idx` 支撑日期及稳定 ID 排序，`Task_status_idx` 支撑状态筛选。标题搜索目前为有界分页下的 contains 查询，不承诺全文索引性能。数据库端不采用跨 provider 枚举；公开状态由 OpenAPI 约束，Schema 和业务服务在初始化后由项目维护。
+
+模板生成与更新只落文件。`db:deploy/dev` 才显式调用 Prisma Migrate，守卫从 `_prisma_migrations` 读取已应用摘要、失败和回滚状态；不新建第二套执行账本。源仓库不运行业务数据库，所有真实验证均在隔离消费者。

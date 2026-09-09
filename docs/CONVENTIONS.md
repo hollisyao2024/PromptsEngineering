@@ -47,7 +47,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 作业包入口 `agent/manifest.json`，架构包入口 `architecture/manifest.json`；共用 `tooling/xirang` 的冻结计划与版本化基线。`xirang.lock.json` 与 `.xirang/baselines/` 随项目提交，运行日志位于容器 tmp。Manifest 支持以下策略：
 
 - `overwrite`：模板自有文件升级，先比对已安装基线并阻断未经接管的本地修改。
-- `update` / `merge-json`：基线、项目当前、新模板三方合并；重叠修改明确冲突。
+- `update` / `merge-json` / `merge-yaml`：基线、项目当前、新模板三方合并；重叠修改明确冲突。
 - `append` / `append-json` / `append-lines`：只追加新文件或稳定 ID 条目，重复去重；已有迁移不改写。
 - `managed-block`：只更新受管块，块外文本归项目。
 - `init-if-missing`：仅初始化，已有项目文件不覆盖。
@@ -61,6 +61,8 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 4. 再次 dry-run，预期无差异。
 
 架构命令使用 `pnpm agent -- architecture catalog|detect|validate|plan|init|update|adopt|check`。初次获取架构目录用 `template sync --include architecture`；默认同步更新作业包及已采用模块，`--scope agent` 只更新作业包。采用 React/shadcn 后必须按 [UI 标准](../architecture/standards/ui.md) 使用基础控件和唯一 DataTable，禁止业务层原生交互控件；框架选择仍由项目决定。
+
+模板源码只保存组件实现、版本清单与工具，不预装全部应用栈；实际 workspace 初始化见 [Monorepo 指南](../architecture/guides/monorepo.md)。
 
 模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
 ### 息壤官方同步

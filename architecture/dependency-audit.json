@@ -1,6 +1,6 @@
 {
   "checkedAt": "2026-09-09T04:17:56.475Z",
-  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies; selectable forms, selectors, dates and feedback",
+  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies; selectable forms, selectors, dates and feedback; Monorepo Prisma, contracts, Query and selected Tauri adapters",
   "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
   "retainedCompatibilityDependencies": [
     "clsx",
@@ -278,6 +278,179 @@
       "selected": "4.5.4",
       "registry": "https://registry.npmjs.org/zod",
       "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "prisma",
+      "previous": null,
+      "selected": "7.10.0",
+      "registry": "https://registry.npmjs.org/prisma",
+      "reason": "Latest stable line; latest tag is a pre-release and not selected.",
+      "latest": "8.0.0-rc.13"
+    },
+    {
+      "name": "@prisma/client",
+      "previous": null,
+      "selected": "7.10.0",
+      "registry": "https://registry.npmjs.org/%40prisma%2Fclient",
+      "reason": "Must match Prisma CLI and adapters.",
+      "latest": "8.0.0-rc.13"
+    },
+    {
+      "name": "@prisma/adapter-pg",
+      "previous": null,
+      "selected": "7.10.0",
+      "registry": "https://registry.npmjs.org/%40prisma%2Fadapter-pg",
+      "reason": "Matches Prisma 7.10.0; real PostgreSQL 18.6 CRUD/transactions/migration checks passed."
+    },
+    {
+      "name": "@prisma/adapter-better-sqlite3",
+      "previous": null,
+      "selected": "7.10.0",
+      "registry": "https://registry.npmjs.org/%40prisma%2Fadapter-better-sqlite3",
+      "reason": "Matches Prisma 7.10.0; real SQLite CRUD/transactions/migration checks passed."
+    },
+    {
+      "name": "better-sqlite3",
+      "previous": null,
+      "selected": "12.11.1",
+      "registry": "https://registry.npmjs.org/better-sqlite3",
+      "reason": "Newest compatible 12.x; adapter 7.10.0 requires ^12.6.0; native build verified on macOS arm64/Node 26.7.",
+      "latest": "13.0.3"
+    },
+    {
+      "name": "pg",
+      "previous": null,
+      "selected": "8.23.0",
+      "registry": "https://registry.npmjs.org/pg",
+      "reason": "Pinned PostgreSQL driver used by the adapter and migration history guard."
+    },
+    {
+      "name": "openapi-typescript",
+      "previous": null,
+      "selected": "7.13.0",
+      "registry": "https://registry.npmjs.org/openapi-typescript",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "7.13.0"
+    },
+    {
+      "name": "openapi-fetch",
+      "previous": null,
+      "selected": "0.17.0",
+      "registry": "https://registry.npmjs.org/openapi-fetch",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "0.17.0"
+    },
+    {
+      "name": "ajv",
+      "previous": null,
+      "selected": "8.20.0",
+      "registry": "https://registry.npmjs.org/ajv",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "8.20.0"
+    },
+    {
+      "name": "@tanstack/react-query",
+      "previous": null,
+      "selected": "5.102.8",
+      "registry": "https://registry.npmjs.org/%40tanstack%2Freact-query",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "5.102.8"
+    },
+    {
+      "name": "@tauri-apps/plugin-dialog",
+      "previous": null,
+      "selected": "2.7.3",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-dialog",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.7.3"
+    },
+    {
+      "name": "@tauri-apps/plugin-fs",
+      "previous": null,
+      "selected": "2.5.2",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-fs",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.5.2"
+    },
+    {
+      "name": "@tauri-apps/plugin-notification",
+      "previous": null,
+      "selected": "2.4.0",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-notification",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.4.0"
+    },
+    {
+      "name": "@tauri-apps/plugin-opener",
+      "previous": null,
+      "selected": "2.5.5",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-opener",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.5.5"
+    },
+    {
+      "name": "@tauri-apps/plugin-clipboard-manager",
+      "previous": null,
+      "selected": "2.3.3",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-clipboard-manager",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.3.3"
+    },
+    {
+      "name": "@tauri-apps/plugin-store",
+      "previous": null,
+      "selected": "2.4.4",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fplugin-store",
+      "reason": "Stable compatible version pinned for selected consumer packages.",
+      "latest": "2.4.4"
+    },
+    {
+      "name": "tsx",
+      "previous": null,
+      "selected": "4.23.13",
+      "registry": "https://registry.npmjs.org/tsx",
+      "reason": "Pinned Node TypeScript development runner.",
+      "latest": "4.23.13"
+    },
+    {
+      "name": "ajv-formats",
+      "previous": null,
+      "selected": "3.0.1",
+      "latest": "3.0.1",
+      "registry": "https://registry.npmjs.org/ajv-formats",
+      "reason": "Ajv 2020-12 with date-time validation for OpenAPI 3.1 request and response contracts."
+    },
+    {
+      "name": "deepmerge-ts",
+      "selected": "8.0.2",
+      "latest": "8.0.2",
+      "reason": "Scoped @prisma/config override; fixes GHSA-ggr8-5vv4-36mx; real generate/migration tested.",
+      "registry": "https://registry.npmjs.org/deepmerge-ts"
+    },
+    {
+      "name": "mysql2",
+      "selected": "3.24.4",
+      "latest": "3.24.4",
+      "reason": "Scoped Prisma CLI transitive override; fixes auth downgrade and compressed protocol issues; this blueprint uses PostgreSQL/SQLite.",
+      "registry": "https://registry.npmjs.org/mysql2"
+    },
+    {
+      "name": "js-yaml",
+      "selected": "4.3.2",
+      "latest": "5.4.1",
+      "reason": "Scoped Redocly override; newest compatible v4 security patch for GHSA-2883-xcg3-v3hh; v5 changes module/loader APIs.",
+      "registry": "https://registry.npmjs.org/js-yaml"
     }
-  ]
+  ],
+  "platformCheckedAt": "2026-09-09T11:32:48.345168+00:00",
+  "toolScopes": {
+    "contracts": {
+      "typescript": "5.9.3",
+      "reason": "openapi-typescript 7.13.0 requires TypeScript ^5.x; generator is isolated from TS6 application/check tooling."
+    },
+    "updater": {
+      "yaml": "2.9.0",
+      "reason": "Vendored unchanged runtime code with ISC license/provenance; no consumer bootstrap dependency."
+    }
+  }
 }

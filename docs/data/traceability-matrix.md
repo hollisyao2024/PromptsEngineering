@@ -73,3 +73,17 @@ US-CMDSURF-007 已通过 worktree 核心 40/40、全仓 Node 305/305 与 setup 5
 US-CMDSURF-008 已完成 TC-CMDSURF-016~021：定向回归、三电脑 bare Git、模板传播收敛与 QA 双 SHA 收据均通过；GitHub workflows 保持 project-owned 且未被触碰。
 
 US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模板引导与全量 Node 回归均零失败，QA receipt 已绑定当前 base/head，等待合并门禁。
+
+## 多端 Monorepo 与 Prisma
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-MONOPLAT-001 | AC-MONOPLAT-001-01 | TC-MONOPLAT-001 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-002 | AC-MONOPLAT-002-01 | TC-MONOPLAT-002 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-003 | AC-MONOPLAT-003-01 | TC-MONOPLAT-003 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-004 | AC-MONOPLAT-004-01 | TC-MONOPLAT-004 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-005 | AC-MONOPLAT-005-01 | TC-MONOPLAT-005 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-006 | AC-MONOPLAT-006-01 | TC-MONOPLAT-006 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-007 | AC-MONOPLAT-007-01 | TC-MONOPLAT-007 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-008 | AC-MONOPLAT-008-01 | TC-MONOPLAT-008 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-009 | AC-MONOPLAT-009-01 | TC-MONOPLAT-009 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
