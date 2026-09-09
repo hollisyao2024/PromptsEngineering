@@ -38,7 +38,7 @@ US/TC-MONOPLAT 各编号对应 AC-MONOPLAT-<编号>-01，追溯状态见全局�
 | error-auth-retains-form-and-retries | 实际 POST 去除令牌得到 401，输入保持、数据库未写、恢复令牌后保存 |
 | boundary-auth-scope-and-late-query | 错误令牌不显示旧缓存；恢复身份重新加载；旧搜索已进入网络后延迟，后续结果不被覆盖 |
 | boundary-page-sort-filter-and-empty | 17 行分页末页 7 行、禁用下一页、排序、状态筛选 8 行、隐藏列、空搜索与清除 |
-| narrow-theme-navigation-and-keyboard | 360px 不发生页面横向溢出、主题、Sheet Esc 焦点恢复、空表单 Esc 返回 |
+| narrow-theme-navigation-and-keyboard | 320px 不发生页面横向溢出、主题、Sheet Esc 焦点恢复、空表单 Esc 返回 |
 | wide-navigation-and-shared-theme | 1280px 侧栏、导航锚点、共享主题、列表数据保持 |
 | error-state-recovers-after-api-restored | 网络失败显示错误、隐藏旧行，恢复 API 后重试成功 |
 | error-concurrent-edit-is-preserved | 编辑中外部版本递增，保存 409 且保留输入，放弃后显示最新数据 |

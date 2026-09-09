@@ -63,7 +63,7 @@ journey('MONOPLAT-005-boundary-page-sort-filter-and-empty',async(ui,page)=>{
   await page.getByRole('button',{name:'清除筛选',exact:true}).click();await ui.ready();await expect(page.locator('tbody tr')).toHaveCount(10);
 });
 journey('MONOPLAT-006-narrow-theme-navigation-and-keyboard',async(ui,page)=>{
-  await page.setViewportSize({width:360,height:800});await ui.open();
+  await page.setViewportSize({width:320,height:800});await ui.open();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   const before=await page.locator('html').getAttribute('class');await page.getByRole('button',{name:'切换主题'}).click();await expect(page.locator('html')).not.toHaveAttribute('class',before);
   await page.getByRole('button',{name:'导航',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('应用导航');await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.getByRole('button',{name:'导航',exact:true})).toBeFocused();
