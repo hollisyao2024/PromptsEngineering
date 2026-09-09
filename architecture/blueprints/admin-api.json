@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "workspace": {
+    "packageManager": "pnpm@10.18.3"
+  },
+  "blueprint": {
+    "id": "admin-api",
+    "version": "1"
+  },
+  "applications": [
+    {
+      "id": "admin",
+      "path": "apps/admin",
+      "stack": "react-vite",
+      "components": {
+        "ui": "packages/ui/src/ui",
+        "dataTable": "packages/ui/src/data-table"
+      },
+      "componentSets": [
+        "data-table",
+        "forms",
+        "react-hook-form",
+        "selectors",
+        "dates",
+        "feedback"
+      ],
+      "modules": [
+        "api-client",
+        "query",
+        "platform"
+      ]
+    },
+    {
+      "id": "api",
+      "path": "apps/api",
+      "stack": "node-ts",
+      "modules": [
+        "domain",
+        "contracts",
+        "config",
+        "observability"
+      ]
+    }
+  ],
+  "datastores": [
+    {
+      "id": "main",
+      "path": "packages/database/main",
+      "engine": "postgres",
+      "access": "prisma",
+      "consumers": [
+        "api"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "domain",
+      "path": "packages/domain"
+    },
+    {
+      "id": "contracts",
+      "path": "packages/contracts"
+    },
+    {
+      "id": "api-client",
+      "path": "packages/api-client"
+    },
+    {
+      "id": "query",
+      "path": "packages/query"
+    },
+    {
+      "id": "platform",
+      "path": "packages/platform"
+    },
+    {
+      "id": "config",
+      "path": "packages/config"
+    },
+    {
+      "id": "observability",
+      "path": "packages/observability"
+    }
+  ],
+  "example": {
+    "kind": "tasks",
+    "api": "api",
+    "datastore": "main"
+  },
+  "profiles": []
+}

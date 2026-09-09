@@ -8,6 +8,8 @@
 
 ## 2. 模块任务索引
 
+多端 Monorepo 与 Prisma 已规划，实施顺序和验收见 [模块 TASK](task-modules/monorepo-platform/TASK.md)，依赖架构能力包与所有权引擎（2026-09-09）。
+
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 官方匿名获取回归通过 | Agent CLI、GitHub auth、template apply、worktree lifecycle、固定官方源 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-06 |

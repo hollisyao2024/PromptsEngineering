@@ -1,5 +1,7 @@
 # 任务依赖矩阵
 
+多端平台关键路径：TASK-MONOPLAT-001 → 002 → 003 → 004 → 005 → 006。001 依赖既有架构平台，005 为真实消费者验收，006 为本地 QA 合并；各步骤间 Finish-to-start，提前量 0。详见 [模块 WBS](../task-modules/monorepo-platform/TASK.md)。
+
 | 前置 Task | 后置 Task | 类型 | 提前量 | 关键路径 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | TASK-CMDSURF-001 | TASK-CMDSURF-002 | Finish-to-start | 0 | 是 | RED 后进入配置与路由实现 |

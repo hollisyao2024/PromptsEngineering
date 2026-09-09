@@ -4,6 +4,8 @@
 
 ## 1. 产品概述
 
+多端 Monorepo 与 Prisma 扩展：[模块 PRD](prd-modules/monorepo-platform/PRD.md)，含 workspace、真实数据流程、应用组合蓝图及升级保护。
+
 3.1 公共 UI 扩展：表单、搜索/多选、日期范围和反馈确认，按项目配置初始化并与公共表格协作。验收见 [架构模块 §10](prd-modules/architecture-platform/PRD.md#10-公共-ui-基础能力扩展31)。
 
 息壤（Xirang，代码仓库为 PromptsEngineering）为目标仓库提供可移植的 Agent 工程治理模板。新增核心能力见 [双能力包与架构落地](prd-modules/architecture-platform/PRD.md)：作业流程与应用架构分离，按项目要求初始化，并以明确所有权安全升级。既有目标覆盖稳定命令协议、目标项目首次初始化时的环境变量文件骨架、不依赖 GitHub CI 的多电脑同权协作与主干合并保护，以及由实际项目主动发起的官方模板自更新能力。

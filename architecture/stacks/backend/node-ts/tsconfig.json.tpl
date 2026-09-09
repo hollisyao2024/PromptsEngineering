@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"types":["node"],"skipLibCheck":true,"outDir":"dist","rootDir":"{{sourceDir}}","rewriteRelativeImportExtensions":true},"include":["{{sourceDir}}"]}

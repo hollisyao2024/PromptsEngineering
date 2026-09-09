@@ -7,7 +7,10 @@
       "type": "string"
     },
     "schemaVersion": {
-      "const": 1
+      "enum": [
+        1,
+        2
+      ]
     },
     "applications": {
       "type": "array",
@@ -29,7 +32,8 @@
               "react-next",
               "node",
               "go",
-              "tauri"
+              "tauri",
+              "node-ts"
             ]
           },
           "sourceDir": {
@@ -123,6 +127,9 @@
               "type": "string",
               "pattern": "^[a-z][a-z0-9-]{0,63}$"
             }
+          },
+          "access": {
+            "const": "prisma"
           }
         },
         "required": [
@@ -144,7 +151,12 @@
               "observability",
               "contracts",
               "runtime-assets",
-              "plugins"
+              "plugins",
+              "domain",
+              "api-client",
+              "query",
+              "platform",
+              "config"
             ]
           },
           "path": {
@@ -206,10 +218,126 @@
           "denyPatterns"
         ]
       }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "packageManager": {
+          "type": "string",
+          "pattern": "^pnpm@10\\.\\d+\\.\\d+$"
+        }
+      },
+      "required": [
+        "packageManager"
+      ]
+    },
+    "blueprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "admin-api",
+            "fullstack",
+            "web-desktop",
+            "local-private"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ]
+    },
+    "example": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "tasks"
+        },
+        "api": {
+          "type": "string"
+        },
+        "datastore": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "api",
+        "datastore"
+      ]
     }
   },
   "required": [
     "schemaVersion",
     "applications"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "workspace"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "workspace"
+              ]
+            },
+            {
+              "required": [
+                "blueprint"
+              ]
+            },
+            {
+              "required": [
+                "example"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "datastores": {
+            "items": {
+              "not": {
+                "required": [
+                  "access"
+                ]
+              }
+            }
+          },
+          "modules": {
+            "items": {
+              "properties": {
+                "id": {
+                  "enum": [
+                    "contracts",
+                    "observability",
+                    "runtime-assets",
+                    "plugins"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }

@@ -1,0 +1,1 @@
+{"name":"@project/{{appId}}","private":true,"type":"module","scripts":{"dev":"tsx watch {{sourceDir}}/server.ts","build":"tsc","start":"node dist/server.js","type-check":"tsc --noEmit"},"devDependencies":{"typescript":"6.0.3","@types/node":"22.20.1","tsx":"4.23.13"}}

@@ -33,6 +33,10 @@
 - 可整体复制：项目差异集中在 `agent.config.json`、环境变量或 CLI 参数中，模板文件尽量不需要在实际项目中修改。
 - 工程闭环：内置脚本入口、Review Gate、QA Gate、worktree 管理和部署命令约定；`package.json` 只通过安全合并脚本追加缺失 aliases，不覆盖项目自有内容。
 
+## Monorepo 与按需组件
+
+息壤 3.2 增加四种多端预置组合、pnpm workspace、Prisma PostgreSQL/SQLite、OpenAPI/API client/Query、共享布局和平台端口。依赖只安装于选定的实际项目，模板源维护实现与版本清单。完整命令与升级边界见 [Monorepo 指南](architecture/guides/monorepo.md)。
+
 ## 目录速览
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
 - `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。

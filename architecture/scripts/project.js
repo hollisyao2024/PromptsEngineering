@@ -11,8 +11,8 @@ const identifier = (value, label) => { if (typeof value !== 'string' || !/^[a-z]
 function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE } = {}) {
   const config = parseJson(JSON.stringify(raw), CONFIG), cat = catalog(source);
   if (!Array.isArray(config.applications)) throw new Error('applications must be an explicit array');
-  if (config.schemaVersion !== 1) throw new Error('architecture schemaVersion must be 1');
-  const allowed = new Set(['$schema', 'schemaVersion', 'applications', 'datastores', 'modules', 'profiles']);
+  if (![1,2].includes(config.schemaVersion)) throw new Error('architecture schemaVersion must be 1 or 2');
+  const allowed = new Set(['$schema', 'schemaVersion', 'applications', 'datastores', 'modules', 'profiles', ...(config.schemaVersion === 2 ? ['workspace','blueprint','example'] : [])]);
   for (const key of Object.keys(config)) if (!allowed.has(key)) throw new Error(`unknown architecture field: ${key}`);
   for (const key of ['applications', 'datastores', 'modules', 'profiles']) {
     if (config[key] === undefined) config[key] = [];
@@ -22,7 +22,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
   const register = (item, kind) => {
     if (!item || typeof item !== 'object') throw new Error(`invalid ${kind}`);
     identifier(item.id, `${kind} id`);
-    const keys = {application:['id','path','stack','sourceDir','targets','components','componentSets','modules'],datastore:['id','path','engine','consumers'],module:['id','path'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
+    const keys = {application:['id','path','stack','sourceDir','targets','components','componentSets','modules'],datastore:['id','path','engine','consumers',...(config.schemaVersion===2?['access']:[])],module:['id','path'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
     for(const key of Object.keys(item))if(!keys.includes(key))throw new Error(`unknown ${kind} field: ${key}`);
     if (ids.has(`${kind}:${item.id}`)) throw new Error(`duplicate ${kind} id: ${item.id}`);
     ids.add(`${kind}:${item.id}`); safePath(target, item.path);
@@ -81,6 +81,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
     }
     componentRoots.push({ path: lower, kind });
   }
+  require('./monorepo').validateWorkspaceConfig(config, cat);
   return config;
 }
 function walk(root, relative = '') {
@@ -268,6 +269,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   }
   for (const store of config.datastores) {
     const owner = `architecture:store:${store.id}`; if (!selected(owner)) continue; registration(owner, store);
+    if (store.access === 'prisma') { require('./monorepo').buildPrismaStore({store,owner,add,copy,readSource,deps}); continue; }
     add(`${store.path}/.gitignore`, 'node_modules/\n*.sqlite\n*.sqlite-*\n.env\n', 'init-if-missing', owner);
     copy(`architecture/${cat.databases[store.engine].template}`, store.path, owner, {}, p => p.startsWith('migrations/') ? 'append' : 'init-if-missing');
     copy('architecture/modules/migrations', store.path, owner, { engine: store.engine });
@@ -277,6 +279,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   }
   for (const module of config.modules) {
     const owner = `architecture:module:${module.id}`; if (!selected(owner)) continue; registration(owner, module);
+    if (config.schemaVersion===2 && require('./monorepo').workspaceModules.includes(module.id)) continue;
     copy(`architecture/${cat.modules[module.id].template}`, module.path, owner, {}, p => /manifest\.json$|contract\.json$|assets\.json$/.test(p) ? 'init-if-missing' : 'update');
   }
   for (const profile of config.profiles) {
@@ -284,6 +287,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
     copy(`architecture/${cat.profiles[profile.kind].template}`, profile.path, owner);
     add(`${profile.path}/profile.json`, json(profile), 'init-if-missing', owner);
   }
+  if (config.schemaVersion===2) require('./monorepo').buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,registration,selected,target});
   if (scope && scope !== 'architecture' && !packages[scope]) throw new Error(`scope is not an installed/selected module: ${scope}`);
   if (includeRuntime) {
     for (const root of ['architecture','tooling/xirang']) for (const file of walk(path.join(source, root))) {
@@ -299,4 +303,4 @@ function createArchitecturePlan(options) {
   const built = buildArchitectureAssets(options);
   return planUpdate({ ...options, ...built, source: sourceIdentity(options.source || DEFAULT_SOURCE) });
 }
-module.exports = { catalog, validateConfig, derivePaths, detectProject, buildArchitectureAssets, createArchitecturePlan, sourceIdentity, walk, CONFIG };
+module.exports = { catalog, validateConfig, derivePaths, detectProject, buildArchitectureAssets, createArchitecturePlan, sourceIdentity, walk, CONFIG, expandBlueprint: require('./blueprints').expandBlueprint };

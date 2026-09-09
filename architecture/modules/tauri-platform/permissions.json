@@ -1,0 +1,25 @@
+[
+  "dialog:allow-open",
+  "dialog:allow-save",
+  "fs:allow-read-text-file",
+  "fs:allow-write-text-file",
+  "fs:allow-stat",
+  "clipboard-manager:allow-read-text",
+  "clipboard-manager:allow-write-text",
+  "notification:default",
+  "store:default",
+  {
+    "identifier": "opener:allow-open-url",
+    "allow": [
+      {
+        "url": "https://*"
+      },
+      {
+        "url": "http://*"
+      },
+      {
+        "url": "mailto:*"
+      }
+    ]
+  }
+]

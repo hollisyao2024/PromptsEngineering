@@ -2,6 +2,8 @@
 
 本包把技术标准、可选择的实现、组件源、初始化脚本和检查放在一起。模型如何工作由 `agent/` 管理；项目选了哪些技术由项目的 `architecture.config.json` 管理；两个包共用 `tooling/xirang/` 的文件更新引擎。
 
+多端 Monorepo、Prisma 和四种预置组合的完整操作见 [Monorepo 指南](guides/monorepo.md)。模板源不预装应用依赖；新项目可用 `architecture init --blueprint admin-api --database sqlite` 按需生成。
+
 ## 从模板到实际项目
 
 已有项目先按正常流程建立专属 linked worktree。使用息壤源仓库更新目标项目时：
@@ -38,7 +40,7 @@ pnpm agent -- architecture init --config architecture.config.json
 pnpm agent -- architecture check
 ```
 
-`init` 校验所有选择，生成计划，阻断冲突，写入所选骨架、组件和版本基线，然后安装依赖并检查。依赖安装使用固定 pnpm 参数，关闭生命周期脚本；确需执行依赖构建脚本时在项目中明确声明和验证。Go/Rust 工具链不会偷偷下载安装，原生构建由对应应用命令显式执行。
+`init` 校验所有选择，生成计划，阻断冲突，写入所选骨架、组件和版本基线，然后安装依赖并检查。v1 安装关闭依赖生命周期脚本；v2 使用单根 workspace，在 onlyBuiltDependencies 中声明必要构建包，随后显式生成 Prisma Client 和合约类型。Go/Rust 工具链不会偷偷下载安装，原生构建由对应应用命令显式执行。
 
 离线预演用 `plan` 或 `init --dry-run`，目标目录零写入；只生成文件用 `init --no-install`，输出 `DEPENDENCIES=PENDING`。随后执行 `architecture install-deps`、`architecture check`，再运行各应用的 `test`、`build`。`apply --plan <文件>` 消费之前冻结的计划，只写文件，不重复选择新源，也不隐式安装依赖。
 
@@ -57,6 +59,7 @@ pnpm agent -- architecture check
 | --- | --- |
 | react-vite | React/Vite/TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
 | react-next | Next App Router、TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
+| node-ts / Prisma（v2） | 类型化 Node API、Prisma PG/SQLite、OpenAPI、Query 与真实任务 CRUD；见 Monorepo 指南 |
 | node | Node HTTP API、健康接口、HTTP 测试；`pnpm test`、`pnpm build` |
 | go | Go HTTP API、健康接口、测试；`go test ./...`、`go build .` |
 | tauri | Tauri 2 + React/Vite、Rust 入口、能力清单与平台矩阵；`pnpm build:web`，宿主机完整构建 `pnpm build` |
@@ -67,7 +70,7 @@ pnpm agent -- architecture check
 | plugins | 清单、路径、目标和声明权限校验；第三方插件不被自动认定签名可信 |
 | private profile | 非空产物扫描、项目填写禁用地址策略、发布链接切换与健康检查脚本 |
 
-这些是可扩展的实现目录，不是所有项目的强制技术栈。不支持的实现明确阻断，先在 catalog 注册实现和验证，不能静默替换用户选择。Tauri 初次构建生成 PNG/ICO/ICNS 起始图标，已有图标保持原样。原生签名、公证、生产迁移、远程部署、业务授权与 CRUD 均需要实际项目实现/配置。
+这些是可扩展的实现目录，不是所有项目的强制技术栈。不支持的实现明确阻断，先在 catalog 注册实现和验证，不能静默替换用户选择。Tauri 初次构建生成 PNG/ICO/ICNS 起始图标，已有图标保持原样。原生签名、公证、生产迁移、远程部署、业务身份与权限策略需要实际项目配置；v2 蓝图已带可运行任务 CRUD 示例。
 
 ## 存放目录与复用
 

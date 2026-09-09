@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const LOCK = 'xirang.lock.json';
-const STRATEGIES = new Set(['overwrite', 'update', 'merge-json', 'append', 'append-json', 'append-lines', 'managed-block', 'init-if-missing', 'project-owned', 'remove']);
+const STRATEGIES = new Set(['overwrite', 'update', 'merge-json', 'merge-yaml', 'append', 'append-json', 'append-lines', 'managed-block', 'init-if-missing', 'project-owned', 'remove']);
 const hash = value => value === null || value === undefined ? null : crypto.createHash('sha256').update(value).digest('hex');
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function canonical(value) {
@@ -151,6 +151,7 @@ function decide(asset, local, base, record, adopt) {
     if (local !== null && local !== upstream) throw new Error('append conflict: existing file is immutable');
     return upstream;
   }
+  if (asset.strategy === 'merge-yaml') return require('./yaml').mergeYaml(base, local, upstream, mergeJsonValue);
   if (asset.strategy === 'merge-json') {
     if (adopt && base === undefined) return json(adoptJson(local === null ? undefined : parseJson(local, asset.path), parseJson(upstream, asset.path)));
     return json(mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), local === null ? undefined : parseJson(local, asset.path), parseJson(upstream, asset.path)));

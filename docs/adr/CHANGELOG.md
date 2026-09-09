@@ -14,4 +14,6 @@
 
 ## 2026-09-09
 
+- [ADR 028](028-arch-monorepo-prisma.md)：多端 Monorepo、Prisma、按需安装、预置组合与业务所有权。
+
 - [ADR 027](027-arch-ui-component-sets.md)：四组公共 UI、可选择组件集、依赖闭包和日历日期合约。
