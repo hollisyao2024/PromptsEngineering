@@ -77,6 +77,70 @@
       "tests": [
         "feedback.test.tsx"
       ]
+    },
+    "uploads": {
+      "registry": [
+        "uploads"
+      ],
+      "tests": [
+        "uploads.test.tsx"
+      ]
+    },
+    "editor": {
+      "registry": [
+        "editor"
+      ],
+      "tests": [
+        "editor.test.tsx"
+      ]
+    },
+    "charts": {
+      "registry": [
+        "charts"
+      ],
+      "tests": [
+        "charts.test.tsx"
+      ]
+    },
+    "sortable": {
+      "registry": [
+        "sortable"
+      ],
+      "tests": [
+        "sortable.test.tsx"
+      ]
+    },
+    "flow": {
+      "registry": [
+        "flow"
+      ],
+      "tests": [
+        "flow.test.tsx"
+      ]
+    },
+    "virtual-table": {
+      "registry": [
+        "virtual-table"
+      ],
+      "tests": [
+        "virtual-table.test.tsx"
+      ]
+    },
+    "auth": {
+      "registry": [
+        "auth"
+      ],
+      "tests": [
+        "auth.test.tsx"
+      ]
+    },
+    "job-status": {
+      "registry": [
+        "job-status"
+      ],
+      "tests": [
+        "job-status.test.tsx"
+      ]
     }
   },
   "integrationTests": [

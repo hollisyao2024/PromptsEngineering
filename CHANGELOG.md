@@ -2,6 +2,16 @@
 
  遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，记录模板发布历史与重要调整。
 
+## [v3.3.0] - 2026-09-09
+
+### 开源公共能力与存储
+
+- 提供 Better Auth/Prisma、CASL、pg-boss/BullMQ Redis/PostgreSQL、i18next、Pino、OpenTelemetry 追踪、MSW 的按需生成实现与使用指南；配置、业务策略和词条保持项目所有。
+- 新增 shadcn 身份面板、任务状态、Uppy 上传、Tiptap 编辑、Recharts Chart、dnd-kit 排序、React Flow 与 TanStack Virtual 表格；48 项 Registry，复用唯一 DataTable。
+- Node/Go 支持 local、S3、阿里云 OSS、腾讯云 COS 原生适配与多存储路由；提供受认证文件会话、上传大小签名绑定、不可变转正键、CAS 元数据及恢复。
+- Prisma PG/SQLite 的身份和文件模型独立初始化，迁移只追加；队列迁移单独显式执行。依赖严格检查并固定兼容版本，模板源不安装应用依赖。
+- 单模块采用/更新补齐相关应用和数据源依赖；新增完整选型目录、Monorepo 配置示例、真实消费者与升级测试。备选组件与真实云/外部 IdP 验证边界明确记录。
+
 ## [v3.2.0] - 2026-09-09
 
 ### 多端 Monorepo 与 Prisma

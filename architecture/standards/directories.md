@@ -48,3 +48,7 @@ apps/<app>/<sourceDir>/components/
 共享时推荐对应映射 packages/ui/src/{ui,data-table,forms,selectors,feedback}。共享组件的依赖也必须在共享包，不能反向导入 apps；共享相同源码的应用必须使用一致的依赖目录映射。技术源在 architecture/components/shadcn/registry，实际项目代码从上述 apps/packages 导入。
 
 v2 Monorepo 默认共享 UI，单根 workspace/lock；数据库包使用 packages/database/<store>，各自维护 prisma/schema.prisma、prisma/migrations 和 src/generated。初始化与实际依赖安装见 [Monorepo 指南](../../architecture/guides/monorepo.md)。目录可以映射，技术选择由项目配置决定。
+
+## 可选开源模块
+
+身份、授权、任务、存储、国际化、日志、追踪与 Mock 的复用实现进入 packages/<模块>/src；apps/<应用> 负责业务路由和启动接线。共享 shadcn UI 的 advanced、feedback、data-table 与 ui 同级；components.advanced 可显式映射。配置事实源仍为 architecture.config.json，目录不强制技术选择。

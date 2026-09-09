@@ -7,6 +7,7 @@ const GROUP_KEYS = {
   forms: "forms",
   selectors: "selectors",
   feedback: "feedback",
+  advanced: "advanced",
   ui: "ui",
 };
 function componentCatalog(

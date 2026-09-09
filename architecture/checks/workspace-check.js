@@ -6,7 +6,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
   const failures=[],checks=[],fail=(name,reason)=>failures.push({name,reason});
   const uiApps=config.applications.filter(a=>a.components);
   const uiRoots=[...new Set(uiApps.map(a=>a.components.ui.split('/').slice(0,2).join('/')))];
-  const owners=[...config.applications,...config.modules,...config.datastores,...uiRoots.map(p=>({id:'ui',path:p}))];
+  const owners=[...config.applications,...config.modules,...config.datastores,...(config.fileStorage?.runtime==='node'?[{id:'storage',path:config.fileStorage.path}]:[]),...uiRoots.map(p=>({id:'ui',path:p}))];
   const packages=new Map();
   for(const owner of owners) {
     const text=read(target,owner.path+'/package.json');if(!text)continue;
@@ -48,9 +48,9 @@ function checkWorkspace(target,config,{syntax=true}={}) {
   let ts;
   try{ts=createRequire(path.join(target,'package.json'))('typescript');}catch{fail('workspace','TypeScript dependency missing');return {checks,failures};}
   const {walk}=require('../scripts/project');
-  const publicModules=new Set(['domain','contracts','api-client','query','platform']);
+  const publicModules=new Set(['domain','contracts','api-client','query','platform','auth-client','i18n','api-mocks']);
   const roots=[...config.applications.map(a=>({root:a.path+'/'+a.sourceDir,app:a,browser:!!a.components})),...config.modules.map(m=>({root:m.path+'/src',browser:publicModules.has(m.id)})),...uiRoots.map(p=>({root:p+'/src',browser:true}))];
-  const privateRoots=[...config.datastores,...config.modules.filter(m=>['config','observability'].includes(m.id))].map(m=>path.resolve(target,m.path)+path.sep);
+  const privateRoots=[...(config.fileStorage?[{path:config.fileStorage.path}]:[]),...config.datastores,...config.modules.filter(m=>['config','observability','auth','authorization','jobs','logging','telemetry'].includes(m.id))].map(m=>path.resolve(target,m.path)+path.sep);
   const visited=new Set(),options=new Map(),native=new Set(['button','input','select','option','textarea','dialog','details','summary','table']);
   function visitFile(file,context) {
     const key=(context.app?.id||'shared')+':'+context.browser+':'+file;if(visited.has(key))return;visited.add(key);
@@ -66,13 +66,14 @@ function checkWorkspace(target,config,{syntax=true}={}) {
       const spec=(ts.isImportDeclaration(node)||ts.isExportDeclaration(node))?node.moduleSpecifier:ts.isCallExpression(node)&&(node.expression.kind===ts.SyntaxKind.ImportKeyword||node.expression.getText(tree)==='require')?node.arguments[0]:undefined;
       if(spec&&ts.isStringLiteral(spec)) {
         const name=spec.text;
+        if(context.browser&&(/^(?:better-auth\/(?:node|plugins)|@project\/(?:auth$|authorization(?:\/|$)|jobs(?:\/|$)|logging(?:\/|$)|telemetry(?:\/|$)|storage(?!\/client$)|api-mocks\/node)|@aws-sdk\/|ali-oss$|cos-nodejs-sdk-v5$|pg-boss$|bullmq$|pino$|msw\/node$)/.test(name)))fail(relative,'Server SDK/module is forbidden in browser code: '+name);
         if(context.browser&&/^(?:@prisma\/|@project\/(?:database-|db-|config$|observability$)|node:|fs$|child_process$)/.test(name))fail(relative,'Server/database dependency is forbidden in browser/shared code: '+name);
         if(context.browser&&!primitive&&!table&&/(?:^|\/)ui\/table$/.test(name))fail(relative,'Business tables must use the common DataTable');
         const resolved=ts.resolveModuleName(name,file,options.get(cfg)||{moduleResolution:ts.ModuleResolutionKind.Bundler},ts.sys).resolvedModule?.resolvedFileName;
         if(resolved) {
           const absolute=path.resolve(resolved);
           if(config.applications.some(a=>a.id!==context.app?.id&&absolute.startsWith(path.resolve(target,a.path)+path.sep)))fail(relative,'Cross-application source import: '+name);
-          if(context.browser&&privateRoots.some(p=>absolute.startsWith(p)))fail(relative,'Server-only package imported by browser/shared code');
+          if(context.browser&&name!=='@project/storage/client'&&privateRoots.some(p=>absolute.startsWith(p)))fail(relative,'Server-only package imported by browser/shared code');
           if(absolute.startsWith(path.resolve(target)+path.sep)&&!absolute.split(path.sep).includes('node_modules'))visitFile(absolute,context);
         }
       }
@@ -80,7 +81,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
     }
     inspect(tree);
   }
-  for(const context of roots)for(const file of walk(safePath(target,context.root)))visitFile(path.join(target,context.root,file),context);
+  for(const context of roots)for(const file of walk(safePath(target,context.root)))visitFile(path.join(target,context.root,file),context.root===config.modules.find(m=>m.id==='api-mocks')?.path+'/src'&&file==='node.ts'?{...context,browser:false}:context);
   checks.push('workspace:source-boundaries');
   return {checks,failures};
 }

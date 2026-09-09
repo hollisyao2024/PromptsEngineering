@@ -77,7 +77,7 @@ test('TC-ARCHPLAT-003 malformed CLI arguments fail before running any mutation',
 test('TC-ARCHPLAT-005 registry payloads include pinned dependencies and the complete local UI closure', () => {
   const { buildRegistry } = require('../scripts/build-registry');
   const items = buildRegistry(source);
-  assert.equal(items.length, 39);
+  assert.equal(items.length, 48);
   for (const item of items) {
     assert.ok(!item.registryDependencies?.length);
     for (const dep of item.dependencies) assert.match(dep, /@\d+\.\d+\.\d+$/);

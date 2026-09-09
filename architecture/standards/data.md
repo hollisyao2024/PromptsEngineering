@@ -7,3 +7,9 @@
 旧版模板初始化/升级只生成 SQL 与注册项，不连接数据库。`node migrate.mjs` 只预检，`--apply` 才执行。SQLITE_PATH/DATABASE_URL 必须显式提供。失败记录保留，先诊断再恢复，不自动跳过失败迁移。生产执行前项目负责备份、回滚/补偿和新旧代码兼容验证。
 
 Node TypeScript 新蓝图使用 Prisma 7，PG 和 SQLite 分别生成独立 Schema/Client/迁移。Prisma Migrate 是唯一执行历史，不再同时使用 migrations.json。db:status / db:deploy 对比磁盘 SQL 与 _prisma_migrations，缺失、变更和失败状态阻断；只有显式命令连接数据库。已发布 SQL 不修改，业务 schema 由项目持有，generated client 忽略并重建。DATABASE_<STORE>_URL 与 TEST/SHADOW 配置应按 worktree 分开。切换 provider/access 或接管旧 SQL 历史须独立项目迁移；不得直接让模板转换。
+
+## 可选身份、队列与文件元数据
+
+Better Auth 的 User/Session/Account/Verification/Organization/Member/Invitation 和文件 FileObject 在 Prisma 多文件 schema 中独立初始化；业务 Schema 与策略归项目，已发布迁移仅追加。CASL 的默认策略拒绝，查询和条件写入都必须约束当前主体。
+
+pg-boss 或 BullMQ 的 PostgreSQL schema 需要显式 db:prepare；普通 init/start 不自动迁移。SQLite 不用于队列后端。pg-boss 同库 fromPrisma 可参与业务事务；跨数据库或 Redis 投递需要项目 Outbox 与业务幂等。文件二进制与元数据为双写，使用版本 CAS、暂存/最终键隔离和恢复状态，不声称跨存储原子提交。

@@ -15,3 +15,7 @@
 日历日期以 YYYY-MM-DD 传递，范围为 {from,to}，避免使用 UTC 解析或 toISOString 截取日期。DataTable 日期列的 accessor 应返回同格式的日历日期；时间戳须由项目按业务时区转换。多选列筛选值为字符串数组，日期范围值为有序完整范围；服务端模式必须在查询接口实现对应语义。
 
 AsyncCombobox 的 loadOptions 使用稳定回调，接受 {signal}，同时用请求序号防止不响应取消的旧请求覆盖新结果。selectedOptions 提供不在当前搜索结果中的已选标签。Notifications 在应用布局挂载一次，由项目在操作成功/失败时调用 notify。
+
+## 高级交互
+
+已选择 uploads/editor/charts/sortable/flow/auth/job-status 时使用公共 shadcn 组合及其端口。第三方引擎提供上传、编辑或画布行为，应用按钮、输入和状态仍复用 shadcn。大表可选 VirtualDataTable，复用同一个 DataTable 的状态和动作；不可另建第二套表格业务。客户端角色、组织 ID 和按钮可见性均不能代替服务端授权。

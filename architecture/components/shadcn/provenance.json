@@ -1,7 +1,7 @@
 {
   "license": "MIT",
   "upstream": "shadcn-ui/ui",
-  "checkedAt": "2026-09-09T04:17:32.024Z",
+  "checkedAt": "2026-09-09T15:03:01.155Z",
   "items": [
     {
       "name": "button",
@@ -265,6 +265,15 @@
       "sha256": "439c5d5256091829350d3136309f55f8ba788f1cc0f0dbad016ce6b5b2765488",
       "adaptations": [
         "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "chart",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/chart.json",
+      "sha256": "2ea906f5c8e304dfb81c84e7b2172d13c03a302e183b7195cac24c101dee72e5",
+      "adaptations": [
+        "registry imports mapped to component aliases",
+        "validate chart CSS keys and color values before stylesheet interpolation"
       ]
     }
   ]

@@ -52,3 +52,34 @@
 `_prisma_migrations` 由 Prisma Migrate 创建维护，守卫只读 `migration_name`、`checksum`（SQL SHA-256）、`finished_at`、`rolled_back_at`。无完成且无回滚的记录视为失败；完成记录不允许磁盘文件缺失或摘要改变。完整账本字段遵循选定 Prisma 版本，不由模板重新定义。
 
 v2 配置新增 `workspace.packageManager`（固定 pnpm 10 版本）、`blueprint.id/version`（首次展开来源）、`example.kind/api/datastore`（任务示例联动）及 `datastores[].access=prisma`（限 Node TS）。v1 不自动升级；旧 engine/access 改变需实际项目独立迁移。
+
+## 可选身份模型（Better Auth / Prisma）
+
+来源 `architecture/modules/open-source/auth-schema/auth.prisma`，PG/SQLite SQL 独立生成，全部模型使用文本主键。DateTime 对应 PG TIMESTAMP(3) / SQLite DATETIME；Boolean 对应 BOOLEAN。以下字段未标 `?` 均非空。模型仅初始化，身份机密不可进入 DTO、日志或仓库。
+
+| 模型 / 表 | 字段 | 约束与关系 |
+| --- | --- | --- |
+| User / user | id、name、email、emailVerified=false、image?、createdAt=now、updatedAt | email 唯一；updatedAt 由 Prisma 更新 |
+| Session / session | id、expiresAt、token、createdAt=now、updatedAt、ipAddress?、userAgent?、userId、activeOrganizationId? | token 唯一；userId 索引与级联删除外键；activeOrganizationId 是 SDK 管理的可选标识，不是客户端授权依据 |
+| Account / account | id、accountId、providerId、userId、accessToken?、refreshToken?、idToken?、accessTokenExpiresAt?、refreshTokenExpiresAt?、scope?、password?、createdAt=now、updatedAt | userId 索引与级联外键；password 为库管理的散列，令牌由身份服务管理 |
+| Verification / verification | id、identifier、value、expiresAt、createdAt=now、updatedAt | identifier 索引；验证码值禁止公开 |
+| Organization / organization | id、name、slug、logo?、createdAt、metadata? | slug 唯一；metadata 文本，解释由 SDK/项目负责 |
+| Member / member | id、organizationId、userId、role=member、createdAt | organizationId、userId 各自索引与级联外键；角色由服务端维护 |
+| Invitation / invitation | id、organizationId、email、role?、status=pending、expiresAt、createdAt=now、inviterId | organizationId/email 索引，organizationId/inviterId 级联外键 |
+
+## FileObject 与文件会话
+
+| 字段 | 类型 / 约束 | 用途 |
+| --- | --- | --- |
+| id | String / 主键 | 不可预测文件会话 ID |
+| ownerId | String / 非空 | 服务端认证回调给出的主体；不绑定特定 User 表，兼容外部身份 |
+| storeId、objectKey | String / 组合唯一 | 固定路由与对象标识；切换默认 store 不移动历史文件 |
+| state、version | String、Int / 非空 | CAS 并发状态；更新匹配旧版本后递增 |
+| record | String / 非空 | 有界 JSON，会话大小/MIME/暂存和最终 key/期限/lease；读入时校验结构 |
+| createdAt、updatedAt | DateTime / 非空 | 默认创建时间与 Prisma 更新时间 |
+
+索引为 `(ownerId,id)`、`(state,updatedAt)`；无身份外键，避免强制采用 Better Auth。状态为 pending/uploading/completing/ready/cancelled/deleting/deleted，过程以实际 `service` 合约为准。Node 可选择 Prisma 或私有目录元数据，Go 提供目录持久化及 repository 接口；二进制不写入关系库。双写通过 lease/CAS/recover 收敛，不是分布式事务。
+
+`fileStorage` 配置保存 runtime、path、consumers、stores(id/provider/envPrefix)、defaultStore、metadata.datastore 和 uploadApplications；禁止保存凭据。`modules[].options` 只接受所选模块需要的数据库或队列选项。
+
+队列内部表由固定 pg-boss/BullMQ 版本的显式迁移维护，不复制为第二套 Prisma schema。项目若采用 Outbox，应自行定义业务实体、幂等键、投递状态及迁移；模板不虚构通用业务 Outbox 表。

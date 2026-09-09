@@ -1,0 +1,15 @@
+// Project-owned file metadata. Change with an append-only migration.
+model FileObject {
+  id String @id
+  ownerId String
+  storeId String
+  objectKey String
+  state String
+  version Int
+  record String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([storeId, objectKey])
+  @@index([ownerId, id])
+  @@index([state, updatedAt])
+}

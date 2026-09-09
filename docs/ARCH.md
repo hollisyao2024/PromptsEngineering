@@ -6,6 +6,10 @@
 
 ## 1. 总览
 
+身份权限、队列和可选开源组件见 [公共能力架构](arch-modules/open-source-components/ARCH.md)。
+
+文件存储与云适配见 [存储架构](arch-modules/file-storage/ARCH.md) 和 [ADR-029](adr/029-arch-file-storage-adapters.md)。
+
 多端 workspace、按需依赖、Prisma 与预置组合见 [Monorepo 架构](arch-modules/monorepo-platform/ARCH.md) 和 [ADR-028](adr/028-arch-monorepo-prisma.md)。
 
 新增应用架构能力见 [双能力包与架构落地](arch-modules/architecture-platform/ARCH.md)。既有架构覆盖通用客户端命令面、基于模板 manifest 和初始化器的环境文件首次创建、不依赖 GitHub CI 的多电脑同权 Git 协作，以及由实际项目主动发起的息壤官方模板自更新。模板持有协议、身份、官方来源和安全骨架；目标项目持有后续内容与真实凭据。

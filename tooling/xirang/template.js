@@ -35,7 +35,7 @@ function buildAgentAssets(source,target,manifestPath='infra/templates/agent/temp
       assets.push({path:p,content,strategy,owner:'agent',version:manifest.templateVersion,marker:rule.marker,mode:fs.statSync(safePath(source,relative?`${from}/${relative}`:from)).mode&0o777});
     }
   }
-  return {assets,inputs,version:manifest.templateVersion};
+  return {assets:assets.map(asset=>require('./root-contributions').preserveRootContribution(asset,target)),inputs,version:manifest.templateVersion};
 }
 function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,include=[]}) {
   if(path.resolve(source)===path.resolve(target))throw new Error('Template source cannot apply onto itself');
@@ -54,6 +54,7 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     const config=parseJson(configText,'architecture.config.json');
     // Ordinary template upgrades may only update installed selections. Added/changed choices require architecture init/update.
     const selectionKeys=[...(config.applications||[]).map(a=>`architecture:app:${a.id}`),...(config.datastores||[]).map(d=>`architecture:store:${d.id}`),...(config.modules||[]).map(m=>`architecture:module:${m.id}`),...(config.profiles||[]).map(p=>`architecture:profile:${p.id}`)];
+    if(config.fileStorage)selectionKeys.push('architecture:file-storage');
     if(selectionKeys.some(key=>!installed.packages[key]))throw new Error('New architecture choices need architecture init/update before template sync');
     const built=buildArchitectureAssets({source,target,config,scope:scope==='all'?'architecture':scope});
     for (const [owner, value] of Object.entries(built.packages)) {
@@ -80,7 +81,7 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
   // The runtime engine is shared; one owner consistently manages it regardless of entry point.
   for(const asset of assets)if(asset.path.startsWith('tooling/xirang/'))asset.owner='xirang:engine';
   const unique=new Map();
-  for(const asset of assets){if(unique.has(asset.path)){const old=unique.get(asset.path);if(old.content!==asset.content||old.strategy!==asset.strategy||old.owner!==asset.owner)throw new Error(`duplicate template owner: ${asset.path}`);}else unique.set(asset.path,asset);}
+  for(const asset of assets){if(unique.has(asset.path)){const old=unique.get(asset.path),combined=require('./root-contributions').mergeRootContributions(old,asset,target);if(combined)unique.set(asset.path,combined);else if(old.content!==asset.content||old.strategy!==asset.strategy||old.owner!==asset.owner)throw new Error(`duplicate template owner: ${asset.path}`);}else unique.set(asset.path,asset);}
   const {spawnSync}=require('node:child_process');const commit=spawnSync('git',['rev-parse','HEAD'],{cwd:source,encoding:'utf8',shell:false});
   const identity={id:'xirang',commit:commit.status===0?commit.stdout.trim():null};
   if(packages.agent)packages.agent.source=identity;

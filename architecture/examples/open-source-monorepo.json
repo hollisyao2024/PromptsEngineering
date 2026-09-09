@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 2,
+  "workspace": {
+    "packageManager": "pnpm@10.18.3"
+  },
+  "blueprint": {
+    "id": "admin-api",
+    "version": "1"
+  },
+  "applications": [
+    {
+      "id": "admin",
+      "path": "apps/admin",
+      "stack": "react-vite",
+      "components": {
+        "ui": "packages/ui/src/ui",
+        "dataTable": "packages/ui/src/data-table"
+      },
+      "componentSets": [
+        "data-table",
+        "forms",
+        "react-hook-form",
+        "selectors",
+        "dates",
+        "feedback",
+        "auth",
+        "job-status",
+        "uploads",
+        "editor",
+        "charts",
+        "sortable",
+        "flow",
+        "virtual-table"
+      ],
+      "modules": [
+        "api-client",
+        "query",
+        "platform",
+        "auth-client",
+        "i18n",
+        "api-mocks"
+      ]
+    },
+    {
+      "id": "api",
+      "path": "apps/api",
+      "stack": "node-ts",
+      "modules": [
+        "domain",
+        "contracts",
+        "config",
+        "observability",
+        "auth",
+        "authorization",
+        "jobs",
+        "logging",
+        "telemetry"
+      ]
+    }
+  ],
+  "datastores": [
+    {
+      "id": "main",
+      "path": "packages/database/main",
+      "engine": "sqlite",
+      "access": "prisma",
+      "consumers": [
+        "api"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "domain",
+      "path": "packages/domain"
+    },
+    {
+      "id": "contracts",
+      "path": "packages/contracts"
+    },
+    {
+      "id": "api-client",
+      "path": "packages/api-client"
+    },
+    {
+      "id": "query",
+      "path": "packages/query"
+    },
+    {
+      "id": "platform",
+      "path": "packages/platform"
+    },
+    {
+      "id": "config",
+      "path": "packages/config"
+    },
+    {
+      "id": "observability",
+      "path": "packages/observability"
+    },
+    {
+      "id": "auth",
+      "path": "packages/auth",
+      "options": {
+        "datastore": "main"
+      }
+    },
+    {
+      "id": "auth-client",
+      "path": "packages/auth-client"
+    },
+    {
+      "id": "authorization",
+      "path": "packages/authorization",
+      "options": {
+        "datastore": "main"
+      }
+    },
+    {
+      "id": "jobs",
+      "path": "packages/jobs",
+      "options": {
+        "provider": "bullmq",
+        "backend": "redis"
+      }
+    },
+    {
+      "id": "i18n",
+      "path": "packages/i18n"
+    },
+    {
+      "id": "logging",
+      "path": "packages/logging"
+    },
+    {
+      "id": "telemetry",
+      "path": "packages/telemetry"
+    },
+    {
+      "id": "api-mocks",
+      "path": "packages/api-mocks"
+    }
+  ],
+  "example": {
+    "kind": "tasks",
+    "api": "api",
+    "datastore": "main"
+  },
+  "profiles": [],
+  "fileStorage": {
+    "path": "packages/storage",
+    "runtime": "node",
+    "consumers": [
+      "api"
+    ],
+    "defaultStore": "files",
+    "stores": [
+      {
+        "id": "files",
+        "provider": "local",
+        "envPrefix": "FILES"
+      }
+    ],
+    "metadata": {
+      "datastore": "main"
+    },
+    "uploadApplications": [
+      "admin"
+    ]
+  }
+}

@@ -4,6 +4,10 @@
 
 ## 1. 产品概述
 
+开源公共能力：[组件包 PRD](prd-modules/open-source-components/PRD.md)，覆盖身份权限、队列、编辑交互、国际化、日志遥测和模拟。
+
+统一文件存储：[模块 PRD](prd-modules/file-storage/PRD.md)，覆盖按需 local/S3/OSS/COS、多存储与受限上传会话。
+
 多端 Monorepo 与 Prisma 扩展：[模块 PRD](prd-modules/monorepo-platform/PRD.md)，含 workspace、真实数据流程、应用组合蓝图及升级保护。
 
 3.1 公共 UI 扩展：表单、搜索/多选、日期范围和反馈确认，按项目配置初始化并与公共表格协作。验收见 [架构模块 §10](prd-modules/architecture-platform/PRD.md#10-公共-ui-基础能力扩展31)。

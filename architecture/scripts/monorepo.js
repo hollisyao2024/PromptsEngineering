@@ -1,6 +1,6 @@
 const path = require('node:path');
 const {json,parseJson,read,readLock}=require('../../tooling/xirang/engine');
-const workspaceModules=['domain','contracts','api-client','query','platform','config','observability'];
+const workspaceModules=['domain','contracts','api-client','query','platform','config','observability',...require('./open-source').moduleIds];
 const dependencies={contracts:['domain'],'api-client':['contracts'],query:['api-client']};
 const packageRoot=p=>p.split('/').slice(0,2).join('/');
 function validateWorkspaceConfig(config,cat) {
@@ -12,7 +12,7 @@ function validateWorkspaceConfig(config,cat) {
   if(config.blueprint && (Object.keys(config.blueprint).some(k=>!['id','version'].includes(k)) || !cat.blueprints[config.blueprint.id] || typeof config.blueprint.version!=='string'))throw new Error('Invalid blueprint metadata');
   const names=new Set();
   for(const item of [...config.applications.filter(a=>a.stack!=='go'),...config.modules.filter(m=>workspaceModules.includes(m.id)),...config.datastores.map(d=>({id:d.access==='prisma'?'database-'+d.id:'db-'+d.id}))]) {
-    if(names.has(item.id)||item.id==='ui')throw new Error('Duplicate/reserved workspace package name: '+item.id);names.add(item.id);
+    if(names.has(item.id)||item.id==='ui'||(config.fileStorage?.runtime==='node'&&item.id==='storage'))throw new Error('Duplicate/reserved workspace package name: '+item.id);names.add(item.id);
   }
   const uis=config.applications.filter(a=>cat.stacks[a.stack].ui);
   const roots=new Set(uis.flatMap(a=>Object.values(a.components).map(packageRoot)));
@@ -25,12 +25,12 @@ function validateWorkspaceConfig(config,cat) {
   if(config.example) {
     const e=config.example;
     if(Object.keys(e).some(k=>!['kind','api','datastore'].includes(k)) || e.kind!=='tasks' || !config.applications.some(a=>a.id===e.api&&a.stack==='node-ts') || !config.datastores.some(d=>d.id===e.datastore&&d.access==='prisma'&&d.consumers.includes(e.api)))throw new Error('Invalid tasks example API/datastore');
-    for(const m of workspaceModules)if(!config.modules.some(x=>x.id===m))throw new Error('Tasks example requires '+m);
+    for(const m of workspaceModules.filter(id=>!require('./open-source').moduleIds.includes(id)))if(!config.modules.some(x=>x.id===m))throw new Error('Tasks example requires '+m);
     if(uis.some(a=>!['data-table','forms'].every(s=>a.componentSets.includes(s))))throw new Error('Tasks example requires DataTable and forms');
   }
 }
 function tsconfig(browser=false) {
-  return {compilerOptions:{target:'ES2022',module:browser?'ESNext':'NodeNext',moduleResolution:browser?'Bundler':'NodeNext',lib:browser?['ES2022','DOM','DOM.Iterable']:['ES2022'],jsx:'react-jsx',strict:true,skipLibCheck:true,esModuleInterop:true,resolveJsonModule:true,declaration:true,outDir:'dist',rootDir:'src',types:browser?[]:['node'],rewriteRelativeImportExtensions:true,...(browser?{noEmit:true,rootDir:'.'}: {})},include:['src']};
+  return {compilerOptions:{target:'ES2022',module:browser?'ESNext':'NodeNext',moduleResolution:browser?'Bundler':'NodeNext',lib:browser?['ES2022','DOM','DOM.Iterable']:['ES2022'],jsx:'react-jsx',strict:true,skipLibCheck:true,esModuleInterop:true,resolveJsonModule:true,declaration:true,outDir:'dist',rootDir:'src',types:browser?[]:['node'],rewriteRelativeImportExtensions:true,...(browser?{noEmit:true,declaration:false,rootDir:'.'}: {})},include:['src']};
 }
 function buildPrismaStore({store,owner,add,copy,deps}) {
   const d=deps.prisma,storeEnv='DATABASE_'+store.id.replaceAll('-','_').toUpperCase()+'_URL';
@@ -91,7 +91,7 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
     }
   }
   for(const module of config.modules.filter(m=>workspaceModules.includes(m.id))) {
-    const owner='architecture:module:'+module.id;if(!selected(owner))continue;
+    const owner='architecture:module:'+module.id;if(!selected(owner)||require('./open-source').moduleIds.includes(module.id))continue;
     const browser=['query','platform'].includes(module.id);
     copy('architecture/'+(cat.modules[module.id].workspaceTemplate||cat.modules[module.id].template),module.path,owner,{},p=>p==='openapi.json'||(module.id==='domain'&&p.startsWith('src/'))?'init-if-missing':'update');
     const depsMap=Object.fromEntries((dependencies[module.id]||[]).map(m=>['@project/'+m,'workspace:*']));
@@ -109,7 +109,7 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
     add(module.path+'/.gitignore','node_modules/\ndist/\n*.tsbuildinfo\n'+(module.id==='contracts'?'src/generated.ts\nsrc/schemas.ts\n':''),'init-if-missing',owner);
   }
   const owner='architecture:workspace';
-  const packagePaths=[...config.applications.filter(a=>a.stack!=='go').map(a=>a.path),...config.datastores.map(d=>d.path),...config.modules.filter(m=>workspaceModules.includes(m.id)).map(m=>m.path),...(uiRoot?[uiRoot]:[])].sort();
+  const packagePaths=[...config.applications.filter(a=>a.stack!=='go').map(a=>a.path),...config.datastores.map(d=>d.path),...config.modules.filter(m=>workspaceModules.includes(m.id)).map(m=>m.path),...(uiRoot?[uiRoot]:[]),...(config.fileStorage?.runtime==='node'?[config.fileStorage.path]:[])].sort();
   registration(owner,{workspace:config.workspace,packages:packagePaths});
   const previous=readLock(target);
   for(const store of config.datastores) {
@@ -128,5 +128,6 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
   add('pnpm-workspace.yaml',yamlList('packages',packagePaths)+yamlList('onlyBuiltDependencies',buildDependencies),'merge-yaml',owner);
   add('.gitignore','node_modules/\ndist/\n.env\n.env.local\n.env.*.local\n*.sqlite\n*.sqlite-*\n','append-lines',owner);
   copy('architecture/modules/workspace','tooling/workspace',owner);
+  for(const file of ['package.json','.gitignore']){const item=owned.get(file);if(item)Object.assign(item,require('../../tooling/xirang/root-contributions').preserveRootContribution(item,target));}
 }
 module.exports={workspaceModules,validateWorkspaceConfig,buildPrismaStore,buildWorkspace,tsconfig};

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
@@ -103,6 +103,38 @@
     "config": {
       "template": "modules/workspace-config",
       "requiresWorkspace": true
+    },
+    "auth": {
+      "template": "modules/open-source/auth",
+      "requiresWorkspace": true
+    },
+    "auth-client": {
+      "template": "modules/open-source/auth-client",
+      "requiresWorkspace": true
+    },
+    "authorization": {
+      "template": "modules/open-source/authorization",
+      "requiresWorkspace": true
+    },
+    "jobs": {
+      "template": "modules/open-source/jobs",
+      "requiresWorkspace": true
+    },
+    "i18n": {
+      "template": "modules/open-source/i18n",
+      "requiresWorkspace": true
+    },
+    "logging": {
+      "template": "modules/open-source/logging",
+      "requiresWorkspace": true
+    },
+    "telemetry": {
+      "template": "modules/open-source/telemetry",
+      "requiresWorkspace": true
+    },
+    "api-mocks": {
+      "template": "modules/open-source/api-mocks",
+      "requiresWorkspace": true
     }
   },
   "profiles": {
@@ -134,5 +166,28 @@
     "local-private": {
       "template": "blueprints/local-private.json"
     }
-  }
+  },
+  "fileStorage": {
+    "runtimes": [
+      "node",
+      "go"
+    ],
+    "providers": {
+      "local": {
+        "sdk": "standard-library"
+      },
+      "s3": {
+        "sdk": "aws-sdk"
+      },
+      "aliyun-oss": {
+        "sdk": "aliyun-native"
+      },
+      "tencent-cos": {
+        "sdk": "tencent-native"
+      }
+    },
+    "defaultPath": "packages/storage",
+    "configuration": "fileStorage"
+  },
+  "openSourceCatalog": "open-source-catalog.json"
 }

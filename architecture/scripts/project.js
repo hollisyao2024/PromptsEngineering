@@ -12,7 +12,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
   const config = parseJson(JSON.stringify(raw), CONFIG), cat = catalog(source);
   if (!Array.isArray(config.applications)) throw new Error('applications must be an explicit array');
   if (![1,2].includes(config.schemaVersion)) throw new Error('architecture schemaVersion must be 1 or 2');
-  const allowed = new Set(['$schema', 'schemaVersion', 'applications', 'datastores', 'modules', 'profiles', ...(config.schemaVersion === 2 ? ['workspace','blueprint','example'] : [])]);
+  const allowed = new Set(['$schema', 'schemaVersion', 'applications', 'datastores', 'modules', 'profiles', 'fileStorage', ...(config.schemaVersion === 2 ? ['workspace','blueprint','example'] : [])]);
   for (const key of Object.keys(config)) if (!allowed.has(key)) throw new Error(`unknown architecture field: ${key}`);
   for (const key of ['applications', 'datastores', 'modules', 'profiles']) {
     if (config[key] === undefined) config[key] = [];
@@ -22,7 +22,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
   const register = (item, kind) => {
     if (!item || typeof item !== 'object') throw new Error(`invalid ${kind}`);
     identifier(item.id, `${kind} id`);
-    const keys = {application:['id','path','stack','sourceDir','targets','components','componentSets','modules'],datastore:['id','path','engine','consumers',...(config.schemaVersion===2?['access']:[])],module:['id','path'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
+    const keys = {application:['id','path','stack','sourceDir','targets','components','componentSets','modules'],datastore:['id','path','engine','consumers',...(config.schemaVersion===2?['access']:[])],module:['id','path','options'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
     for(const key of Object.keys(item))if(!keys.includes(key))throw new Error(`unknown ${kind} field: ${key}`);
     if (ids.has(`${kind}:${item.id}`)) throw new Error(`duplicate ${kind} id: ${item.id}`);
     ids.add(`${kind}:${item.id}`); safePath(target, item.path);
@@ -41,11 +41,11 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
     app.targets ||= [stack.targets[0]];
     if (!Array.isArray(app.targets) || !app.targets.length || app.targets.some(t => !stack.targets.includes(t)) || new Set(app.targets).size !== app.targets.length) throw new Error(`unsupported or duplicate target for ${app.id}`);
     if (stack.ui) {
-      if(app.components && (typeof app.components!=='object'||Array.isArray(app.components)||Object.keys(app.components).some(key=>!['ui','dataTable','forms','selectors','feedback'].includes(key))))throw new Error('invalid component mapping');
+      if(app.components && (typeof app.components!=='object'||Array.isArray(app.components)||Object.keys(app.components).some(key=>!['ui','dataTable','forms','selectors','feedback','advanced'].includes(key))))throw new Error('invalid component mapping');
       app.components = { ui: `${app.path}/${app.sourceDir}/components/ui`, dataTable: `${app.path}/${app.sourceDir}/components/data-table`, ...(app.components || {}) };
       app.componentSets = validateSelection(app.componentSets, source);
       const componentBase = app.components.ui.startsWith('packages/') ? path.posix.dirname(app.components.ui) : `${app.path}/${app.sourceDir}/components`;
-      app.components = { forms: `${componentBase}/forms`, selectors: `${componentBase}/selectors`, feedback: `${componentBase}/feedback`, ...app.components };
+      app.components = { forms: `${componentBase}/forms`, selectors: `${componentBase}/selectors`, feedback: `${componentBase}/feedback`, advanced: `${componentBase}/advanced`, ...app.components };
       for (const p of Object.values(app.components)) {
         safePath(target, p);
         if (!(p.startsWith(app.path + '/') || p.startsWith('packages/'))) throw new Error(`component path must be in its app or shared packages: ${p}`);
@@ -81,6 +81,8 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
     }
     componentRoots.push({ path: lower, kind });
   }
+  require('./storage').validateStorage(config, target);
+  require('./open-source').validateModules(config);
   require('./monorepo').validateWorkspaceConfig(config, cat);
   return config;
 }
@@ -169,10 +171,39 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   };
   readSource('architecture/manifest.json');
   const deps = parseJson(readSource('architecture/dependencies.json'), 'dependencies');
-  const selected = id => !scope || scope === 'architecture' || scope === id;
+  const closure = new Set(scope ? [scope] : []);
+  // A selected capability must bring the manifests and foundations its consumers need.
+  if(scope && scope !== 'architecture') {
+    let size;
+    do {
+      size=closure.size;
+      for(const app of config.applications) {
+        const owner='architecture:app:'+app.id;
+        const modules=(app.modules||[]).map(id=>'architecture:module:'+id);
+        const stores=config.datastores.filter(d=>d.consumers.includes(app.id)).map(d=>'architecture:store:'+d.id);
+        const uiOwners=Object.entries(app.components||{}).flatMap(([kind,dir])=>[componentOwner(kind,dir),'architecture:component-package:'+dir.split('/').slice(0,2).join('/')]);
+        if(closure.has('architecture:workspace') || [...modules,...stores,...uiOwners].some(id=>closure.has(id)))closure.add(owner);
+        if(closure.has(owner))for(const id of [...modules,...stores])closure.add(id);
+      }
+      for(const module of config.modules) {
+        const owner='architecture:module:'+module.id,db=module.options?.datastore;
+        if(db&&closure.has('architecture:store:'+db))closure.add(owner);
+        if(!closure.has(owner))continue;
+        if(db)closure.add('architecture:store:'+db);
+        for(const id of ({contracts:['domain'],'api-client':['contracts'],query:['api-client'],'auth-client':['auth']}[module.id]||[]))closure.add('architecture:module:'+id);
+      }
+      const s=config.fileStorage;
+      if(s) {
+        const consumers=[...s.consumers,...s.uploadApplications].map(id=>'architecture:app:'+id),db=s.metadata?.datastore;
+        if(consumers.some(id=>closure.has(id))||(db&&closure.has('architecture:store:'+db)))closure.add('architecture:file-storage');
+        if(closure.has('architecture:file-storage')){for(const id of consumers)closure.add(id);if(db)closure.add('architecture:store:'+db);}
+      }
+    } while(size!==closure.size);
+  }
+  const selected = id => !scope || scope === 'architecture' || closure.has(id);
   const registration = (owner, selection) => { packages[owner] = { version: cat.version, source: sourceIdentity(source), selection, parametersHash: hash(json(selection)) }; };
+  add(CONFIG, json(config), 'init-if-missing', 'architecture:config');
   if (!scope || scope === 'architecture') {
-    add(CONFIG, json(config), 'init-if-missing', 'architecture:config');
     add('docs/ARCH.md', '# 项目架构\n\n模块索引：[应用架构](arch-modules/application/ARCH.md)。项目负责维护真实技术决策与 ADR。\n', 'init-if-missing', 'architecture:docs');
     add('docs/arch-modules/module-list.md', '# 架构模块\n\n| 模块 | 文档 |\n| --- | --- |\n| 应用架构 | [ARCH.md](application/ARCH.md) |\n', 'init-if-missing', 'architecture:docs');
     add('docs/arch-modules/application/ARCH.md', `# 应用架构选型\n\n配置事实源：architecture.config.json。\n\n${config.applications.map(a => `- ${a.id}：${a.stack}，目录 ${a.path}，目标 ${a.targets.join(', ')}。`).join('\n')}\n\n${config.datastores.map(d => `- ${d.id}：${d.engine}，目录 ${d.path}，消费者 ${d.consumers.join(', ')}。`).join('\n')}\n\n初始化说明请见 architecture/README.md；目录和技术约束请见 docs/standards/。\n`, 'init-if-missing', 'architecture:docs');
@@ -236,7 +267,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
     const utilityPath = app.components.ui.startsWith('packages/') ? `${app.components.ui.split('/').slice(0,2).join('/')}/lib/utils.ts` : `${app.path}/${app.sourceDir}/lib/utils.ts`;
     if (utilityPath.startsWith('packages/')) add(utilityPath, 'export { cn } from "cn";\n', 'init-if-missing', `architecture:component-package:${app.components.ui.split('/').slice(0,2).join('/')}`);
     const paths = { 'react': ['./node_modules/@types/react'], 'react/*': ['./node_modules/@types/react/*'], 'react-dom': ['./node_modules/@types/react-dom'], 'react-dom/*': ['./node_modules/@types/react-dom/*'], '@/lib/utils': [relative(utilityPath)], '@/*': [`./${app.sourceDir}/*`], '@/components/ui/*': [`${relative(app.components.ui)}/*`], '@/components/data-table/*': [`${relative(app.components.dataTable)}/*`] };
-    for (const kind of ['forms','selectors','feedback']) paths[`@/components/${kind}/*`] = [`${relative(app.components[kind])}/*`];
+    for (const kind of ['forms','selectors','feedback','advanced']) paths[`@/components/${kind}/*`] = [`${relative(app.components[kind])}/*`];
     const tsconfig = { compilerOptions: { target: 'ES2022', lib: ['ES2022','DOM','DOM.Iterable'], module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, esModuleInterop: true, resolveJsonModule: true, isolatedModules: true, noEmit: true, types: app.stack === 'react-next' ? ['node'] : ['node','vite/client'], paths }, include: [app.sourceDir, ...Object.values(app.components).filter(p => p.startsWith('packages/')).map(relative)] };
     if (app.stack === 'react-next') { tsconfig.compilerOptions.plugins = [{ name: 'next' }]; tsconfig.compilerOptions.allowJs = true; tsconfig.compilerOptions.incremental = true; tsconfig.include.push('next-env.d.ts','.next/types/**/*.ts','.next/dev/types/**/*.ts'); tsconfig.exclude = ['node_modules']; }
     add(`${app.path}/tsconfig.json`, json(tsconfig), 'merge-json', owner);
@@ -287,6 +318,8 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
     copy(`architecture/${cat.profiles[profile.kind].template}`, profile.path, owner);
     add(`${profile.path}/profile.json`, json(profile), 'init-if-missing', owner);
   }
+  require('./open-source').buildModules({config,source,target,add,copy,owned,readSource,deps,selected,registration});
+  require('./storage').buildStorage({config,source,target,add,owned,copy,readSource,deps,registration,selected});
   if (config.schemaVersion===2) require('./monorepo').buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,registration,selected,target});
   if (scope && scope !== 'architecture' && !packages[scope]) throw new Error(`scope is not an installed/selected module: ${scope}`);
   if (includeRuntime) {

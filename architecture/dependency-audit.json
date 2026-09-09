@@ -1,6 +1,6 @@
 {
   "checkedAt": "2026-09-09T04:17:56.475Z",
-  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies; selectable forms, selectors, dates and feedback; Monorepo Prisma, contracts, Query and selected Tauri adapters",
+  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies; selectable forms, selectors, dates and feedback; Monorepo Prisma, contracts, Query and selected Tauri adapters; selectable authentication, authorization, queues, advanced UI, i18n, Pino, OpenTelemetry, MSW and native storage adapters",
   "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
   "retainedCompatibilityDependencies": [
     "clsx",
@@ -13,7 +13,8 @@
       "latest": "19.2.8",
       "selected": "19.2.8",
       "registry": "https://registry.npmjs.org/react",
-      "reason": "Latest stable release; validated with generated projects."
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests.",
+      "license": "MIT"
     },
     {
       "name": "react-dom",
@@ -440,6 +441,286 @@
       "latest": "5.4.1",
       "reason": "Scoped Redocly override; newest compatible v4 security patch for GHSA-2883-xcg3-v3hh; v5 changes module/loader APIs.",
       "registry": "https://registry.npmjs.org/js-yaml"
+    },
+    {
+      "name": "better-auth",
+      "latest": "1.7.3",
+      "selected": "1.7.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/better-auth",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@better-auth/prisma-adapter",
+      "latest": "1.7.3",
+      "selected": "1.7.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40better-auth%2Fprisma-adapter",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@better-auth/utils",
+      "latest": "0.5.0",
+      "selected": "0.4.2",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40better-auth%2Futils",
+      "reason": "Core 1.7.3 and Prisma adapter require exact 0.4.2 peer; latest 0.5.0 fails strict installation."
+    },
+    {
+      "name": "@better-auth/core",
+      "latest": "1.7.3",
+      "selected": "1.7.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40better-auth%2Fcore",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@casl/ability",
+      "latest": "7.0.1",
+      "selected": "7.0.1",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40casl%2Fability",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@casl/prisma",
+      "latest": "2.0.2",
+      "selected": "2.0.2",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40casl%2Fprisma",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "i18next",
+      "latest": "26.4.2",
+      "selected": "26.4.2",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/i18next",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "react-i18next",
+      "latest": "17.0.13",
+      "selected": "17.0.13",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/react-i18next",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "pino",
+      "latest": "10.3.1",
+      "selected": "10.3.1",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/pino",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@opentelemetry/api",
+      "latest": "1.9.1",
+      "selected": "1.9.1",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40opentelemetry%2Fapi",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@opentelemetry/sdk-node",
+      "latest": "0.222.0",
+      "selected": "0.222.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40opentelemetry%2Fsdk-node",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@opentelemetry/exporter-trace-otlp-http",
+      "latest": "0.222.0",
+      "selected": "0.222.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40opentelemetry%2Fexporter-trace-otlp-http",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@opentelemetry/sdk-trace-base",
+      "latest": "2.11.0",
+      "selected": "2.11.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40opentelemetry%2Fsdk-trace-base",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@opentelemetry/resources",
+      "latest": "2.11.0",
+      "selected": "2.11.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40opentelemetry%2Fresources",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "msw",
+      "latest": "2.15.0",
+      "selected": "2.15.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/msw",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "pg-boss",
+      "latest": "12.30.0",
+      "selected": "12.30.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/pg-boss",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "bullmq",
+      "latest": "6.3.4",
+      "selected": "6.3.4",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/bullmq",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "ioredis",
+      "latest": "6.0.0",
+      "selected": "6.0.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/ioredis",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "latest": "3.1128.0",
+      "selected": "3.1128.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40aws-sdk%2Fclient-s3",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@aws-sdk/s3-request-presigner",
+      "latest": "3.1128.0",
+      "selected": "3.1128.0",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40aws-sdk%2Fs3-request-presigner",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "ali-oss",
+      "latest": "6.23.0",
+      "selected": "6.23.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/ali-oss",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "cos-nodejs-sdk-v5",
+      "latest": "3.0.0",
+      "selected": "3.0.0",
+      "license": "ISC",
+      "registry": "https://registry.npmjs.org/cos-nodejs-sdk-v5",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@types/ali-oss",
+      "latest": "6.23.3",
+      "selected": "6.23.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40types%2Fali-oss",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@uppy/core",
+      "latest": "6.0.1",
+      "selected": "6.0.1",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40uppy%2Fcore",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@uppy/react",
+      "latest": "6.0.0",
+      "selected": "6.0.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40uppy%2Freact",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@tiptap/react",
+      "latest": "3.31.3",
+      "selected": "3.31.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40tiptap%2Freact",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@tiptap/core",
+      "latest": "3.31.3",
+      "selected": "3.31.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40tiptap%2Fcore",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@tiptap/pm",
+      "latest": "3.31.3",
+      "selected": "3.31.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40tiptap%2Fpm",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@tiptap/starter-kit",
+      "latest": "3.31.3",
+      "selected": "3.31.3",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40tiptap%2Fstarter-kit",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "recharts",
+      "latest": "3.10.1",
+      "selected": "3.10.1",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/recharts",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "react-is",
+      "latest": "19.2.8",
+      "selected": "19.2.8",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/react-is",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@dnd-kit/react",
+      "latest": "0.5.0",
+      "selected": "0.5.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40dnd-kit%2Freact",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@dnd-kit/helpers",
+      "latest": "0.5.0",
+      "selected": "0.5.0",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40dnd-kit%2Fhelpers",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@xyflow/react",
+      "latest": "12.11.6",
+      "selected": "12.11.6",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40xyflow%2Freact",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "@tanstack/react-virtual",
+      "latest": "3.14.11",
+      "selected": "3.14.11",
+      "license": "MIT",
+      "registry": "https://registry.npmjs.org/%40tanstack%2Freact-virtual",
+      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
     }
   ],
   "platformCheckedAt": "2026-09-09T11:32:48.345168+00:00",
@@ -452,5 +733,26 @@
       "yaml": "2.9.0",
       "reason": "Vendored unchanged runtime code with ISC license/provenance; no consumer bootstrap dependency."
     }
+  },
+  "openSourceCheckedAt": "2026-09-09T15:03:01.148Z",
+  "openSourceVerification": {
+    "strictPeerDependencies": true,
+    "fullConsumerAudit": {
+      "dependencies": 825,
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0
+      },
+      "scope": "Generated full Node/UI consumer, selected dependencies only; not a Go vulnerability audit."
+    },
+    "compatibility": [
+      "Better Auth packages isolated from Vitest 5 UI test package; no global peer bypass.",
+      "Retain @better-auth/utils 0.4.2 exact peer.",
+      "Keep existing TypeScript 6 and TanStack Table 8 consumer contracts."
+    ],
+    "cloud": "Local signing and Node SDK HTTP fixtures tested; real cloud service integration remains opt-in."
   }
 }
