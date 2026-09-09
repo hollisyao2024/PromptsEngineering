@@ -1,0 +1,219 @@
+{
+  "checkedAt": "2026-09-09T00:11:02.555Z",
+  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies",
+  "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
+  "retainedCompatibilityDependencies": [
+    "clsx",
+    "tailwind-merge"
+  ],
+  "packages": [
+    {
+      "name": "react",
+      "previous": "19.2.7",
+      "latest": "19.2.8",
+      "selected": "19.2.8",
+      "registry": "https://registry.npmjs.org/react",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "react-dom",
+      "previous": "19.2.7",
+      "latest": "19.2.8",
+      "selected": "19.2.8",
+      "registry": "https://registry.npmjs.org/react-dom",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@tanstack/react-table",
+      "previous": "8.21.3",
+      "latest": "9.2.4",
+      "selected": "8.21.3",
+      "registry": "https://registry.npmjs.org/%40tanstack%2Freact-table",
+      "reason": "V9 requires ColumnDef<TFeatures,TData> and removes useReactTable; existing project-owned ColumnDef<Row>[] fails TS2707. Keep the newest V8 release to preserve consumer contracts."
+    },
+    {
+      "name": "class-variance-authority",
+      "previous": "0.7.1",
+      "latest": "0.7.1",
+      "selected": "0.7.1",
+      "registry": "https://registry.npmjs.org/class-variance-authority",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "clsx",
+      "previous": "2.1.1",
+      "latest": "2.1.1",
+      "selected": "2.1.1",
+      "registry": "https://registry.npmjs.org/clsx",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "tailwind-merge",
+      "previous": "3.6.0",
+      "latest": "3.6.0",
+      "selected": "3.6.0",
+      "registry": "https://registry.npmjs.org/tailwind-merge",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "lucide-react",
+      "previous": "1.21.0",
+      "latest": "1.43.0",
+      "selected": "1.43.0",
+      "registry": "https://registry.npmjs.org/lucide-react",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "radix-ui",
+      "previous": "1.6.7",
+      "latest": "1.6.7",
+      "selected": "1.6.7",
+      "registry": "https://registry.npmjs.org/radix-ui",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@types/react",
+      "previous": "19.2.17",
+      "latest": "19.2.18",
+      "selected": "19.2.18",
+      "registry": "https://registry.npmjs.org/%40types%2Freact",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@types/react-dom",
+      "previous": "19.2.3",
+      "latest": "19.2.7",
+      "selected": "19.2.7",
+      "registry": "https://registry.npmjs.org/%40types%2Freact-dom",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@types/node",
+      "previous": "22.20.0",
+      "latest": "26.5.0",
+      "selected": "22.20.1",
+      "registry": "https://registry.npmjs.org/%40types%2Fnode",
+      "reason": "Keep types aligned with the supported Node 22 baseline; V26 definitions expose APIs absent from Node 22."
+    },
+    {
+      "name": "typescript",
+      "previous": "5.9.3",
+      "latest": "7.0.2",
+      "selected": "6.0.3",
+      "registry": "https://registry.npmjs.org/typescript",
+      "reason": "V7 package no longer exports createSourceFile/readConfigFile/resolveModuleName required by architecture checks; use newest API-compatible V6."
+    },
+    {
+      "name": "tailwindcss",
+      "previous": "4.3.3",
+      "latest": "4.3.3",
+      "selected": "4.3.3",
+      "registry": "https://registry.npmjs.org/tailwindcss",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@tailwindcss/vite",
+      "previous": "4.3.3",
+      "latest": "4.3.3",
+      "selected": "4.3.3",
+      "registry": "https://registry.npmjs.org/%40tailwindcss%2Fvite",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@vitejs/plugin-react",
+      "previous": "6.1.1",
+      "latest": "6.1.1",
+      "selected": "6.1.1",
+      "registry": "https://registry.npmjs.org/%40vitejs%2Fplugin-react",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "vite",
+      "previous": "8.2.2",
+      "latest": "8.2.2",
+      "selected": "8.2.2",
+      "registry": "https://registry.npmjs.org/vite",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@testing-library/react",
+      "previous": "16.3.2",
+      "latest": "16.3.3",
+      "selected": "16.3.3",
+      "registry": "https://registry.npmjs.org/%40testing-library%2Freact",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@testing-library/user-event",
+      "previous": "14.6.1",
+      "latest": "14.6.7",
+      "selected": "14.6.7",
+      "registry": "https://registry.npmjs.org/%40testing-library%2Fuser-event",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@testing-library/jest-dom",
+      "previous": "6.9.1",
+      "latest": "7.0.1",
+      "selected": "7.0.1",
+      "registry": "https://registry.npmjs.org/%40testing-library%2Fjest-dom",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "jsdom",
+      "previous": "30.0.1",
+      "latest": "30.0.1",
+      "selected": "30.0.1",
+      "registry": "https://registry.npmjs.org/jsdom",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "vitest",
+      "previous": "4.1.10",
+      "latest": "5.0.0",
+      "selected": "5.0.0",
+      "registry": "https://registry.npmjs.org/vitest",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "cn",
+      "previous": null,
+      "latest": "0.2.6",
+      "selected": "0.2.6",
+      "registry": "https://registry.npmjs.org/cn",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "next",
+      "previous": "16.3.1",
+      "latest": "16.3.4",
+      "selected": "16.3.4",
+      "registry": "https://registry.npmjs.org/next",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@tailwindcss/postcss",
+      "previous": "4.3.3",
+      "latest": "4.3.3",
+      "selected": "4.3.3",
+      "registry": "https://registry.npmjs.org/%40tailwindcss%2Fpostcss",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@tauri-apps/api",
+      "previous": "2.11.1",
+      "latest": "2.11.1",
+      "selected": "2.11.1",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fapi",
+      "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "@tauri-apps/cli",
+      "previous": "2.11.4",
+      "latest": "2.11.4",
+      "selected": "2.11.4",
+      "registry": "https://registry.npmjs.org/%40tauri-apps%2Fcli",
+      "reason": "Latest stable release; validated with generated projects."
+    }
+  ]
+}
