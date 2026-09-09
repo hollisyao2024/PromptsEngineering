@@ -10,6 +10,8 @@ agent 工作流包、architecture 架构包独立选择；模板源保留生成�
 
 ## 2. 组件与目录视图
 
+### 组件/服务清单
+
 | 单元 | 默认实际路径 | 职责 |
 | --- | --- | --- |
 | 应用 | apps/web、admin、api、worker、desktop | 独立运行入口；按配置选择 |
@@ -84,3 +86,31 @@ AppShell 用共享 shadcn Button/Sheet 等实现导航，配合主题、错误�
 ## 8. 外部依据
 
 [Prisma Monorepo](https://www.prisma.io/docs/guides/deployment/pnpm-workspaces)、[多数据库](https://www.prisma.io/docs/guides/database/multiple-databases)、[迁移生产流程](https://docs.prisma.io/docs/orm/v7/prisma-migrate/workflows/development-and-production)、[pnpm workspace](https://pnpm.io/workspaces)、[shadcn Monorepo](https://ui.shadcn.com/docs/monorepo)、[OpenAPI TypeScript](https://openapi-ts.dev/introduction)。版本以兼容性验证后的 dependencies.json 为准，不把 npm latest 的预发布版本当作稳定版本。
+
+## 9. 接口、数据与风险追溯
+
+### 提供的接口
+
+Task API 的 GET/POST/DELETE /tasks、PATCH /tasks/{id}、GET /tasks/export，由 OpenAPI 3.1 定义请求/响应；公开客户端、Query hooks、UI 和平台端口通过 workspace exports 使用。health 用于只读存活验证，不返回运行密钥。
+
+### 依赖的接口
+
+API 依赖 Prisma Task 的查询与事务；迁移守卫依赖 Prisma CLI 和数据库执行账本。平台端口依赖浏览器受限能力或所选 Tauri 插件。公开组件不依赖服务端 Prisma/config/observability，具体依赖版本及兼容覆盖记录在 dependency-audit.json。
+
+| 表名 | 所属存储 | 用途 | 所有权 |
+| --- | --- | --- | --- |
+| Task | 所选 Prisma store | 任务示例及乐观版本 | 首次初始化后项目维护 |
+| _prisma_migrations | 同一 Prisma store | 已执行迁移名称、摘要、完成/回滚状态 | Prisma Migrate 唯一维护 |
+
+字段、约束和索引见 [数据字典](../../data/dictionary.md) 及 [ERD](../../data/ERD.md)。
+
+风险与验证表：
+
+| 风险类型 | 处理及验证 |
+| --- | --- |
+| 合约、授权及并发 | 请求/响应 2020-12 校验、有界输入、服务端授权、条件版本和事务回滚负例 |
+| 升级破坏本地定制 | v1 兼容、三方合并、不可变迁移、原始 3.1 快照升级、冻结计划漂移/恢复 |
+| 跨端与共享依赖 | packages 边界检查、共享 Tailwind 扫描、独立消费者生成/构建、Chrome 和 macOS 原生验证 |
+| 工具链供应链 | 固定兼容版本、按选择安全 overrides、消费者审计、vendor 来源摘要和许可证 |
+
+Story/Component 追溯表由 [九项验收矩阵](../../data/traceability-matrix.md) 与 [模块 QA](../../qa-modules/monorepo-platform/QA.md) 共同维护，运行证据位于容器 tmp，避免将运行日志写入架构决策。

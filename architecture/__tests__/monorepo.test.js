@@ -28,6 +28,7 @@ test('TC-MONOPLAT-001/008 four blueprints generate shared workspace once and con
     for (const module of ['domain','contracts','api-client','query','platform','config','observability']) assert.ok(JSON.parse(read(f,`packages/${module}/package.json`)).exports,module);
     assert.ok(JSON.parse(read(f,'packages/ui/package.json')).exports['./ui/*']);
     assert.equal(JSON.parse(read(f,'apps/api/package.json')).dependencies['@project/database-main'],'workspace:*');
+    for(const app of config.applications.filter(a=>a.stack!=='node-ts'))assert.match(read(f,app.path+'/src/styles.css'),/@source "\.\.\/\.\.\/\.\.\/packages\/ui\/src";/);
     assert.match(read(f,'packages/database/main/prisma/schema.prisma'),/provider = "sqlite"/);
     assert.ok(p.entries.filter(e=>e.path==='packages/ui/src/ui/button.tsx').length===1);
     assert.equal(plan(f,config).changes.length,0);

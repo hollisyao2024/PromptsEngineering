@@ -1,0 +1,23 @@
+rules:
+  - id: no-eval-in-generated-platform
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Dynamic code evaluation is not part of the platform contract.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+  - id: no-shell-for-data-tooling
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Database and generation commands require argv invocation without a shell.
+    pattern: '$CALL(..., { ..., shell: true, ... })'
+  - id: no-raw-request-sql
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Request-controlled values must not become raw SQL text.
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$queryRawUnsafe($SQL, ...)
+          - pattern: $DB.$executeRawUnsafe($SQL, ...)
+      - pattern-not: $DB.$queryRawUnsafe("...", ...)
+      - pattern-not: $DB.$executeRawUnsafe("...", ...)

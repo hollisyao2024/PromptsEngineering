@@ -1,17 +1,17 @@
 # Monorepo 与 Prisma 实施计划
 
-状态：已规划，2026-09-09。输入：[PRD](../../prd-modules/monorepo-platform/PRD.md)、[ARCH](../../arch-modules/monorepo-platform/ARCH.md)。本任务由当前执行者顺序实施，独立命令可并行验证。
+状态：实现与验收通过；交付状态以 PR #79、本机 QA receipt 和任务状态为准，2026-09-09。输入：[PRD](../../prd-modules/monorepo-platform/PRD.md)、[ARCH](../../arch-modules/monorepo-platform/ARCH.md)。本任务由当前执行者顺序实施，独立命令可并行验证。
 
 ## WBS 与交付物
 
 | Task | Story / Test Case | 交付物与通过条件 | 依赖 | Owner | 估算 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| TASK-MONOPLAT-001 | US-MONOPLAT-001 / TC-MONOPLAT-001、008、009 | v2 配置、蓝图、workspace、结构合并；四组合收敛、旧版升级、冲突恢复负例 | 已确认 ARCH | TDD | 1-2 人天等效 | 待实施 |
-| TASK-MONOPLAT-002 | US-MONOPLAT-002 / TC-MONOPLAT-002、003 | Prisma PG/SQLite 包和 Node TS；真实 CRUD、事务回滚、迁移缺失/修改/失败阻断 | 001 | TDD | 1-2 人天等效 | 待实施 |
-| TASK-MONOPLAT-003 | US-MONOPLAT-004 / TC-MONOPLAT-004、005 | OpenAPI、client、Query、任务 API/页面；错误、授权、分页、批删、导出联动 | 002 | TDD | 1-2 人天等效 | 待实施 |
-| TASK-MONOPLAT-004 | US-MONOPLAT-006 / TC-MONOPLAT-006、007 | AppShell、主题、边界、platform、config、observability；UI/能力/泄漏负例 | 001、003 | TDD | 1-2 人天等效 | 待实施 |
-| TASK-MONOPLAT-005 | 全部 | 独立消费者 PG/SQLite、浏览器、桌面当前平台构建、回归及传播收敛证据 | 001-004 | QA | 1 人天等效 | 待验证 |
-| TASK-MONOPLAT-006 | 009 | 版本/规范更新，本地 TDD/QA、PR 合并、主干双 SHA、completion guard | 005 | QA | 0.5 人天等效 | 待验证 |
+| TASK-MONOPLAT-001 | US-MONOPLAT-001 / TC-MONOPLAT-001、008、009 | v2 配置、蓝图、workspace、结构合并；四组合收敛、旧版升级、冲突恢复负例 | 已确认 ARCH | TDD | 1-2 人天等效 | 已完成 |
+| TASK-MONOPLAT-002 | US-MONOPLAT-002 / TC-MONOPLAT-002、003 | Prisma PG/SQLite 包和 Node TS；真实 CRUD、事务回滚、迁移缺失/修改/失败阻断 | 001 | TDD | 1-2 人天等效 | 已完成 |
+| TASK-MONOPLAT-003 | US-MONOPLAT-004 / TC-MONOPLAT-004、005 | OpenAPI、client、Query、任务 API/页面；错误、授权、分页、批删、导出联动 | 002 | TDD | 1-2 人天等效 | 已完成 |
+| TASK-MONOPLAT-004 | US-MONOPLAT-006 / TC-MONOPLAT-006、007 | AppShell、主题、边界、platform、config、observability；UI/能力/泄漏负例 | 001、003 | TDD | 1-2 人天等效 | 已完成 |
+| TASK-MONOPLAT-005 | 全部 | 独立消费者 PG/SQLite、浏览器、桌面当前平台构建、回归及传播收敛证据 | 001-004 | QA | 1 人天等效 | 验证通过 |
+| TASK-MONOPLAT-006 | 009 | 版本/规范更新，本地 TDD/QA、PR 合并、主干双 SHA、completion guard | 005 | QA | 0.5 人天等效 | 实现/验收完成，交付见 PR #79 |
 
 估算用于表达复杂度，不承诺实际墙钟时间。关键路径 001 → 002 → 003 → 004 → 005 → 006；用户已批准整体验收，不再逐阶段请求重复确认。
 

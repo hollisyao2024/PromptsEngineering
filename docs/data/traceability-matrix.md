@@ -78,12 +78,12 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 
 | Story ID | AC ID | Test Case ID | 状态 | 证据 |
 | --- | --- | --- | --- | --- |
-| US-MONOPLAT-001 | AC-MONOPLAT-001-01 | TC-MONOPLAT-001 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-002 | AC-MONOPLAT-002-01 | TC-MONOPLAT-002 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-003 | AC-MONOPLAT-003-01 | TC-MONOPLAT-003 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-004 | AC-MONOPLAT-004-01 | TC-MONOPLAT-004 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-005 | AC-MONOPLAT-005-01 | TC-MONOPLAT-005 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-006 | AC-MONOPLAT-006-01 | TC-MONOPLAT-006 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-007 | AC-MONOPLAT-007-01 | TC-MONOPLAT-007 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-008 | AC-MONOPLAT-008-01 | TC-MONOPLAT-008 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
-| US-MONOPLAT-009 | AC-MONOPLAT-009-01 | TC-MONOPLAT-009 | 待实施 | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-001 | AC-MONOPLAT-001-01 | TC-MONOPLAT-001 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-002 | AC-MONOPLAT-002-01 | TC-MONOPLAT-002 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-003 | AC-MONOPLAT-003-01 | TC-MONOPLAT-003 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-004 | AC-MONOPLAT-004-01 | TC-MONOPLAT-004 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-005 | AC-MONOPLAT-005-01 | TC-MONOPLAT-005 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-006 | AC-MONOPLAT-006-01 | TC-MONOPLAT-006 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-007 | AC-MONOPLAT-007-01 | TC-MONOPLAT-007 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-008 | AC-MONOPLAT-008-01 | TC-MONOPLAT-008 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+| US-MONOPLAT-009 | AC-MONOPLAT-009-01 | TC-MONOPLAT-009 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |

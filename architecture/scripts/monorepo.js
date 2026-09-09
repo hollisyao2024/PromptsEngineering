@@ -62,6 +62,7 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
     for(const store of config.datastores.filter(d=>d.access==='prisma'&&d.consumers.includes(app.id)))map['@project/database-'+store.id]='workspace:*';
     pkg(app.path+'/package.json',p=>({...p,dependencies:{...p.dependencies,...map,...(cat.stacks[app.stack].ui?{'@project/ui':'workspace:*'}:{})},...(app.stack==='node-ts'?{devDependencies:{...p.devDependencies,typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node'],tsx:deps.prisma.tsx},engines:deps.engines}:{})}));
     if(cat.stacks[app.stack].ui) {
+      change(app.path+'/'+app.sourceDir+'/styles.css',text=>text+'@source '+JSON.stringify(path.posix.relative(app.path+'/'+app.sourceDir,uiRoot+'/src'))+';\n');
       for(const item of assets)if(item.path.startsWith(app.path+'/')&&/\.[jt]sx?$/.test(item.path))item.content=imports(item.content);
       // Consumers still retain their v1-compatible aliases; package sources use package exports.
       if(config.example&&selected(owner)) {
