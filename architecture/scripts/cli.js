@@ -23,22 +23,25 @@ function runtimeRoot(target) {
 }
 const { assertMutationTarget } = require('../../tooling/xirang/target');
 function installDependencies(target, config) {
+  const goRoots=[...(config.fileStorage?.runtime==='go'?[config.fileStorage.path]:[]),...config.applications.filter(a=>a.stack==='go').map(a=>a.path)];
+  for(const directory of goRoots){const r=spawnSync('go',['mod','tidy'],{cwd:safePath(target,directory),stdio:'inherit',shell:false});if(r.error||r.status!==0)throw new Error('Go dependencies failed: '+directory);}
   if(config.schemaVersion===2) {
     const script=process.env.npm_execpath;
     if(process.platform==='win32'&&!script)throw new Error('Invoke through pnpm agent on Windows');
-    for(const args of [['install'],['run','generate']]) {
+    for(const args of [['install','--strict-peer-dependencies'],['run','type-check']]) {
       const r=spawnSync(script?process.execPath:'pnpm',[...(script?[script]:[]),...args],{cwd:target,stdio:'inherit',shell:false});
       if(r.error||r.status!==0)throw new Error('Workspace dependency install/generation failed');
     }
     return {status:'OK',directories:['.'],lockfile:'pnpm-lock.yaml'};
   }
-  const directories=new Set([...config.applications.map(a=>a.path),...config.datastores.map(d=>d.path), ...config.applications.flatMap(a=>Object.values(a.components||{}).filter(p=>p.startsWith('packages/')).map(p=>p.split('/').slice(0,2).join('/')))].filter(p=>read(target,`${p}/package.json`)!==null));
+  const directories=new Set([...(config.fileStorage?.runtime==='node'?[config.fileStorage.path]:[]),...config.applications.map(a=>a.path),...config.datastores.map(d=>d.path), ...config.applications.flatMap(a=>Object.values(a.components||{}).filter(p=>p.startsWith('packages/')).map(p=>p.split('/').slice(0,2).join('/')))].filter(p=>read(target,`${p}/package.json`)!==null));
   for(const directory of directories) {
     const root=safePath(target,directory);
     const pnpmScript=process.env.npm_execpath;
     if(process.platform==='win32'&&!pnpmScript)throw new Error('On Windows invoke via pnpm agent, or pnpm exec node architecture/scripts/cli.js');
     const result=spawnSync(pnpmScript?process.execPath:'pnpm',[...(pnpmScript?[pnpmScript]:[]),'install','--ignore-workspace','--ignore-scripts'],{cwd:root,stdio:'inherit',shell:false});
     if(result.error||result.status!==0)throw new Error(`Dependency install failed for ${directory}`);
+    if(directory===config.fileStorage?.path){const build=spawnSync(pnpmScript?process.execPath:'pnpm',[...(pnpmScript?[pnpmScript]:[]),'run','build'],{cwd:root,stdio:'inherit',shell:false});if(build.error||build.status!==0)throw new Error('Storage build failed');}
   }
   return {status:'OK',directories:[...directories]};
 }

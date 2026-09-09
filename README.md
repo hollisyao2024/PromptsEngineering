@@ -37,6 +37,8 @@
 
 息壤 3.2 增加四种多端预置组合、pnpm workspace、Prisma PostgreSQL/SQLite、OpenAPI/API client/Query、共享布局和平台端口。依赖只安装于选定的实际项目，模板源维护实现与版本清单。完整命令与升级边界见 [Monorepo 指南](architecture/guides/monorepo.md)。
 
+息壤 3.3 提供认证与权限、后台任务、统一文件存储、上传/富文本/图表/虚拟表格/拖拽/流程画布、国际化、日志、追踪和 API Mock 的可选实现。组件状态、版本与备选条件见 [完整组件目录](architecture/open-source-catalog.json)；接线和升级见 [开源能力指南](architecture/guides/open-source-components.md) 与 [文件存储指南](architecture/guides/file-storage.md)。
+
 ## 目录速览
 - `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
 - `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。

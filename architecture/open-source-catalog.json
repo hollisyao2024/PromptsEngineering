@@ -1,0 +1,1040 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-09",
+  "versionSource": "dependencies.json",
+  "selectionGuide": "guides/open-source-components.md",
+  "installation": "Only selected modules are installed in the consuming project.",
+  "statusDefinitions": {
+    "implemented": "Generator, reusable source and local consumer tests available; production wiring remains project-owned.",
+    "evaluated-alternative": "Selection guidance only; no generator, no runtime verification claim.",
+    "audit-blocked-alternative": "No generator; known transitive findings require a fresh audit before adoption."
+  },
+  "implemented": [
+    {
+      "id": "identity",
+      "status": "implemented",
+      "selection": [
+        "auth",
+        "auth-client"
+      ],
+      "defaultPaths": "packages/auth; packages/auth-client",
+      "boundary": "PG/SQLite 会话、密码、组织；外部 IdP 与邮件由项目配置",
+      "sources": [
+        "https://better-auth.com/docs/adapters/prisma"
+      ],
+      "packages": [
+        {
+          "name": "better-auth",
+          "version": "1.7.3"
+        },
+        {
+          "name": "@better-auth/prisma-adapter",
+          "version": "1.7.3"
+        },
+        {
+          "name": "@better-auth/core",
+          "version": "1.7.3"
+        },
+        {
+          "name": "@better-auth/utils",
+          "version": "0.4.2"
+        }
+      ]
+    },
+    {
+      "id": "authorization",
+      "status": "implemented",
+      "selection": [
+        "authorization"
+      ],
+      "defaultPaths": "packages/authorization",
+      "boundary": "Prisma TypeMap 绑定、默认拒绝、查询与条件写入；业务策略由项目维护",
+      "sources": [
+        "https://github.com/stalniy/casl/tree/master/packages/casl-prisma"
+      ],
+      "packages": [
+        {
+          "name": "@casl/ability",
+          "version": "7.0.1"
+        },
+        {
+          "name": "@casl/prisma",
+          "version": "2.0.2"
+        }
+      ]
+    },
+    {
+      "id": "jobs-postgres",
+      "status": "implemented",
+      "selection": [
+        "jobs"
+      ],
+      "defaultPaths": "packages/jobs",
+      "boundary": "PostgreSQL；显式迁移；同库 Prisma 事务投递",
+      "sources": [
+        "https://github.com/timgit/pg-boss"
+      ],
+      "packages": [
+        {
+          "name": "pg-boss",
+          "version": "12.30.0"
+        }
+      ]
+    },
+    {
+      "id": "jobs-bullmq",
+      "status": "implemented",
+      "selection": [
+        "jobs"
+      ],
+      "defaultPaths": "packages/jobs",
+      "boundary": "显式选择 Redis 或 PostgreSQL 后端；需要运行队列基础设施",
+      "sources": [
+        "https://docs.bullmq.io/guide/postgresql"
+      ],
+      "packages": [
+        {
+          "name": "bullmq",
+          "version": "6.3.4"
+        },
+        {
+          "name": "ioredis",
+          "version": "6.0.0"
+        }
+      ]
+    },
+    {
+      "id": "uploads",
+      "status": "implemented",
+      "selection": [
+        "uploads"
+      ],
+      "defaultPaths": "packages/ui/src/advanced",
+      "boundary": "shadcn Hooks 组合，文件会话/进度/取消；单对象上传",
+      "sources": [
+        "https://uppy.io/docs/uppy/"
+      ],
+      "packages": [
+        {
+          "name": "@uppy/core",
+          "version": "6.0.1"
+        },
+        {
+          "name": "@uppy/react",
+          "version": "6.0.0"
+        }
+      ]
+    },
+    {
+      "id": "rich-text",
+      "status": "implemented",
+      "selection": [
+        "editor"
+      ],
+      "defaultPaths": "packages/ui/src/advanced",
+      "boundary": "开源 JSON 编辑；不含付费协作",
+      "sources": [
+        "https://tiptap.dev/docs/editor/getting-started/overview"
+      ],
+      "packages": [
+        {
+          "name": "@tiptap/react",
+          "version": "3.31.3"
+        },
+        {
+          "name": "@tiptap/core",
+          "version": "3.31.3"
+        },
+        {
+          "name": "@tiptap/pm",
+          "version": "3.31.3"
+        },
+        {
+          "name": "@tiptap/starter-kit",
+          "version": "3.31.3"
+        }
+      ]
+    },
+    {
+      "id": "charts",
+      "status": "implemented",
+      "selection": [
+        "charts"
+      ],
+      "defaultPaths": "packages/ui/src/advanced; packages/ui/src/ui",
+      "boundary": "shadcn Chart 原子与柱状组合、文本替代",
+      "sources": [
+        "https://ui.shadcn.com/docs/components/chart"
+      ],
+      "packages": [
+        {
+          "name": "recharts",
+          "version": "3.10.1"
+        },
+        {
+          "name": "react-is",
+          "version": "19.2.8"
+        }
+      ]
+    },
+    {
+      "id": "virtual-table",
+      "status": "implemented",
+      "selection": [
+        "virtual-table"
+      ],
+      "defaultPaths": "packages/ui/src/data-table",
+      "boundary": "复用唯一 DataTable，保留选择、排序、筛选、分页、导出",
+      "sources": [
+        "https://tanstack.com/virtual/latest/docs/introduction"
+      ],
+      "packages": [
+        {
+          "name": "@tanstack/react-virtual",
+          "version": "3.14.11"
+        }
+      ]
+    },
+    {
+      "id": "sortable",
+      "status": "implemented",
+      "selection": [
+        "sortable"
+      ],
+      "defaultPaths": "packages/ui/src/advanced",
+      "boundary": "受控排序与键盘可用操作",
+      "sources": [
+        "https://dndkit.com/react/quickstart/"
+      ],
+      "packages": [
+        {
+          "name": "@dnd-kit/react",
+          "version": "0.5.0"
+        },
+        {
+          "name": "@dnd-kit/helpers",
+          "version": "0.5.0"
+        }
+      ]
+    },
+    {
+      "id": "flow",
+      "status": "implemented",
+      "selection": [
+        "flow"
+      ],
+      "defaultPaths": "packages/ui/src/advanced",
+      "boundary": "受控画布，不是后台流程执行引擎",
+      "sources": [
+        "https://reactflow.dev/learn"
+      ],
+      "packages": [
+        {
+          "name": "@xyflow/react",
+          "version": "12.11.6"
+        }
+      ]
+    },
+    {
+      "id": "i18n",
+      "status": "implemented",
+      "selection": [
+        "i18n"
+      ],
+      "defaultPaths": "packages/i18n",
+      "boundary": "独立应用/请求实例；项目拥有词条",
+      "sources": [
+        "https://react.i18next.com/latest/i18nextprovider"
+      ],
+      "packages": [
+        {
+          "name": "i18next",
+          "version": "26.4.2"
+        },
+        {
+          "name": "react-i18next",
+          "version": "17.0.13"
+        }
+      ]
+    },
+    {
+      "id": "logging",
+      "status": "implemented",
+      "selection": [
+        "logging"
+      ],
+      "defaultPaths": "packages/logging",
+      "boundary": "JSON、请求上下文与敏感字段脱敏；固定消息文本",
+      "sources": [
+        "https://github.com/pinojs/pino"
+      ],
+      "packages": [
+        {
+          "name": "pino",
+          "version": "10.3.1"
+        }
+      ]
+    },
+    {
+      "id": "telemetry",
+      "status": "implemented",
+      "selection": [
+        "telemetry"
+      ],
+      "defaultPaths": "packages/telemetry",
+      "boundary": "显式追踪与退出 flush；指标/日志后端另行选择",
+      "sources": [
+        "https://opentelemetry.io/docs/languages/js/exporters/"
+      ],
+      "packages": [
+        {
+          "name": "@opentelemetry/api",
+          "version": "1.9.1"
+        },
+        {
+          "name": "@opentelemetry/sdk-node",
+          "version": "0.222.0"
+        },
+        {
+          "name": "@opentelemetry/exporter-trace-otlp-http",
+          "version": "0.222.0"
+        },
+        {
+          "name": "@opentelemetry/sdk-trace-base",
+          "version": "2.11.0"
+        },
+        {
+          "name": "@opentelemetry/resources",
+          "version": "2.11.0"
+        }
+      ]
+    },
+    {
+      "id": "api-mocks",
+      "status": "implemented",
+      "selection": [
+        "api-mocks"
+      ],
+      "defaultPaths": "packages/api-mocks",
+      "boundary": "Node 测试与浏览器 opt-in；真实集成独立验证",
+      "sources": [
+        "https://mswjs.io/docs/"
+      ],
+      "packages": [
+        {
+          "name": "msw",
+          "version": "2.15.0"
+        }
+      ]
+    },
+    {
+      "id": "storage-s3",
+      "status": "implemented",
+      "selection": [
+        "fileStorage:s3"
+      ],
+      "defaultPaths": "packages/storage",
+      "boundary": "Node/Go 官方 SDK 签名与协议；真实云待项目验证",
+      "sources": [
+        "https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/javascript_s3_code_examples.html"
+      ],
+      "packages": [
+        {
+          "name": "@aws-sdk/client-s3",
+          "version": "3.1128.0"
+        },
+        {
+          "name": "@aws-sdk/s3-request-presigner",
+          "version": "3.1128.0"
+        }
+      ]
+    },
+    {
+      "id": "storage-oss",
+      "status": "implemented",
+      "selection": [
+        "fileStorage:aliyun-oss"
+      ],
+      "defaultPaths": "packages/storage",
+      "boundary": "Node/Go 原生 SDK；真实云待项目验证",
+      "sources": [
+        "https://github.com/ali-sdk/ali-oss"
+      ],
+      "packages": [
+        {
+          "name": "ali-oss",
+          "version": "6.23.0"
+        }
+      ]
+    },
+    {
+      "id": "storage-cos",
+      "status": "implemented",
+      "selection": [
+        "fileStorage:tencent-cos"
+      ],
+      "defaultPaths": "packages/storage",
+      "boundary": "Node/Go 原生 SDK；真实云待项目验证",
+      "sources": [
+        "https://github.com/tencentyun/cos-nodejs-sdk-v5"
+      ],
+      "packages": [
+        {
+          "name": "cos-nodejs-sdk-v5",
+          "version": "3.0.0"
+        }
+      ]
+    },
+    {
+      "id": "storage-local",
+      "status": "implemented",
+      "selection": [
+        "fileStorage:local"
+      ],
+      "defaultPaths": "packages/storage",
+      "boundary": "Node/Go standard library, private persistent directory and metadata, no cloud SDK",
+      "sources": [
+        "https://nodejs.org/api/fs.html",
+        "https://pkg.go.dev/os"
+      ],
+      "packages": []
+    }
+  ],
+  "uiPorts": [
+    {
+      "selection": "auth",
+      "component": "IdentityPanel",
+      "adapter": "@project/auth-client createIdentityPort"
+    },
+    {
+      "selection": "job-status",
+      "component": "JobStatus",
+      "adapter": "Project-authorized state and cancel/retry callbacks"
+    }
+  ],
+  "existingFoundation": {
+    "selection": "Existing modules and component sets remain opt-in",
+    "components": [
+      "shadcn/Radix",
+      "TanStack Table 8",
+      "TanStack Query",
+      "React Hook Form",
+      "Zod",
+      "Prisma PostgreSQL/SQLite",
+      "OpenAPI",
+      "AppShell",
+      "Browser/Tauri platform ports"
+    ]
+  },
+  "goStorage": {
+    "github.com/aws/aws-sdk-go-v2": "v1.46.0",
+    "github.com/aws/aws-sdk-go-v2/config": "v1.33.3",
+    "github.com/aws/aws-sdk-go-v2/credentials": "v1.20.3",
+    "github.com/aws/aws-sdk-go-v2/service/s3": "v1.112.0",
+    "github.com/aliyun/alibabacloud-oss-go-sdk-v2": "v1.6.0",
+    "github.com/tencentyun/cos-go-sdk-v5": "v0.7.75"
+  },
+  "alternatives": [
+    {
+      "id": "authjs",
+      "name": "Auth.js",
+      "status": "evaluated-alternative",
+      "condition": "Existing OAuth/Auth.js projects; framework-specific migration must be designed.",
+      "sources": [
+        "https://authjs.dev"
+      ]
+    },
+    {
+      "id": "keycloak",
+      "name": "Keycloak",
+      "status": "evaluated-alternative",
+      "condition": "Independent enterprise OIDC/SAML identity service, multi-language consumers; own service/database operations.",
+      "sources": [
+        "https://www.keycloak.org"
+      ]
+    },
+    {
+      "id": "casbin",
+      "name": "Casbin",
+      "status": "audit-blocked-alternative",
+      "condition": "Cross-language authorization model; Node dependency advisories must be resolved and audited before adoption.",
+      "sources": [
+        "https://casbin.org"
+      ]
+    },
+    {
+      "id": "temporal",
+      "name": "Temporal",
+      "status": "evaluated-alternative",
+      "condition": "Long-running durable workflows, compensation and dedicated service operations.",
+      "sources": [
+        "https://docs.temporal.io"
+      ]
+    },
+    {
+      "id": "asynq",
+      "name": "Asynq",
+      "status": "evaluated-alternative",
+      "condition": "Go/Redis workers; requires an independent implementation and integration tests.",
+      "sources": [
+        "https://github.com/hibiken/asynq"
+      ]
+    },
+    {
+      "id": "minio-js",
+      "name": "MinIO JS SDK",
+      "status": "audit-blocked-alternative",
+      "condition": "MinIO-specific client needs; re-audit transitive dependencies before enabling. S3 defaults to AWS SDK.",
+      "sources": [
+        "https://github.com/minio/minio-js"
+      ]
+    },
+    {
+      "id": "unstorage",
+      "name": "Unstorage",
+      "status": "evaluated-alternative",
+      "condition": "KV/cache abstraction; not the file/session contract. Isolate compatible ioredis peer version.",
+      "sources": [
+        "https://unstorage.unjs.io"
+      ]
+    }
+  ],
+  "verifiedPackages": [
+    {
+      "name": "better-auth",
+      "selected": "1.7.3",
+      "latest": "1.7.3",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/better-auth/better-auth.git",
+        "type": "git",
+        "directory": "packages/better-auth"
+      },
+      "peers": {
+        "pg": "^8.0.0",
+        "vue": "^3.0.0",
+        "next": "^14.0.0 || ^15.0.0 || ^16.0.0",
+        "react": "^18.0.0 || ^19.0.0",
+        "mysql2": "^3.0.0",
+        "prisma": "^5.0.0 || ^6.0.0 || ^7.0.0",
+        "svelte": "^4.0.0 || ^5.0.0",
+        "vitest": "^2.0.0 || ^3.0.0 || ^4.0.0",
+        "mongodb": "^6.0.0 || ^7.0.0",
+        "solid-js": "^1.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0",
+        "drizzle-kit": ">=0.31.4 || >=1.0.0-beta.1",
+        "drizzle-orm": "^0.45.2 || >=1.0.0-rc.1 <2.0.0",
+        "@sveltejs/kit": "^2.0.0",
+        "@lynx-js/react": "*",
+        "@prisma/client": "^5.0.0 || ^6.0.0 || ^7.0.0",
+        "better-sqlite3": "^12.0.0",
+        "@tanstack/react-start": "^1.0.0",
+        "@tanstack/solid-start": "^1.0.0"
+      },
+      "integrity": "sha512-8xGp68JQ+l36kniDEgP8bP99TLi1GdEv0NTEUBkyqnYnus/cgFUZseUfqUHKzr2BAsg2O6aD88I9f0U68shanQ=="
+    },
+    {
+      "name": "@better-auth/prisma-adapter",
+      "selected": "1.7.3",
+      "latest": "1.7.3",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/better-auth/better-auth.git",
+        "type": "git",
+        "directory": "packages/prisma-adapter"
+      },
+      "peers": {
+        "prisma": "^5.0.0 || ^6.0.0 || ^7.0.0",
+        "@prisma/client": "^5.0.0 || ^6.0.0 || ^7.0.0",
+        "@better-auth/core": "^1.7.3",
+        "@better-auth/utils": "0.4.2"
+      },
+      "integrity": "sha512-TJ/DhlU7oLzrC626/1wfYA1Pl+lVsXa/zXBZ8d7Rlc2YO5fGd5fsAYJdRrYMyA51iZEo+rWLXMhZ0cez1BamsQ=="
+    },
+    {
+      "name": "@better-auth/utils",
+      "selected": "0.4.2",
+      "latest": "0.5.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/better-auth/utils.git",
+        "type": "git"
+      },
+      "integrity": "sha512-AUxrvu+HaaODsUyzDxFgwd/8RZ1yZaYo42LXKSrU2oGgR38pS1ij8nqQKNgtTWoYGpNevNXtCfgTy6loHveW9A=="
+    },
+    {
+      "name": "@better-auth/core",
+      "selected": "1.7.3",
+      "latest": "1.7.3",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/better-auth/better-auth.git",
+        "type": "git",
+        "directory": "packages/core"
+      },
+      "peers": {
+        "jose": "^6.1.0",
+        "kysely": "^0.28.5 || ^0.29.0",
+        "nanostores": "^1.0.1",
+        "better-call": "1.4.0",
+        "@better-auth/utils": "0.4.2",
+        "@opentelemetry/api": "^1.9.0",
+        "@better-fetch/fetch": "1.3.1",
+        "@cloudflare/workers-types": ">=4"
+      },
+      "integrity": "sha512-JdP7lOkyE83jgjn7RilJj1XvZ7n2JjRsErKJuaXchjyuNo6cf1iVd3GtbhAtiUyJJkWdk8yL+LaUBKT80H0zLA=="
+    },
+    {
+      "name": "@casl/ability",
+      "selected": "7.0.1",
+      "latest": "7.0.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/stalniy/casl.git",
+        "directory": "packages/casl-ability"
+      },
+      "integrity": "sha512-krOW1zQGEie5lH6fpryrcsPvc5r2pe5Vn5xbthuzc5X9gwzHIyZgGGgw9dMoSLHXdjB4BIVxGG/HBkG+1NuyZQ=="
+    },
+    {
+      "name": "@casl/prisma",
+      "selected": "2.0.2",
+      "latest": "2.0.2",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/stalniy/casl.git",
+        "directory": "packages/casl-prisma"
+      },
+      "peers": {
+        "@casl/ability": "^7.0.0",
+        "@prisma/client": "^4.16.0 || ^5.0.0 || ^6.0.0 || ^7.0.0"
+      },
+      "integrity": "sha512-IYp9rABl8s9fF+4NubSahYMXqwLbmVCz8Hd9Xa4MbS6xMkSRTTa+tq9oKQFd/SJ6VoLe2oY+7Wg0eF9CjOCnYA=="
+    },
+    {
+      "name": "i18next",
+      "selected": "26.4.2",
+      "latest": "26.4.2",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/i18next/i18next.git",
+        "type": "git"
+      },
+      "peers": {
+        "typescript": "^5 || ^6 || ^7"
+      },
+      "integrity": "sha512-RX+R0VLg13IbvRuJSxnqykUFS9vQZTl8wYpWPCIUDWVrSGjsQywB5Y+pjzrkboxGAuYfJZVH1InFTdgBdxq6ug=="
+    },
+    {
+      "name": "react-i18next",
+      "selected": "17.0.13",
+      "latest": "17.0.13",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/i18next/react-i18next.git",
+        "type": "git"
+      },
+      "peers": {
+        "react": ">= 16.8.0",
+        "i18next": ">= 26.2.0",
+        "typescript": "^5 || ^6 || ^7"
+      },
+      "integrity": "sha512-Cc1PscmblIHA1kljTqDwrcVMI21ydgmUzw0UAeQBe7pAOgfuRLfzXze4EUBQoeDiICzFIXXhHFoZxuetNg5D0Q=="
+    },
+    {
+      "name": "react",
+      "selected": "19.2.8",
+      "latest": "19.2.8",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/react/react.git",
+        "type": "git",
+        "directory": "packages/react"
+      },
+      "integrity": "sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw=="
+    },
+    {
+      "name": "pino",
+      "selected": "10.3.1",
+      "latest": "10.3.1",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/pinojs/pino.git",
+        "type": "git"
+      },
+      "integrity": "sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg=="
+    },
+    {
+      "name": "@opentelemetry/api",
+      "selected": "1.9.1",
+      "latest": "1.9.1",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/open-telemetry/opentelemetry-js.git",
+        "type": "git"
+      },
+      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
+    },
+    {
+      "name": "@opentelemetry/sdk-node",
+      "selected": "0.222.0",
+      "latest": "0.222.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/open-telemetry/opentelemetry-js.git",
+        "type": "git"
+      },
+      "peers": {
+        "@opentelemetry/api": ">=1.3.0 <1.10.0"
+      },
+      "integrity": "sha512-t8tlFN/ezYV7iI4k6u3t2jFbIReX99Z0iVMVSYLJscE4McxIW9YGHhdOldeY1elHeoq8mjEO4B9s4Fk7+zJbsg=="
+    },
+    {
+      "name": "@opentelemetry/exporter-trace-otlp-http",
+      "selected": "0.222.0",
+      "latest": "0.222.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/open-telemetry/opentelemetry-js.git",
+        "type": "git"
+      },
+      "peers": {
+        "@opentelemetry/api": "^1.3.0"
+      },
+      "integrity": "sha512-RCnPWcHppwiquQ+cV3nWvNwdf0MG1w26e5jewW2T83nTZOlXgcg88sY9ulCVgagGHcq1mj0L0GP6YHgzk2v8oA=="
+    },
+    {
+      "name": "@opentelemetry/sdk-trace-base",
+      "selected": "2.11.0",
+      "latest": "2.11.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/open-telemetry/opentelemetry-js.git",
+        "type": "git"
+      },
+      "peers": {
+        "@opentelemetry/api": ">=1.3.0 <1.10.0"
+      },
+      "integrity": "sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A=="
+    },
+    {
+      "name": "@opentelemetry/resources",
+      "selected": "2.11.0",
+      "latest": "2.11.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/open-telemetry/opentelemetry-js.git",
+        "type": "git"
+      },
+      "peers": {
+        "@opentelemetry/api": ">=1.3.0 <1.10.0"
+      },
+      "integrity": "sha512-Ie7+8q8MDF4FAEQCKVMTx3ReUvxiIAgIiiW3c9JdmP8+HMcDy20puT+AHjexnExgnbvBxjQ9fjkFDWrikJ2jQA=="
+    },
+    {
+      "name": "msw",
+      "selected": "2.15.0",
+      "latest": "2.15.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mswjs/msw.git"
+      },
+      "peers": {
+        "typescript": ">= 4.8.x"
+      },
+      "integrity": "sha512-2wQAmKkQKxRuXvYJxVhPGG0wZNBQyD06oJvxqw90XqLvptdqxdlHrFUfEteKkpaNORX3Xzc+HtEl/q0nfmN2wQ=="
+    },
+    {
+      "name": "pg-boss",
+      "selected": "12.30.0",
+      "latest": "12.30.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/timgit/pg-boss.git",
+        "type": "git"
+      },
+      "integrity": "sha512-ke4Rr/uMJGwqt7DwKoWS9aa6XFlK43C0fMw1Ma0CoJrVxWSjE7ZwFLwz60dGQODESDA2+yq/B474pOH4n3d3CQ=="
+    },
+    {
+      "name": "bullmq",
+      "selected": "6.3.4",
+      "latest": "6.3.4",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/taskforcesh/bullmq.git",
+        "type": "git"
+      },
+      "peers": {
+        "pg": ">=8.0.0",
+        "redis": ">=5.0.0",
+        "ioredis": ">=5.0.0",
+        "bullmq-otel": ">=2.0.0"
+      },
+      "integrity": "sha512-DpilB5sayCB8huCp4YuzVhJjxB4ieHidzu+GPgbcjPi3kQv0gdLoLnk+I+mMACDQ88rTbSiT+B4crmhWFGL9GA=="
+    },
+    {
+      "name": "ioredis",
+      "selected": "6.0.0",
+      "latest": "6.0.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/redis/ioredis.git",
+        "type": "git"
+      },
+      "integrity": "sha512-f+Dtubxfpf6KYFq7WVXJoOLn0bk4TJrMrN9SzeE+jrWrCWj7XX3fA6vkryafhADX+GMymRxgDJDOI33COkJc0w=="
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "selected": "3.1128.0",
+      "latest": "3.1128.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/aws/aws-sdk-js-v3.git",
+        "type": "git",
+        "directory": "clients/client-s3"
+      },
+      "integrity": "sha512-tYEB4058LdhTiSS7sCVVSpqSAdjIc1jTaf1dDPoIRJbR/XI5A2ZOuCiV1Aebo/pria/pUJBOT0WjdZVIwaZtDA=="
+    },
+    {
+      "name": "@aws-sdk/s3-request-presigner",
+      "selected": "3.1128.0",
+      "latest": "3.1128.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/aws/aws-sdk-js-v3.git",
+        "type": "git",
+        "directory": "packages/s3-request-presigner"
+      },
+      "integrity": "sha512-0wTgUw97lUKx94e4liC53V5z9giwqMaPsFjbXXy8qLC9Q/AaxUySmri+NFkHaOAd908sGsZ6ERMyFO4WMvYxLQ=="
+    },
+    {
+      "name": "ali-oss",
+      "selected": "6.23.0",
+      "latest": "6.23.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/ali-sdk/ali-oss.git",
+        "type": "git"
+      },
+      "integrity": "sha512-FipRmyd16Pr/tEey/YaaQ/24Pc3HEpLM9S1DRakEuXlSLXNIJnu1oJtHM53eVYpvW3dXapSjrip3xylZUTIZVQ=="
+    },
+    {
+      "name": "cos-nodejs-sdk-v5",
+      "selected": "3.0.0",
+      "latest": "3.0.0",
+      "license": "ISC",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tencentyun/cos-nodejs-sdk-v5.git"
+      },
+      "integrity": "sha512-xUqiDdUxfEjfaWoyBA3qsSnlQVHPz13DRFErL+NliadBVUeeZhAPHGVa2inGpUvPTOs52ALIKkMbzL+inSqvXg=="
+    },
+    {
+      "name": "@types/ali-oss",
+      "selected": "6.23.3",
+      "latest": "6.23.3",
+      "license": "MIT",
+      "repository": {
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "type": "git",
+        "directory": "types/ali-oss"
+      },
+      "peers": {},
+      "integrity": "sha512-huSf6njkqhSeR37OMJTGMCyUg2d9Zp2AioefhYuUMeh0vNM+WybctrBor7bO/RcCbLCQI6sHn6NtPBIWALYVJg=="
+    },
+    {
+      "name": "@uppy/core",
+      "selected": "6.0.1",
+      "latest": "6.0.1",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/transloadit/uppy.git",
+        "type": "git"
+      },
+      "integrity": "sha512-H+v4tOBPYY8Cf0JWoGa3+JPTl9Of8SBaVUH5TNwGgynncTWrQtuyGK91hv9wOjm0SFds3X5psPx1ArhngdSrBg=="
+    },
+    {
+      "name": "@uppy/react",
+      "selected": "6.0.0",
+      "latest": "6.0.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/transloadit/uppy.git"
+      },
+      "peers": {
+        "@uppy/core": "^6.0.0",
+        "@uppy/dashboard": "^6.0.0",
+        "@uppy/screen-capture": "^6.0.0",
+        "@uppy/status-bar": "^6.0.0",
+        "@uppy/webcam": "^6.0.0",
+        "react": "^18.0.0 || ^19.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0"
+      },
+      "integrity": "sha512-AgPeeEGCz4FFN2zblqrJs8zQzzDKPoToM4dkWsHXF/Ndm1BmI4uF8NkVjEvmzwjF4e2JPxRvk52baYTeSSKruQ=="
+    },
+    {
+      "name": "@tiptap/react",
+      "selected": "3.31.3",
+      "latest": "3.31.3",
+      "license": "MIT",
+      "repository": {
+        "url": "https://github.com/ueberdosis/tiptap",
+        "type": "git",
+        "directory": "packages/react"
+      },
+      "peers": {
+        "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+        "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
+        "@tiptap/pm": "3.31.3",
+        "@tiptap/core": "3.31.3",
+        "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+        "@types/react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"
+      },
+      "integrity": "sha512-QiwQqvaLFLm5EMFu5tg7nAgXJxCUiUTLD8EsK+TqVV5P4bqOoMOCM39khbhXTJyahCuYpiFWx5YOSDtC/JiPtg=="
+    },
+    {
+      "name": "@tiptap/core",
+      "selected": "3.31.3",
+      "latest": "3.31.3",
+      "license": "MIT",
+      "repository": {
+        "url": "https://github.com/ueberdosis/tiptap",
+        "type": "git",
+        "directory": "packages/core"
+      },
+      "peers": {
+        "@tiptap/pm": "3.31.3"
+      },
+      "integrity": "sha512-Cz50pvciQrxdSxgTkHOVz0uD0Yl/8Xt0QatGD6ILm47jW8EzyHR9RkUGs/D5IqzXKuVPntfw1ttaT926vXfiRg=="
+    },
+    {
+      "name": "@tiptap/pm",
+      "selected": "3.31.3",
+      "latest": "3.31.3",
+      "license": "MIT",
+      "repository": {
+        "url": "https://github.com/ueberdosis/tiptap",
+        "type": "git",
+        "directory": "packages/pm"
+      },
+      "integrity": "sha512-sZime0SWsz/k62W2WvHx5Ig7G2h7kVhrrmnqy+wEgIHfDwEfOlelRjaWCiBCFlF7dxGUntJusCh9FxlLhni0Ag=="
+    },
+    {
+      "name": "@tiptap/starter-kit",
+      "selected": "3.31.3",
+      "latest": "3.31.3",
+      "license": "MIT",
+      "repository": {
+        "url": "https://github.com/ueberdosis/tiptap",
+        "type": "git",
+        "directory": "packages/starter-kit"
+      },
+      "integrity": "sha512-WKof9RewdmGHvWJ1wn0/HVNG2mV+HOgVRyJkKekuM9fgr6BZAAH/xZsWE1eon+94JnQ+KtK2ThydXQM/qc6b2A=="
+    },
+    {
+      "name": "recharts",
+      "selected": "3.10.1",
+      "latest": "3.10.1",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/recharts/recharts.git",
+        "type": "git"
+      },
+      "peers": {
+        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+        "react-is": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+        "react-dom": "^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+      },
+      "integrity": "sha512-QXFrvt6IVcw7eeZCoyXTwkIJAX3Dv1nyVhMicXJ47GsGDDpcN8z6o644DibE9XjpBTThtsomLKnTV6lc+cVFUA=="
+    },
+    {
+      "name": "react-is",
+      "selected": "19.2.8",
+      "latest": "19.2.8",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/react/react.git",
+        "type": "git",
+        "directory": "packages/react-is"
+      },
+      "integrity": "sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ=="
+    },
+    {
+      "name": "@dnd-kit/react",
+      "selected": "0.5.0",
+      "latest": "0.5.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/clauderic/dnd-kit.git",
+        "type": "git"
+      },
+      "peers": {
+        "react": "^18.0.0 || ^19.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0"
+      },
+      "integrity": "sha512-abQPLI8lmfVE+v/n+pqy5WFxrw6T2Yg0UQZsL78dp5DKci7dKTVDjvLWqvass+XTFtzJmsZEjk1NdqE6xG8Jiw=="
+    },
+    {
+      "name": "@dnd-kit/helpers",
+      "selected": "0.5.0",
+      "latest": "0.5.0",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/clauderic/dnd-kit.git",
+        "type": "git"
+      },
+      "integrity": "sha512-i4y+51/icSw+OHMr/su19qhnmNhAzh8PnBwXvapFYTd+64oodIyJRiRkB+hhfxAfnur7RYSW8qacDTrXjg2XOg=="
+    },
+    {
+      "name": "@xyflow/react",
+      "selected": "12.11.6",
+      "latest": "12.11.6",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/xyflow/xyflow.git",
+        "type": "git",
+        "directory": "packages/react"
+      },
+      "peers": {
+        "react": ">=17",
+        "react-dom": ">=17",
+        "@types/react": ">=17",
+        "@types/react-dom": ">=17"
+      },
+      "integrity": "sha512-9XsEJNHjatKYndszKTF/bsU7FOP9dJ6V/EQwzy3oMdtqgBuUq7BjKSwkEo+C7s4qHstHQfwwoHA3E8QfpPxZZQ=="
+    },
+    {
+      "name": "@tanstack/react-virtual",
+      "selected": "3.14.11",
+      "latest": "3.14.11",
+      "license": "MIT",
+      "repository": {
+        "url": "git+https://github.com/TanStack/virtual.git",
+        "type": "git",
+        "directory": "packages/react-virtual"
+      },
+      "peers": {
+        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+        "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+      },
+      "integrity": "sha512-SStWf8bYdTgAquYqG4Pi2+d1XimQKoCIJ94H3jsm0D6UA0yqffvWuvUzrrQ4idewFWq8BSPpahnmLVosJIAs6g=="
+    }
+  ],
+  "verification": {
+    "tests": [
+      "__tests__/open-source.test.js",
+      "__tests__/storage.test.js",
+      "tests/open-source.integration.mjs",
+      "tests/jobs.integration.mjs",
+      "modules/storage/node/tests",
+      "modules/storage/go",
+      "components/shadcn/tests"
+    ],
+    "realCloud": "unverified; opt-in tests require disposable buckets",
+    "nativeIdentity": "unverified; external OAuth/email/native callbacks require project acceptance",
+    "dependencyAudit": "dependency-audit.json"
+  }
+}

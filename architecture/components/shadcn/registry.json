@@ -710,6 +710,185 @@
           "target": "@components/feedback/use-async-action.ts"
         }
       ]
+    },
+    {
+      "name": "chart",
+      "type": "registry:ui",
+      "title": "息壤 chart",
+      "dependencies": [
+        "recharts@3.10.1",
+        "react-is@19.2.8"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/chart.tsx",
+          "type": "registry:ui",
+          "target": "@ui/chart.tsx"
+        }
+      ]
+    },
+    {
+      "name": "uploads",
+      "type": "registry:component",
+      "title": "息壤 uploads",
+      "dependencies": [
+        "@uppy/core@6.0.1",
+        "@uppy/react@6.0.0"
+      ],
+      "registryDependencies": [
+        "button",
+        "input",
+        "label",
+        "progress",
+        "alert"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/file-upload.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/file-upload.tsx"
+        }
+      ]
+    },
+    {
+      "name": "editor",
+      "type": "registry:component",
+      "title": "息壤 editor",
+      "dependencies": [
+        "@tiptap/react@3.31.3",
+        "@tiptap/core@3.31.3",
+        "@tiptap/pm@3.31.3",
+        "@tiptap/starter-kit@3.31.3"
+      ],
+      "registryDependencies": [
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/rich-text-editor.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/rich-text-editor.tsx"
+        }
+      ]
+    },
+    {
+      "name": "charts",
+      "type": "registry:component",
+      "title": "息壤 charts",
+      "dependencies": [
+        "recharts@3.10.1"
+      ],
+      "registryDependencies": [
+        "chart",
+        "card"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/metric-chart.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/metric-chart.tsx"
+        }
+      ]
+    },
+    {
+      "name": "sortable",
+      "type": "registry:component",
+      "title": "息壤 sortable",
+      "dependencies": [
+        "@dnd-kit/react@0.5.0",
+        "@dnd-kit/helpers@0.5.0"
+      ],
+      "registryDependencies": [
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/sortable-list.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/sortable-list.tsx"
+        }
+      ]
+    },
+    {
+      "name": "flow",
+      "type": "registry:component",
+      "title": "息壤 flow",
+      "dependencies": [
+        "@xyflow/react@12.11.6"
+      ],
+      "registryDependencies": [
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/flow-editor.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/flow-editor.tsx"
+        },
+        {
+          "path": "registry/advanced/flow-styles.d.ts",
+          "type": "registry:component",
+          "target": "@components/advanced/flow-styles.d.ts"
+        }
+      ]
+    },
+    {
+      "name": "virtual-table",
+      "type": "registry:component",
+      "title": "息壤 virtual-table",
+      "dependencies": [
+        "@tanstack/react-virtual@3.14.11"
+      ],
+      "registryDependencies": [
+        "data-table",
+        "table"
+      ],
+      "files": [
+        {
+          "path": "registry/data-table/virtual-data-table.tsx",
+          "type": "registry:component",
+          "target": "@components/data-table/virtual-data-table.tsx"
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "type": "registry:component",
+      "title": "息壤 auth",
+      "dependencies": [],
+      "registryDependencies": [
+        "button",
+        "input",
+        "label",
+        "select",
+        "alert"
+      ],
+      "files": [
+        {
+          "path": "registry/advanced/identity-panel.tsx",
+          "type": "registry:component",
+          "target": "@components/advanced/identity-panel.tsx"
+        }
+      ]
+    },
+    {
+      "name": "job-status",
+      "type": "registry:component",
+      "title": "息壤 job-status",
+      "dependencies": [],
+      "registryDependencies": [
+        "badge",
+        "progress",
+        "feedback"
+      ],
+      "files": [
+        {
+          "path": "registry/feedback/job-status.tsx",
+          "type": "registry:component",
+          "target": "@components/feedback/job-status.tsx"
+        }
+      ]
     }
   ]
 }

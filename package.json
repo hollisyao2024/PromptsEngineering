@@ -1,6 +1,6 @@
 {
   "name": "xirang-agent-template",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "息壤：模型作业与应用架构双能力包，支持可选择初始化和所有权升级",
   "packageManager": "pnpm@10.18.3",
   "scripts": {

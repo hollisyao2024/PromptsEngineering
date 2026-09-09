@@ -44,7 +44,19 @@
     "next-themes": "0.4.6",
     "react-hook-form": "7.87.0",
     "@hookform/resolvers": "5.9.1",
-    "zod": "4.5.4"
+    "zod": "4.5.4",
+    "@uppy/core": "6.0.1",
+    "@uppy/react": "6.0.0",
+    "@tiptap/react": "3.31.3",
+    "@tiptap/core": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "recharts": "3.10.1",
+    "react-is": "19.2.8",
+    "@dnd-kit/react": "0.5.0",
+    "@dnd-kit/helpers": "0.5.0",
+    "@xyflow/react": "12.11.6",
+    "@tanstack/react-virtual": "3.14.11"
   },
   "prisma": {
     "prisma": "7.10.0",
@@ -74,5 +86,70 @@
     "@tauri-apps/plugin-opener": "2.5.5",
     "@tauri-apps/plugin-clipboard-manager": "2.3.3",
     "@tauri-apps/plugin-store": "2.4.4"
+  },
+  "storage": {
+    "node": {
+      "local": {},
+      "s3": {
+        "@aws-sdk/client-s3": "3.1128.0",
+        "@aws-sdk/s3-request-presigner": "3.1128.0"
+      },
+      "aliyun-oss": {
+        "ali-oss": "6.23.0"
+      },
+      "tencent-cos": {
+        "cos-nodejs-sdk-v5": "3.0.0"
+      }
+    },
+    "types": {
+      "oss": "6.23.3"
+    },
+    "go": {
+      "github.com/aws/aws-sdk-go-v2": "v1.46.0",
+      "github.com/aws/aws-sdk-go-v2/config": "v1.33.3",
+      "github.com/aws/aws-sdk-go-v2/credentials": "v1.20.3",
+      "github.com/aws/aws-sdk-go-v2/service/s3": "v1.112.0",
+      "github.com/aliyun/alibabacloud-oss-go-sdk-v2": "v1.6.0",
+      "github.com/tencentyun/cos-go-sdk-v5": "v0.7.75"
+    }
+  },
+  "modules": {
+    "auth": {
+      "better-auth": "1.7.3",
+      "@better-auth/prisma-adapter": "1.7.3",
+      "@better-auth/utils": "0.4.2",
+      "@better-auth/core": "1.7.3"
+    },
+    "auth-client": {
+      "better-auth": "1.7.3"
+    },
+    "authorization": {
+      "@casl/ability": "7.0.1",
+      "@casl/prisma": "2.0.2"
+    },
+    "jobs": {},
+    "i18n": {
+      "i18next": "26.4.2",
+      "react-i18next": "17.0.13",
+      "react": "19.2.8"
+    },
+    "logging": {
+      "pino": "10.3.1"
+    },
+    "telemetry": {
+      "@opentelemetry/api": "1.9.1",
+      "@opentelemetry/sdk-node": "0.222.0",
+      "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
+      "@opentelemetry/sdk-trace-base": "2.11.0",
+      "@opentelemetry/resources": "2.11.0"
+    },
+    "api-mocks": {
+      "msw": "2.15.0"
+    }
+  },
+  "jobs": {
+    "pg-boss": "12.30.0",
+    "bullmq": "6.3.4",
+    "ioredis": "6.0.0"
   }
 }

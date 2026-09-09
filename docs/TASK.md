@@ -8,6 +8,10 @@
 
 ## 2. 模块任务索引
 
+开源公共能力：[模块 TASK](task-modules/open-source-components/TASK.md)，与文件存储一起完成全组件组合验收和交付。
+
+统一文件存储：[模块 TASK](task-modules/file-storage/TASK.md)，覆盖四适配、上传与元数据、消费者和升级验证。
+
 多端 Monorepo 与 Prisma 已规划，实施顺序和验收见 [模块 TASK](task-modules/monorepo-platform/TASK.md)，依赖架构能力包与所有权引擎（2026-09-09）。
 
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |

@@ -68,6 +68,9 @@
               "feedback": {
                 "type": "string",
                 "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              },
+              "advanced": {
+                "type": "string"
               }
             },
             "required": []
@@ -89,7 +92,15 @@
                 "react-hook-form",
                 "selectors",
                 "dates",
-                "feedback"
+                "feedback",
+                "uploads",
+                "editor",
+                "charts",
+                "sortable",
+                "flow",
+                "virtual-table",
+                "auth",
+                "job-status"
               ]
             }
           }
@@ -156,12 +167,41 @@
               "api-client",
               "query",
               "platform",
-              "config"
+              "config",
+              "auth",
+              "auth-client",
+              "authorization",
+              "jobs",
+              "i18n",
+              "logging",
+              "telemetry",
+              "api-mocks"
             ]
           },
           "path": {
             "type": "string",
             "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "datastore": {
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "pg-boss",
+                  "bullmq"
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "postgres",
+                  "redis"
+                ]
+              }
+            }
           }
         },
         "required": [
@@ -271,6 +311,89 @@
         "kind",
         "api",
         "datastore"
+      ]
+    },
+    "fileStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^packages/"
+        },
+        "runtime": {
+          "enum": [
+            "node",
+            "go"
+          ]
+        },
+        "consumers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultStore": {
+          "type": "string"
+        },
+        "stores": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]{1,64}$"
+              },
+              "provider": {
+                "enum": [
+                  "local",
+                  "s3",
+                  "aliyun-oss",
+                  "tencent-cos"
+                ]
+              },
+              "envPrefix": {
+                "type": "string",
+                "pattern": "^[_A-Z][A-Z0-9_]{1,63}$"
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "envPrefix"
+            ]
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "datastore": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "datastore"
+          ]
+        },
+        "uploadApplications": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "consumers",
+        "defaultStore",
+        "stores"
       ]
     }
   },

@@ -2,6 +2,8 @@
 
 本包把技术标准、可选择的实现、组件源、初始化脚本和检查放在一起。模型如何工作由 `agent/` 管理；项目选了哪些技术由项目的 `architecture.config.json` 管理；两个包共用 `tooling/xirang/` 的文件更新引擎。
 
+认证、权限、队列、存储和高级交互的逐项状态见 [组件目录](open-source-catalog.json)，使用方式见 [开源能力](guides/open-source-components.md) 与 [文件存储](guides/file-storage.md)。完整可选组合见 [Monorepo 配置示例](examples/open-source-monorepo.json)，项目可按需求裁减；该示例的队列需要独立 Redis。
+
 多端 Monorepo、Prisma 和四种预置组合的完整操作见 [Monorepo 指南](guides/monorepo.md)。模板源不预装应用依赖；新项目可用 `architecture init --blueprint admin-api --database sqlite` 按需生成。
 
 ## 从模板到实际项目
@@ -52,6 +54,8 @@ pnpm agent -- architecture check
 - datastores：每个存储的 id、engine、path、consumers；一个项目可同时使用多个引擎。
 - modules：独立公共模块和实际安装目录。
 - profiles：id、kind、edition、environment、应用集合与交付目录；不自动回退其他 profile。
+- fileStorage：语言、消费应用、provider profiles、默认存储、元数据与上传应用。
+- modules[].options：身份/权限的数据源或队列 provider/backend；密钥放环境配置。
 
 示例：[Web + Go + PostgreSQL](examples/web-go-postgres.json)、[Web + Node + SQLite](examples/web-node-sqlite.json)、[Web/API/桌面与多存储](examples/multi-platform.json)、[不生成应用](examples/agent-only.json)。Schema 为 [architecture.schema.json](architecture.schema.json)。
 
@@ -93,7 +97,7 @@ shadcn 基础控件默认 `<app>/<sourceDir>/components/ui/`，公共表格 `<ap
 }
 ```
 
-forms、selectors、feedback 默认位于应用 components 下；UI 映射到共享包时，这三组默认在 ui 的同级目录。日期组件放 selectors。可分别通过 components.forms/selectors/feedback 显式映射。
+forms、selectors、feedback、advanced 默认位于应用 components 下；UI 映射到共享包时，这些组默认在 ui 的同级目录。日期组件放 selectors。可分别通过 components.forms/selectors/feedback 显式映射。
 
 共享组件根 `packages/<包名>/` 会生成独立 package.json，安装器同时建立该包的依赖。React 运行时和类型解析保持一致，Tailwind 显式扫描共享组件路径；共享 DataTable 必须搭配共享 UI 原子。Next/Go 使用框架约定的源布局，Vite/Tauri/Node 支持自定义 sourceDir。
 

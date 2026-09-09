@@ -6,3 +6,5 @@
 | 模板命令面 | [QA.md](template-command-surface/QA.md) | 兼容回归通过 |
 | 环境文件初始化 | [QA.md](environment-file-initialization/QA.md) | 兼容回归通过 |
 | 多端 Monorepo 与 Prisma | [QA.md](monorepo-platform/QA.md) | 3.2 验收通过 / Go |
+| 开源公共组件 | [QA.md](open-source-components/QA.md) | 3.3 功能验收通过 / Go |
+| 统一文件存储 | [QA.md](file-storage/QA.md) | 3.3 功能验收通过 / Go，真实云未验证 |

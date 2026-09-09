@@ -87,3 +87,29 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-MONOPLAT-007 | AC-MONOPLAT-007-01 | TC-MONOPLAT-007 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
 | US-MONOPLAT-008 | AC-MONOPLAT-008-01 | TC-MONOPLAT-008 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
 | US-MONOPLAT-009 | AC-MONOPLAT-009-01 | TC-MONOPLAT-009 | Pass | [PRD](../prd-modules/monorepo-platform/PRD.md) |
+
+## 统一文件存储
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-STORAGE-001 | AC-STORAGE-001-01 | TC-STORAGE-001 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-002 | AC-STORAGE-002-01 | TC-STORAGE-002 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-003 | AC-STORAGE-003-01 | TC-STORAGE-003 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-004 | AC-STORAGE-004-01 | TC-STORAGE-004 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-005 | AC-STORAGE-005-01 | TC-STORAGE-005 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-006 | AC-STORAGE-006-01 | TC-STORAGE-006 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-007 | AC-STORAGE-007-01 | TC-STORAGE-007 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-008 | AC-STORAGE-008-01 | TC-STORAGE-008 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+
+## 开源公共组件
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-OSSKIT-001 | AC-OSSKIT-001-01 | TC-OSSKIT-001 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-002 | AC-OSSKIT-002-01 | TC-OSSKIT-002 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-003 | AC-OSSKIT-003-01 | TC-OSSKIT-003 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-004 | AC-OSSKIT-004-01 | TC-OSSKIT-004 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-005 | AC-OSSKIT-005-01 | TC-OSSKIT-005 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-006 | AC-OSSKIT-006-01 | TC-OSSKIT-006 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-007 | AC-OSSKIT-007-01 | TC-OSSKIT-007 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-008 | AC-OSSKIT-008-01 | TC-OSSKIT-008 | Pass | [QA](../qa-modules/open-source-components/QA.md) |

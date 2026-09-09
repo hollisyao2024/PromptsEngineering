@@ -10,7 +10,7 @@ function run(args) {
 run(['-r','--workspace-concurrency=1','--if-present','run','generate']);
 if(['type-check','test'].includes(action)) {
   const config=JSON.parse(readFileSync('architecture.config.json','utf8'));
-  const paths=[...config.datastores.map(d=>d.path),...config.modules.map(m=>m.path)];
+  const paths=[...config.datastores.map(d=>d.path),...config.modules.map(m=>m.path),...(config.fileStorage?.runtime==='node'?[config.fileStorage.path]:[])];
   const filters=paths.flatMap(p=>{try{const pkg=JSON.parse(readFileSync(p+'/package.json','utf8'));return pkg.scripts?.build?['--filter',pkg.name]:[];}catch{return [];}});
   if(filters.length)run(['-r','--workspace-concurrency=1',...filters,'--if-present','run','build']);
 }

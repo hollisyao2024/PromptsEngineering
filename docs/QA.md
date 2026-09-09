@@ -2,12 +2,14 @@
 
 ## 1. QA 概览
 
-息壤源码按功能模块记录验证。当前 3.2 交付覆盖多端 Monorepo、Prisma 双数据库、契约、真实表格 API、平台适配和安全升级；测试结论为 Go。本机 QA receipt、主干同步及 completion guard 决定最终交付状态。
+息壤源码按功能模块记录验证。当前 3.3 交付覆盖开源能力、统一文件存储、认证/权限/队列、高级 UI 与兼容升级；测试结论为 Go。本机 QA receipt、主干同步及 completion guard 决定最终交付状态。
 
 ## 2. 模块索引
 
 | 模块 | 报告 | 本轮范围 |
 | --- | --- | --- |
+| 开源公共组件 | [QA](qa-modules/open-source-components/QA.md) | 全组件、真实 DB/队列/浏览器/性能与旧版升级 |
+| 统一文件存储 | [QA](qa-modules/file-storage/QA.md) | Node/Go 适配、会话、元数据、安全与恢复 |
 | 多端 Monorepo 与 Prisma | [QA](qa-modules/monorepo-platform/QA.md) | 九项 AC、真实数据库/浏览器/原生与旧版升级 |
 | 双能力包与架构落地 | [QA](qa-modules/architecture-platform/QA.md) | 第 8 节：公共 UI 新增 5 项 AC、嵌套日期修复、生成与升级矩阵；第 2～7 节保留历史基线 |
 | 模板命令面 | [QA](qa-modules/template-command-surface/QA.md) | 既有命令、官方同步和生命周期兼容回归 |

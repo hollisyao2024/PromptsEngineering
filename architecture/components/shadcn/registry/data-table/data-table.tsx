@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
   type ColumnDef, type ColumnFiltersState, type PaginationState, type RowData, type RowSelectionState,
-  type SortingState, type VisibilityState,
+  type SortingState, type VisibilityState, type Row,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Columns3, Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,10 @@ export interface TableQuery {
   search: string;
 }
 export interface ExportRequest<T> { scope: "page" | "filtered" | "selected"; rows: T[]; rowIds: string[]; query: TableQuery; csv: string; }
+export interface DataTableRowsProps<T> {rows:Row<T>[]; renderRow:(row:Row<T>,index?:number,ref?:(element:HTMLTableRowElement|null)=>void)=>ReactNode; columnCount:number;getScrollElement:()=>HTMLElement|null;}
 export interface DataTableProps<T> {
+  rowRenderer?: (props:DataTableRowsProps<T>)=>ReactNode;
+  viewportHeight?:number;
   data: T[];
   columns: ColumnDef<T, any>[];
   getRowId: (row: T) => string;
@@ -76,7 +79,10 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
   selection: controlledSelection, onSelectionChange, initialPageSize = 10, pageSizes = [10, 20, 50, 100], selectable = true,
   loading = false, error, onRetry, emptyMessage = "暂无数据", onCreate, onEdit, onDelete, canEdit, canDelete,
   onExport, exportScope = mode === "server" ? "page" : "filtered", exportFileName = "data.csv", exportEnabled = true, toolbar, bulkActions = [],
+  rowRenderer:RowRenderer,viewportHeight,
 }: DataTableProps<T>) {
+  const viewport=useRef<HTMLDivElement>(null);
+  if(viewportHeight!==undefined&&(!Number.isFinite(viewportHeight)||viewportHeight<100))throw new Error("Invalid table viewport height");
   if (mode === "server" && (!controlledQuery || !onQueryChange || !Number.isInteger(rowCount) || rowCount! < 0)) throw new Error("Server DataTable requires query, onQueryChange and non-negative rowCount");
   if (controlledQuery && !onQueryChange) throw new Error("Controlled query requires onQueryChange");
   if (controlledSelection && !onSelectionChange) throw new Error("Controlled selection requires onSelectionChange");
@@ -150,6 +156,11 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
   });
   const active = !loading && !busy && !error;
   const title = (column: ReturnType<typeof table.getAllLeafColumns>[number]) => column.columnDef.meta?.label || (typeof column.columnDef.header === "string" ? column.columnDef.header : column.id);
+  const renderRow=(row:Row<T>,index?:number,ref?:(element:HTMLTableRowElement|null)=>void)=><TableRow key={row.id} data-index={index} ref={ref} data-state={row.getIsSelected() ? "selected" : undefined}>
+        {selectable && <TableCell><Checkbox aria-label={`选择行 ${row.id}`} checked={row.getIsSelected()} disabled={!active || !row.getCanSelect()} onCheckedChange={value => row.toggleSelected(!!value)} /></TableCell>}
+        {row.getVisibleCells().map(cell => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
+        {(onEdit || onDelete) && <TableCell><div className="flex gap-1">{onEdit && (!canEdit || canEdit(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`修改 ${row.id}`} onClick={() => void run(() => onEdit(row.original))}><Pencil />修改</Button>}{onDelete && (!canDelete || canDelete(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`删除 ${row.id}`} onClick={() => setDeleteIds([row.id])}><Trash2 />删除</Button>}</div></TableCell>}
+      </TableRow>;
   return <div className="space-y-3" aria-busy={loading || busy}>
     <div className="flex flex-wrap items-center gap-2">
       <Input className="w-full sm:max-w-xs" aria-label="搜索表格" placeholder="搜索…" value={query.search} onChange={event => changeQuery({ search: event.target.value }, true)} />
@@ -174,17 +185,13 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
       {(query.filters.length > 0 || query.search) && <Button variant="ghost" onClick={() => changeQuery({ filters: [], search: "" }, true)}>清除筛选</Button>}
     </div>
     {(error || (actionError && !deleteIds)) && <ErrorState error={error || actionError} onRetry={error ? onRetry : undefined}/>}
-    <div className="rounded-lg border"><Table>
+    <div ref={viewport} className="overflow-auto rounded-lg border" style={{maxHeight:viewportHeight}}><Table>
       <TableHeader>{table.getHeaderGroups().map((group, groupIndex) => <TableRow key={group.id}>
         {selectable && groupIndex === 0 && <TableHead className="w-10" rowSpan={table.getHeaderGroups().length}><Checkbox aria-label="选择当前页" disabled={!active} checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() ? "indeterminate" : false)} onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)} /></TableHead>}
         {group.headers.map(header => <TableHead key={header.id} colSpan={header.colSpan} aria-sort={header.column.getIsSorted() === "asc" ? "ascending" : header.column.getIsSorted() === "desc" ? "descending" : "none"}>{header.isPlaceholder ? null : header.column.getCanSort() ? <Button variant="ghost" size="sm" aria-label={`排序 ${title(header.column)}`} onClick={header.column.getToggleSortingHandler()}>{flexRender(header.column.columnDef.header, header.getContext())}{header.column.getIsSorted() === "asc" ? <ArrowUp /> : header.column.getIsSorted() === "desc" ? <ArrowDown /> : <ArrowUpDown />}</Button> : flexRender(header.column.columnDef.header, header.getContext())}</TableHead>)}
         {(onEdit || onDelete) && groupIndex === 0 && <TableHead rowSpan={table.getHeaderGroups().length}>操作</TableHead>}
       </TableRow>)}</TableHeader>
-      <TableBody>{loading || error || table.getRowModel().rows.length === 0 ? <TableRow><TableCell colSpan={Math.max(1,table.getVisibleLeafColumns().length + (selectable ? 1 : 0) + (onEdit || onDelete ? 1 : 0))} className="h-24 text-center text-muted-foreground">{loading ? <LoadingState/> : <EmptyState title={error ? "数据加载失败" : emptyMessage}/>}</TableCell></TableRow> : table.getRowModel().rows.map(row => <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
-        {selectable && <TableCell><Checkbox aria-label={`选择行 ${row.id}`} checked={row.getIsSelected()} disabled={!active || !row.getCanSelect()} onCheckedChange={value => row.toggleSelected(!!value)} /></TableCell>}
-        {row.getVisibleCells().map(cell => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
-        {(onEdit || onDelete) && <TableCell><div className="flex gap-1">{onEdit && (!canEdit || canEdit(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`修改 ${row.id}`} onClick={() => void run(() => onEdit(row.original))}><Pencil />修改</Button>}{onDelete && (!canDelete || canDelete(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`删除 ${row.id}`} onClick={() => setDeleteIds([row.id])}><Trash2 />删除</Button>}</div></TableCell>}
-      </TableRow>)}</TableBody>
+      <TableBody>{loading || error || table.getRowModel().rows.length === 0 ? <TableRow><TableCell colSpan={Math.max(1,table.getVisibleLeafColumns().length + (selectable ? 1 : 0) + (onEdit || onDelete ? 1 : 0))} className="h-24 text-center text-muted-foreground">{loading ? <LoadingState/> : <EmptyState title={error ? "数据加载失败" : emptyMessage}/>}</TableCell></TableRow> : (RowRenderer ? <RowRenderer rows={table.getRowModel().rows} renderRow={renderRow} columnCount={table.getVisibleLeafColumns().length+(selectable?1:0)+(onEdit||onDelete?1:0)} getScrollElement={()=>viewport.current}/> : table.getRowModel().rows.map(row=>renderRow(row)))}</TableBody>
     </Table></div>
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
       <div aria-live="polite">共 {total} 条 · 已选 {selectedIds.length} 条{mode === "server" && selectedIds.length > 0 && "（按 ID 跨页保留）"}{selectedIds.length > 0 && <Button variant="ghost" size="sm" onClick={() => changeSelection({})}>清空选择</Button>}</div>

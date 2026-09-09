@@ -85,3 +85,7 @@ const columns: ColumnDef<Row>[] = [
 registry.json 遵循官方 schema。node architecture/scripts/build-registry.js <输出目录> 生成内容内嵌、依赖固定的独立 JSON，供 shadcn CLI 使用；标准 CLI 使用其 components.json 的目录规则，带自定义组映射和模板升级管理的项目应使用 architecture 命令。
 
 来源：[shadcn Field/RHF](https://ui.shadcn.com/docs/forms/react-hook-form)、[Date Picker](https://ui.shadcn.com/docs/components/radix/date-picker)、[Registry](https://ui.shadcn.com/docs/registry)。
+
+## 高级能力组合
+
+可选 auth、job-status、uploads、editor、charts、sortable、flow 和 virtual-table；具体组件 API 与依赖见 [开源能力指南](../../guides/open-source-components.md)。现有表格的虚拟化走 VirtualDataTable，分页、筛选、多选、CRUD 和导出仍由同一个 DataTable 实现。基础 Chart 源码与来源摘要已登记；Registry 合计 48 项，基础 UI 34 项。

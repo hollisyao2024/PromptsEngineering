@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createServer} from 'node:http';
+import {mkdtemp,realpath,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {createLocalProvider,createFileRepository,StorageRouter,FileService,createFileHandler} from '../dist/index.js';
+import {createFileClient} from '../dist/client.js';
+test('authenticated HTTP upload, completion, ownership and unsafe-origin rejection',async t=>{
+  const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'xirang-file-http-')));t.after(()=>rm(root,{recursive:true,force:true}));
+  const service=new FileService({router:new StorageRouter({files:await createLocalProvider({directory:path.join(root,'objects')})},'files'),repository:await createFileRepository(path.join(root,'metadata'))});
+  const handle=createFileHandler({service,authenticate:async req=>req.headers.authorization?{id:req.headers.authorization}:undefined,trustedOrigins:['https://app.example.test']});
+  const server=createServer(async(req,res)=>{if(!await handle(req,res)){res.statusCode=404;res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base='http://127.0.0.1:'+server.address().port+'/files';
+  assert.equal((await fetch(base)).status,403);
+  assert.equal((await fetch(base,{headers:{authorization:'alice',origin:'https://evil.example'}})).status,403);
+  const client=createFileClient({baseURL:base,headers:()=>({authorization:'alice'})});
+  const session=await client.createUpload({name:'hello.txt',contentType:'text/plain',size:5});
+  const uploaded=await fetch(base+session.transport.path,{method:'PUT',headers:{authorization:'alice','content-type':'text/plain'},body:'hello'});assert.equal(uploaded.status,204);
+  const ready=await client.complete(session.file.id);assert.equal(ready.state,'ready');assert.equal((await client.list()).items.length,1);
+  assert.equal((await fetch(base+'/'+ready.id+'/content',{headers:{authorization:'bob'}})).status,404);
+  const download=await fetch(base+'/'+ready.id+'/content',{headers:{authorization:'alice'}});assert.equal(await download.text(),'hello');assert.match(download.headers.get('content-disposition'),/^attachment/);
+  await client.delete(ready.id);assert.equal((await client.list()).items.length,0);
+});

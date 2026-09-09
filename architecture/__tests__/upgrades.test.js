@@ -32,3 +32,14 @@ test('TC-ARCHPLAT-009 standalone architecture can later adopt agent workflows wi
  const p=createTemplatePlan({source,target:f.target});assert.equal(p.conflicts.length,0);applyPlan(p,{runRoot:f.runRoot});
  assert.equal(createTemplatePlan({source,target:f.target}).changes.length,0);
 });
+test('TC-OSSKIT-008 agent and workspace share root contributions in either adoption order and scoped updates',t=>{
+ for(const first of ['agent','architecture']){
+  const f=fixture(t),config={schemaVersion:2,workspace:{packageManager:'pnpm@10.18.3'},applications:[{id:'api',stack:'node-ts',path:'apps/api'}]};
+  if(first==='agent')applyPlan(createTemplatePlan({source,target:f.target,scope:'agent'}),{runRoot:f.runRoot});
+  applyPlan(createArchitecturePlan({source,target:f.target,config}),{runRoot:f.runRoot});
+  const all=createTemplatePlan({source,target:f.target});assert.deepEqual(all.conflicts,[]);applyPlan(all,{runRoot:f.runRoot});
+  const p=path.join(f.target,'package.json'),pkg=JSON.parse(fs.readFileSync(p));pkg.scripts.project='echo custom';fs.writeFileSync(p,JSON.stringify(pkg));fs.appendFileSync(path.join(f.target,'.gitignore'),'project-artifacts/\n');
+  for(const scope of ['agent','architecture','all']){const plan=createTemplatePlan({source,target:f.target,scope});assert.deepEqual(plan.conflicts,[],scope);applyPlan(plan,{runRoot:f.runRoot});}
+  const final=JSON.parse(fs.readFileSync(p));assert.ok(final.scripts.agent);assert.ok(final.scripts.build);assert.equal(final.scripts.project,'echo custom');assert.match(fs.readFileSync(path.join(f.target,'.gitignore'),'utf8'),/project-artifacts/);assert.equal(createTemplatePlan({source,target:f.target}).changes.length,0);
+ }
+});
