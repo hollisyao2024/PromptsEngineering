@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
@@ -89,5 +89,6 @@
     "observability",
     "delivery",
     "upgrades"
-  ]
+  ],
+  "componentSets": "components/shadcn/component-sets.json"
 }

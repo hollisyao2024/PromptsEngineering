@@ -31,3 +31,16 @@ repo/
 目录职责是稳定约定，应用名称和语言不固定。architecture.config.json 记录实际 paths；已有 apps/server、src/renderer/src、db 与 packages/database 无需搬迁。pnpm-workspace.yaml 或其他 workspace 文件只声明包范围，不等于已初始化目录。
 
 单应用的 shadcn 基础控件：apps/<app>/<sourceDir>/components/ui；组合表格：components/data-table；工具：<sourceDir>/lib；业务组件使用其上层目录。跨应用共享可显式映射 packages/ui/src 与 packages/ui/src/data-table。components.json 的 aliases 与 tsconfig/Vite 路径必须指向同一实际目录。
+
+公共组件实际目录（sourceDir 默认为 src）：
+
+```text
+apps/<app>/<sourceDir>/components/
+├── ui/           # shadcn 基础控件
+├── data-table/   # 唯一公共数据表
+├── forms/        # 字段、分组、弹窗/侧栏及可选 RHF 适配
+├── selectors/    # 搜索、多选、异步选项、日期与日期范围
+└── feedback/     # 确认、异步按钮、状态与通知
+```
+
+共享时推荐对应映射 packages/ui/src/{ui,data-table,forms,selectors,feedback}。共享组件的依赖也必须在共享包，不能反向导入 apps；共享相同源码的应用必须使用一致的依赖目录映射。技术源在 architecture/components/shadcn/registry，实际项目代码从上述 apps/packages 导入。

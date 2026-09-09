@@ -52,6 +52,18 @@
               "dataTable": {
                 "type": "string",
                 "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              },
+              "forms": {
+                "type": "string",
+                "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              },
+              "selectors": {
+                "type": "string",
+                "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
+              },
+              "feedback": {
+                "type": "string",
+                "pattern": "^(apps|packages|db|infra|tooling)/[^\\\\]+$"
               }
             },
             "required": []
@@ -61,6 +73,20 @@
             "items": {
               "type": "string",
               "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "componentSets": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "data-table",
+                "forms",
+                "react-hook-form",
+                "selectors",
+                "dates",
+                "feedback"
+              ]
             }
           }
         },

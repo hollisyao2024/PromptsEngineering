@@ -96,3 +96,5 @@ flowchart LR
 ## 应用架构平台任务
 
 [模块任务与依赖](task-modules/architecture-platform/TASK.md)：TASK-ARCHPLAT-001~006，覆盖 US-ARCHPLAT-001~009。
+
+公共 UI 3.1：TASK-ARCHPLAT-007～010 已规划，覆盖 US-ARCHPLAT-010～014；当前 TDD 通过、待 QA，依赖组件闭包、公共交互和消费者升级验收，详细顺序由模块 TASK §4 维护。

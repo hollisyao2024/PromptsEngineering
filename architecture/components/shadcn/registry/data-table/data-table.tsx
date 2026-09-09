@@ -12,14 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { LoadingState, EmptyState, ErrorState } from "@/components/feedback/states";
+import { MultiSelect } from "@/components/selectors/search-select";
+import { DateRangePicker } from "@/components/selectors/date-picker";
+import { validDateValue, validDateRange, type DateRangeValue } from "@/components/selectors/date-value";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ExportValue = string | number | boolean | null | undefined | Date;
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
-    filterVariant?: "text" | "select" | "range";
+    filterVariant?: "text" | "select" | "range" | "multi-select" | "date-range";
     filterOptions?: Array<{ value: string; label: string }>;
     exportValue?: (row: TData) => ExportValue;
     disableExport?: boolean;
@@ -117,6 +121,8 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
     defaultColumn: { filterFn: (row, columnId, value) => {
       const cell = row.getValue(columnId), variant = row.getAllCells().find(cell => cell.column.id === columnId)?.column.columnDef.meta?.filterVariant;
       if (variant === "range") { const [min, max] = value as [string, string]; const n = Number(cell); return cell != null && Number.isFinite(n) && (!min || n >= Number(min)) && (!max || n <= Number(max)); }
+      if (variant === "multi-select") return !value?.length || value.includes(String(cell));
+      if (variant === "date-range") return !value || (validDateRange(value) && validDateValue(String(cell), value.from, value.to));
       if (variant === "select") return !value || String(cell) === value;
       return String(cell ?? "").toLocaleLowerCase().includes(String(value ?? "").toLocaleLowerCase());
     } },
@@ -127,9 +133,9 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
   const selectedIds = Object.keys(selection).filter(id => selection[id]);
   const selectedDeletableIds = canDelete ? table.getSelectedRowModel().rows.filter(row => canDelete(row.original)).map(row => row.id) : selectedIds;
   const run = async (action: () => void | Promise<void>) => {
-    if (pending.current) return;
+    if (pending.current) return false;
     pending.current = true; setBusy(true); setActionError("");
-    try { await action(); } catch (caught) { setActionError(caught instanceof Error ? caught.message : "操作失败，请重试"); }
+    try { await action(); return true; } catch (caught) { setActionError(caught instanceof Error ? caught.message : "操作失败，请重试"); return false; }
     finally { pending.current = false; setBusy(false); }
   };
   const exportData = () => run(async () => {
@@ -159,20 +165,22 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
     <div className="flex flex-wrap gap-2" aria-label="列筛选">
       {table.getAllLeafColumns().filter(column => column.getCanFilter()).map(column => {
         const meta = column.columnDef.meta, label = title(column);
+        if (meta?.filterVariant === "multi-select") return <MultiSelect key={column.id} label={`筛选 ${label}`} placeholder={`全部 ${label}`} options={meta.filterOptions || []} value={column.getFilterValue() as string[] || []} onChange={value => column.setFilterValue(value.length ? value : undefined)}/>;
+        if (meta?.filterVariant === "date-range") return <DateRangePicker key={column.id} label={`筛选 ${label}`} value={column.getFilterValue() as DateRangeValue | undefined} onChange={value => column.setFilterValue(value)}/>;
         if (meta?.filterVariant === "select") return <Select key={column.id} value={column.getFilterValue() === undefined ? "__all__" : `value:${String(column.getFilterValue())}`} onValueChange={value => column.setFilterValue(value === "__all__" ? undefined : value.slice(6))}><SelectTrigger aria-label={`筛选 ${label}`}><SelectValue placeholder={label} /></SelectTrigger><SelectContent><SelectItem value="__all__">全部 {label}</SelectItem>{meta.filterOptions?.map(option => <SelectItem key={option.value} value={`value:${option.value}`}>{option.label}</SelectItem>)}</SelectContent></Select>;
         if (meta?.filterVariant === "range") { const range = column.getFilterValue() as [string,string] || ["",""]; return <div key={column.id} className="flex gap-1"><Input className="w-28" type="number" aria-label={`${label} 最小值`} placeholder={`${label} 最小`} value={range[0]} onChange={e => column.setFilterValue([e.target.value, range[1]])} /><Input className="w-28" type="number" aria-label={`${label} 最大值`} placeholder="最大" value={range[1]} onChange={e => column.setFilterValue([range[0], e.target.value])} /></div>; }
         return <Input key={column.id} className="w-40" aria-label={`筛选 ${label}`} placeholder={`筛选 ${label}`} value={String(column.getFilterValue() ?? "")} onChange={event => column.setFilterValue(event.target.value)} />;
       })}
       {(query.filters.length > 0 || query.search) && <Button variant="ghost" onClick={() => changeQuery({ filters: [], search: "" }, true)}>清除筛选</Button>}
     </div>
-    {(error || actionError) && <div role="alert" className="flex items-center gap-2 text-sm text-destructive">{error || actionError}{error && onRetry && <Button variant="outline" onClick={onRetry}>重试</Button>}</div>}
+    {(error || (actionError && !deleteIds)) && <ErrorState error={error || actionError} onRetry={error ? onRetry : undefined}/>}
     <div className="rounded-lg border"><Table>
       <TableHeader>{table.getHeaderGroups().map((group, groupIndex) => <TableRow key={group.id}>
         {selectable && groupIndex === 0 && <TableHead className="w-10" rowSpan={table.getHeaderGroups().length}><Checkbox aria-label="选择当前页" disabled={!active} checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() ? "indeterminate" : false)} onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)} /></TableHead>}
         {group.headers.map(header => <TableHead key={header.id} colSpan={header.colSpan} aria-sort={header.column.getIsSorted() === "asc" ? "ascending" : header.column.getIsSorted() === "desc" ? "descending" : "none"}>{header.isPlaceholder ? null : header.column.getCanSort() ? <Button variant="ghost" size="sm" aria-label={`排序 ${title(header.column)}`} onClick={header.column.getToggleSortingHandler()}>{flexRender(header.column.columnDef.header, header.getContext())}{header.column.getIsSorted() === "asc" ? <ArrowUp /> : header.column.getIsSorted() === "desc" ? <ArrowDown /> : <ArrowUpDown />}</Button> : flexRender(header.column.columnDef.header, header.getContext())}</TableHead>)}
         {(onEdit || onDelete) && groupIndex === 0 && <TableHead rowSpan={table.getHeaderGroups().length}>操作</TableHead>}
       </TableRow>)}</TableHeader>
-      <TableBody>{loading || error || table.getRowModel().rows.length === 0 ? <TableRow><TableCell colSpan={Math.max(1,table.getVisibleLeafColumns().length + (selectable ? 1 : 0) + (onEdit || onDelete ? 1 : 0))} className="h-24 text-center text-muted-foreground">{loading ? "加载中…" : error ? "数据加载失败" : emptyMessage}</TableCell></TableRow> : table.getRowModel().rows.map(row => <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+      <TableBody>{loading || error || table.getRowModel().rows.length === 0 ? <TableRow><TableCell colSpan={Math.max(1,table.getVisibleLeafColumns().length + (selectable ? 1 : 0) + (onEdit || onDelete ? 1 : 0))} className="h-24 text-center text-muted-foreground">{loading ? <LoadingState/> : <EmptyState title={error ? "数据加载失败" : emptyMessage}/>}</TableCell></TableRow> : table.getRowModel().rows.map(row => <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
         {selectable && <TableCell><Checkbox aria-label={`选择行 ${row.id}`} checked={row.getIsSelected()} disabled={!active || !row.getCanSelect()} onCheckedChange={value => row.toggleSelected(!!value)} /></TableCell>}
         {row.getVisibleCells().map(cell => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
         {(onEdit || onDelete) && <TableCell><div className="flex gap-1">{onEdit && (!canEdit || canEdit(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`修改 ${row.id}`} onClick={() => void run(() => onEdit(row.original))}><Pencil />修改</Button>}{onDelete && (!canDelete || canDelete(row.original)) && <Button variant="ghost" size="sm" disabled={!active} aria-label={`删除 ${row.id}`} onClick={() => setDeleteIds([row.id])}><Trash2 />删除</Button>}</div></TableCell>}
@@ -189,6 +197,7 @@ export function DataTable<T>({ data, columns, getRowId, mode = "client", rowCoun
         <Button variant="outline" size="icon-sm" aria-label="末页" disabled={!active || query.pagination.pageIndex + 1 >= pageCount} onClick={() => table.setPageIndex(pageCount - 1)}><ChevronsRight /></Button>
       </div>
     </div>
-    <AlertDialog open={deleteIds !== null} onOpenChange={open => { if (!open && !busy) setDeleteIds(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认删除 {deleteIds?.length || 0} 条记录？</AlertDialogTitle><AlertDialogDescription>确认后将调用项目提供的删除操作，请核对选中范围。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><Button variant="outline" disabled={busy} onClick={() => setDeleteIds(null)}>取消</Button><Button variant="destructive" disabled={busy} onClick={() => void run(async () => { const ids = deleteIds || []; await onDelete?.(ids); changeSelection(Object.fromEntries(Object.entries(selection).filter(([id]) => !ids.includes(id)))); setDeleteIds(null); })}>确认删除</Button></AlertDialogFooter>{actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}</AlertDialogContent></AlertDialog>
+    <ConfirmDialog open={deleteIds !== null} onOpenChange={open => { if (!open && !pending.current) setDeleteIds(null); }} title={`确认删除 ${deleteIds?.length || 0} 条记录？`} description="确认后将调用项目提供的删除操作，请核对选中范围。" confirmLabel="确认删除" pending={busy} error={actionError} onConfirm={() => run(async () => { const ids = deleteIds || []; await onDelete?.(ids); changeSelection(Object.fromEntries(Object.entries(selection).filter(([id]) => !ids.includes(id)))); })}/>
+
   </div>;
 }

@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-09-09T00:11:02.555Z",
-  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies",
+  "checkedAt": "2026-09-09T04:17:56.475Z",
+  "scope": "Existing shadcn/Radix UI, frontend framework and test dependencies; selectable forms, selectors, dates and feedback",
   "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
   "retainedCompatibilityDependencies": [
     "clsx",
@@ -214,6 +214,70 @@
       "selected": "2.11.4",
       "registry": "https://registry.npmjs.org/%40tauri-apps%2Fcli",
       "reason": "Latest stable release; validated with generated projects."
+    },
+    {
+      "name": "cmdk",
+      "previous": null,
+      "latest": "1.1.1",
+      "selected": "1.1.1",
+      "registry": "https://registry.npmjs.org/cmdk",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "react-day-picker",
+      "previous": null,
+      "latest": "10.0.1",
+      "selected": "10.0.1",
+      "registry": "https://registry.npmjs.org/react-day-picker",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "date-fns",
+      "previous": null,
+      "latest": "4.4.0",
+      "selected": "4.4.0",
+      "registry": "https://registry.npmjs.org/date-fns",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "sonner",
+      "previous": null,
+      "latest": "2.0.8",
+      "selected": "2.0.8",
+      "registry": "https://registry.npmjs.org/sonner",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "next-themes",
+      "previous": null,
+      "latest": "0.4.6",
+      "selected": "0.4.6",
+      "registry": "https://registry.npmjs.org/next-themes",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "react-hook-form",
+      "previous": null,
+      "latest": "7.87.0",
+      "selected": "7.87.0",
+      "registry": "https://registry.npmjs.org/react-hook-form",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "@hookform/resolvers",
+      "previous": null,
+      "latest": "5.9.1",
+      "selected": "5.9.1",
+      "registry": "https://registry.npmjs.org/%40hookform%2Fresolvers",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
+    },
+    {
+      "name": "zod",
+      "previous": null,
+      "latest": "4.5.4",
+      "selected": "4.5.4",
+      "registry": "https://registry.npmjs.org/zod",
+      "reason": "Current stable release compatible with React 19; installed only through component dependency closure."
     }
   ]
 }

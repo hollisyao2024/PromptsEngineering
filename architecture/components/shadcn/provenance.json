@@ -1,7 +1,7 @@
 {
   "license": "MIT",
   "upstream": "shadcn-ui/ui",
-  "checkedAt": "2026-09-09T00:11:52.864Z",
+  "checkedAt": "2026-09-09T04:17:32.024Z",
   "items": [
     {
       "name": "button",
@@ -191,6 +191,78 @@
       "name": "slider",
       "url": "https://ui.shadcn.com/r/styles/new-york-v4/slider.json",
       "sha256": "99f6044fa83df91dfda17d3cc57cf5297c3759d57fd483665e518e4961208e73",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "field",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/field.json",
+      "sha256": "5524eca8a5aca35b2f02dac696144053ea8d3d02f722676942e4e92bb08efeb2",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "input-group",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/input-group.json",
+      "sha256": "6f9d7df429c5916bb4a5ade1a12e912e51fc7e0cf1539edf2b296d1994967c70",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "button-group",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/button-group.json",
+      "sha256": "750f0d0a247e36446efcb257b289657a6f98a492b4b7c5a2b7aabe291d23f1ec",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "command",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/command.json",
+      "sha256": "c1f02d0805a0c5c55428e3350214ca8150a4ce98a40ec962118ec66709f60038",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "calendar",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/calendar.json",
+      "sha256": "746d0f9d907a20959c28b1e9ea38e163a28487c1219d45db5c457733fc3066ac",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "alert",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/alert.json",
+      "sha256": "413c97869ec0e53efa4a37f590833bcf4a7a57255f5a2e909c6bb5bac7b4570d",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "empty",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/empty.json",
+      "sha256": "2c377f47c4e661d73a565d37c0678d2445edfdcae5446e5b79f23ccda9b80f1d",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "spinner",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/spinner.json",
+      "sha256": "9516791ff6443cb5dee344f4f61df812c6b1fa455b86eb2febd10acc66c0c178",
+      "adaptations": [
+        "registry imports mapped to components aliases"
+      ]
+    },
+    {
+      "name": "sonner",
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/sonner.json",
+      "sha256": "439c5d5256091829350d3136309f55f8ba788f1cc0f0dbad016ce6b5b2765488",
       "adaptations": [
         "registry imports mapped to components aliases"
       ]

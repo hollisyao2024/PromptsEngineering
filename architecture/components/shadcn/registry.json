@@ -88,7 +88,9 @@
         "cn@0.2.6",
         "radix-ui@1.6.7"
       ],
-      "registryDependencies": [],
+      "registryDependencies": [
+        "button"
+      ],
       "files": [
         {
           "path": "registry/ui/dialog.tsx",
@@ -398,13 +400,314 @@
         "select",
         "dropdown-menu",
         "alert-dialog",
-        "table"
+        "table",
+        "selectors",
+        "dates",
+        "feedback"
       ],
       "files": [
         {
           "path": "registry/data-table/data-table.tsx",
           "type": "registry:component",
           "target": "@components/data-table/data-table.tsx"
+        }
+      ]
+    },
+    {
+      "name": "field",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6"
+      ],
+      "registryDependencies": [
+        "label",
+        "separator"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/field.tsx",
+          "type": "registry:ui",
+          "target": "@ui/field.tsx"
+        }
+      ]
+    },
+    {
+      "name": "input-group",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6"
+      ],
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/input-group.tsx",
+          "type": "registry:ui",
+          "target": "@ui/input-group.tsx"
+        }
+      ]
+    },
+    {
+      "name": "button-group",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6"
+      ],
+      "registryDependencies": [
+        "button",
+        "separator"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/button-group.tsx",
+          "type": "registry:ui",
+          "target": "@ui/button-group.tsx"
+        }
+      ]
+    },
+    {
+      "name": "command",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6",
+        "cmdk@1.1.1"
+      ],
+      "registryDependencies": [
+        "dialog"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/command.tsx",
+          "type": "registry:ui",
+          "target": "@ui/command.tsx"
+        }
+      ]
+    },
+    {
+      "name": "calendar",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6",
+        "react-day-picker@10.0.1",
+        "date-fns@4.4.0"
+      ],
+      "registryDependencies": [
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/calendar.tsx",
+          "type": "registry:ui",
+          "target": "@ui/calendar.tsx"
+        }
+      ]
+    },
+    {
+      "name": "alert",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/alert.tsx",
+          "type": "registry:ui",
+          "target": "@ui/alert.tsx"
+        }
+      ]
+    },
+    {
+      "name": "empty",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/empty.tsx",
+          "type": "registry:ui",
+          "target": "@ui/empty.tsx"
+        }
+      ]
+    },
+    {
+      "name": "spinner",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.2.6",
+        "class-variance-authority@0.7.1"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/spinner.tsx",
+          "type": "registry:ui",
+          "target": "@ui/spinner.tsx"
+        }
+      ]
+    },
+    {
+      "name": "sonner",
+      "type": "registry:ui",
+      "dependencies": [
+        "sonner@2.0.8",
+        "next-themes@0.4.6"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/sonner.tsx",
+          "type": "registry:ui",
+          "target": "@ui/sonner.tsx"
+        }
+      ]
+    },
+    {
+      "name": "forms",
+      "type": "registry:component",
+      "title": "息壤 forms",
+      "dependencies": [],
+      "registryDependencies": [
+        "field",
+        "input-group",
+        "button-group",
+        "dialog",
+        "sheet",
+        "feedback",
+        "button",
+        "spinner"
+      ],
+      "files": [
+        {
+          "path": "registry/forms/form-field.tsx",
+          "type": "registry:component",
+          "target": "@components/forms/form-field.tsx"
+        },
+        {
+          "path": "registry/forms/form-section.tsx",
+          "type": "registry:component",
+          "target": "@components/forms/form-section.tsx"
+        },
+        {
+          "path": "registry/forms/form-panel.tsx",
+          "type": "registry:component",
+          "target": "@components/forms/form-panel.tsx"
+        }
+      ]
+    },
+    {
+      "name": "react-hook-form",
+      "type": "registry:component",
+      "title": "息壤 react-hook-form",
+      "dependencies": [
+        "react-hook-form@7.87.0",
+        "@hookform/resolvers@5.9.1",
+        "zod@4.5.4"
+      ],
+      "registryDependencies": [
+        "forms"
+      ],
+      "files": [
+        {
+          "path": "registry/forms/react-hook-form.tsx",
+          "type": "registry:component",
+          "target": "@components/forms/react-hook-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "selectors",
+      "type": "registry:component",
+      "title": "息壤 selectors",
+      "dependencies": [],
+      "registryDependencies": [
+        "command",
+        "popover",
+        "badge",
+        "feedback",
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/selectors/search-select.tsx",
+          "type": "registry:component",
+          "target": "@components/selectors/search-select.tsx"
+        },
+        {
+          "path": "registry/selectors/async-combobox.tsx",
+          "type": "registry:component",
+          "target": "@components/selectors/async-combobox.tsx"
+        }
+      ]
+    },
+    {
+      "name": "dates",
+      "type": "registry:component",
+      "title": "息壤 dates",
+      "dependencies": [],
+      "registryDependencies": [
+        "calendar",
+        "popover",
+        "input",
+        "label",
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/selectors/date-picker.tsx",
+          "type": "registry:component",
+          "target": "@components/selectors/date-picker.tsx"
+        },
+        {
+          "path": "registry/selectors/date-value.ts",
+          "type": "registry:component",
+          "target": "@components/selectors/date-value.ts"
+        }
+      ]
+    },
+    {
+      "name": "feedback",
+      "type": "registry:component",
+      "title": "息壤 feedback",
+      "dependencies": [],
+      "registryDependencies": [
+        "alert",
+        "empty",
+        "spinner",
+        "sonner",
+        "alert-dialog",
+        "button"
+      ],
+      "files": [
+        {
+          "path": "registry/feedback/async-action-button.tsx",
+          "type": "registry:component",
+          "target": "@components/feedback/async-action-button.tsx"
+        },
+        {
+          "path": "registry/feedback/confirm-dialog.tsx",
+          "type": "registry:component",
+          "target": "@components/feedback/confirm-dialog.tsx"
+        },
+        {
+          "path": "registry/feedback/states.tsx",
+          "type": "registry:component",
+          "target": "@components/feedback/states.tsx"
+        },
+        {
+          "path": "registry/feedback/notifications.tsx",
+          "type": "registry:component",
+          "target": "@components/feedback/notifications.tsx"
+        },
+        {
+          "path": "registry/feedback/use-async-action.ts",
+          "type": "registry:component",
+          "target": "@components/feedback/use-async-action.ts"
         }
       ]
     }

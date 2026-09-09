@@ -46,7 +46,7 @@ pnpm agent -- architecture check
 
 ## 配置模型与已提供实现
 
-- applications：每个应用的 id、stack、path、sourceDir、targets、components、modules。
+- applications：每个应用的 id、stack、path、sourceDir、targets、components、componentSets、modules。
 - datastores：每个存储的 id、engine、path、consumers；一个项目可同时使用多个引擎。
 - modules：独立公共模块和实际安装目录。
 - profiles：id、kind、edition、environment、应用集合与交付目录；不自动回退其他 profile。
@@ -73,6 +73,8 @@ pnpm agent -- architecture check
 
 完整应用目录标准见 [directories.md](standards/directories.md)。默认只创建被选中的 `apps/<app>`、`packages/<module>` 和存储目录。旧项目的 apps/server、apps/api、packages/database、db 都由配置映射，不自动搬迁。
 
+组件选择与可执行 API 示例见 [公共组件](components/shadcn/README.md)。省略 componentSets 保持 DataTable 默认入口，显式 [] 只初始化原有 24 个基础控件；选择 forms 或 react-hook-form 才安装表单组合。
+
 shadcn 基础控件默认 `<app>/<sourceDir>/components/ui/`，公共表格 `<app>/<sourceDir>/components/data-table/`。共享配置例如：
 
 ```json
@@ -80,12 +82,15 @@ shadcn 基础控件默认 `<app>/<sourceDir>/components/ui/`，公共表格 `<ap
   "id": "admin",
   "stack": "react-vite",
   "path": "apps/admin",
+  "componentSets": ["data-table", "react-hook-form"],
   "components": {
-    "ui": "packages/ui/src/components",
+    "ui": "packages/ui/src/ui",
     "dataTable": "packages/ui/src/data-table"
   }
 }
 ```
+
+forms、selectors、feedback 默认位于应用 components 下；UI 映射到共享包时，这三组默认在 ui 的同级目录。日期组件放 selectors。可分别通过 components.forms/selectors/feedback 显式映射。
 
 共享组件根 `packages/<包名>/` 会生成独立 package.json，安装器同时建立该包的依赖。React 运行时和类型解析保持一致，Tailwind 显式扫描共享组件路径；共享 DataTable 必须搭配共享 UI 原子。Next/Go 使用框架约定的源布局，Vite/Tauri/Node 支持自定义 sourceDir。
 
@@ -109,7 +114,7 @@ pnpm agent -- template sync
 pnpm agent -- architecture update --scope architecture:table:apps/web/src/components/data-table
 ```
 
-默认 template sync 只升级已经采用的架构选择，新增应用或改变选型会要求显式 architecture init/update。项目配置属于项目；从外部配置文件规划已有项目时必须先把确认的选择写入项目 architecture.config.json，避免出现两份选型。切换框架、搬迁目录和移除应用不会自动删除旧业务代码，需独立治理任务。
+默认 template sync 只升级已经采用的架构选择，新增应用或改变选型会要求显式 architecture init/update。项目配置属于项目；从外部配置文件规划已有项目时必须先把确认的选择写入项目 architecture.config.json，避免出现两份选型。切换框架、搬迁目录和移除应用不会自动删除旧业务代码，需独立治理任务。减少 componentSets 也不会卸载组件：已登记的组件及依赖继续维护，避免仍被项目使用的源码失效；需要卸载时由项目显式清理引用、文件、依赖及所有权记录。旧版配置补齐默认字段不被误判为项目改选。单独升级组件时同时带入其依赖及消费者配置，确保生成结果可编译。
 
 上次模板、项目当前、新模板组成三方依据。`xirang.lock.json` 和 `.xirang/baselines/` 必须一起提交；不能手工把本地文件标成“未修改”。缺少基线的旧项目会得到 adoption-required：
 

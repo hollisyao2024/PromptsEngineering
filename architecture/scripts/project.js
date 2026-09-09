@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const { planUpdate, hash, json, read, safePath, parseJson, readLock } = require('../../tooling/xirang/engine');
 const DEFAULT_SOURCE = path.resolve(__dirname, '../..');
 const { derivePaths } = require('../../tooling/xirang/paths');
+const { componentCatalog, validateSelection, resolveComponentSets, fileGroup, componentOwner } = require('./component-sets');
 const CONFIG = 'architecture.config.json';
 const catalog = (source = DEFAULT_SOURCE) => parseJson(fs.readFileSync(path.join(source, 'architecture/manifest.json'), 'utf8'), 'architecture catalog');
 const identifier = (value, label) => { if (typeof value !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(value)) throw new Error(`invalid ${label}: ${value}`); return value; };
@@ -21,7 +22,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
   const register = (item, kind) => {
     if (!item || typeof item !== 'object') throw new Error(`invalid ${kind}`);
     identifier(item.id, `${kind} id`);
-    const keys = {application:['id','path','stack','sourceDir','targets','components','modules'],datastore:['id','path','engine','consumers'],module:['id','path'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
+    const keys = {application:['id','path','stack','sourceDir','targets','components','componentSets','modules'],datastore:['id','path','engine','consumers'],module:['id','path'],profile:['id','kind','path','edition','environment','applications','denyPatterns']}[kind];
     for(const key of Object.keys(item))if(!keys.includes(key))throw new Error(`unknown ${kind} field: ${key}`);
     if (ids.has(`${kind}:${item.id}`)) throw new Error(`duplicate ${kind} id: ${item.id}`);
     ids.add(`${kind}:${item.id}`); safePath(target, item.path);
@@ -40,8 +41,11 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
     app.targets ||= [stack.targets[0]];
     if (!Array.isArray(app.targets) || !app.targets.length || app.targets.some(t => !stack.targets.includes(t)) || new Set(app.targets).size !== app.targets.length) throw new Error(`unsupported or duplicate target for ${app.id}`);
     if (stack.ui) {
-      if(app.components && (typeof app.components!=='object'||Array.isArray(app.components)||Object.keys(app.components).some(key=>!['ui','dataTable'].includes(key))))throw new Error('invalid component mapping');
+      if(app.components && (typeof app.components!=='object'||Array.isArray(app.components)||Object.keys(app.components).some(key=>!['ui','dataTable','forms','selectors','feedback'].includes(key))))throw new Error('invalid component mapping');
       app.components = { ui: `${app.path}/${app.sourceDir}/components/ui`, dataTable: `${app.path}/${app.sourceDir}/components/data-table`, ...(app.components || {}) };
+      app.componentSets = validateSelection(app.componentSets, source);
+      const componentBase = app.components.ui.startsWith('packages/') ? path.posix.dirname(app.components.ui) : `${app.path}/${app.sourceDir}/components`;
+      app.components = { forms: `${componentBase}/forms`, selectors: `${componentBase}/selectors`, feedback: `${componentBase}/feedback`, ...app.components };
       for (const p of Object.values(app.components)) {
         safePath(target, p);
         if (!(p.startsWith(app.path + '/') || p.startsWith('packages/'))) throw new Error(`component path must be in its app or shared packages: ${p}`);
@@ -49,7 +53,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
       if (app.components.dataTable.startsWith('packages/') && !app.components.ui.startsWith('packages/')) throw new Error('Shared data-table requires shared UI primitives');
       const ui = app.components.ui.toLowerCase(), table = app.components.dataTable.toLowerCase();
       if (ui === table || table.startsWith(ui + '/') || ui.startsWith(table + '/')) throw new Error('data-table must be separate from UI primitives');
-    } else if (app.components) throw new Error(`components not supported by stack: ${app.stack}`);
+    } else if (app.components || app.componentSets !== undefined) throw new Error(`components not supported by stack: ${app.stack}`);
     if (app.modules && (!Array.isArray(app.modules) || app.modules.some(m => !config.modules.some(x => x.id === m)))) throw new Error(`unknown application module: ${app.id}`);
   }
   for (const store of config.datastores) {
@@ -175,37 +179,69 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
     for (const name of standardNames) add(`docs/standards/${name}.md`, readSource(`architecture/standards/${name}.md`), 'update', 'architecture:standards');
     registration('architecture:standards', { standards: standardNames });
   }
+  const uiCatalog = componentCatalog(source, readSource);
+  const installed = readLock(target);
+  const resolvedApps = new Map(config.applications.filter(app => cat.stacks[app.stack].ui).map(app => {
+    // Deselecting is not an uninstall. Retained managed source still needs its runtime dependencies.
+    const retained = Object.entries(uiCatalog.definition.sets).filter(([, set]) => set.registry.some(name => uiCatalog.registry.items.find(item => item.name === name).files.some(file => installed.files[`${app.components[fileGroup(file)]}/${path.posix.basename(file.path)}`]))).map(([name]) => name);
+    return [app.id, resolveComponentSets([...new Set([...app.componentSets, ...retained])], uiCatalog)];
+  }));
+  const sharedImports = new Map();
+  for (const app of config.applications) for (const file of resolvedApps.get(app.id)?.files || []) {
+    const directory = app.components[fileGroup(file)];
+    if (!directory.startsWith('packages/')) continue;
+    for (const [, group, name] of file.content.matchAll(/@\/components\/([a-z-]+)\/([a-z-]+)/g)) {
+      const dependency = app.components[group === 'data-table' ? 'dataTable' : group];
+      if (!dependency?.startsWith('packages/')) throw new Error(`Shared component ${file.path} cannot import app source: ${group}/${name}`);
+      const key = `${directory}/${path.posix.basename(file.path)}:${group}/${name}`;
+      if (sharedImports.has(key) && sharedImports.get(key) !== dependency) throw new Error(`Shared component has inconsistent dependency mappings: ${key}`);
+      sharedImports.set(key, dependency);
+    }
+  }
+  const sharedPackages = new Map();
+  for (const app of config.applications) {
+    const resolved = resolvedApps.get(app.id); if (!resolved) continue;
+    for (const file of resolved.files) {
+      const directory = app.components[fileGroup(file)];
+      if (!directory.startsWith('packages/')) continue;
+      const root = directory.split('/').slice(0, 2).join('/');
+      sharedPackages.set(root, { ...sharedPackages.get(root), ...resolved.dependencies });
+    }
+  }
+  const touchedShared = new Set();
   for (const app of config.applications) {
     const owner = `architecture:app:${app.id}`, stack = cat.stacks[app.stack];
     if (selected(owner)) add(`${app.path}/.gitignore`, 'node_modules/\ndist/\n.next/\nout/\ncoverage/\n*.tsbuildinfo\n.env\n.env.local\n.env.*.local\nsrc-tauri/target/\n', 'init-if-missing', owner);
     if (!stack.ui) { if(selected(owner)){registration(owner,app);copy(`architecture/${stack.template}`, app.path, owner, {appId:app.id,sourceDir:app.sourceDir},p=>p==='package.json'?'merge-json':'init-if-missing');} continue; }
-    const uiOwner = `architecture:ui:${app.components.ui}`, tableOwner = `architecture:table:${app.components.dataTable}`;
-    for (const [kind, componentPath] of Object.entries(app.components)) {
-      const componentOwner = kind === 'ui' ? uiOwner : tableOwner;
-      if (!componentPath.startsWith('packages/') || !(selected(owner) || selected(componentOwner))) continue;
-      const sharedRoot = componentPath.split('/').slice(0, 2).join('/'), sharedOwner = `architecture:component-package:${sharedRoot}`;
-      registration(sharedOwner, { path: sharedRoot });
-      add(`${sharedRoot}/.gitignore`, 'node_modules/\n', 'init-if-missing', sharedOwner);
-      add(`${sharedRoot}/package.json`, json({ name: `@project/${sharedRoot.split('/')[1]}`, private: true, type: 'module', dependencies: deps.frontend, devDependencies: { '@types/react': deps.frontendDev['@types/react'], '@types/react-dom': deps.frontendDev['@types/react-dom'] } }), 'merge-json', sharedOwner);
+    const resolved = resolvedApps.get(app.id);
+    // A component update also updates its consumers' aliases/dependencies and required component closure.
+    const included = selected(owner) || Object.entries(app.components).some(([kind, directory]) => selected(componentOwner(kind, directory)) || selected(`architecture:component-package:${directory.split('/').slice(0, 2).join('/')}`));
+    if (!included) continue;
+    for (const file of resolved.files) {
+      const kind = fileGroup(file), directory = app.components[kind], componentId = componentOwner(kind, directory);
+      add(`${directory}/${path.posix.basename(file.path)}`, file.content, 'update', componentId);
+      registration(componentId, { path: directory });
+      if (directory.startsWith('packages/')) touchedShared.add(directory.split('/').slice(0, 2).join('/'));
     }
-    if(selected(owner)||selected(uiOwner)){copy('architecture/components/shadcn/registry/ui', app.components.ui, uiOwner);registration(uiOwner,{path:app.components.ui});}
-    if(selected(owner)||selected(tableOwner)){copy('architecture/components/shadcn/registry/data-table', app.components.dataTable, tableOwner);registration(tableOwner,{path:app.components.dataTable});}
-    if(!selected(owner))continue;
     registration(owner,app);
     copy(`architecture/${stack.template}`, app.path, owner, { appId: app.id, appPath: app.path, sourceDir: app.sourceDir }, p => p === 'package.json' ? 'merge-json' : 'init-if-missing');
     add(`${app.path}/${app.sourceDir}/lib/utils.ts`, 'export { cn } from "cn";\n', 'init-if-missing', owner);
     add(`${app.path}/${app.sourceDir}/styles.css`, readSource('architecture/components/shadcn/tokens.css') + Object.values(app.components).filter(p => !p.startsWith(app.path + '/')).map(p => `@source ${JSON.stringify(path.posix.relative(`${app.path}/${app.sourceDir}`, p))};\n`).join(''), 'update', owner);
-    add(`${app.path}/${app.sourceDir}/app.tsx`, readSource('architecture/components/shadcn/example.tsx'), 'init-if-missing', owner);
+    const hasFoundations = ['data-table', 'forms'].every(name => resolved.sets.includes(name));
+    const demo = hasFoundations ? readSource('architecture/components/shadcn/examples/foundation-demo.tsx') : resolved.sets.includes('data-table') ? readSource('architecture/components/shadcn/example.tsx') : 'import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";\nexport function App() { return <main className="p-6"><Card><CardHeader><CardTitle>应用已初始化</CardTitle></CardHeader><CardContent>按 architecture.config.json 选择公共组件，并在此实现项目页面。</CardContent></Card></main>; }\n';
+    add(`${app.path}/${app.sourceDir}/app.tsx`, demo, 'init-if-missing', owner);
+    if (hasFoundations) add(`${app.path}/${app.sourceDir}/examples/foundation-demo.tsx`, demo, 'init-if-missing', owner);
     const relative = p => { const value = path.posix.relative(app.path, p); return value.startsWith('.') ? value : `./${value}`; };
     const utilityPath = app.components.ui.startsWith('packages/') ? `${app.components.ui.split('/').slice(0,2).join('/')}/lib/utils.ts` : `${app.path}/${app.sourceDir}/lib/utils.ts`;
     if (utilityPath.startsWith('packages/')) add(utilityPath, 'export { cn } from "cn";\n', 'init-if-missing', `architecture:component-package:${app.components.ui.split('/').slice(0,2).join('/')}`);
     const paths = { 'react': ['./node_modules/@types/react'], 'react/*': ['./node_modules/@types/react/*'], 'react-dom': ['./node_modules/@types/react-dom'], 'react-dom/*': ['./node_modules/@types/react-dom/*'], '@/lib/utils': [relative(utilityPath)], '@/*': [`./${app.sourceDir}/*`], '@/components/ui/*': [`${relative(app.components.ui)}/*`], '@/components/data-table/*': [`${relative(app.components.dataTable)}/*`] };
-    const tsconfig = { compilerOptions: { target: 'ES2022', lib: ['ES2022','DOM','DOM.Iterable'], module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, esModuleInterop: true, resolveJsonModule: true, isolatedModules: true, noEmit: true, types: app.stack === 'react-next' ? ['node'] : ['node','vite/client'], paths }, include: [app.sourceDir, ...(app.components.ui.startsWith('packages/') ? [relative(app.components.ui),relative(app.components.dataTable)] : [])] };
+    for (const kind of ['forms','selectors','feedback']) paths[`@/components/${kind}/*`] = [`${relative(app.components[kind])}/*`];
+    const tsconfig = { compilerOptions: { target: 'ES2022', lib: ['ES2022','DOM','DOM.Iterable'], module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, esModuleInterop: true, resolveJsonModule: true, isolatedModules: true, noEmit: true, types: app.stack === 'react-next' ? ['node'] : ['node','vite/client'], paths }, include: [app.sourceDir, ...Object.values(app.components).filter(p => p.startsWith('packages/')).map(relative)] };
     if (app.stack === 'react-next') { tsconfig.compilerOptions.plugins = [{ name: 'next' }]; tsconfig.compilerOptions.allowJs = true; tsconfig.compilerOptions.incremental = true; tsconfig.include.push('next-env.d.ts','.next/types/**/*.ts','.next/dev/types/**/*.ts'); tsconfig.exclude = ['node_modules']; }
     add(`${app.path}/tsconfig.json`, json(tsconfig), 'merge-json', owner);
     add(`${app.path}/components.json`, json({ $schema: 'https://ui.shadcn.com/schema.json', style: 'new-york', rsc: app.stack === 'react-next', tsx: true, tailwind: { config: '', css: `${app.sourceDir}/styles.css`, baseColor: 'neutral', cssVariables: true }, aliases: { components: '@/components', ui: '@/components/ui', utils: '@/lib/utils', lib: '@/lib', hooks: '@/hooks' } }), 'merge-json', owner);
     const scripts = { dev: 'vite --host 127.0.0.1', build: 'tsc --noEmit && vite build', 'type-check': 'tsc --noEmit', test: 'vitest run' };
-    const dependencies = { ...deps.frontend }, devDependencies = { ...deps.frontendDev, ...deps.uiTest };
+    const dependencies = { ...resolved.dependencies, ...Object.assign({}, ...Object.values(app.components).filter(p => p.startsWith('packages/')).map(p => sharedPackages.get(p.split('/').slice(0,2).join('/')))) }, devDependencies = { ...deps.frontendDev, ...deps.uiTest };
     if (app.stack === 'react-next') {
       dependencies.next = deps.frameworks.next; devDependencies['@tailwindcss/postcss'] = deps.frameworks['@tailwindcss/postcss'];
       scripts.dev = 'next dev --hostname 127.0.0.1'; scripts.build = 'next build'; scripts.start = 'next start';
@@ -215,13 +251,20 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
       add(`${app.path}/next.config.mjs`, `import path from 'node:path';\nimport { fileURLToPath } from 'node:url';\nexport default { turbopack: { root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ${JSON.stringify(projectRelative)}) } };\n`, 'init-if-missing', owner);
     } else {
       const aliases = Object.fromEntries(Object.entries(paths).filter(([key]) => key.startsWith('@/') || key === '@/*').sort((a,b) => b[0].length - a[0].length).map(([key, val]) => [key.replace(/\/\*$/, ''), val[0].replace(/\/\*$/, '')]));
-      add(`${app.path}/vite.config.ts`, `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nimport tailwindcss from '@tailwindcss/vite';\nimport { fileURLToPath, URL } from 'node:url';\nconst paths = ${JSON.stringify(aliases)};\nexport default defineConfig({ plugins: [react(), tailwindcss()], resolve: { dedupe: ['react', 'react-dom', 'radix-ui', '@tanstack/react-table', 'lucide-react'], alias: Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, fileURLToPath(new URL(value, import.meta.url))])) }, server: { host: '127.0.0.1'${app.stack === 'tauri' ? ', port: 1420, strictPort: true' : ''} } });\n`, 'update', owner);
+      add(`${app.path}/vite.config.ts`, `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nimport tailwindcss from '@tailwindcss/vite';\nimport { fileURLToPath, URL } from 'node:url';\nconst paths = ${JSON.stringify(aliases)};\nexport default defineConfig({ plugins: [react(), tailwindcss()], resolve: { dedupe: ['react', 'react-dom', 'radix-ui', '@tanstack/react-table', 'lucide-react', 'react-hook-form', 'cmdk', 'react-day-picker', 'sonner', 'next-themes'], alias: Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, fileURLToPath(new URL(value, import.meta.url))])) }, server: { host: '127.0.0.1'${app.stack === 'tauri' ? ', port: 1420, strictPort: true' : ''} } });\n`, 'update', owner);
     }
     if (app.stack === 'tauri') { dependencies['@tauri-apps/api'] = deps.frameworks['@tauri-apps/api']; devDependencies['@tauri-apps/cli'] = deps.frameworks['@tauri-apps/cli']; scripts['dev:web'] = scripts.dev; scripts['build:web'] = scripts.build; scripts.dev = 'tauri dev'; scripts.build = 'tauri build'; }
     add(`${app.path}/package.json`, json({ name: `@project/${app.id}`, version: '0.1.0', private: true, type: 'module', engines: deps.engines, scripts, dependencies, devDependencies }), 'merge-json', owner);
-    add(`${app.path}/vitest.config.ts`, `import { defineConfig } from 'vitest/config';\nimport react from '@vitejs/plugin-react';\nimport { fileURLToPath, URL } from 'node:url';\nexport default defineConfig({ plugins: [react()], resolve: { dedupe: ['react', 'react-dom', 'radix-ui', '@tanstack/react-table', 'lucide-react'], alias: { '@/lib/utils': fileURLToPath(new URL(${JSON.stringify(relative(utilityPath))}, import.meta.url)), '@/components/ui': fileURLToPath(new URL(${JSON.stringify(relative(app.components.ui))}, import.meta.url)), '@/components/data-table': fileURLToPath(new URL(${JSON.stringify(relative(app.components.dataTable))}, import.meta.url)), '@': fileURLToPath(new URL('./${app.sourceDir}', import.meta.url)) } }, test: { environment: 'jsdom', setupFiles: ['./tests/setup.ts'] } });\n`, 'update', owner);
-    copy('architecture/components/shadcn/tests', `${app.path}/tests`, owner);
+    const testAliases = Object.fromEntries(Object.entries(paths).filter(([key]) => key.startsWith('@/') || key === '@/*').sort((a,b) => b[0].length - a[0].length).map(([key, value]) => [key.replace(/\/\*$/, ''), value[0].replace(/\/\*$/, '')]));
+    add(`${app.path}/vitest.config.ts`, `import { defineConfig } from 'vitest/config';\nimport react from '@vitejs/plugin-react';\nimport { fileURLToPath, URL } from 'node:url';\nconst paths = ${JSON.stringify(testAliases)};\nexport default defineConfig({ plugins: [react()], resolve: { dedupe: ['react', 'react-dom', 'radix-ui', '@tanstack/react-table', 'lucide-react', 'react-hook-form', 'cmdk', 'react-day-picker', 'sonner', 'next-themes'], alias: Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, fileURLToPath(new URL(value, import.meta.url))])) }, test: { environment: 'jsdom', setupFiles: ['./tests/setup.ts'] } });\n`, 'update', owner);
+    for (const file of resolved.tests) add(`${app.path}/tests/${file}`, readSource(`architecture/components/shadcn/tests/${file}`), 'update', owner);
     add(`${app.path}/SHADCN-LICENSE`, readSource('architecture/components/shadcn/LICENSE'), 'append', owner);
+  }
+  for (const root of touchedShared) {
+    const owner = `architecture:component-package:${root}`;
+    registration(owner, { path: root });
+    add(`${root}/.gitignore`, 'node_modules/\n', 'init-if-missing', owner);
+    add(`${root}/package.json`, json({ name: `@project/${root.split('/')[1]}`, private: true, type: 'module', dependencies: sharedPackages.get(root), devDependencies: { '@types/react': deps.frontendDev['@types/react'], '@types/react-dom': deps.frontendDev['@types/react-dom'] } }), 'merge-json', owner);
   }
   for (const store of config.datastores) {
     const owner = `architecture:store:${store.id}`; if (!selected(owner)) continue; registration(owner, store);

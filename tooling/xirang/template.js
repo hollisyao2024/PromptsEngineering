@@ -50,13 +50,23 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
   if(scope!=='agent'&&(hasArchitecture||scope!=='all')) {
     const configText=read(target,'architecture.config.json');
     if(!configText)throw new Error('Architecture update requires an adopted architecture.config.json');
-    const {buildArchitectureAssets}=require('../../architecture/scripts/project');
+    const {buildArchitectureAssets,validateConfig}=require('../../architecture/scripts/project');
     const config=parseJson(configText,'architecture.config.json');
     // Ordinary template upgrades may only update installed selections. Added/changed choices require architecture init/update.
     const selectionKeys=[...(config.applications||[]).map(a=>`architecture:app:${a.id}`),...(config.datastores||[]).map(d=>`architecture:store:${d.id}`),...(config.modules||[]).map(m=>`architecture:module:${m.id}`),...(config.profiles||[]).map(p=>`architecture:profile:${p.id}`)];
     if(selectionKeys.some(key=>!installed.packages[key]))throw new Error('New architecture choices need architecture init/update before template sync');
     const built=buildArchitectureAssets({source,target,config,scope:scope==='all'?'architecture':scope});
-    for(const [owner,value] of Object.entries(built.packages))if(installed.packages[owner]?.parametersHash&&installed.packages[owner].parametersHash!==value.parametersHash&&owner!=='architecture:standards')throw new Error(`Architecture selection changed: ${owner}; use architecture update`);
+    for (const [owner, value] of Object.entries(built.packages)) {
+      const previous = installed.packages[owner];
+      if (!previous?.parametersHash || previous.parametersHash === value.parametersHash || owner === 'architecture:standards') continue;
+      // Additive schema defaults do not change a consumer's chosen architecture.
+      if (owner.startsWith('architecture:app:') && previous.selection) {
+        const legacy = { ...config, applications: config.applications.map(app => app.id === previous.selection.id ? previous.selection : app) };
+        const normalized = validateConfig(legacy, { source, target }).applications.find(app => app.id === previous.selection.id);
+        if (JSON.stringify(normalized) === JSON.stringify(value.selection)) continue;
+      }
+      throw new Error(`Architecture selection changed: ${owner}; use architecture update`);
+    }
     assets.push(...built.assets);inputs.push(...built.inputs);Object.assign(packages,built.packages);
   }
   if(includeKit) {

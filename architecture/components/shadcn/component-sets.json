@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "default": [
+    "data-table"
+  ],
+  "baseline": [
+    "button",
+    "input",
+    "textarea",
+    "checkbox",
+    "select",
+    "dialog",
+    "alert-dialog",
+    "dropdown-menu",
+    "table",
+    "badge",
+    "card",
+    "tabs",
+    "tooltip",
+    "collapsible",
+    "popover",
+    "label",
+    "switch",
+    "separator",
+    "skeleton",
+    "scroll-area",
+    "sheet",
+    "radio-group",
+    "progress",
+    "slider"
+  ],
+  "sets": {
+    "data-table": {
+      "registry": [
+        "data-table"
+      ],
+      "tests": [
+        "data-table.test.tsx"
+      ]
+    },
+    "forms": {
+      "registry": [
+        "forms"
+      ],
+      "tests": [
+        "forms.test.tsx"
+      ]
+    },
+    "react-hook-form": {
+      "registry": [
+        "react-hook-form"
+      ],
+      "tests": [
+        "rhf.test.tsx"
+      ]
+    },
+    "selectors": {
+      "registry": [
+        "selectors"
+      ],
+      "tests": [
+        "selectors.test.tsx"
+      ]
+    },
+    "dates": {
+      "registry": [
+        "dates"
+      ],
+      "tests": [
+        "dates.test.tsx"
+      ]
+    },
+    "feedback": {
+      "registry": [
+        "feedback"
+      ],
+      "tests": [
+        "feedback.test.tsx"
+      ]
+    }
+  },
+  "integrationTests": [
+    {
+      "requires": [
+        "forms",
+        "dates"
+      ],
+      "file": "forms-dates.test.tsx"
+    }
+  ]
+}
