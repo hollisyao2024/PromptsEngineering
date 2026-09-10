@@ -1,295 +1,179 @@
 # 息壤（Xirang）
 
-息壤提供两类能力：规范大模型的工程作业流程，并按照实际项目的技术选择初始化、检查和升级应用架构。两个包共享可审查、可恢复的文件更新引擎。
+息壤提供两类可独立采用的能力：规范大模型的工程作业流程，以及按照实际项目的选择规划、初始化、检查和升级应用架构。它面向多端 Monorepo，也允许小项目只采用作业流程或少量技术模块。
 
-| 目录/入口 | 职责 |
-| --- | --- |
-| [agent/](agent/README.md) | PRD → ARCH → TASK → TDD → QA、worktree、恢复与交付；旧 AgentRoles/infra/scripts 路径保留兼容 |
-| [architecture/](architecture/README.md) | 技术标准、选型配置、前后端/数据库骨架、shadcn/DataTable、公共模块及技术检查 |
-| tooling/xirang/ | 冻结计划、文件所有权、三方合并、版本基线与断点恢复 |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | 模型作业通用协议；应用目录与技术标准独立引用 |
+模板源维护协议、可运行实现、组件源码、版本清单和生成器；实际项目按选择接入。模板源不预装各技术栈的应用依赖。版本记录见 [CHANGELOG](CHANGELOG.md)。
 
-采用作业包不会生成业务应用。需要架构能力时在目标项目专用 worktree 执行 `pnpm agent -- template sync --include architecture`，再依次执行 `architecture detect`、确定项目配置、`architecture plan`、`architecture init` 和 `architecture check`。源仓库安装目标项目使用 `pnpm agent -- template update <目标-worktree> --include architecture`。
+## 先决定采用范围
 
-更新明确区分模板覆盖、三方合并、只追加、仅初始化和项目所有权。缺少可信基线或本地内容冲突时先报告；项目 RULES.md、业务文件与真实技术选择不会被默认覆盖。[完整方案与操作手册](architecture/README.md)。
+| 项目当前需要 | 操作 | 项目会得到什么 |
+| --- | --- | --- |
+| 只规范模型作业 | 首次从源执行 `template update`，或已接入后执行 `template sync`，指定 `--scope agent` | 作业协议、阶段工具、worktree 与更新引擎；不生成架构目录和业务应用 |
+| 先有架构规划入口 | `template update` 或 `template sync`，指定 `--include architecture` | 作业包加 7 个轻量架构文件；不生成应用、不安装应用依赖 |
+| 落实选定技术 | 确定 `architecture.config.json`，再执行 `architecture plan/init/check` | 所选应用、组件、模块和依赖闭包；后续可显式追加选择 |
 
-“息壤”是一套面向 Codex CLI、Claude Code CLI、Gemini CLI 的多专家工程智能体模板。它用一个 `AGENTS.md` 作为轻量路由入口，把 PRD、架构、任务、TDD、QA、DevOps 六位专家拆成按需激活的阶段角色，让大模型在最小上下文里完成清晰、可追溯、可交接的工程协作。
+以上是同一套能力的不同采用范围。已有架构项目执行 `--scope agent` 时保持已采用的架构文件；它不是卸载命令。`--scope agent` 不能与 `--include architecture` 同用。
 
-请注意：本仓库本身是**纯模板仓库**，交付的是角色协议、目录约定、文档骨架与自动化脚本示例；它不代表当前仓库存在一个真实产品需求、开发任务、QA 验收或部署任务需要执行。把模板复制到具体项目后，再根据那个项目的真实目标激活专家、生成产物并推进阶段状态。
+[作业包说明](agent/README.md)介绍模型工作方式；[架构包说明](architecture/README.md)介绍选型与生成。[通用约定](docs/CONVENTIONS.md)规定流程和所有权，应用技术标准在源的 [architecture/standards](architecture/standards/directories.md) 中维护，采用后按选择进入项目 `docs/standards`。
 
-当前版本重点强化了五件事：
-- **一句话官方升级**：模板应用一次后，在实际项目中说“更新息壤模板”，Agent 会在专用 worktree 执行 `pnpm agent -- template sync`，required fetch 固定 GitHub 上游并从本次远端 SHA 自举最新 updater。
-- **轻量路由**：任一时刻只激活 1 位专家，先读专家短卡片，再按需点读 Playbook 章节。
-- **Worktree-First 并行任务**：只读排查不建 worktree；任何会修改 tracked 文件的任务自动创建/恢复专属 worktree，创建后进入 `WORKTREE_PATH` 开发。
-- **Scalar 风格仓库拓扑**：主 `repo/` 保持在 `main` 作为协调区；并行 worktree、缓存、构建产物和临时报告放在容器层 `../worktrees/`、`../cache/`、`../artifacts/`、`../tmp/`。
-- **自动化交付闭环**：TDD 完成后串联 `/tdd sync`、`/tdd push`、`/qa plan`、`/qa verify`、`/qa merge`，并由 DevOps 专家负责 CI/CD、环境与部署。
+## 首次接入项目
 
-## 模板目标与价值
-- 统一协议：三款 CLI 共用 `[[ACTIVATE: ...]]`、`/prd`、`/arch`、`/task`、`/tdd`、`/qa`、`/devops` 等激活语法，降低多工具切换成本。
-- 最小上下文：专家文件与 Handbooks 分离，只有当前阶段需要的内容进入上下文。
-- 状态驱动：以 `docs/AGENT_STATE.md` 记录 PRD_CONFIRMED → ARCHITECTURE_DEFINED → TASK_PLANNED → TDD_DONE → QA_VALIDATED → DEPLOYED 六阶段进度。
-- 产物驱动：PRD → 架构 → 任务 → TDD → QA → DevOps 串行交接，以 `/docs` 下的产物文件作为阶段输入与唯一真相来源。
-- 模块化唯一结构：所有项目均按功能域维护 PRD / ARCH / TASK / QA；主文档只保留总纲与模块索引，详细内容按需加载模块文档。
-- 可整体复制：项目差异集中在 `agent.config.json`、环境变量或 CLI 参数中，模板文件尽量不需要在实际项目中修改。
-- 工程闭环：内置脚本入口、Review Gate、QA Gate、worktree 管理和部署命令约定；`package.json` 只通过安全合并脚本追加缺失 aliases，不覆盖项目自有内容。
+准备 Node.js、pnpm 和 Git。生成应用时再满足所选技术栈的工具链要求，详见[初始化与安装](architecture/README.md#初始化与安装)。
 
-## Monorepo 与按需组件
+目标目录必须已经存在。全新项目可先使用尚未加入 Git 的空目录；已有 Git 项目先按自身生命周期准备干净的专用 linked worktree，把它作为目标。已有息壤的项目使用下一节的 worktree 命令。项目接入后，tracked 文件修改统一遵守 [AGENTS.md](AGENTS.md) 的任务和 worktree 门禁。
 
-息壤 3.2 增加四种多端预置组合、pnpm workspace、Prisma PostgreSQL/SQLite、OpenAPI/API client/Query、共享布局和平台端口。依赖只安装于选定的实际项目，模板源维护实现与版本清单。完整命令与升级边界见 [Monorepo 指南](architecture/guides/monorepo.md)。
+在息壤源仓库执行下列命令；把占位目标替换为实际路径，包含空格时保留引号：
 
-息壤 3.3 提供认证与权限、后台任务、统一文件存储、上传/富文本/图表/虚拟表格/拖拽/流程画布、国际化、日志、追踪和 API Mock 的可选实现。组件状态、版本与备选条件见 [完整组件目录](architecture/open-source-catalog.json)；接线和升级见 [开源能力指南](architecture/guides/open-source-components.md) 与 [文件存储指南](architecture/guides/file-storage.md)。
+~~~bash
+# 先预览作业包
+pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent --dry-run
 
-息壤 3.4 将实际项目的架构包改为轻量入口：项目保留 7 个架构 metadata/入口文件与共用更新工具，完整生成器和未选模板留在息壤源或容器缓存。只用作业包无需启用架构；启用后按项目选择生成代码、安装依赖，再逐步增加能力。原始 3.3 全量架构目录在普通同步时按所有权安全缩减；固定提交与摘要保证缓存重建不会误用其他版本。目录减少不代表按单组件下载 Git，缓存仍可保存完整运行源码快照。
+# 核对计划后应用；命令内部还会预演、检查冲突并验证再次预演收敛
+pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent
 
-## 目录速览
-- `AGENTS.md`：轻量级路由说明，定义阶段流程、激活语法、质量门禁与上下文规范。
-- `AgentRoles/*.md`：六位专家的运行时短卡片（PRD / ARCH / TASK / TDD / QA / DevOps）。
-- `AgentRoles/Handbooks/*.playbook.md`：详尽操作手册；`AgentRoles/Handbooks/README.md` 概览各手册作用。
-- `docs/`：阶段产物与运行状态，含 `PRD.md`、`ARCH.md`、`TASK.md`、`QA.md`、`AGENT_STATE.md`、`CONVENTIONS.md` 及数据资料。
-  - `docs/prd-modules/`：所有功能域的详细需求与模块清单。
-  - `docs/arch-modules/`：所有功能域的详细系统设计与模块清单。
-  - `docs/task-modules/`：所有功能域的详细任务计划与模块清单。
-  - `docs/qa-modules/`：所有功能域的详细测试计划与模块清单。
-  - `docs/data/traceability-matrix.md`：需求追溯矩阵，集中维护 Story → AC → Test Case ID 映射。
-- `docs/adr/`：架构决策记录（ADR）模板目录。
-- `infra/scripts/`：PRD / ARCH / TASK / TDD / QA / DevOps 自动化脚本。
-- `agent.config.json`：目标项目覆盖配置；首次应用时由 `infra/templates/agent/config.example.json` 初始化，项目差异只改这里。
-- `infra/templates/agent/config.example.json`：template-owned 默认配置示例，升级模板时可覆盖。
-- `infra/templates/agent/package-scripts.example.json`：template-owned 可选 package scripts 清单；通过 `infra/scripts/setup/merge-package-scripts.js` 合并，禁止直接覆盖目标项目 `package.json`。
-- `infra/templates/agent/template.manifest.json`：template-owned 模板应用策略清单，声明哪些路径可覆盖、只初始化、只合并、项目自有或排除。
-- 数据库迁移目录由目标项目决定，可在 `agent.config.json paths.migrationsDir` 中声明。
-- `.gemini/`：定义 Gemini CLI 的上下文配置，指向 `AGENTS.md` 而非默认 `GEMINI.md`。
-- `CLAUDE.md`：Claude Code CLI 的入口提示，确保其读取 `AGENTS.md`。
-- `.codex/`、`.claude/`：CLI 侧辅助说明与上下文入口。
+# 如果现在需要架构规划入口，可在相同目标上追加
+pnpm agent -- template update "<目标目录或目标-worktree>" --include architecture
+~~~
 
-## 快速开始
-1. 在模板仓库 `repo/` 下执行一键应用或升级，目标路径支持相对路径：
-   `pnpm agent:update-template -- ../target-project/repo`
-2. 完成这一次引导安装后，以后只需在实际项目中对 Agent 说“更新息壤模板”；模板协议会自动建立修改 worktree、从官方 GitHub 获取最新 SHA，并执行安全升级与项目交付门禁。
-3. `package.json` 不复制、不覆盖；脚本只通过 `infra/templates/agent/package-scripts.example.json` 追加缺失 aliases，冲突项保留项目原值并阻断自动写入。
-4. 变量统一放到目标项目根目录的 `agent.config.json`、环境变量或 CLI 参数；不要修改 `infra/templates/agent/` 下的 template-owned 文件。
-5. 在 Codex CLI、Claude Code CLI 或 Gemini CLI 中加载 `AGENTS.md` 作为初始上下文。
-6. 只读排查直接执行，不创建 worktree；若任务会修改 tracked 文件，执行 `node infra/scripts/worktree-tools/worktree-new.js` 或 `node infra/scripts/agent-runner/agent-run.js` 创建/恢复 worktree。
-7. 创建成功后进入脚本输出的 `WORKTREE_PATH`：VSCode/Codex 扩展打开该目录；Codex CLI/OpenClaw/Hermes 后续命令以该目录为 CWD。
-8. 根据项目阶段激活专家；执行器完成修改后按 TDD/QA/DevOps 流程 push/PR/QA/merge/cleanup，并输出修改清单与模板应用清单。
+首次接入会初始化缺失的项目配置和环境示例；已有 `agent.config.json`、环境文件、`RULES.md`、业务源码和真实项目文档保持项目所有。根 `package.json` 按字段合并，项目名称、业务依赖和项目独有脚本保留。
 
-## 一键应用与重复升级
-`update-template.js` 封装了模板升级全流程：先 dry-run，发现 `package.json scripts` 冲突则阻断；无冲突后自动写入、校验 JSON、执行 `git diff --check` 并输出修改清单。首次应用时还会补齐 `.env.example`、`.env.staging.example`、`.env.production.example`、`.env.local`、`.env.staging`、`.env.production`；已有环境文件永不追加或覆盖。dry-run/write 日志按目标项目主 `repo/` 解析到容器层 `../tmp/template-apply-reports/`，不落在模板或目标项目 `repo/` 中，也不落到 `worktrees/tmp`。
+将生成的 `xirang.lock.json` 与 `.xirang/baselines/` 一起提交。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。新项目应在完成自身 Git 初始化后纳入版本管理；已有 Git 项目完成下面的交付链再合并。
 
-`template sync` 是实际项目的官方升级入口。它只在干净的 linked worktree 中运行，通过独立匿名 HTTPS Git 环境 required fetch `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main`，固定本次 commit SHA，在隔离快照中校验息壤身份和 manifest，再调用该 SHA 自带的最新版 `update-template.js`。fetch 或源校验失败时不会改动目标 tracked 文件，也不会回退到项目内旧副本；成功应用后必须再次 dry-run 证明收敛。
+## 已接入项目的日常更新
 
-官方模板下载不要求项目 token 拥有息壤仓库权限：项目 `GH_TOKEN` 未配置或失效都不影响此下载步骤，日志显示 `TEMPLATE_AUTH_MODE=ANONYMOUS`；项目自身的 worktree 基线刷新、推送和 PR 仍需要该项目的正常鉴权。匿名下载屏蔽用户 Git 配置，不修改这些配置；只写在 Git 配置里的代理/CA 需改用 `HTTPS_PROXY`、`GIT_SSL_CAINFO` 或 `GIT_SSL_CAPATH` 环境变量。TLS 校验保持开启，不跟随重定向。官方仓库若不再公开，同步会阻断。
+在实际项目说“更新息壤模板”，执行器会按 `AGENTS.md` 登记任务与可观察验收，建立专用 worktree，然后执行官方同步和项目交付链。核心命令如下：
 
-从 v2.2.0 升级到此版本时，第一次启动仍使用项目内的旧引导器；若旧引导器因无效 token 阻断，可在息壤源仓库通过 `pnpm agent -- template update <目标项目专用-worktree>` 完成一次引导升级。之后官方获取即与项目 token 隔离。
+~~~bash
+# 在目标项目中执行；task id 与已登记的更新任务保持一致
+pnpm agent -- worktree new --phase=tdd --task update-xirang
 
-```bash
-# 首次应用或重复升级，目标路径支持相对路径
-pnpm agent:update-template -- ../target-project/repo
-
-# 仅预览，不写入
-pnpm agent:update-template -- ../target-project/repo --dry-run
-
-# 已完成引导安装的实际项目：必须在专用 linked worktree 中执行
+# 切换到输出的 NEXT_CWD 后执行
 pnpm agent -- template sync
+~~~
 
-# 部署/cron 快捷命令保留；项目耦合脚本由目标项目通过 agent.config.json 接入
-```
+默认同步更新作业包和已经采用的架构选择。只更新作业包用 `--scope agent`；首次加上轻量架构入口用 `--include architecture`。同步本身不会添加新的应用、数据库或技术模块，也不会代替项目运行数据库迁移或部署。
 
-应用策略：
-- `overwrite`：模板协议和核心脚本，可覆盖升级。
-- `remove`：只删除 manifest 明确登记的废弃 template-owned 文件，不支持目录删除，也不能越出目标仓库。
-- `init-if-missing`：目标没有才创建，例如 `docs/AGENT_STATE.md`、`agent.config.json` 和三个 `.env.*example` 文件。
-- `append-block`：用 managed block 合并，例如 `.gitignore`、`.envrc`。
-- `merge-package-scripts`：只向 `package.json` 追加缺失 scripts，已有 scripts 永不覆盖。
-- `project-owned` / `generated`：目标项目自有或生成文件，永不覆盖。
-- `exclude`：目标项目自有内容，模板不应用；部署/cron 命令保留为 `devops-run.js` 配置入口。
+官方同步每次通过匿名 HTTPS 获取[官方仓库](https://github.com/hollisyao2024/PromptsEngineering.git)的 main，固定本次 commit SHA，再执行该提交内的 updater。下载不读取项目 `GH_TOKEN`；项目自身的 fetch、push 和 PR 继续使用项目鉴权封装。获取失败或源校验失败会阻断，不使用缓存假装获取了最新版。仅在 Git 配置中设置的代理或 CA 不会被继承；需要时通过 `HTTPS_PROXY`、`GIT_SSL_CAINFO` 或 `GIT_SSL_CAPATH` 环境变量提供。
 
-template-owned 文件说明：
-- `infra/templates/agent/config.example.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json` 会复制到目标项目，但属于模板协议文件，后续升级可能覆盖。
-- 三个 example 环境文件可由 Git 跟踪；三个非 example 实际文件从对应 example 首次生成并由 `.gitignore` 忽略，之后完全由目标项目维护。
-- 实际项目需要改配置时，只改 `agent.config.json`、环境变量、CLI 参数、目标项目 `package.json` 或 `scripts/ops/` 等 project-owned 文件。
-- 如果确实需要扩展模板应用策略，优先回到模板仓库修改并升级模板，不在单个实际项目里手改 `infra/templates/agent/template.manifest.json`。
+文档或脚本更新之后，继续在该 worktree 完成交付：
 
-剥离出来的变量统一进入 `agent.config.json`，例如：
-- `paths.*`：应用目录、数据库目录、迁移目录、E2E/性能/安全目录。
-- `commands.*`：lint、typecheck、test、build、QA 命令。
-- `release.*`：是否递增版本、是否更新 CHANGELOG、是否打 tag。
-- `devops.*`：部署开关、应用目录、构建/启动命令、环境配置。
-- `cron.*`：定时任务是否启用与任务注册表。
+~~~bash
+pnpm agent -- tdd sync
+pnpm agent -- tdd push
+pnpm agent -- qa plan
+pnpm agent -- qa verify
+pnpm agent -- qa merge
+~~~
 
-### 实际项目 Ops 一次性迁移
+合并前会复验 QA 回执与当前 base/head SHA；发现漂移需重新同步和 QA。合并后在主 worktree 复核本地与远端主分支、执行 `pnpm agent -- finish`，再关闭对应 task。各阶段只运行本地门禁；GitHub workflows 由实际项目维护。
 
-模板不再提供 `infra/scripts/server/`、`infra/scripts/cron/` 的具体实现，但 `/ship`、`/cd`、`/ci`、`/env`、`/restart` 这些命令仍保留，统一通过 `infra/scripts/devops-tools/devops-run.js` 调度。实际项目只需做一次迁移：把自己的部署、cron、本地服务脚本放到项目自有目录（推荐 `scripts/ops/`），再在 `agent.config.json` 接入。
+## 从缺少基线的旧版接入
 
-```json
-{
-  "devops": {
-    "deployEnabled": true,
-    "commands": {
-      "ship": {
-        "dev": "bash scripts/ops/deploy.sh local dev",
-        "staging": "bash scripts/ops/deploy.sh local staging",
-        "production": "bash scripts/ops/deploy.sh local production"
-      },
-      "cd": {
-        "staging": "bash scripts/ops/deploy.sh ci staging",
-        "production": "bash scripts/ops/deploy.sh ci production"
-      },
-      "envCheck": {
-        "dev": "bash scripts/ops/env-check.sh dev",
-        "staging": "bash scripts/ops/env-check.sh staging",
-        "production": "bash scripts/ops/env-check.sh production"
-      }
-    }
-  },
-  "devServer": {
-    "commands": {
-      "restart": "bash scripts/ops/dev-server.sh restart",
-      "status": "bash scripts/ops/dev-server.sh status"
-    }
-  },
-  "cron": {
-    "enabled": true,
-    "registry": [
-      { "name": "daily-cleanup", "command": "bash scripts/ops/cron-run.sh daily-cleanup" }
-    ]
-  }
-}
-```
+旧版或手工复制的项目可能没有 `xirang.lock.json` 和 `.xirang/baselines/`。当已有受管文件需要接管时，普通更新会报告 `adoption required`；这需要先检查现有文件相对模板的差异。
 
-可交给大模型执行的一次性迁移指令：
+已支持接管参数的项目，在干净 linked worktree 中执行：
 
-```text
-请执行一次性迁移：把当前项目的部署、cron、本地服务脚本迁移到 project-owned ops 结构。保留快捷命令 /ship、/cd、/env、/restart，但它们必须通过 agent.config.json 接入 infra/scripts/devops-tools/devops-run.js。不要修改模板文件；项目自有脚本放 scripts/ops/，敏感变量继续走环境变量或 CI secrets。迁移后运行 pnpm ship:staging -- --dry-run、pnpm env:check:staging、pnpm dev:status，并输出旧脚本到新配置的映射表。
-```
+~~~bash
+pnpm agent -- template sync --adopt --dry-run
+pnpm agent -- template sync --adopt
+~~~
 
-## Worktree-First 并行开发
-- `diagnose` 模式：排查问题、读代码、跑只读检查，不创建 worktree；临时产物写容器层 `tmp`，缓存写容器层 `cache`，构建/部署产物写容器层 `artifacts`。这些路径由脚本/`agent.config.json` 按主 `repo/` 解析，进入 linked worktree 后不要手写 `../tmp`。
-- `change` 模式：任何会修改 tracked 文件的任务都创建或恢复专属 worktree；主 `repo/` 不承载修改型任务。
-- `new branch` 不是默认工作流；branch 仍由 Git worktree 底层自动创建。少量、单槽、用户明确指定的轻量修改可使用 `node infra/scripts/tdd-tools/tdd-new-branch.js --explicit ...`，但不具备并行隔离能力。
-- 每个并行任务对应一个 worktree、一个 branch、一个 PR；合并成功后自动清理 worktree。
-- 外部 agent（OpenClaw、Hermes、Goose 等）只调用 `agent-runner` 或 `worktree-tools` 统一入口，不自行管理 worktree/merge/cleanup。
-- 多任务可并行开发，但 merge 回 `main` 串行排队：自动 `fetch/rebase/verify/merge/cleanup`，只有 Git 冲突或语义冲突才需要人工介入。
+如果旧引导器不识别 `--adopt`、`--scope` 或 `--include`，从新版息壤源仓库对同一个目标 worktree 执行一次引导：
 
-### Worktree 命令速查
-```bash
-node infra/scripts/worktree-tools/worktree-new.js --phase=tdd --task TASK-USER-001 --desc "login"
-node infra/scripts/worktree-tools/worktree-new.js --phase=prd --desc "billing v2"
-node infra/scripts/worktree-tools/worktree-list.js
-node infra/scripts/worktree-tools/worktree-resume.js --branch feature/TASK-USER-001-login
-node infra/scripts/worktree-tools/worktree-remove.js --branch feature/TASK-USER-001-login
+~~~bash
+pnpm agent -- template update "<目标-worktree>" --scope agent --adopt --dry-run
+pnpm agent -- template update "<目标-worktree>" --scope agent --adopt
+~~~
 
-node infra/scripts/agent-runner/agent-run.js --mode=diagnose --desc "inspect failing tests"
-node infra/scripts/agent-runner/agent-run.js --phase=tdd --task TASK-USER-001 --desc "login" --auto
-```
+`adopt` 保留当前内容作为相对所选上游的项目定制，并建立更新依据。它不证明旧文件来自哪个历史版本，也不会把所有旧协议和脚本强制替换成新内容。接管后必须逐项核对保留的协议、入口和脚本是否需要迁移，不能仅凭 lock 中的版本号宣称每个文件都已升级。
 
-运行 `node infra/scripts/setup/merge-package-scripts.js --write` 后，可使用等价的 `pnpm run worktree:new` / `pnpm run agent:run` aliases。`/tdd new-worktree`、`/tdd worktree list/remove`、`/tdd resume` 保留为兼容入口；`/tdd new-branch` 默认阻断并提示使用 worktree，仅 `--explicit` 时创建普通 branch，且默认不合并到目标项目 package aliases。
+已有基线但出现本地漂移或重叠修改时，按计划处理冲突；`adopt` 不能绕过已有的冲突保护。具体语义和恢复方法见[更新、接管与恢复](architecture/README.md#更新接管与恢复)。
 
-```bash
-node infra/scripts/tdd-tools/tdd-new-branch.js --explicit --desc "fix typo"
-node infra/scripts/tdd-tools/tdd-new-branch.js --explicit --task TASK-USER-001 --desc "login"
-```
+## 按需求初始化架构
 
-`infra/scripts/agent-runner/agent-run.js` 是外部 agent 的生命周期入口：它负责规范任务模式、创建/恢复 worktree、输出 `NEXT_CWD` 与结构化状态；具体 PRD/ARCH/TASK/TDD/QA/DevOps 工作仍由激活后的专家或外部执行器完成。
+获得轻量入口后，在实际项目中执行：
 
-## 命令作用域速查（TDD / QA）
-以下 5 个命令采用统一规则：
-- 裸命令（前后无描述/参数）默认 `session`：仅处理当前会话内容
-- 显式 `--project`（或附加明确描述/参数）进入 `project`
-- 说明：`/tdd push`、`/qa merge` 在两种作用域下都只处理当前分支/当前 PR，不会操作其他分支
+~~~bash
+pnpm agent -- architecture catalog
+pnpm agent -- architecture detect
+~~~
 
-| 命令 | 默认（session） | 项目级（project） |
-|------|------------------|-------------------|
-| `/tdd sync` | `node infra/scripts/tdd-tools/tdd-sync.js` | `node infra/scripts/tdd-tools/tdd-sync.js --project` |
-| `/tdd push` | `node infra/scripts/tdd-tools/tdd-push.js`（推送当前分支并创建当前分支 PR） | `node infra/scripts/tdd-tools/tdd-push.js --project bump "release note"` |
-| `/qa plan` | `/qa plan`（仅会话范围） | `/qa plan --project`（全量刷新） |
-| `/qa verify` | `/qa verify`（仅会话范围） | `/qa verify --project`（项目级验收） |
-| `/qa merge` | `node infra/scripts/qa-tools/qa-merge.js`（合并当前分支对应 PR） | `node infra/scripts/qa-tools/qa-merge.js --project`（显式项目模式） |
+`catalog` 列出可选实现；`detect` 只读识别现状并提供建议。ARCH 阶段根据需求确认应用、存储、平台、模块与实际目录，写入项目所有的 `architecture.config.json` 和架构决策，再执行：
 
-## 阶段化工作流
-1. **PRD 专家**：明确产品目标、用户故事、验收标准；必要时补写 ADR。
-   - 始终生成主 PRD 总纲、模块清单、模块 PRD 与追溯矩阵。
-   - 支持企业级需求管理工具链（见下文）
-2. **架构专家**：输出 C4 架构视图（上下文/容器/组件）、数据/接口/运维/安全视图与技术选型；同步 ADR。
-   - 始终生成主 ARCH 总纲、模块清单与模块 ARCH。
-3. **任务规划专家**：拆解 WBS、依赖矩阵、关键路径（CPM）、里程碑与风险，沉淀到 `/docs/TASK.md`。
-   - 始终生成主 TASK 总纲、模块清单与模块 TASK；详细 WBS 只保存在模块文档。
-4. **TDD 专家**：以严格红→绿→重构流程开发，实现后执行 CI、文档回写并移交 QA；版本、CHANGELOG、tag 由 `release.*` 配置控制。
-5. **QA 专家**：基于 `/docs/QA.md` 制定测试策略（功能/集成/性能/安全）、执行验证并输出发布建议。
-   - 始终生成主 QA 总纲、模块清单、模块 QA 与追溯矩阵。
-6. **DevOps 专家**：统一管理 CI/CD 流水线、环境管理（dev/staging/production）、部署运维与部署后验证，确保从构建到上线全链路自动化。
+~~~bash
+pnpm agent -- architecture validate --config architecture.config.json
+pnpm agent -- architecture plan --config architecture.config.json
+pnpm agent -- architecture init --config architecture.config.json
+pnpm agent -- architecture check
+~~~
 
----
+plan 不写入项目目标；缓存缺失时可能先准备固定源码缓存。`init` 生成所选代码并默认安装依赖，之后还要运行相应应用的测试和构建。只生成文件可指定 `--no-install`，随后用 `architecture install-deps` 补齐依赖。冻结计划由 `architecture apply --plan` 消费，它只写文件、不隐式安装依赖。
 
-## PRD 工具链状态
-模板默认只合并已实现、可运行的 PRD alias，避免目标项目得到坏命令：
+现有 Go、Node、PostgreSQL、SQLite 和目录位置都由项目选择。`detect` 不能擅自换栈；现有 DataTable 的位置和别名需要明确映射，初始化不会自动搬迁业务目录。增选模块使用显式 `architecture init/update`；减选不会自动卸载仍可能被业务引用的代码。
 
-```bash
-pnpm run prd:lint
-pnpm run prd:check-dependency-cycles
-pnpm run nfr:check-compliance
-```
+| 能力 | 源仓库参考 |
+| --- | --- |
+| 多端 Monorepo、4 种蓝图、Node/Prisma PostgreSQL 与 SQLite、契约和 API client | [Monorepo 指南](architecture/guides/monorepo.md) |
+| shadcn 基础控件、公共 DataTable、表单、选择器、状态与高级交互 | [组件说明](architecture/components/shadcn/README.md) |
+| 身份、权限、任务、国际化、日志、追踪、API Mock | [开源能力指南](architecture/guides/open-source-components.md) |
+| 本地、S3、阿里云 OSS、腾讯云 COS 及多存储路由 | [文件存储指南](architecture/guides/file-storage.md) |
+| 每项组件的实现状态、采用条件与备选方案 | [完整组件目录](architecture/open-source-catalog.json) |
 
-CR、优先级矩阵、角色覆盖、目标追溯、前置验证报告等属于可选治理主题。模板保留文档模板和方法，但不默认声明 `cr:*`、`priority:*`、`persona:*`、`goal:*`、`prd:preflight-report` 等 aliases；目标项目实现对应脚本后，再通过项目自己的 `package.json` 或 `agent.config.json` 增加入口。
+## 源目录与实际项目目录
 
----
+| 位置 | 息壤源仓库 | 实际项目 |
+| --- | --- | --- |
+| `agent/`、`AgentRoles/`、`infra/scripts/` | 作业包及兼容执行入口 | 按作业包 `manifest` 安装和更新 |
+| `architecture/` | 标准、组件 Registry、模块、蓝图、生成器和测试 | 7 个轻量 metadata/入口文件；完整模板不复制到业务仓库 |
+| `tooling/xirang/` | 共享更新引擎、来源验证和恢复工具 | 随所采用能力安装 |
+| `apps/<app>/` | 各技术模板位于 architecture 中 | 独立应用的实际源码 |
+| `packages/<module>/` | 各模块模板位于 architecture 中 | 选定共享组件与公共模块 |
+| docs/standards/ | 原文位于 `architecture/standards/` | 所采用架构的目录和技术约束 |
+| `architecture.config.json` | 提供 schema、示例和蓝图 | 项目自行维护的真实选择 |
 
-### 预期收益（基于中型项目 50+ Story）
+实际项目的 `architecture/runtime.json` 固定来源提交、版本和内容摘要。完整生成器在容器 `cache/xirang/sources/` 按需准备；命令会输出 `ARCHITECTURE_SOURCE_ROOT`，可从其中的 `architecture/guides/` 读取匹配版本指南。缓存命中时可离线使用；丢失时重新获取同一提交，损坏或来源漂移时阻断。获取最新版本仍使用 `template sync`。
 
-| 指标 | 改进幅度 |
-|------|---------|
-| 变更管理效率 | **+40%** |
-| 需求返工率 | **-30%** |
-| 优先级决策时间 | **-50%** |
-| QA 验证效率 | **+25%** |
-| PRD 评审一次通过率 | **50% → 80%** |
+Git 下载和缓存可能包含完整源码快照；轻量化指项目只提交入口和所选生成物，不承诺逐组件网络下载。3.3 全量 runtime 升级到 3.4 时，仅缩减 lock 登记且未被项目修改的旧 runtime 文件；项目定制、未知文件及其他所有者引用的基线保留。
 
----
+前端选用 shadcn 时，默认基础控件在 `<app>/<sourceDir>/components/ui/`，公共表格在 `<app>/<sourceDir>/components/data-table/`；也可映射到 `packages/ui/src/` 下供多端复用。业务层遵守项目 `docs/standards/ui.md`，统一通过公共组件实现交互。完整目录与映射规则见[目录标准](architecture/standards/directories.md)。
 
-## 上下文最小化策略
-- 任一时刻只激活 1 位专家；未激活角色的长卡片和 Handbooks 不进入上下文。
-- 专家需要额外细节时，引用 Handbooks 中的相关章节，而非整体加载。
-- 产物文件是阶段输入与交接的唯一来源，避免多源信息漂移。
+容器拓扑与应用内部目录分别管理：
 
-## 自定义与扩展建议
-- 若团队流程不同，可修改 `AGENTS.md` 的状态机或快捷命令；保持阶段产物路径一致即可。
-- 可在 `AgentRoles/Handbooks` 中增补团队自定义章节，确保引用粒度尽量小。
-- 数据库迁移模板按目标技术栈放入项目自有目录，并在 `agent.config.json paths.migrationsDir` 中声明。
-- `/ci`、`/ship`、`/cd`、`/env`、`/restart` 统一通过 `infra/scripts/devops-tools/devops-run.js` 调度，实际命令写入 `agent.config.json`。
-- 若引入新增阶段或角色，记得同步更新 `AGENTS.md`、`docs/AGENT_STATE.md` 与相关 Playbook，以保持路由与产物一致。
+~~~text
+<container>/
+├── repo/          # 主 worktree，协调与生命周期入口
+├── worktrees/     # 修改任务的 linked worktree
+├── tmp/           # 任务、锁、报告和短期证据
+├── cache/         # 可重建源码和工具缓存
+└── artifacts/     # 构建与交付产物
+~~~
 
----
+脚本通过共享配置解析容器路径；linked worktree 中不手写 `../tmp`。`node_modules` 在各 worktree 独立建立，依赖内容复用交给包管理器 store。
 
-## 拷贝指引：将模板应用到自己的项目
-**推荐整体复制**
-- `AGENTS.md`
-- `AgentRoles/`
-- `docs/CONVENTIONS.md`、`docs/data/templates/`、各模块 `MODULE-TEMPLATE.md`
-- `infra/scripts/shared/`、`worktree-tools/`、`agent-runner/`、`devops-tools/`、`setup/`、PRD/ARCH/TASK/TDD/QA 工具脚本
-- `infra/templates/agent/`
-- `.gemini/`、`CLAUDE.md`（如需要 Gemini / Claude Code 入口）
+## 更新与定制的边界
 
-**按项目情况合并**
-- `package.json`：不要复制覆盖；通过 `node infra/scripts/setup/merge-package-scripts.js --write` 从 `infra/templates/agent/package-scripts.example.json` 只追加缺失 scripts，冲突项人工决定
-- `.gitignore`
-- `.envrc`
-- `.github/workflows/`
-- `README.md`、`CHANGELOG.md`
-- 项目自有迁移目录模板
-- `agent.config.json`（复杂项目可由 example 复制后维护）
-- 部署/cron 项目自有脚本：模板不提供 `infra/scripts/server/`、`infra/scripts/cron/` 实现；实际项目通过 `agent.config.json devops.*` / `cron.*` 接入自己的命令
+| 内容 | 更新方式 |
+| --- | --- |
+| 模板作业协议、执行工具、轻量架构入口 | `overwrite`；先验证已安装基线，本地漂移会阻断 |
+| 已实例化的组件、公共模块、技术标准 | `update`；三方合并保留项目定制，重叠修改报冲突 |
+| `package.json` 等共享配置 | 按字段三方合并；项目独有键保留，未定制的受管脚本可随上游更新 |
+| 迁移与稳定 ID 注册项 | 只追加；已有内容不可改写 |
+| `.gitignore`、`.envrc` 的受管区域 | `managed-block`；块外内容归项目 |
+| 初始业务代码、配置、环境示例 | `init-if-missing`；已有文件保持原样 |
+| `RULES.md`、项目独有源码、真实项目文档、部署实现、`.github/workflows/` | 项目所有，模板不写入 |
 
-**不要复制**
-- 模板根 `package.json`（目标项目保留自己的文件）
-- `.env.local`、`.env.*` 非 example 文件
-- `.codex/auth.json`、`.codex/sessions/`
-- `.claude/settings.local.json`
-- `.gemini/settings.local.json`
-- `node_modules/`
-- 容器层 `../worktrees/`、`../tmp/`、`../cache/`、`../artifacts/`
+项目差异写入稀疏 `agent.config.json`、`architecture.config.json`、环境变量或项目自有文件。通用协议或工具本身需要改进时，更新息壤源再分发。已有项目的旧 package aliases 保留兼容；新说明统一使用 pnpm agent -- <domain> <action>。
 
-> 拷贝完成后，优先通过 `agent.config.json` 调整目标项目差异；不要把业务项目细节写回模板文件，这样后续可以整体覆盖升级模板。
+中断时保留 worktree 和日志，按冻结计划恢复。已安装架构入口用 `pnpm agent -- architecture resume`；仅作业包用 `node tooling/xirang/resume.js`。恢复完成后补检查和交付；不要删除基线或把本地文件手工标记为未修改。
 
----
+模板回灌使用显式 `template backfill` 操作，只处理可回灌的 template-owned 差异。具体限制见 [AGENTS.md](AGENTS.md) 与[通用约定](docs/CONVENTIONS.md)。
 
-将本模板纳入项目后，你可以按阶段逐步加载专家角色，在多模型编码环境中获得一致、可维护的产物和工作流。祝使用顺利！
+## 模型作业流程
+
+`AGENTS.md` 是轻量路由；任一时刻激活一位专家，再按需读取 [AgentRoles/Handbooks](AgentRoles/Handbooks/README.md)。
+
+既有范围内的缺陷、重构、测试、文档和工具维护采用日常流程：只读诊断 → 专用 worktree → TDD → QA → 合并交付。需求、架构、数据合约、权限或部署拓扑变化采用治理流程：PRD → ARCH → TASK → TDD → QA，需要环境或发布工作时再进入 DEVOPS。
+
+治理文档采用总纲和模块目录，详情在 `docs/{prd|arch|task|qa}-modules/`；`docs/AGENT_STATE.md` 只记录六阶段稳定里程碑。长任务步骤、分支、PR、重试与恢复分别进入容器 tmp 的 `task/worktree session`，不写成稳定文档日志。
+
+各工具入口和完成条件以 [AGENTS.md](AGENTS.md) 和[通用约定](docs/CONVENTIONS.md)为准。项目的本地服务、构建、部署和平台命令通过 `agent.config.json` 接入；显式平台、环境或 profile 缺少配置时阻断，由项目补齐实际实现。
