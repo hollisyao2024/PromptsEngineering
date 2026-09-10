@@ -199,13 +199,16 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
   }
   const lockAfter = json(nextLock);
   const metadataChanges = [];
+  const retainedBases = new Set(Object.values(nextLock.files).map(record => record.base));
+  const baselineRemovals = [...new Set(Object.values(previous.files).map(record => record.base))]
+    .filter(digest => !retainedBases.has(digest)).sort();
   if (lockBefore !== lockAfter) metadataChanges.push(LOCK);
   for (const entry of entries) {
     if (entry.strategy === 'project-owned' || entry.strategy === 'remove' || entry.reason) continue;
     const p = `.xirang/baselines/${hash(entry.upstream)}`;
     if (read(target, p, true) === null && !metadataChanges.includes(p)) metadataChanges.push(p);
   }
-  const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges] };
+  const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineRemovals.map(digest => `.xirang/baselines/${digest}`)] };
   plan.id = hash(json(plan));
   return plan;
 }
@@ -218,6 +221,8 @@ function validatePlan(plan) {
     if (!STRATEGIES.has(entry.strategy)) throw new Error('invalid plan strategy');
   }
   if (plan.conflicts.length) throw new Error(`plan has ${plan.conflicts.length} conflict(s)`);
+  const retained = new Set(Object.values(parseJson(plan.lockAfter, 'next lock').files).map(record => record.base));
+  for (const digest of plan.baselineRemovals || []) if (!/^[a-f0-9]{64}$/.test(digest) || retained.has(digest)) throw new Error('unsafe baseline removal');
 }
 function atomicWrite(file, text, mode = 0o644) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -226,10 +231,27 @@ function atomicWrite(file, text, mode = 0o644) {
   try { fd = fs.openSync(tmp, 'wx', mode); fs.writeFileSync(fd, text); fs.fsyncSync(fd); fs.closeSync(fd); fd = undefined; fs.renameSync(tmp, file); }
   finally { if (fd !== undefined) fs.closeSync(fd); if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
 }
+function removeEmptyParents(target, file) {
+  for (let directory = path.dirname(file); directory !== path.resolve(target); directory = path.dirname(directory)) {
+    const relative = path.relative(target, directory).split(path.sep).join('/');
+    safePath(target, relative);
+    try { fs.rmdirSync(directory); }
+    catch (error) { if (['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) return; throw error; }
+  }
+}
 function runDirectory(target, runRoot) {
   if (!runRoot) throw new Error('runRoot must be an explicit external runtime directory');
   if (path.resolve(runRoot) === path.resolve(target) || path.resolve(runRoot).startsWith(path.resolve(target) + path.sep)) throw new Error('runRoot must be outside target');
-  const dir = safePath(path.resolve(runRoot), hash(path.resolve(target)).slice(0, 24));
+  const canonicalTarget = fs.realpathSync(target);
+  const aliases = new Set([canonicalTarget, path.resolve(target)]);
+  // Older plans may have used a macOS system alias before cwd resolved it.
+  if (process.platform === 'darwin') for (const prefix of ['/var', '/tmp', '/etc']) {
+    if (canonicalTarget.startsWith('/private' + prefix + path.sep)) aliases.add(canonicalTarget.slice('/private'.length));
+  }
+  const candidates = [...aliases].map(value => safePath(path.resolve(runRoot), hash(value).slice(0, 24)));
+  const existing = candidates.filter(value => fs.existsSync(value));
+  if (existing.length > 1) throw new Error('ambiguous update journals for project path aliases; inspect before recovery');
+  const dir = existing[0] || candidates[0];
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -279,14 +301,19 @@ function execute(plan, options, recovering) {
     }
     // Recheck baseline integrity at execution, not only when planning.
     for (const record of Object.values(readLock(plan.target).files)) baseline(plan.target, record);
+    if (!recovering) {
+      const previousBases = new Set(Object.values(readLock(plan.target).files).map(record => record.base));
+      for (const digest of plan.baselineRemovals || []) if (!previousBases.has(digest)) throw new Error('baseline removal lacks previous ownership');
+    }
     journal = { schemaVersion: 1, status: 'running', plan, completed: journal?.plan?.id === plan.id ? journal.completed : [] };
     atomicWrite(journalFile, json(journal), 0o600);
     for (const entry of plan.entries) {
       const current = hash(read(plan.target, entry.path));
-      if (current === entry.afterHash) continue;
+      if (current === entry.afterHash) { if (entry.after === null) removeEmptyParents(plan.target, safePath(plan.target, entry.path)); continue; }
       if (current !== entry.before) throw new Error(`target drift before write: ${entry.path}`);
       const file = safePath(plan.target, entry.path);
-      if (entry.after === null) fs.unlinkSync(file); else atomicWrite(file, entry.after, entry.mode);
+      if (entry.after === null) { fs.unlinkSync(file); removeEmptyParents(plan.target, file); }
+      else atomicWrite(file, entry.after, entry.mode);
       if (hash(read(plan.target, entry.path)) !== entry.afterHash) throw new Error(`post-write verification failed: ${entry.path}`);
       journal.completed.push(entry.path); atomicWrite(journalFile, json(journal), 0o600);
       options.afterWrite?.(entry);
@@ -302,6 +329,14 @@ function execute(plan, options, recovering) {
     for (const entry of plan.entries) if (hash(read(plan.target, entry.path)) !== entry.afterHash) throw new Error(`final target drift: ${entry.path}`);
     if (read(plan.target, LOCK, true) !== currentLock) throw new Error('lock drift during apply; preserve journal and inspect concurrent changes');
     if (read(plan.target, LOCK, true) !== plan.lockAfter) atomicWrite(safePath(plan.target, LOCK, true), plan.lockAfter);
+    options.afterLockWrite?.();
+    // The new lock is durable before retiring baselines; recovery no longer needs their contents.
+    for (const digest of plan.baselineRemovals || []) {
+      const relative = `.xirang/baselines/${digest}`, existing = read(plan.target, relative, true);
+      if (existing === null) continue;
+      if (hash(existing) !== digest) throw new Error('retired baseline changed; preserve journal and inspect');
+      fs.unlinkSync(safePath(plan.target, relative, true));
+    }
     journal.status = 'complete'; atomicWrite(journalFile, json(journal), 0o600);
     return { status: 'OK', planId: plan.id, changes: plan.changes, journal: journalFile };
   });
@@ -309,7 +344,7 @@ function execute(plan, options, recovering) {
 function applyPlan(plan, options = {}) { return execute(plan, options, false); }
 function resumePlan(target, options = {}) {
   const dir = runDirectory(target, options.runRoot), journal = parseJson(fs.readFileSync(safePath(dir, 'active.json'), 'utf8'), 'journal');
-  if (path.resolve(journal.plan.target) !== path.resolve(target)) throw new Error('journal target mismatch');
+  if (fs.realpathSync(journal.plan.target) !== fs.realpathSync(target)) throw new Error('journal target mismatch');
   return execute(journal.plan, options, true);
 }
-module.exports = { planUpdate, applyPlan, resumePlan, readLock, hash, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite };
+module.exports = { planUpdate, applyPlan, resumePlan, readLock, hash, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite, withMutex, validatePlan };

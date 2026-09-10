@@ -2,6 +2,8 @@
 
 息壤源码保存模板、维护的 shadcn/组合组件源码、版本清单和必要的更新器工具。它不安装全部应用依赖。实际项目选定蓝图或显式架构配置后，初始化器才在消费者根安装 workspace；Go/Rust 工具链仍由使用者准备。验证所需依赖在隔离消费者建立，不把 node_modules、数据库、Prisma Client 或构建产物提交到模板源。
 
+实际项目只获得轻量架构入口，完整生成器和未选蓝图留在固定版本的源码缓存。蓝图不是强制套餐：小型项目可只选一个应用与必要组件，后续显式增加端、存储或公共模块。获取工具用 template sync --include architecture；采用选择用 init/update。来源与缓存协议见 [架构入口](../README.md)。
+
 ## 新建项目与预置组合
 
 在实际项目的 linked worktree 中运行：
@@ -14,7 +16,7 @@ pnpm build
 pnpm type-check
 ~~~
 
-空目录也可以从息壤源码使用 node architecture/scripts/cli.js init --target <空目录> --blueprint admin-api --database sqlite。plan/dry-run 不写入；init --no-install 只生成文件。随后用 architecture install-deps 安装并生成客户端，使用 architecture check 检查边界与生成物。
+空目录也可以从息壤源码使用 node architecture/scripts/cli.js init --target <空目录> --blueprint admin-api --database sqlite。plan/dry-run 不写入项目文件；轻量入口在缺失缓存时会准备固定源码。init --no-install 只生成文件，随后用 architecture install-deps 安装并生成客户端，使用 architecture check 检查边界与生成物。
 
 | 蓝图 | 实际应用 | 默认存储 |
 | --- | --- | --- |

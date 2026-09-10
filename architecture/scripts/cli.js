@@ -5,22 +5,11 @@ const { spawnSync } = require('node:child_process');
 const { catalog, validateConfig, detectProject, createArchitecturePlan, CONFIG, walk, expandBlueprint } = require('./project');
 const { checkProject } = require('../checks/project-check');
 const { applyPlan, resumePlan, json, read, parseJson, atomicWrite, safePath } = require('../../tooling/xirang/engine');
-function args(argv) {
-  const result={action:argv[0]||'help'}; const values=new Set(['target','source','config','out','plan','scope','run-root','blueprint','database']);
-  for(let i=1;i<argv.length;i++) {
-    const [key,...rest]=argv[i].replace(/^--/,'').split('=');
-    if(values.has(key)) { const value=rest.length?rest.join('='):argv[++i];if(!value||value.startsWith('--'))throw new Error(`--${key} requires a value`);result[key]=value; }
-    else if(['dry-run','no-install','write'].includes(key)) {if(rest.length)throw new Error(`--${key} does not take a value`);result[key]=true;}
-    else throw new Error(`Unknown argument: ${argv[i]}`);
-  }
-  return result;
-}
-function runtimeRoot(target) {
-  // Reuse the workflow path resolver when installed; standalone architecture uses sibling tmp.
-  const helper=path.resolve(__dirname,'../../infra/scripts/shared/config.js');
-  if(fs.existsSync(helper)) { const {loadConfig,getMainRepoRoot,resolveContainerPath}=require(helper); return path.join(resolveContainerPath(loadConfig({repoRoot:target}),getMainRepoRoot(target),'tmp'),'xirang-runs'); }
-  return path.resolve(target,'../tmp/xirang-runs');
-}
+const { parseArgs: args } = require('../../tooling/xirang/architecture-runtime');
+const { preparePlanSource, containerPath } = require('../../tooling/xirang/source-cache');
+
+function runtimeRoot(target) { return path.join(containerPath(target, 'tmp'), 'xirang-runs'); }
+
 const { assertMutationTarget } = require('../../tooling/xirang/target');
 function installDependencies(target, config) {
   const goRoots=[...(config.fileStorage?.runtime==='go'?[config.fileStorage.path]:[]),...config.applications.filter(a=>a.stack==='go').map(a=>a.path)];
@@ -61,7 +50,7 @@ function main(argv=process.argv.slice(2)) {
   if(cli.action==='apply') {
     if(!cli.plan)throw new Error('--plan required');assertMutationTarget(target);
     const plan=parseJson(fs.readFileSync(cli.plan,'utf8'),'plan');if(path.resolve(plan.target)!==target)throw new Error('Plan target mismatch');
-    console.log(json(applyPlan(plan,{runRoot})));console.log('DEPENDENCIES=NOT_RUN\nNEXT_ACTION=architecture install-deps followed by architecture check');return;
+    preparePlanSource(plan,source);console.log(json(applyPlan(plan,{runRoot})));console.log('DEPENDENCIES=NOT_RUN\nNEXT_ACTION=architecture install-deps followed by architecture check');return;
   }
   const configFile=cli.config?path.resolve(cli.config):path.join(target,CONFIG);
   if(cli.database&&!cli.blueprint)throw new Error('--database requires --blueprint');
@@ -78,7 +67,7 @@ function main(argv=process.argv.slice(2)) {
   }
   if(plan.conflicts.length){process.exitCode=1;return;}
   if(cli.action==='plan'||cli['dry-run']||(cli.action==='adopt'&&!cli.write))return;
-  assertMutationTarget(target);console.log(json(applyPlan(plan,{runRoot})));
+  assertMutationTarget(target);preparePlanSource(plan,source);console.log(json(applyPlan(plan,{runRoot})));
   const convergence=createArchitecturePlan({source,target,config,scope:cli.scope});
   if(convergence.conflicts.length||convergence.changes.length)throw new Error('Architecture convergence failed');
   console.log('CONVERGENCE_STATUS=OK');

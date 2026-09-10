@@ -4,6 +4,8 @@
 
 ## 1. 产品概述
 
+架构按需获取：[模块 PRD](prd-modules/architecture-on-demand/PRD.md)，提供轻量入口与固定来源缓存，项目只保留所选实现。
+
 开源公共能力：[组件包 PRD](prd-modules/open-source-components/PRD.md)，覆盖身份权限、队列、编辑交互、国际化、日志遥测和模拟。
 
 统一文件存储：[模块 PRD](prd-modules/file-storage/PRD.md)，覆盖按需 local/S3/OSS/COS、多存储与受限上传会话。

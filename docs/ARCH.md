@@ -6,6 +6,8 @@
 
 ## 1. 总览
 
+轻量入口、固定缓存和旧包缩减见 [按需获取架构](arch-modules/architecture-on-demand/ARCH.md)。
+
 身份权限、队列和可选开源组件见 [公共能力架构](arch-modules/open-source-components/ARCH.md)。
 
 文件存储与云适配见 [存储架构](arch-modules/file-storage/ARCH.md) 和 [ADR-029](adr/029-arch-file-storage-adapters.md)。

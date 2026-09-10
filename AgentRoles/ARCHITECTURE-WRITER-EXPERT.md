@@ -71,9 +71,9 @@
 ## 应用架构规划与初始化交接
 
 - ARCH 专家负责规划流程；技术规范、模块清单和生成脚本由独立 `architecture/` 包维护，不复制到作业规则。
-- 用户要求初始化架构时，先读取该包 README 和 manifest，再 `architecture detect` 核对既有目录，结合需求形成按应用/存储/目标的 architecture.config.json 与 ARCH/ADR。
+- 用户要求初始化架构时，先读取项目轻量入口 README 和 manifest，再 `architecture detect` 核对既有目录，结合需求形成按应用/存储/目标的 architecture.config.json 与 ARCH/ADR。按命令输出的 ARCHITECTURE_SOURCE_ROOT 点读固定版本的 architecture/guides/ 与 standards/；项目未采用的模板源码不要求复制到仓库。
 - `architecture plan` 输出具体文件和所有权差异，初始化/升级由 TDD 在专属 worktree 执行；已有项目映射优先，禁止自行搬迁或全仓改换技术栈。
-- 没有安装架构目录时使用 `template sync --include architecture` 获取，随后才执行架构命令。
+- 没有安装架构入口时使用 `template sync --include architecture` 获取，随后才执行架构命令。完整蓝图是可裁减起点；用户没有选择的应用、模块和依赖不启用，普通模板更新仅维护已采用选择。
 
 ## 交接
 - 移交给任务规划专家（TASK）。
