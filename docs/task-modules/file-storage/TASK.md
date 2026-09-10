@@ -1,6 +1,6 @@
 # 文件存储实施任务
 
-依据：[PRD](../../prd-modules/file-storage/PRD.md)、[ARCH](../../arch-modules/file-storage/ARCH.md)。状态：实现与功能验证通过；交付门禁进行中。Owner：模板维护者。预估按验证单元记录，运行状态在 task state 保存。
+依据：[PRD](../../prd-modules/file-storage/PRD.md)、[ARCH](../../arch-modules/file-storage/ARCH.md)。状态：3.3 功能验收通过 / Go，见 [QA](../../qa-modules/file-storage/QA.md)；真实云未验证。Owner：模板维护者。预估按验证单元记录，运行状态在 task state 保存。
 
 | Task | Story | 交付物 | 前置 | 状态 |
 | --- | --- | --- | --- | --- |

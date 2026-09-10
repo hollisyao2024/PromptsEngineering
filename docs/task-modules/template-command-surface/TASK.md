@@ -6,7 +6,7 @@
 > **状态**：✅ 官方匿名获取回归通过
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-09-06
+> **最后更新**：2026-09-11
 > **版本**：v1.6
 
 ## 1. 模块概述
@@ -22,23 +22,23 @@
 | TASK-CMDSURF-001 | RED：命令语法、路由与阻断测试 | @tdd | 0.5d | P0 | - | ✅ 已完成 | 2026-08-23 |
 | TASK-CMDSURF-002 | 配置 schema 与 Agent CLI 路由 | @tdd | 0.5d | P0 | TASK-CMDSURF-001 | ✅ 已完成 | 2026-08-23 |
 | TASK-CMDSURF-003 | Dispatcher、通用文档和专家映射 | @tdd | 0.5d | P0 | TASK-CMDSURF-002 | ✅ 已完成 | 2026-08-23 |
-| TASK-CMDSURF-004 | 模板回归、QA、推送与合并 | @qa | 0.5d | P0 | TASK-CMDSURF-003 | 🚧 进行中 | - |
-| TASK-CMDSURF-005 | XiaoLan 传播、项目配置与收敛验收 | @qa | 0.5d | P0 | TASK-CMDSURF-004 | 📝 待开始 | - |
+| TASK-CMDSURF-004 | 模板回归、QA、推送与合并 | @qa | 0.5d | P0 | TASK-CMDSURF-003 | ✅ 兼容回归通过 | 2026-09-11（复核） |
+| TASK-CMDSURF-005 | XiaoLan 传播、项目配置与收敛验收 | @qa | 0.5d | P0 | TASK-CMDSURF-004 | 待小懒项目验收（本轮无实际接入证据） | - |
 | TASK-CMDSURF-006 | RED：完整默认矩阵与稀疏继承契约 | @tdd | 0.25d | P0 | TASK-CMDSURF-003 | ✅ 已完成 | 2026-08-23 |
 | TASK-CMDSURF-007 | 中央模板登记客户端、服务生命周期与服务端 build 默认矩阵 | @tdd | 0.25d | P0 | TASK-CMDSURF-006 | ✅ 已完成 | 2026-08-23 |
-| TASK-CMDSURF-008 | 实际项目 apply、收敛与命令解析验收 | @qa | 0.25d | P0 | TASK-CMDSURF-007 | 🚧 待 QA 合并复验 | - |
+| TASK-CMDSURF-008 | 实际项目 apply、收敛与命令解析验收 | @qa | 0.25d | P0 | TASK-CMDSURF-007 | ✅ 兼容回归通过 | 2026-09-11（复核） |
 | TASK-CMDSURF-009 | RED：容器目录缺失、幂等、非法目标与只读边界 | @tdd | 0.5d | P0 | ADR-003 | ✅ 已完成 | 2026-08-26 |
 | TASK-CMDSURF-010 | 共享容器目录初始化器与安全校验 | @tdd | 0.5d | P0 | TASK-CMDSURF-009 | ✅ 已完成 | 2026-08-26 |
 | TASK-CMDSURF-011 | Worktree、任务状态、模板与 DevOps 调用点集成 | @tdd | 0.5d | P0 | TASK-CMDSURF-010 | ✅ 已完成 | 2026-08-26 |
-| TASK-CMDSURF-012 | 回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-011 | 🔄 待 QA | - |
+| TASK-CMDSURF-012 | 回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-011 | ✅ 兼容回归通过 | 2026-09-11（复核） |
 | TASK-CMDSURF-013 | RED：mutation 显式验收与 Codex 配置内容扫描 | @tdd | 0.25d | P0 | ADR-004 | ✅ 已完成 | 2026-08-27 |
 | TASK-CMDSURF-014 | 任务输入规则与 `createTask()` 最小门禁实现 | @tdd | 0.25d | P0 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
 | TASK-CMDSURF-015 | Codex 审批策略示例收敛 | @tdd | 0.25d | P1 | TASK-CMDSURF-013 | ✅ 已完成 | 2026-08-27 |
-| TASK-CMDSURF-016 | 定向回归、模板检查、QA 与合并 | @qa | 0.25d | P0 | TASK-CMDSURF-014~015 | 🚧 进行中 | - |
+| TASK-CMDSURF-016 | 定向回归、模板检查、QA 与合并 | @qa | 0.25d | P0 | TASK-CMDSURF-014~015 | ✅ 兼容回归通过 | 2026-09-11（复核） |
 | TASK-CMDSURF-017 | RED：远端前进、fetch/base 失败、显式 skip、dry-run 与 resume 契约 | @tdd | 0.5d | P0 | ADR-005 | ✅ 已完成 | 2026-09-01 |
 | TASK-CMDSURF-018 | 严格远端 base 解析、固定 SHA 创建与结构化新鲜度输出 | @tdd | 0.5d | P0 | TASK-CMDSURF-017 | ✅ 已完成 | 2026-09-01 |
 | TASK-CMDSURF-019 | 通用约定与模板 patch 版本同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-018 | ✅ 已完成 | 2026-09-01 |
-| TASK-CMDSURF-020 | 定向/全量回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-019 | 🚧 进行中 | - |
+| TASK-CMDSURF-020 | 定向/全量回归、语义审查、同步、推送与 QA 合并 | @qa | 0.5d | P0 | TASK-CMDSURF-019 | ✅ 兼容回归通过 | 2026-09-11（复核） |
 | TASK-CMDSURF-021 | RED：远端分支、QA 回执、精确合并与并发契约 | @tdd | 0.5d | P0 | ADR-006 | ✅ 完成 | RED 分组确认现有缺口 |
 | TASK-CMDSURF-022 | 远端同名分支阻断与显式 resume | @tdd | 0.5d | P0 | TASK-CMDSURF-021 | ✅ 完成 | worktree 定向与三 clone 通过 |
 | TASK-CMDSURF-023 | `tdd push` 显式 PR base 与 `qa verify` 双 SHA 回执 | @tdd | 0.5d | P0 | TASK-CMDSURF-021 | ✅ 完成 | PR base/QA receipt 定向通过 |
@@ -51,10 +51,12 @@
 | TASK-CMDSURF-030 | 最新快照更新器自举、linked-worktree 门禁与结构化输出 | @tdd | 0.5d | P0 | TASK-CMDSURF-029 | ✅ 完成 | fetched updater marker、角色/路径门禁通过 |
 | TASK-CMDSURF-031 | Update wrapper 应用后 convergence 与失败边界 | @tdd | 0.25d | P0 | TASK-CMDSURF-030 | ✅ 完成 | source gap/conflict pre-write block 与二次收敛通过 |
 | TASK-CMDSURF-032 | 模板命名、默认配置、manifest 版本与传播契约同步 | @tdd | 0.25d | P0 | TASK-CMDSURF-028~031 | ✅ 完成 | v2.2.0 完整 manifest 引导与重复应用通过 |
-| TASK-CMDSURF-033 | 定向/全量回归、目标副本同步、语义审查与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-032 | 🧪 QA 通过，待合并 | 全量回归与 QA receipt 通过；Codex review skipped by policy |
+| TASK-CMDSURF-033 | 定向/全量回归、目标副本同步、语义审查与 QA 合并 | @qa | 0.75d | P0 | TASK-CMDSURF-032 | ✅ 兼容回归通过 | 全量回归与 QA receipt 通过；Codex review skipped by policy |
 | TASK-CMDSURF-034 | RED：匿名环境、官方路由与 HTTP 请求凭据缺失 | @tdd | 0.25d | P0 | ADR-008 | ✅ 完成 | 4 项 RED 复现 |
 | TASK-CMDSURF-035 | 官方匿名 Git 环境、审计输出与协议同步 | @tdd | 0.5d | P0 | TASK-CMDSURF-034 | ✅ 完成 | 定向及全量回归通过 |
 | TASK-CMDSURF-036 | 凭据/模板传播回归、真实公开 fetch 与 QA 合并 | @qa | 0.25d | P0 | TASK-CMDSURF-035 | ✅ 本地验证通过 | 合并生命周期由 task/session 跟踪 |
+
+状态复核依据 [命令面兼容 QA](../../qa-modules/template-command-surface/QA.md)。模板源码和隔离消费者已验证；TASK-CMDSURF-005 的小懒实际接入缺少本轮项目证据，保留为待项目验收。
 
 ### 2.2 任务详细说明
 
@@ -143,33 +145,33 @@
 | 里程碑 | 目标日期 | 交付物 | 验收标准 | Gate | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | M1-PROTOCOL | 2026-08-23 | 治理文档和 RED | 文档 lint、测试按预期失败 | TASK_PLANNED | ✅ |
-| M2-TEMPLATE | 2026-08-23 | 模板实现 | 测试与 QA 全绿 | QA_VALIDATED | 🚧 |
-| M3-PROPAGATE | 2026-08-23 | XiaoLan 更新 | 收敛 dry-run、主远端一致 | QA_VALIDATED | 📝 |
-| M4-CONTAINER-DIRS | 2026-08-26 | 共享初始化器与调用点 | TC-CMDSURF-007~009、回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
-| M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
-| M6-WORKTREE-BASE | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip 与结构化证据 | TC-CMDSURF-012~015、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | 🔄 TDD 通过 / 待 QA |
+| M2-TEMPLATE | 2026-08-23 | 模板实现 | 测试与 QA 全绿 | QA_VALIDATED | ✅ 兼容回归通过 |
+| M3-PROPAGATE | 2026-08-23 | XiaoLan 更新 | 收敛 dry-run、主远端一致 | QA_VALIDATED | 待小懒项目验收 |
+| M4-CONTAINER-DIRS | 2026-08-26 | 共享初始化器与调用点 | TC-CMDSURF-007~009、回归与 completion guard 全绿 | QA_VALIDATED | ✅ 兼容回归通过 |
+| M5-INTAKE-GATE | 2026-08-27 | 短提示词规则、mutation 门禁与配置清理 | TC-CMDSURF-010~011、模板回归与 completion guard 全绿 | QA_VALIDATED | ✅ 兼容回归通过 |
+| M6-WORKTREE-BASE | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip 与结构化证据 | TC-CMDSURF-012~015、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | ✅ 兼容回归通过 |
 | M7-MULTI-HOST | 2026-09-05 | 远端分支恢复、QA 双 SHA 回执、精确合并与三 clone 模拟 | TC-CMDSURF-016~021、全量回归、模板收敛与 completion guard 全绿 | QA_VALIDATED | ✅ QA 验证通过 |
-| M8-XIRANG-SYNC | 2026-09-06 | 息壤身份、固定官方源同步、最新 updater 自举与传播 | TC-CMDSURF-022~026、失败零写入、全量回归、目标收敛与 completion guard 全绿 | QA_VALIDATED | ✅ QA 通过，待合并 |
+| M8-XIRANG-SYNC | 2026-09-06 | 息壤身份、固定官方源同步、最新 updater 自举与传播 | TC-CMDSURF-022~026、失败零写入、全量回归、目标收敛与 completion guard 全绿 | QA_VALIDATED | ✅ QA 通过 |
 
 ## 6. Story → Task 映射
 
 | Story ID | AC ID | Task ID | Test Case ID | QA | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| US-CMDSURF-001 | AC-CMDSURF-001-01 | TASK-CMDSURF-001 | TC-CMDSURF-001 | @qa | ✅ TDD 通过 |
-| US-CMDSURF-002 | AC-CMDSURF-002-01 | TASK-CMDSURF-002 | TC-CMDSURF-002 | @qa | ✅ TDD 通过 |
-| US-CMDSURF-002 | AC-CMDSURF-002-02 | TASK-CMDSURF-003 | TC-CMDSURF-003 | @qa | ✅ TDD 通过 |
-| US-CMDSURF-003 | AC-CMDSURF-003-01 | TASK-CMDSURF-003 | TC-CMDSURF-004 | @qa | ✅ TDD 通过 |
-| US-CMDSURF-004 | AC-CMDSURF-004-01 | TASK-CMDSURF-005 | TC-CMDSURF-005 | @qa | 📝 |
-| US-CMDSURF-004 | AC-CMDSURF-004-02 | TASK-CMDSURF-006~008 | TC-CMDSURF-006 | @qa | ✅ TDD 通过 / 待 QA 合并复验 |
-| US-CMDSURF-005 | AC-CMDSURF-005-01 | TASK-CMDSURF-009~011 | TC-CMDSURF-007 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-005 | AC-CMDSURF-005-02 | TASK-CMDSURF-009~011 | TC-CMDSURF-008 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-005 | AC-CMDSURF-005-03 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-006 | AC-CMDSURF-006-01 | TASK-CMDSURF-013~014 | TC-CMDSURF-010 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-006 | AC-CMDSURF-006-02 | TASK-CMDSURF-013、015 | TC-CMDSURF-011 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-007 | AC-CMDSURF-007-01 | TASK-CMDSURF-017~020 | TC-CMDSURF-012 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-007 | AC-CMDSURF-007-02 | TASK-CMDSURF-017~020 | TC-CMDSURF-013 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-007 | AC-CMDSURF-007-03 | TASK-CMDSURF-017~020 | TC-CMDSURF-014 | @qa | ✅ TDD 通过 / 待 QA |
-| US-CMDSURF-007 | AC-CMDSURF-007-04 | TASK-CMDSURF-017~020 | TC-CMDSURF-015 | @qa | ✅ TDD 通过 / 待 QA |
+| US-CMDSURF-001 | AC-CMDSURF-001-01 | TASK-CMDSURF-001 | TC-CMDSURF-001 | @qa | ✅ QA 通过 |
+| US-CMDSURF-002 | AC-CMDSURF-002-01 | TASK-CMDSURF-002 | TC-CMDSURF-002 | @qa | ✅ QA 通过 |
+| US-CMDSURF-002 | AC-CMDSURF-002-02 | TASK-CMDSURF-003 | TC-CMDSURF-003 | @qa | ✅ QA 通过 |
+| US-CMDSURF-003 | AC-CMDSURF-003-01 | TASK-CMDSURF-003 | TC-CMDSURF-004 | @qa | ✅ QA 通过 |
+| US-CMDSURF-004 | AC-CMDSURF-004-01 | TASK-CMDSURF-005 | TC-CMDSURF-005 | @qa | 待小懒项目验收 |
+| US-CMDSURF-004 | AC-CMDSURF-004-02 | TASK-CMDSURF-006~008 | TC-CMDSURF-006 | @qa | ✅ QA 通过 |
+| US-CMDSURF-005 | AC-CMDSURF-005-01 | TASK-CMDSURF-009~011 | TC-CMDSURF-007 | @qa | ✅ QA 通过 |
+| US-CMDSURF-005 | AC-CMDSURF-005-02 | TASK-CMDSURF-009~011 | TC-CMDSURF-008 | @qa | ✅ QA 通过 |
+| US-CMDSURF-005 | AC-CMDSURF-005-03 | TASK-CMDSURF-009~012 | TC-CMDSURF-009 | @qa | ✅ QA 通过 |
+| US-CMDSURF-006 | AC-CMDSURF-006-01 | TASK-CMDSURF-013~014 | TC-CMDSURF-010 | @qa | ✅ QA 通过 |
+| US-CMDSURF-006 | AC-CMDSURF-006-02 | TASK-CMDSURF-013、015 | TC-CMDSURF-011 | @qa | ✅ QA 通过 |
+| US-CMDSURF-007 | AC-CMDSURF-007-01 | TASK-CMDSURF-017~020 | TC-CMDSURF-012 | @qa | ✅ QA 通过 |
+| US-CMDSURF-007 | AC-CMDSURF-007-02 | TASK-CMDSURF-017~020 | TC-CMDSURF-013 | @qa | ✅ QA 通过 |
+| US-CMDSURF-007 | AC-CMDSURF-007-03 | TASK-CMDSURF-017~020 | TC-CMDSURF-014 | @qa | ✅ QA 通过 |
+| US-CMDSURF-007 | AC-CMDSURF-007-04 | TASK-CMDSURF-017~020 | TC-CMDSURF-015 | @qa | ✅ QA 通过 |
 | US-CMDSURF-008 | AC-CMDSURF-008-01 | TASK-CMDSURF-021~022 | TC-CMDSURF-016 | @qa | ✅ QA 通过 |
 | US-CMDSURF-008 | AC-CMDSURF-008-02 | TASK-CMDSURF-021~022 | TC-CMDSURF-017 | @qa | ✅ QA 通过 |
 | US-CMDSURF-008 | AC-CMDSURF-008-03 | TASK-CMDSURF-021、023~024 | TC-CMDSURF-018 | @qa | ✅ QA 通过 |
@@ -181,7 +183,7 @@
 | US-CMDSURF-009 | AC-CMDSURF-009-03 | TASK-CMDSURF-027、029~030 | TC-CMDSURF-024 | @qa | ✅ QA 通过 |
 | US-CMDSURF-009 | AC-CMDSURF-009-04 | TASK-CMDSURF-027、030~032 | TC-CMDSURF-025 | @qa | ✅ QA 通过 |
 | US-CMDSURF-009 | AC-CMDSURF-009-05 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa | ✅ QA 通过 |
-| US-CMDSURF-009 | AC-CMDSURF-009-06 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa | ✅ TDD 通过 |
+| US-CMDSURF-009 | AC-CMDSURF-009-06 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa | ✅ QA 通过 |
 
 ## 7. 风险登记
 
@@ -190,7 +192,7 @@
 | 显式 profile 被 default 吞掉 | 操作错误目标 | 负向测试与精确选择 | @tdd | 已规划 |
 | 传播覆盖项目配置 | 项目行为损坏 | manifest + dry-run 收敛 | @qa | 已规划 |
 | 全量治理文档初始化引入链接错误 | QA 门禁失败 | lint 与 diff check | @qa | 已规划 |
-| 中央模板遗漏默认矩阵 | 实际项目更新后命令在执行前阻断 | 完整枚举契约 + 实际项目解析验收 | @tdd/@qa | 修复中 |
+| 中央模板遗漏默认矩阵 | 实际项目更新后命令在执行前阻断 | 完整枚举契约 + 实际项目解析验收 | @tdd/@qa | 已验证 |
 | 共享 helper 在只读路径被误用 | 查询命令污染容器目录 | 纯解析无副作用测试 + 显式调用点清单 | @tdd | 已规划 |
 | 容器路径被文件或链接占位 | 写入失败或越界 | `lstat` 拒绝并在副作用前阻断 | @tdd/@qa | 已规划 |
 | 文档规则重复导致提示词膨胀或漂移 | Agent 行为不一致 | `AGENTS.md` 单一语义入口，Conventions 仅引用 | @tdd/@qa | 已规划 |

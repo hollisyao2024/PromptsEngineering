@@ -14,25 +14,27 @@
 
 统一文件存储：[模块 TASK](task-modules/file-storage/TASK.md)，覆盖四适配、上传与元数据、消费者和升级验证。
 
-多端 Monorepo 与 Prisma 已规划，实施顺序和验收见 [模块 TASK](task-modules/monorepo-platform/TASK.md)，依赖架构能力包与所有权引擎（2026-09-09）。
+多端 Monorepo 与 Prisma 的 3.2 验收通过，见 [模块 TASK](task-modules/monorepo-platform/TASK.md) 与 [QA](qa-modules/monorepo-platform/QA.md)，依赖架构能力包与所有权引擎。
 
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 官方匿名获取回归通过 | Agent CLI、GitHub auth、template apply、worktree lifecycle、固定官方源 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-06 |
-| 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 🔄 TDD 完成 / 待 QA | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-08-24 |
+| 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 兼容回归通过 / Go | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-11 |
 
 ## 3. 全局里程碑（跨模块）
 
 | 里程碑 ID | 里程碑名称 | 目标日期 | 交付物 | 验收标准 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | M1-PROTOCOL | 治理与 RED | 2026-08-23 | PRD/ARCH/TASK、失败测试 | 文档 Gate 通过、测试因缺失能力失败 | ✅ 已规划 |
-| M2-TEMPLATE | 模板实现与 QA | 2026-08-23 | 配置、路由、执行器、文档、测试 | 完整默认矩阵定向与相关全量回归通过 | 🚧 修复中 |
-| M3-PROPAGATE | 实际项目传播 | 2026-08-23 | 模板 apply 与稀疏配置继承验收 | dry-run/apply/convergence、32 项命令解析、项目规则不被覆盖 | 📝 待开始 |
-| M4-ENVINIT | 六环境文件初始化 | 2026-08-24 | example sources、manifest、初始化器、测试 | 首次创建六文件、实际文件 ignored、第二次 apply 零变化 | 🔄 待 QA |
-| M5-CONTAINER-DIRS | 容器目录按需初始化 | 2026-08-26 | 共享初始化器、调用点、测试与文档 | 缺失目录自动创建、重复幂等、非法目标阻断、只读无副作用 | 🔄 TDD 通过 / 待 QA |
-| M6-WORKTREE-BASE | Worktree 最新远端基线 | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip、测试与协议 | TC-CMDSURF-012~015、全量回归与 QA merge 通过 | 🔄 TDD 通过 / 待 QA |
+| M2-TEMPLATE | 模板实现与 QA | 2026-08-23 | 配置、路由、执行器、文档、测试 | 完整默认矩阵定向与相关全量回归通过 | ✅ 兼容回归通过 |
+| M3-PROPAGATE | 实际项目传播 | 2026-08-23 | 模板 apply 与稀疏配置继承验收 | dry-run/apply/convergence、32 项命令解析、项目规则不被覆盖 | 消费者验证通过；小懒接入待项目验收 |
+| M4-ENVINIT | 六环境文件初始化 | 2026-08-24 | example sources、manifest、初始化器、测试 | 首次创建六文件、实际文件 ignored、第二次 apply 零变化 | ✅ 兼容回归通过 |
+| M5-CONTAINER-DIRS | 容器目录按需初始化 | 2026-08-26 | 共享初始化器、调用点、测试与文档 | 缺失目录自动创建、重复幂等、非法目标阻断、只读无副作用 | ✅ 兼容回归通过 |
+| M6-WORKTREE-BASE | Worktree 最新远端基线 | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip、测试与协议 | TC-CMDSURF-012~015、全量回归与 QA merge 通过 | ✅ 兼容回归通过 |
 | M7-MULTI-HOST | 无 CI 多电脑同权 Git 安全 | 2026-09-05 | 远端恢复、QA 双 SHA 回执、精确合并、三 clone 模拟 | TC-CMDSURF-016~021、模板收敛与 QA merge 通过 | ✅ QA 验证通过 |
-| M8-XIRANG-SYNC | 息壤官方模板自更新 | 2026-09-06 | 模板身份、自然语言路由、`template sync`、固定 SHA 自举与传播验证 | TC-CMDSURF-022~026、全量回归、目标副本收敛与 QA merge 通过 | ✅ QA 通过，待合并 |
+| M8-XIRANG-SYNC | 息壤官方模板自更新 | 2026-09-06 | 模板身份、自然语言路由、`template sync`、固定 SHA 自举与传播验证 | TC-CMDSURF-022~026、全量回归、目标副本收敛与 QA merge 通过 | ✅ QA 通过 |
+
+既有命令面和环境能力的状态依据 [命令面 QA](qa-modules/template-command-surface/QA.md) 与 [环境 QA](qa-modules/environment-file-initialization/QA.md)。实际业务项目的接入验收单独记录，消费者回归不替代小懒或其他真实项目的同步与验收。
 
 ## 4. 跨模块依赖关系
 
@@ -105,4 +107,4 @@ flowchart LR
 
 [模块任务与依赖](task-modules/architecture-platform/TASK.md)：TASK-ARCHPLAT-001~006，覆盖 US-ARCHPLAT-001~009。
 
-公共 UI 3.1：TASK-ARCHPLAT-007～010 已规划，覆盖 US-ARCHPLAT-010～014；当前 TDD 通过、待 QA，依赖组件闭包、公共交互和消费者升级验收，详细顺序由模块 TASK §4 维护。
+公共 UI 3.1：TASK-ARCHPLAT-007～010 已通过 QA，覆盖 US-ARCHPLAT-010～014；组件闭包、公共交互和消费者升级证据见 [架构平台 QA](qa-modules/architecture-platform/QA.md)，详细任务由模块 TASK §4 维护。

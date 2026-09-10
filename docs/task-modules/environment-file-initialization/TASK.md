@@ -3,12 +3,12 @@
 > **所属主 TASK**：[TASK.md](../../TASK.md)  
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/environment-file-initialization/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/environment-file-initialization/ARCH.md)  
-> **状态**：✅ 已规划  
+> **状态**：✅ 兼容回归通过 / Go（[QA 证据](../../qa-modules/environment-file-initialization/QA.md)）
 > **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
 > **Story→Task ID**：`US-ENVINIT-001~003` / `TASK-ENVINIT-001~004` / `TC-ENVINIT-001~004`  
 > **负责团队**：@template-maintainers  
-> **最后更新**：2026-08-24  
-> **版本**：v1.0.0
+> **最后更新**：2026-09-11
+> **版本**：v1.0.1
 
 ## 1. 模块概述
 
@@ -23,7 +23,7 @@
 | TASK-ENVINIT-001 | RED：首次创建、dry-run 与已有内容保护测试 | @tdd | 0.5d | P0 | - | ✅ 已完成 | 2026-08-24 |
 | TASK-ENVINIT-002 | Example sources、manifest 与 ignore 契约 | @tdd | 0.5d | P0 | TASK-ENVINIT-001 | ✅ 已完成 | 2026-08-24 |
 | TASK-ENVINIT-003 | 实际文件 init-if-missing 初始化器 | @tdd | 0.5d | P0 | TASK-ENVINIT-002 | ✅ 已完成 | 2026-08-24 |
-| TASK-ENVINIT-004 | 双次 apply、Git 状态、回归与合并 Gate | @qa / @devops | 0.5d | P0 | TASK-ENVINIT-003 | 🔄 已提交 | - |
+| TASK-ENVINIT-004 | 双次 apply、Git 状态、回归与合并 Gate | @qa / @devops | 0.5d | P0 | TASK-ENVINIT-003 | ✅ 兼容回归通过 | 2026-09-11（复核） |
 
 ### 2.2 任务详细说明
 
@@ -54,16 +54,16 @@
 | --- | --- | --- | --- | --- | --- |
 | M1-ENV-RED | 2026-08-24 | 失败测试 | 新能力缺失导致预期失败 | TASK_PLANNED | ✅ |
 | M2-ENV-GREEN | 2026-08-24 | source、manifest、初始化器 | 定向测试通过 | TDD_DONE | ✅ |
-| M3-ENV-QA | 2026-08-24 | 传播与 Git 证据 | 四条 AC 全通过 | QA_VALIDATED | 📝 |
+| M3-ENV-QA | 2026-08-24 | 传播与 Git 证据 | 四条 AC 全通过 | QA_VALIDATED | ✅ 兼容回归通过 |
 
 ## 6. Story → Task 映射
 
 | Story ID | AC ID | Task ID | Test Case ID | QA | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| US-ENVINIT-001 | AC-ENVINIT-001-01 | TASK-ENVINIT-001~003 | TC-ENVINIT-001 | @qa | ✅ TDD / 待 QA |
-| US-ENVINIT-001 | AC-ENVINIT-001-02 | TASK-ENVINIT-002、004 | TC-ENVINIT-002 | @qa | ✅ TDD / 待 QA |
-| US-ENVINIT-002 | AC-ENVINIT-002-01 | TASK-ENVINIT-001、003 | TC-ENVINIT-003 | @qa | ✅ TDD / 待 QA |
-| US-ENVINIT-003 | AC-ENVINIT-003-01 | TASK-ENVINIT-001、003、004 | TC-ENVINIT-004 | @qa | ✅ TDD / 待 QA |
+| US-ENVINIT-001 | AC-ENVINIT-001-01 | TASK-ENVINIT-001~003 | TC-ENVINIT-001 | @qa | ✅ QA 通过 |
+| US-ENVINIT-001 | AC-ENVINIT-001-02 | TASK-ENVINIT-002、004 | TC-ENVINIT-002 | @qa | ✅ QA 通过 |
+| US-ENVINIT-002 | AC-ENVINIT-002-01 | TASK-ENVINIT-001、003 | TC-ENVINIT-003 | @qa | ✅ QA 通过 |
+| US-ENVINIT-003 | AC-ENVINIT-003-01 | TASK-ENVINIT-001、003、004 | TC-ENVINIT-004 | @qa | ✅ QA 通过 |
 
 已同步 `traceability-matrix.md`、`story-task-mapping.md` 与 `task-dependency-matrix.md`。
 
@@ -71,9 +71,9 @@
 
 | 风险 | 影响 | 缓解 | 负责人 | 状态 |
 | --- | --- | --- | --- | --- |
-| 旧 append 行为残留 | 已有 `.env.local` 被修改 | sentinel 回归 + 删除 append 路径 | @tdd | 已规划 |
-| example 未先创建 | 实际文件来源缺失 | 固定 write 顺序 + fail closed | @tdd | 已规划 |
-| 实际文件进入 Git | 凭据泄漏 | ignore 精确匹配集成测试 | @qa / @devops | 已规划 |
+| 旧 append 行为残留 | 已有 `.env.local` 被修改 | sentinel 回归 + 删除 append 路径 | @tdd | 已验证 |
+| example 未先创建 | 实际文件来源缺失 | 固定 write 顺序 + fail closed | @tdd | 已验证 |
+| 实际文件进入 Git | 凭据泄漏 | ignore 精确匹配集成测试 | @qa / @devops | 已验证 |
 
 ## 8. 数据库迁移任务
 
@@ -96,6 +96,7 @@
 | 版本 | 日期 | 描述 | 负责人 |
 | --- | --- | --- | --- |
 | v1.0.0 | 2026-08-24 | 首次规划 | @template-maintainers |
+| v1.0.1 | 2026-09-11 | 按既有 QA 兼容回归证据对齐完成状态与追溯入口 | @template-maintainers |
 
 ## 11. 自检与 Gate 清单
 

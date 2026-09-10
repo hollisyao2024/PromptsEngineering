@@ -1,6 +1,6 @@
 # 开源公共能力任务
 
-依据：[PRD](../../prd-modules/open-source-components/PRD.md)、[ARCH](../../arch-modules/open-source-components/ARCH.md)。Owner：模板维护者。状态：实现与功能验证通过；交付门禁进行中。
+依据：[PRD](../../prd-modules/open-source-components/PRD.md)、[ARCH](../../arch-modules/open-source-components/ARCH.md)。Owner：模板维护者。状态：3.3 功能验收通过 / Go，见 [QA](../../qa-modules/open-source-components/QA.md)。外部身份服务、原生回调和生产负载仍由实际项目验证；本次仅校正已完成模块的状态入口。
 
 | Task | Story | 交付与验证单元 | 依赖 |
 | --- | --- | --- | --- |

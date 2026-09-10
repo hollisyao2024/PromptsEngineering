@@ -161,3 +161,59 @@ test('retains write failures in the summary and preserves the unfinished milesto
   assert.match(fixture.summary(result), /更新失败.*EACCES/u);
   assert.equal(fs.readFileSync(fixture.file, 'utf8'), content);
 });
+
+test('uppercase checked milestones are already complete and never rewritten', (t) => {
+  const content = '# State\r\n\r\n- [X] 5. QA_VALIDATED\r\n';
+  const fixture = milestoneFixture(t, content);
+  const writes = t.mock.method(fs, 'writeFileSync');
+  assert.deepEqual(updateAgentState(fixture.root, 84, 'abcdef1'), { status: 'already-complete' });
+  assert.equal(writes.mock.callCount(), 0);
+  assert.equal(fs.readFileSync(fixture.file, 'utf8'), content);
+});
+
+for (const example of [
+  '```md\n- [x] 5. QA_VALIDATED\n```\n',
+  '~~~md\n- [X] 5. QA_VALIDATED\n~~~\n',
+  '````md\n```\n- [x] 5. QA_VALIDATED\n````\n',
+  '    - [x] 5. QA_VALIDATED\n',
+  '> - [x] 5. QA_VALIDATED\n',
+  '<!--\n- [x] 5. QA_VALIDATED\n-->\n',
+  'Example: - [x] 5. QA_VALIDATED\n',
+]) {
+  test(`checked examples never mask the real pending milestone: ${JSON.stringify(example)}`, () => {
+    const before = '# State\n\n' + example + '\n- [ ] 5. QA_VALIDATED\n';
+    const after = '# State\n\n' + example + '\n- [x] 5. QA_VALIDATED\n';
+    assert.equal(upsertQaValidatedEntry(before), after);
+    assert.equal(upsertQaValidatedEntry(after), after);
+  });
+}
+
+test('unchecked code examples stay intact when a real milestone is initialized', () => {
+  const before = '# State\n\n```md\n- [ ] 5. QA_VALIDATED\n```\n';
+  const after = before.trimEnd() + '\n\n- [x] 5. QA_VALIDATED\n';
+  assert.equal(upsertQaValidatedEntry(before), after);
+  assert.equal(upsertQaValidatedEntry(after), after);
+});
+
+test('milestone updates and initialization preserve CRLF and existing EOF style', () => {
+  assert.equal(upsertQaValidatedEntry('# State\r\n\r\n- [ ] 5. QA_VALIDATED\r\n'), '# State\r\n\r\n- [x] 5. QA_VALIDATED\r\n');
+  assert.equal(upsertQaValidatedEntry('# State\r\n\r\n- [ ] 5. QA_VALIDATED'), '# State\r\n\r\n- [x] 5. QA_VALIDATED');
+  assert.equal(upsertQaValidatedEntry('# State\r\n'), '# State\r\n\r\n- [x] 5. QA_VALIDATED\r\n');
+});
+
+test('ambiguous milestones or unclosed examples cannot report successful initialization', (t) => {
+  for (const content of ['- [ ] 5. QA_VALIDATED\n- [X] 5. QA_VALIDATED\n', '# State\n\n```md\n- [x] 5. QA_VALIDATED\n']) {
+    const fixture = milestoneFixture(t, content);
+    const result = updateAgentState(fixture.root, 84, 'abcdef1');
+    assert.equal(result.status, 'failed');
+    assert.match(result.error, /multiple QA_VALIDATED|unterminated/i);
+    assert.equal(fs.readFileSync(fixture.file, 'utf8'), content);
+  }
+});
+
+test('first QA completion preserves surrounding metadata and legacy field names', (t) => {
+  const before = '# State\n\n- [ ] 5. QA_VALIDATED\n\n## Metadata\nbranch: release\n\n## IN_PROGRESS\nbranch:\npr: 42\nstep: qa\n\n## Later\npr: keep\n';
+  const fixture = milestoneFixture(t, before);
+  assert.deepEqual(updateAgentState(fixture.root, 84, 'abcdef1'), { status: 'updated' });
+  assert.equal(fs.readFileSync(fixture.file, 'utf8'), before.replace('- [ ] 5.', '- [x] 5.').replace('pr: 42', 'pr: ').replace('step: qa', 'step: '));
+});

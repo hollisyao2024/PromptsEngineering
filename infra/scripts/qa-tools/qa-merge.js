@@ -18,7 +18,7 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
-const { clearInProgressContent } = require('../tdd-tools/agent-state-utils');
+const { clearInProgressContent, scanStateDocument } = require('../tdd-tools/agent-state-utils');
 const {
   loadConfig,
   resolveRepoRoot,
@@ -1385,17 +1385,26 @@ function formatAgentStateQaValidatedEntry(prNumber, commitHash, date) {
 }
 
 function upsertQaValidatedEntry(content, prNumber, commitHash, date) {
-  if (/- \[x\] (?:5\.\s*)?QA_VALIDATED\b/u.test(content)) {
-    return content;
-  }
-  const uncheckedPattern = /- \[ \] (5\. QA_VALIDATED[^\n]*)/;
-  if (uncheckedPattern.test(content)) {
-    return content.replace(uncheckedPattern, formatAgentStateQaValidatedEntry(prNumber, commitHash, date));
+  const document = scanStateDocument(content);
+  const entries = document.lines.flatMap((line) => {
+    const match = line.visible?.match(/^( {0,3})[-+*][ \t]+\[([ xX])\][ \t]+(?:5\.[ \t]+)?QA_VALIDATED(?:[ \t].*)?$/u);
+    return match ? [{ line, indent: match[1], checked: match[2].toLowerCase() === 'x' }] : [];
+  });
+  if (entries.length > 1) throw new Error('Multiple QA_VALIDATED milestones; resolve the ambiguous state document first.');
+  if (entries.length) {
+    const { line, indent, checked } = entries[0];
+    if (checked) return content;
+    const commentStart = line.text.indexOf('<!--');
+    const commentSuffix = commentStart < 0 ? '' : ` ${line.text.slice(commentStart)}`;
+    const entry = indent + formatAgentStateQaValidatedEntry(prNumber, commitHash, date) + commentSuffix;
+    return content.slice(0, line.start) + entry + content.slice(line.end);
   }
 
+  if (document.unterminated) throw new Error(`Cannot initialize QA_VALIDATED inside an unterminated ${document.unterminated}.`);
+  const newline = document.lines.find((line) => line.newline)?.newline || '\n';
   const trimmed = content.trimEnd();
-  const separator = trimmed ? '\n\n' : '';
-  return `${trimmed}${separator}${formatAgentStateQaValidatedEntry(prNumber, commitHash, date)}\n`;
+  const separator = trimmed ? newline + newline : '';
+  return `${trimmed}${separator}${formatAgentStateQaValidatedEntry(prNumber, commitHash, date)}${newline}`;
 }
 
 function updateAgentState(mainRepoRoot, prNumber, commitHash) {
