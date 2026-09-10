@@ -37,7 +37,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **命名**：`{module}.e2e.spec.ts`（如 `auth.e2e.spec.ts`、`checkout.e2e.spec.ts`）
 - **工具**：Playwright + @faker-js/faker
 - **命令**：`pnpm playwright test`（headless）；调试用 `--ui` 或 `--trace on`
-- **CI 配置**：sharding `--shard=N/M` + `retries: 2` + headless 模式；失败时上传 Trace 文件
+- **本地执行**：需要时使用 `--shard=N/M` 与 headless 模式；失败 Trace 留在容器 tmp，重试不能替代失败分析，不将 GitHub CI 作为合并门禁。
 
 #### 性能测试（k6）
 - **目录**：`perf/scenarios/`
@@ -50,7 +50,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **命名**：`{scenario}.k6.ts`（如 `load-test.k6.ts`、`checkout-flow.k6.ts`）
 - **工具**：k6（原生 TS 支持）
 - **命令**：`k6 run perf/scenarios/load-test.k6.ts`
-- **CI 配置**：smoke 每次 PR（10 VU / 30s）；full load 每次 merge 到 main
+- **本地执行**：按变更风险选择 smoke 或完整负载；10 VU / 30s 可作为起始参数，验收阈值由项目 NFR 确定。
 - **每个场景最低要求**：
   - 至少 3 个自定义 metric（非仅默认 http_req_duration）
   - 至少测试 2 个关键 endpoint（不仅 homepage）
@@ -116,8 +116,8 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 
 ### 第四步：合并发布（/qa merge）
 1. 前置：verify 为 Go
-2. 执行 `pnpm run qa:merge` 脚本（17 步详见 §qa merge 流程详解）
-3. 完成后交接 DevOps 执行部署
+2. 执行 `pnpm agent -- qa merge`，固定 SHA 回执与恢复边界见 §qa merge 流程详解。
+3. 合并、主分支同步和 completion guard 通过后关闭任务；需要部署时再交接 DevOps。
 
 ### 回退触发
 - 发布建议为 No-Go → 退回 TDD 修复，取消 `TDD_DONE`
@@ -298,33 +298,28 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] 发布建议已明确（Go / Conditional / No-Go）
 - [ ] 前置条件或风险已列出
 - [ ] CHANGELOG.md 与测试结论一致
-- [ ] CI 状态为绿色
+- [ ] 适用本地门禁通过，QA 回执绑定当前 base/head SHA。
 - [ ] `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`
 - [ ] 若模块化，主/模块文档双向索引完整
 
 ---
 
-## qa merge 流程详解（17 步）
+## qa merge 流程详解
 
-`pnpm run qa:merge` 脚本执行以下步骤：
+`pnpm agent -- qa merge` 调用现有合并脚本。以下按验证和副作用边界归纳，具体步骤以脚本为准：
 
-1. 加载项目级 GH_TOKEN（脚本内置；手动 GitHub/gh 命令必须通过 `node infra/scripts/shared/github-auth-run.js -- <command>` 执行）
-2. 初始化 GitHub backend：优先使用 gh CLI；gh CLI 不可用但 `.env.local` 有 `GH_TOKEN` 时使用 GitHub API fallback
-3. 工作区干净检查（无未提交变更）
-4. 分支验证（不能在主干分支）
-5. 查找当前分支对应的 open PR
-6. **自动 rebase**（脚本内认证 fetch origin/main → 检测落后提交 → rebase + force-push；冲突时中止并提示手动解决）
-7. PR 合并状态复查（rebase 后重新检测 `mergeable`）
-8. **发布门禁检查**（`qa:check-defect-blockers`，检查 P0 阻塞缺陷和 NFR）
-9. **双策略合并**：优先 gh/GitHub API squash merge，权限不足时自动降级为本地 squash merge
-10. 防竞态检测（gh 超时但实际已完成的情况）
-11. **同步本地 main**（脚本内认证 fetch + ff-only merge；禁止手动裸 pull）
-12. **清理 worktree**（检测并安全移除对应 worktree，无 worktree 则跳过）
-13. 删除远程和本地 feature 分支
-14. **版本递增 + CHANGELOG 条目**（自动 patch bump + 生成 CHANGELOG 条目）
-15. **更新 AGENT_STATE**（标记 QA_VALIDATED）
-16. **Release commit + tag + push**（统一提交版本、CHANGELOG、AGENT_STATE 变更并打 tag）
-17. 输出详细摘要和下一步指导
+1. 解析当前 worktree、主 worktree 和 `config.baseBranch`；加载项目 `GH_TOKEN` 及 GitHub backend。远端操作经 `github-auth-run.js` 或仓库脚本执行。
+2. 确认当前不是配置主干；当前与主 worktree 都干净，并找到当前分支对应的 open PR。
+3. required fetch 刷新主干和功能分支，重新读取 PR；逐项复验本机 QA 回执的 base、branch、`BASE_SHA`、`HEAD_SHA` 与远端引用、PR base/head refs。缺少回执、SHA 漂移、PR 变化或冲突均阻断，回到同步、推送和 QA，不自动 rebase 已验证分支。
+4. 执行适用的本地发布检查。`template.role=source` 使用模板源路径，跳过业务 QA 门禁；模板自身回归和文档证据仍须通过。不创建、修改、触发或依赖 GitHub workflows 或 required checks。
+5. 使用期望 head SHA 执行 GitHub squash merge。结果不明时先查询 PR 是否已合并；本地 squash 兜底前重新 fetch 并复验同一回执，只合并已验证的固定 head。
+6. fetch 并以 ff-only 同步本地主干。远端已合并但本地同步失败时保留恢复状态，先核验真实结果再继续。
+7. 按 `release.*` 和显式参数决定版本、CHANGELOG、tag；只更新尚未完成的 `QA_VALIDATED` 稳定里程碑。有实际 release/state 变更才提交，不无条件新增版本和运行日志。
+8. 普通非强制 push 配置主干及需要的 tag，再次 fetch，确认本地和远端主分支 SHA 相同；非快进失败不得覆盖远端历史。
+9. 远端复核成功后，以精确 expected SHA 的 `--force-with-lease` 清理功能分支。该 lease 不用于改写配置主干；功能分支漂移或结果不明时保留分支和恢复状态。
+10. 封印并清理当前任务的 worktree、session 和本地功能分支。当前执行目录导致清理延后时，切换主 worktree 后由 completion guard 收敛；存在未提交变更、HEAD 漂移或缺少封印时不删除。
+
+在主 worktree 完成双 SHA 与工作区复核，执行 `pnpm agent -- finish` 和对应 `task finish` 后才宣告交付完成。合并与部署是不同动作，部署按项目需求另行进入 DEVOPS。
 
 ---
 
@@ -374,7 +369,7 @@ flowchart TD
 
 | 协作方 | 输入 | 输出 | 要点 |
 |--------|------|------|------|
-| TDD | TDD_DONE + PR + CI 绿色 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件 |
+| TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件 |
 | ARCH | 架构约束 + NFR 指标 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO |
 | PRD | 验收标准 + 用户故事 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖 |
 | DevOps | — | Go/Conditional/No-Go + AGENT_STATE | 发布建议为 Go 后执行 /qa merge，交接 DevOps 部署 |
