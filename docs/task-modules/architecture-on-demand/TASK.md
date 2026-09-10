@@ -1,14 +1,16 @@
 # 架构按需获取 TASK
 
-状态：实现与本地回归通过，进入交付验证。负责人：模板维护者。日期：2026-09-10。依据：[PRD](../../prd-modules/architecture-on-demand/PRD.md)、[ARCH](../../arch-modules/architecture-on-demand/ARCH.md)。
+状态：实现与 QA 验收通过，交付状态以主分支门禁为准。负责人：模板维护者。日期：2026-09-10。依据：[PRD](../../prd-modules/architecture-on-demand/PRD.md)、[ARCH](../../arch-modules/architecture-on-demand/ARCH.md)。
+
+## WBS 与依赖
 
 | Task | Story | 交付物与验收 | 依赖 | 估算 |
 | --- | --- | --- | --- | --- |
-| T-LAZYARCH-001 | 001/002/006 | RED：轻量清单、未选源码缺席、agent scope 隔离与普通更新闭包 | 已确认治理 | 0.5 日 |
-| T-LAZYARCH-002 | 003/004 | 固定来源描述、缓存协议、CLI 转发、匿名凭据隔离和负例 | 001 | 1 日 |
-| T-LAZYARCH-003 | 005 | 旧 runtime remove、基线无引用回收、中断恢复与定制保护 | 001 | 0.5 日 |
-| T-LAZYARCH-004 | 001~006 | 同步/初始化/更新接入、轻量文档、原始 3.3 升级与真实消费者 | 002/003 | 1 日 |
-| T-LAZYARCH-005 | 001~006 | 源回归、语义审查、QA、PR 合并、主分支与任务收尾 | 004 | 0.5 日 |
+| TASK-LAZYARCH-001 | 001/002/006 | RED：轻量清单、未选源码缺席、agent scope 隔离与普通更新闭包 | 已确认治理 | 0.5 日 |
+| TASK-LAZYARCH-002 | 003/004 | 固定来源描述、缓存协议、CLI 转发、匿名凭据隔离和负例 | 001 | 1 日 |
+| TASK-LAZYARCH-003 | 005 | 旧 runtime remove、基线无引用回收、中断恢复与定制保护 | 001 | 0.5 日 |
+| TASK-LAZYARCH-004 | 001~006 | 同步/初始化/更新接入、轻量文档、原始 3.3 升级与真实消费者 | 002/003 | 1 日 |
+| TASK-LAZYARCH-005 | 001~006 | 源回归、语义审查、QA、PR 合并、主分支与任务收尾 | 004 | 0.5 日 |
 
 关键路径：001 → 002/003 → 004 → 005。每项 Owner 均为模板维护者，按依赖顺序执行，不新增后台任务或代理。验收映射 TC-LAZYARCH-001~006。
 
