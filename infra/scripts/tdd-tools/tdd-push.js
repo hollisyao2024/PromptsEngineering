@@ -355,7 +355,7 @@ function createPullRequest(reviewDecision, baseBranch) {
     '_见 commit 历史_',
     '',
     '### 文档回写',
-    '- CHANGELOG: 由 `/qa merge` 自动生成',
+    '- CHANGELOG: 见本次变更；发布行为以项目 release 配置为准',
     '',
     getReviewSection(reviewDecision),
   ].join('\n');

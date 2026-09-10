@@ -35,15 +35,17 @@ function parseArgs(argv) {
     if (eq !== -1) {
       const key = raw.slice(2, eq);
       const value = raw.slice(eq + 1);
-      if (key === 'include') cli.include.push(...value.split(',').filter(Boolean));
+      if (valueFlags.has(key) && !value.trim()) throw new Error(`--${key} requires a value`);
+      if (key === 'include') cli.include.push(...value.split(','));
       else cli[key] = value;
       continue;
     }
 
     const key = raw.slice(2);
     const next = argv[i + 1];
+    if (valueFlags.has(key) && (!next || next.startsWith('--'))) throw new Error(`--${key} requires a value`);
     if (valueFlags.has(key) && next && !next.startsWith('--')) {
-      if (key === 'include') cli.include.push(...next.split(',').filter(Boolean));
+      if (key === 'include') cli.include.push(...next.split(','));
       else cli[key] = next;
       i += 1;
     } else {
@@ -268,6 +270,10 @@ function main() {
   if (!fs.existsSync(applyEngine)) {
     block('template apply engine not found', { source: sourceRoot });
   }
+  const { assertMutationTarget, assertPlanOutput } = require('../../../tooling/xirang/target');
+  if (!dryRunOnly) assertMutationTarget(targetRoot);
+  const unified = fs.existsSync(path.join(sourceRoot, 'tooling/xirang/template.js'));
+  if (unified) require(path.join(sourceRoot, 'tooling/xirang/template.js')).validateSelectionOptions?.(args.scope, args.include);
 
   const targetIsGitWorktree = isGitWorktree(targetRoot);
   const reportRoot = targetIsGitWorktree ? getMainRepoRoot(targetRoot) : getMainRepoRoot(sourceRoot);
@@ -277,9 +283,9 @@ function main() {
     reportRoot,
     (config.template && config.template.applyReportDir) || '../tmp/template-apply-reports'
   );
-  ensureDir(reportDir);
-
   const runId = `${timestamp()}__${sanitize(path.basename(targetRoot))}`;
+  const planPath = assertPlanOutput(targetRoot, path.join(reportDir, `${runId}__plan.json`));
+  ensureDir(reportDir);
   const dryRunLog = path.join(reportDir, `${runId}__dry-run.log`);
   const writeLogPath = path.join(reportDir, `${runId}__write.log`);
   const convergenceLog = path.join(reportDir, `${runId}__convergence.log`);
@@ -295,8 +301,6 @@ function main() {
   const baseArgs = [applyEngine, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
   if (args.scope) baseArgs.push('--scope', args.scope);
   if (args.adopt) baseArgs.push('--adopt');
-  const unified = fs.existsSync(path.join(sourceRoot, 'tooling/xirang/template.js'));
-  const planPath = path.join(reportDir, `${runId}__plan.json`);
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);

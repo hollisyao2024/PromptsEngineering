@@ -20,6 +20,16 @@ function parseArgs(argv) {
   return result;
 }
 
+function readRuntimeDescriptor(runtimeRoot) {
+  const content = read(runtimeRoot, POINTER), record = readLock(runtimeRoot).files[POINTER];
+  if (!content || !record || record.owner !== 'architecture:runtime' || record.base !== hash(content)) throw new Error('Missing or modified architecture runtime pointer; run template sync --include architecture');
+  return validateDescriptor(parseJson(content, POINTER));
+}
+
+function resolveRuntimeSource(runtimeRoot, { target = runtimeRoot, source } = {}) {
+  return resolveSource({ target, source, descriptor: readRuntimeDescriptor(runtimeRoot) });
+}
+
 function main(argv = process.argv.slice(2), { runtimeRoot = path.resolve(__dirname, '../..') } = {}) {
   const args = parseArgs(argv), target = path.resolve(args.target || process.cwd());
   const actions = ['catalog', 'detect', 'validate', 'plan', 'init', 'update', 'adopt', 'apply', 'resume', 'check', 'install-deps'];
@@ -38,15 +48,14 @@ function main(argv = process.argv.slice(2), { runtimeRoot = path.resolve(__dirna
     console.log('NEXT_ACTION=architecture install-deps, architecture check and convergence plan');
     return;
   }
-  const content = read(runtimeRoot, POINTER), record = readLock(runtimeRoot).files[POINTER];
-  if (!content || !record || record.owner !== 'architecture:runtime' || record.base !== hash(content)) throw new Error('Missing or modified architecture runtime pointer; run template sync --include architecture');
-  const descriptor = validateDescriptor(parseJson(content, POINTER));
   if (args.action === 'catalog') {
+    const descriptor = readRuntimeDescriptor(runtimeRoot);
     const catalog = parseJson(read(runtimeRoot, 'architecture/manifest.json'), 'architecture catalog');
     if (catalog.id !== 'architecture' || catalog.version !== descriptor.version) throw new Error('Architecture catalog version mismatch');
     console.log(json(catalog)); return;
   }
-  const resolved = resolveSource({ target, descriptor, source: args.source && path.resolve(args.source) });
+  const resolved = resolveRuntimeSource(runtimeRoot, { target, source: args.source && path.resolve(args.source) });
+  const { descriptor } = resolved;
   console.error(`ARCHITECTURE_VERSION=${descriptor.version}\nARCHITECTURE_COMMIT=${descriptor.commit || 'LOCAL_PREVIEW'}\nARCHITECTURE_CACHE=${resolved.cacheStatus}\nARCHITECTURE_SOURCE_ROOT=${resolved.sourceRoot}`);
   // The source stays fixed while all application writes and commands target the requested project.
   require(safePath(resolved.sourceRoot, 'architecture/scripts/cli.js')).main([
@@ -54,4 +63,4 @@ function main(argv = process.argv.slice(2), { runtimeRoot = path.resolve(__dirna
   ]);
 }
 
-module.exports = { main, parseArgs };
+module.exports = { main, parseArgs, resolveRuntimeSource };

@@ -105,6 +105,8 @@ function createUpstream(testRoot, options = {}) {
       'infra/scripts/setup/template-apply-engine.js',
       'infra/scripts/setup/update-template.js',
       'infra/scripts/shared/config.js',
+      'tooling/xirang/target.js',
+      'tooling/xirang/engine.js',
     ]) {
       const content = fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
       const marker = relativePath.endsWith('update-template.js')
