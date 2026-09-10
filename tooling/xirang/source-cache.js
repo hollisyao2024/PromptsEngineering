@@ -3,6 +3,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { hash, json, parseJson, safePath, read, atomicWrite, withMutex, validatePlan } = require('./engine');
 const { buildAnonymousGitEnvironment } = require('./anonymous-git');
+const { canonicalPath } = require('./target');
 
 const REPOSITORY = 'https://github.com/hollisyao2024/PromptsEngineering.git';
 const POINTER = 'architecture/runtime.json';
@@ -86,12 +87,6 @@ function cacheLocation(target, descriptor, cacheRoot) {
     if (!relative || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) throw new Error('Architecture cache must be outside the project');
   }
   return { root, directory };
-}
-
-function canonicalPath(value) {
-  let existing = path.resolve(value); const tail = [];
-  while (!fs.existsSync(existing)) { tail.unshift(path.basename(existing)); existing = path.dirname(existing); }
-  return path.join(fs.realpathSync(existing), ...tail);
 }
 
 function inspectCache(directory, descriptor) {

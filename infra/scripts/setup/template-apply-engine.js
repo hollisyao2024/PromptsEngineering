@@ -14,6 +14,7 @@ const DEFAULT_MANIFEST = 'infra/templates/agent/template.manifest.json';
 
 function parseArgs(argv) {
   const args = { include: [] };
+  const values = new Set(['source', 'target', 'manifest', 'scope', 'include', 'plan', 'plan-out']);
   for (let i = 0; i < argv.length; i += 1) {
     const raw = argv[i];
     if (!raw.startsWith('--')) continue;
@@ -21,14 +22,16 @@ function parseArgs(argv) {
     if (eq !== -1) {
       const key = raw.slice(2, eq);
       const value = raw.slice(eq + 1);
-      if (key === 'include') args.include.push(...value.split(',').filter(Boolean));
+      if (values.has(key) && !value.trim()) throw new Error(`--${key} requires a value`);
+      if (key === 'include') args.include.push(...value.split(','));
       else args[key] = value;
       continue;
     }
     const key = raw.slice(2);
     const next = argv[i + 1];
+    if (values.has(key) && (!next || next.startsWith('--'))) throw new Error(`--${key} requires a value`);
     if (next && !next.startsWith('--')) {
-      if (key === 'include') args.include.push(...next.split(',').filter(Boolean));
+      if (key === 'include') args.include.push(...next.split(','));
       else args[key] = next;
       i += 1;
     } else {
@@ -503,6 +506,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
   const targetRoot = path.resolve(args.target || process.cwd());
+  if (args.write) require('../../../tooling/xirang/target').assertMutationTarget(targetRoot);
   // The public CLI always uses the frozen, baseline-aware engine. Legacy
   // applyRule exports remain for callers testing individual old strategies.
   const unified = path.join(sourceRoot, 'tooling/xirang/template.js');

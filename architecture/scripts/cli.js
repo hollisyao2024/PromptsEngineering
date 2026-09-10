@@ -10,7 +10,7 @@ const { preparePlanSource, containerPath } = require('../../tooling/xirang/sourc
 
 function runtimeRoot(target) { return path.join(containerPath(target, 'tmp'), 'xirang-runs'); }
 
-const { assertMutationTarget } = require('../../tooling/xirang/target');
+const { assertMutationTarget, assertPlanOutput } = require('../../tooling/xirang/target');
 function installDependencies(target, config) {
   const goRoots=[...(config.fileStorage?.runtime==='go'?[config.fileStorage.path]:[]),...config.applications.filter(a=>a.stack==='go').map(a=>a.path)];
   for(const directory of goRoots){const r=spawnSync('go',['mod','tidy'],{cwd:safePath(target,directory),stdio:'inherit',shell:false});if(r.error||r.status!==0)throw new Error('Go dependencies failed: '+directory);}
@@ -62,7 +62,7 @@ function main(argv=process.argv.slice(2)) {
   if(!['plan','init','update','adopt'].includes(cli.action))throw new Error(`Unknown architecture action: ${cli.action}`);
   const plan=createArchitecturePlan({source,target,config,scope:cli.scope,adopt:cli.action==='adopt'});printPlan(plan);
   if(cli.out) {
-    const out=path.resolve(cli.out);if(out===target||out.startsWith(target+path.sep))throw new Error('Save frozen plans outside the project (container tmp)');
+    const out=assertPlanOutput(target,cli.out);
     atomicWrite(out,json(plan),0o600);console.log(`PLAN_PATH=${out}`);
   }
   if(plan.conflicts.length){process.exitCode=1;return;}

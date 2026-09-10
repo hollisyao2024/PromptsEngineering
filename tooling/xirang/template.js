@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { planUpdate, readLock, safePath, read, parseJson, hash, json, applyPlan, atomicWrite } = require('./engine');
+const { assertMutationTarget, assertPlanOutput } = require('./target');
 
 function walk(root, relative = '') {
   const result=[];
@@ -37,16 +38,20 @@ function buildAgentAssets(source,target,manifestPath='infra/templates/agent/temp
   }
   return {assets:assets.map(asset=>require('./root-contributions').preserveRootContribution(asset,target)),inputs,version:manifest.templateVersion};
 }
+function validateSelectionOptions(scope = 'all', include = []) {
+  if (typeof scope !== 'string' || (!['all','agent','architecture'].includes(scope) && !/^architecture:.+/.test(scope))) throw new Error('scope must be all, agent, architecture or an installed architecture owner');
+  if (!Array.isArray(include) || include.some(value => !['architecture','all'].includes(value))) throw new Error('include must contain only architecture or all');
+  if (scope === 'agent' && include.length) throw new Error('agent scope cannot include architecture');
+}
 function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,include=[]}) {
+  validateSelectionOptions(scope, include);
   if(path.resolve(source)===path.resolve(target))throw new Error('Template source cannot apply onto itself');
   const installed=readLock(target),assets=[],inputs=[],packages={};
-  if(!['all','agent','architecture'].includes(scope)&&!scope.startsWith('architecture:'))throw new Error('scope must be all, agent, architecture or an installed architecture owner');
   if(scope==='all'||scope==='agent') {
     const agent=buildAgentAssets(source,target,manifestPath);assets.push(...agent.assets);inputs.push(...agent.inputs);
     packages.agent={version:agent.version};
   }
   const hasArchitecture=!!installed.packages['architecture:standards'];
-  if(scope==='agent' && include.length) throw new Error('agent scope cannot include architecture');
   const includeKit=scope!=='agent'&&(include.includes('architecture')||include.includes('all')||installed.packages['architecture:runtime']||hasArchitecture);
   if(scope!=='agent'&&(hasArchitecture||scope!=='all')) {
     const configText=read(target,'architecture.config.json');
@@ -97,9 +102,13 @@ function print(plan,write) {
   console.log('NEXT_ACTION=Review conflicts and plan; explicit adopt is required for existing files without baseline');
 }
 function runTemplate(args,source,target) {
-  const plan=args.plan?parseJson(fs.readFileSync(args.plan,'utf8'),'plan'):createTemplatePlan({source,target,scope:args.scope||'all',adopt:!!args.adopt,manifestPath:args.manifest,include:args.include||[]});
+  validateSelectionOptions(args.scope, args.include);
+  if (args.write !== undefined && typeof args.write !== 'boolean') throw new Error('--write does not take a value');
+  if (args.write) assertMutationTarget(target);
+  const out = args['plan-out'] && assertPlanOutput(target, args['plan-out']);
+  const plan=args.plan?parseJson(fs.readFileSync(args.plan,'utf8'),'plan'):createTemplatePlan({source,target,scope:args.scope,adopt:!!args.adopt,manifestPath:args.manifest,include:args.include});
   if(path.resolve(plan.target)!==path.resolve(target))throw new Error('plan target mismatch');
-  if(args['plan-out'])atomicWrite(path.resolve(args['plan-out']),json(plan),0o600);
+  if(out)atomicWrite(out,json(plan),0o600);
   if(args.write) {
     const runRoot=path.join(require('./source-cache').containerPath(target,'tmp'),'xirang-runs');
     if(plan.conflicts.length)throw new Error('Resolve template conflicts before applying');
@@ -109,4 +118,4 @@ function runTemplate(args,source,target) {
   print(plan,!!args.write);
   if(plan.conflicts.length)process.exitCode=1;
 }
-module.exports={buildAgentAssets,createTemplatePlan,runTemplate};
+module.exports={buildAgentAssets,createTemplatePlan,runTemplate,validateSelectionOptions};
