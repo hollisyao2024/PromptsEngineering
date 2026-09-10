@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "agent",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "applyManifest": "infra/templates/agent/template.manifest.json",
   "protocolRoots": [
     "AGENTS.md",
