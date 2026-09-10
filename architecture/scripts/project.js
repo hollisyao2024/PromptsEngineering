@@ -144,10 +144,8 @@ function detectProject(target) {
   }
   return { ...config, detection: { existingConfig: false, warnings } };
 }
-function sourceIdentity(source) {
-  const result = spawnSync('git', ['rev-parse','HEAD'], { cwd: source, encoding: 'utf8', shell: false });
-  return { id: 'xirang', commit: result.status === 0 ? result.stdout.trim() : null };
-}
+const { sourceIdentity } = require('../../tooling/xirang/source-cache');
+
 function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw, includeRuntime = true, scope }) {
   const config = validateConfig(raw, { source, target }), cat = catalog(source), assets = [], inputMap = new Map(), owned = new Map(), packages = {};
   const existingChoice = read(target, CONFIG);
@@ -323,10 +321,10 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   if (config.schemaVersion===2) require('./monorepo').buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,registration,selected,target});
   if (scope && scope !== 'architecture' && !packages[scope]) throw new Error(`scope is not an installed/selected module: ${scope}`);
   if (includeRuntime) {
-    for (const root of ['architecture','tooling/xirang']) for (const file of walk(path.join(source, root))) {
-      const p = `${root}/${file}`; add(p, readSource(p), 'overwrite', root === 'tooling/xirang' ? 'xirang:engine' : 'architecture:runtime');
-    }
-    registration('architecture:runtime', { id: 'architecture' });
+    const kit = require('../../tooling/xirang/architecture-kit').buildRuntimeAssets({source,target});
+    for(const asset of kit.assets)add(asset.path,asset.content,asset.strategy,asset.owner,{mode:asset.mode});
+    for(const input of kit.inputs)inputMap.set(input.path,input);
+    Object.assign(packages,kit.packages);
   }
   const existingConfig = read(target, CONFIG);
   if (existingConfig !== null) inputMap.set(path.join(target, CONFIG), { path: path.join(target, CONFIG), hash: hash(existingConfig) });

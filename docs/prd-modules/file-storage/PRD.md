@@ -37,6 +37,6 @@ Node 与 Go 的 local/S3/OSS/COS 适配、按需依赖与配置、多存储路�
 
 PRD → ARCH → TASK → TDD → QA → PR 合并。代码、生成器、消费者及升级回归通过；稳定里程碑沿用主状态文件，运行证据在任务目录保存。
 
-## 7. 追溯与用户体验
+## 7. 追溯矩阵与验证
 
 追溯见 [矩阵](../../data/traceability-matrix.md)，交互见 [UX](ux-specifications.md)。身份与业务列表由项目组合，无阻塞选择问题。

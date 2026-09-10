@@ -2,12 +2,13 @@
 
 ## 1. QA 概览
 
-息壤源码按功能模块记录验证。当前 3.3 交付覆盖开源能力、统一文件存储、认证/权限/队列、高级 UI 与兼容升级；测试结论为 Go。本机 QA receipt、主干同步及 completion guard 决定最终交付状态。
+息壤源码按功能模块记录验证。当前 3.4 交付覆盖轻量架构入口、固定来源缓存、所选生成与原始 3.3 缩减；3.3 能力结论保留于各模块。当前验收状态见架构按需获取报告；本机 QA receipt、主干同步及 completion guard 决定最终交付状态。
 
 ## 2. 模块索引
 
 | 模块 | 报告 | 本轮范围 |
 | --- | --- | --- |
+| 架构按需获取 | [QA](qa-modules/architecture-on-demand/QA.md) | 轻量入口、固定缓存、CLI、真实 Web 与旧版缩减 |
 | 开源公共组件 | [QA](qa-modules/open-source-components/QA.md) | 全组件、真实 DB/队列/浏览器/性能与旧版升级 |
 | 统一文件存储 | [QA](qa-modules/file-storage/QA.md) | Node/Go 适配、会话、元数据、安全与恢复 |
 | 多端 Monorepo 与 Prisma | [QA](qa-modules/monorepo-platform/QA.md) | 九项 AC、真实数据库/浏览器/原生与旧版升级 |
@@ -23,7 +24,7 @@
 
 ## 4. 跨模块整合与集成测试
 
-本轮覆盖初始化/更新器 → workspace → 数据与契约 → API/Query → 公共表格和宿主接口的完整链路。
+本轮覆盖官方固定源码 → 外部缓存 → 项目轻量入口 → 所选 API/Web，以及旧版所有权更新与冻结恢复的完整链路。
 
 ## 5. 全局执行矩阵与指标
 

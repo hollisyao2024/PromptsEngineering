@@ -1,6 +1,6 @@
 # 通用工程约定
 
-本文件定义模型作业包的详细协议；应用技术架构独立维护于 `architecture/`。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
+本文件定义模型作业包的详细协议；应用技术架构独立维护于息壤源的 `architecture/`，实际项目按需取得轻量入口和所选实现。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
 
 ## 1. 路径与仓库拓扑
 
@@ -19,7 +19,7 @@
 
 写入型稳定命令首次需要容器目录时必须通过共享初始化器自动递归创建：worktree 生命周期声明 `worktrees`/`tmp`，任务与模板运行状态声明 `tmp`，项目命令执行前声明 `tmp`/`cache`/`artifacts`。初始化必须幂等并保护已有内容；配置加载、纯路径解析与无需写入的只读命令不得为补齐目录而产生副作用。目标被文件或符号链接占位、路径非法或创建失败时必须 fail closed，禁止继续后续命令副作用。
 
-应用内部目录规范见 [directories.md](../architecture/standards/directories.md)：`apps/<app>/` 放独立应用，`packages/` 放共享模块，`infra/` 放交付实现，`tooling/` 放工程工具；按实际需要初始化。项目选型与路径写 `architecture.config.json`，采用后的技术约束以 `docs/standards/` 为准，模板源位于 `architecture/standards/`；技术选择不重复写入 `RULES.md`。
+应用内部目录约定：`apps/<app>/` 放独立应用，`packages/` 放共享模块，`infra/` 放交付实现，`tooling/` 放工程工具；按实际需要初始化。项目选型与路径写 `architecture.config.json`，采用后的完整目录规范与技术约束以 `docs/standards/directories.md` 及同目录文档为准，源文件位于息壤源码的 `architecture/standards/`；技术选择不重复写入 `RULES.md`。
 
 主 worktree 保持在 base branch。修改 tracked 文件只在专属 worktree 中进行；只读诊断可在任意 worktree。每个 worktree 独立安装依赖，包内容复用交给包管理器 store。
 
@@ -60,9 +60,9 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 3. apply 后校验哈希和文件范围；
 4. 再次 dry-run，预期无差异。
 
-架构命令使用 `pnpm agent -- architecture catalog|detect|validate|plan|init|update|adopt|check`。初次获取架构目录用 `template sync --include architecture`；默认同步更新作业包及已采用模块，`--scope agent` 只更新作业包。采用 React/shadcn 后必须按 [UI 标准](../architecture/standards/ui.md) 使用基础控件和唯一 DataTable，禁止业务层原生交互控件；框架选择仍由项目决定。
+架构命令使用 `pnpm agent -- architecture catalog|detect|validate|plan|init|update|adopt|check`。初次获取轻量架构入口用 `template sync --include architecture`；默认同步更新作业包及已采用模块，`--scope agent` 只更新作业包且不能同时 include architecture。采用 React/shadcn 后必须按项目 `docs/standards/ui.md` 使用基础控件和唯一 DataTable，禁止业务层原生交互控件；框架选择仍由项目决定。
 
-模板源码只保存组件实现、版本清单与工具，不预装全部应用栈；实际 workspace 初始化见 [Monorepo 指南](../architecture/guides/monorepo.md)。
+模板源码不预装应用依赖。实际项目的 `architecture/` 只保存轻量 metadata、固定来源指针与 CLI；完整模板留在源或容器 `cache/xirang/sources/`，按提交和摘要验证。include 只获取工具，init/update 按选择生成代码并默认安装依赖；普通同步不新增技术选择。命令输出 `ARCHITECTURE_SOURCE_ROOT`，从其 `architecture/guides/` 点读指南。旧全量目录只移除 lock 登记且未修改的 runtime 文件，定制与仍被引用的 baseline 保留。
 
 模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
 ### 息壤官方同步

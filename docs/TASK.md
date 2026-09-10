@@ -8,6 +8,8 @@
 
 ## 2. 模块任务索引
 
+架构按需获取：[模块 TASK](task-modules/architecture-on-demand/TASK.md)，依赖固定来源缓存与所有权引擎，3.4 功能验收通过（2026-09-10）。
+
 开源公共能力：[模块 TASK](task-modules/open-source-components/TASK.md)，与文件存储一起完成全组件组合验收和交付。
 
 统一文件存储：[模块 TASK](task-modules/file-storage/TASK.md)，覆盖四适配、上传与元数据、消费者和升级验证。

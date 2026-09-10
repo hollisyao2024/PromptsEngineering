@@ -20,7 +20,22 @@ pnpm agent -- template update <目标-worktree> --include architecture
 pnpm agent -- template sync --include architecture
 ```
 
-此时只获得架构目录与执行能力，不生成应用。只需要模型作业流程的项目使用 `--scope agent`，无需安装前端、Go 或数据库依赖。
+此时只获得轻量架构入口与执行能力，不生成应用。只需要模型作业流程的项目使用 `--scope agent`，无需安装前端、Go 或数据库依赖。
+
+3.4 起，实际项目只保存以下 7 个架构文件，并复用 `tooling/xirang/` 更新工具：
+
+```text
+architecture/
+├── README.md
+├── manifest.json
+├── architecture.schema.json
+├── open-source-catalog.json
+├── runtime.json
+├── components/shadcn/component-sets.json
+└── scripts/cli.js
+```
+
+本页和完整指南位于息壤源仓库；实际项目中的 README 是轻量入口说明。manifest/catalog 内的模板路径指向固定源码快照，不表示这些文件已经复制到业务仓库。生成器、完整组件 Registry、模块模板、蓝图、测试及示例保留在源或容器 cache；生成后的项目代码按选择进入 apps/packages，适用技术标准进入 docs/standards。
 
 在目标项目中查看选择并规划：
 
@@ -44,9 +59,17 @@ pnpm agent -- architecture check
 
 `init` 校验所有选择，生成计划，阻断冲突，写入所选骨架、组件和版本基线，然后安装依赖并检查。v1 安装关闭依赖生命周期脚本；v2 使用单根 workspace，在 onlyBuiltDependencies 中声明必要构建包，随后显式生成 Prisma Client 和合约类型。Go/Rust 工具链不会偷偷下载安装，原生构建由对应应用命令显式执行。
 
-离线预演用 `plan` 或 `init --dry-run`，目标目录零写入；只生成文件用 `init --no-install`，输出 `DEPENDENCIES=PENDING`。随后执行 `architecture install-deps`、`architecture check`，再运行各应用的 `test`、`build`。`apply --plan <文件>` 消费之前冻结的计划，只写文件，不重复选择新源，也不隐式安装依赖。
+预演用 `plan` 或 `init --dry-run`，目标目录零写入；轻量入口在缓存缺失时可能联网准备固定源码到容器 cache。已有完整缓存时可以离线预演。只生成文件用 `init --no-install`，输出 `DEPENDENCIES=PENDING`。随后执行 `architecture install-deps`、`architecture check`，再运行各应用的 `test`、`build`。`apply --plan <文件>` 消费之前冻结的计划，只写文件，不重复选择新源，也不隐式安装依赖。
 
 架构包也能独立使用：`node architecture/scripts/cli.js <action>`。首次在一个已经创建的空目录初始化时从息壤源调用该入口，并显式 `--target <目录> --config <配置文件>`。Git 项目中的 mutation 必须使用 linked worktree，模板源本身不能作为应用生成目标。
+
+## 固定来源与缓存
+
+`architecture/runtime.json` 固定官方 repository、commit、版本与内容摘要，并受 xirang.lock.json 基线保护。第一次 include/init/update 在写入项目文件前准备源码缓存；后续架构命令先校验缓存，缺失时匿名获取同一 commit，再验证源码身份和内容。输出 ARCHITECTURE_VERSION、ARCHITECTURE_COMMIT、ARCHITECTURE_CACHE 与 ARCHITECTURE_SOURCE_ROOT；可在后者下点读 architecture/guides 的对应版本指南。
+
+缓存位于主 worktree 所属容器的 cache/xirang/sources，按提交和摘要隔离；linked worktree 不将缓存误放到 worktrees/cache。缓存中可以包含未选模板，但没有应用 node_modules、数据库或 Git 凭据。缺失可重建；损坏或源不匹配会阻断，核对后删除精确缓存快照再重试，不能把未完成更新日志一起清理。未发布或有本地修改的源码预览在缓存丢失后，需要用 --source 提供内容匹配的原源码。
+
+缓存复用只代表固定版本可用。获取最新模板仍由 template sync required fetch main 完成；架构命令不会静默换到 main，也不会自动启用新模块。缓存可能通过完整 Git 快照准备，本协议优化实际项目的文件范围，不承诺逐组件的网络分包下载。
 
 ## 配置模型与已提供实现
 
@@ -107,7 +130,7 @@ forms、selectors、feedback、advanced 默认位于应用 components 下；UI �
 
 | 内容 | 更新语义 |
 | --- | --- |
-| 作业协议、执行工具、架构源目录 | overwrite；已有本地漂移先阻断 |
+| 作业协议、执行工具、轻量架构入口 | overwrite；已有本地漂移先阻断 |
 | 已实例化的 shadcn、DataTable、公共模块、技术标准 | update；三方合并保留项目定制 |
 | package.json 等共享 JSON | 字段三方合并；项目独有字段保留 |
 | 迁移文件/迁移注册表 | append / append-json；既有 ID 不改写 |
@@ -122,6 +145,8 @@ pnpm agent -- architecture update --scope architecture:table:apps/web/src/compon
 ```
 
 默认 template sync 只升级已经采用的架构选择，新增应用或改变选型会要求显式 architecture init/update。项目配置属于项目；从外部配置文件规划已有项目时必须先把确认的选择写入项目 architecture.config.json，避免出现两份选型。切换框架、搬迁目录和移除应用不会自动删除旧业务代码，需独立治理任务。减少 componentSets 也不会卸载组件：已登记的组件及依赖继续维护，避免仍被项目使用的源码失效；需要卸载时由项目显式清理引用、文件、依赖及所有权记录。旧版配置补齐默认字段不被误判为项目改选。单独升级组件时同时带入其依赖及消费者配置，确保生成结果可编译。
+
+3.3 全量架构目录升级到 3.4 时，只对 lock 中 architecture:runtime 自有且不在轻量清单内的文件计划 remove。基线缺失或本地定制会报冲突；未登记的项目说明、业务源码、组件修改和迁移保留。未修改的多余模板文件及空目录移除后，新 lock 不再引用的旧 baseline 才被清理；其他 owner 仍引用的基线和未知孤立文件保留。该收缩只作用于工具源码，不执行业务模块卸载。`--scope agent` 不收缩架构目录。
 
 上次模板、项目当前、新模板组成三方依据。`xirang.lock.json` 和 `.xirang/baselines/` 必须一起提交；不能手工把本地文件标成“未修改”。缺少基线的旧项目会得到 adoption-required：
 
@@ -138,6 +163,6 @@ adopt 默认只展示计划；`--write` 表示维护者已核对差异，保留�
 pnpm agent -- architecture resume
 ```
 
-同一引擎也恢复模板写入；仅安装作业包时用 `node tooling/xirang/resume.js`。恢复使用日志内的冻结计划，按 before/after 哈希判断已写入项；用户额外修改引起第三种状态时阻断。修复/恢复明确文件后重试，不删除整个 worktree 或日志。恢复后补依赖、checks、构建、再次 dry-run 和项目交付门禁。
+同一引擎也恢复模板写入；仅安装作业包时用 `node tooling/xirang/resume.js`。轻量入口的 resume 直接使用冻结日志，不要求中断中的 runtime 指针与 lock 已同步，也不联网获取新源。若首次升级中连入口工具都尚未写全，可从已固定的息壤源码调用 `node architecture/scripts/cli.js resume --target <目标>`。恢复按 before/after 哈希判断已写入项；用户额外修改引起第三种状态时阻断。修复/恢复明确文件后重试，不删除整个 worktree 或日志。恢复后补依赖、checks、构建、再次 dry-run 和项目交付门禁。
 
 文件锁只协调本机写入器，Git worktree/分支仍是最终审查和历史边界。普通初始化/更新不执行数据库迁移或部署。若遗留 writer-recovery.lock，先确认相关进程和日志状态，再恢复精确锁文件；不自动清理不明恢复状态。

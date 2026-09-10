@@ -113,3 +113,14 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-OSSKIT-006 | AC-OSSKIT-006-01 | TC-OSSKIT-006 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
 | US-OSSKIT-007 | AC-OSSKIT-007-01 | TC-OSSKIT-007 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
 | US-OSSKIT-008 | AC-OSSKIT-008-01 | TC-OSSKIT-008 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+
+## 架构按需获取
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-LAZYARCH-001 | AC-LAZYARCH-001-01 | TC-LAZYARCH-001 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+| US-LAZYARCH-002 | AC-LAZYARCH-002-01 | TC-LAZYARCH-002 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+| US-LAZYARCH-003 | AC-LAZYARCH-003-01 | TC-LAZYARCH-003 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+| US-LAZYARCH-004 | AC-LAZYARCH-004-01 | TC-LAZYARCH-004 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+| US-LAZYARCH-005 | AC-LAZYARCH-005-01 | TC-LAZYARCH-005 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+| US-LAZYARCH-006 | AC-LAZYARCH-006-01 | TC-LAZYARCH-006 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |

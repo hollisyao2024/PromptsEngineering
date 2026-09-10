@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-09-10：[ADR 031](031-arch-on-demand-runtime.md)，轻量架构入口、固定来源缓存及旧包安全缩减。
+
 | ADR | 日期 | 状态 | 摘要 |
 | --- | --- | --- | --- |
 | [ADR-001](001-arch-template-command-dispatch.md) | 2026-08-23 | Accepted | 扩展现有模板命令执行面，避免第二套命令系统 |

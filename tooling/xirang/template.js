@@ -46,7 +46,8 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     packages.agent={version:agent.version};
   }
   const hasArchitecture=!!installed.packages['architecture:standards'];
-  const includeKit=include.includes('architecture')||include.includes('all')||(scope==='all'&&installed.packages['architecture:runtime']);
+  if(scope==='agent' && include.length) throw new Error('agent scope cannot include architecture');
+  const includeKit=scope!=='agent'&&(include.includes('architecture')||include.includes('all')||installed.packages['architecture:runtime']||hasArchitecture);
   if(scope!=='agent'&&(hasArchitecture||scope!=='all')) {
     const configText=read(target,'architecture.config.json');
     if(!configText)throw new Error('Architecture update requires an adopted architecture.config.json');
@@ -56,7 +57,7 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     const selectionKeys=[...(config.applications||[]).map(a=>`architecture:app:${a.id}`),...(config.datastores||[]).map(d=>`architecture:store:${d.id}`),...(config.modules||[]).map(m=>`architecture:module:${m.id}`),...(config.profiles||[]).map(p=>`architecture:profile:${p.id}`)];
     if(config.fileStorage)selectionKeys.push('architecture:file-storage');
     if(selectionKeys.some(key=>!installed.packages[key]))throw new Error('New architecture choices need architecture init/update before template sync');
-    const built=buildArchitectureAssets({source,target,config,scope:scope==='all'?'architecture':scope});
+    const built=buildArchitectureAssets({source,target,config,includeRuntime:false,scope:scope==='all'?'architecture':scope});
     for (const [owner, value] of Object.entries(built.packages)) {
       const previous = installed.packages[owner];
       if (!previous?.parametersHash || previous.parametersHash === value.parametersHash || owner === 'architecture:standards') continue;
@@ -71,12 +72,8 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     assets.push(...built.assets);inputs.push(...built.inputs);Object.assign(packages,built.packages);
   }
   if(includeKit) {
-    const manifestFile=safePath(source,'architecture/manifest.json'),cat=parseJson(fs.readFileSync(manifestFile,'utf8'),'architecture manifest');
-    for(const file of walk(path.join(source,'architecture'))) {
-      const p=`architecture/${file}`,absolute=safePath(source,p),content=fs.readFileSync(absolute,'utf8');inputs.push({path:absolute,hash:hash(content)});
-      assets.push({path:p,content,strategy:'overwrite',owner:'architecture:runtime',version:cat.version});
-    }
-    packages['architecture:runtime']={version:cat.version,selection:{id:'architecture'},parametersHash:hash(json({id:'architecture'}))};
+    const kit=require('./architecture-kit').buildRuntimeAssets({source,target});
+    assets.push(...kit.assets);inputs.push(...kit.inputs);Object.assign(packages,kit.packages);
   }
   // The runtime engine is shared; one owner consistently manages it regardless of entry point.
   for(const asset of assets)if(asset.path.startsWith('tooling/xirang/'))asset.owner='xirang:engine';
@@ -104,8 +101,9 @@ function runTemplate(args,source,target) {
   if(path.resolve(plan.target)!==path.resolve(target))throw new Error('plan target mismatch');
   if(args['plan-out'])atomicWrite(path.resolve(args['plan-out']),json(plan),0o600);
   if(args.write) {
-    const {loadConfig,getMainRepoRoot,resolveContainerPath}=require('../../infra/scripts/shared/config');
-    const runRoot=path.join(resolveContainerPath(loadConfig({repoRoot:target}),getMainRepoRoot(target),'tmp'),'xirang-runs');
+    const runRoot=path.join(require('./source-cache').containerPath(target,'tmp'),'xirang-runs');
+    if(plan.conflicts.length)throw new Error('Resolve template conflicts before applying');
+    require('./source-cache').preparePlanSource(plan,source);
     applyPlan(plan,{runRoot});
   }
   print(plan,!!args.write);
