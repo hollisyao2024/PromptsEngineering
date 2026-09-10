@@ -1402,8 +1402,7 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
   const agentStatePath = path.join(mainRepoRoot, 'docs', 'AGENT_STATE.md');
   try {
     if (!fs.existsSync(agentStatePath)) {
-      console.log('\x1b[33m  警告：/docs/AGENT_STATE.md 不存在，跳过自动更新\x1b[0m');
-      return false;
+      return { status: 'missing' };
     }
 
     const content = fs.readFileSync(agentStatePath, 'utf8');
@@ -1411,18 +1410,28 @@ function updateAgentState(mainRepoRoot, prNumber, commitHash) {
     let updated = upsertQaValidatedEntry(content, prNumber, commitHash, date);
 
     if (updated === content) {
-      console.log('\x1b[33m  警告：AGENT_STATE.md 中未找到待勾选的 QA_VALIDATED 条目（可能已勾选）\x1b[0m');
-      return false;
+      return { status: 'already-complete' };
     }
 
     updated = clearInProgressContent(updated);
 
     fs.writeFileSync(agentStatePath, updated, 'utf8');
-    console.log('\x1b[32m  AGENT_STATE.md 已更新（稳定 QA_VALIDATED 里程碑）\x1b[0m');
-    return true;
+    return { status: 'updated' };
   } catch (err) {
-    console.log(`\x1b[33m  警告：自动更新 AGENT_STATE.md 失败（${err.message}），请手动勾选\x1b[0m`);
-    return false;
+    return { status: 'failed', error: err.message };
+  }
+}
+
+function formatAgentStateResult(result) {
+  switch (result.status) {
+    case 'updated':
+      return '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m';
+    case 'already-complete':
+      return '\x1b[32m✓ QA_VALIDATED 已完成，AGENT_STATE.md 保持不变\x1b[0m';
+    case 'missing':
+      return '\x1b[33m⚠ AGENT_STATE.md 不存在，已跳过自动更新\x1b[0m';
+    default:
+      return `\x1b[33m⚠ AGENT_STATE.md 更新失败（${result.error || '未知状态'}），请检查文件后手动勾选 QA_VALIDATED\x1b[0m`;
   }
 }
 
@@ -1509,7 +1518,7 @@ function printSummary(
   featureBranch,
   commitHash,
   strategy,
-  agentStateUpdated,
+  agentStateResult,
   version,
   mainRepoRoot,
   cleanupResult = {},
@@ -1548,9 +1557,7 @@ function printSummary(
   if (version) {
     console.log(`  版本:   v${version}`);
   }
-  console.log(
-    `  状态:   ${agentStateUpdated ? '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m' : '\x1b[33m⚠ AGENT_STATE.md 更新失败，请手动勾选 QA_VALIDATED\x1b[0m'}`
-  );
+  console.log(`  状态:   ${formatAgentStateResult(agentStateResult)}`);
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
   console.log(cleanupResult.deferred
@@ -1802,8 +1809,9 @@ async function main() {
 
     // 更新 AGENT_STATE
     const commitHash = getLatestMainCommit(mainWorkspacePath);
-    const agentStateUpdated = updateAgentState(mainWorkspacePath, pr.number, commitHash);
-    if (agentStateUpdated) releaseFiles.push('docs/AGENT_STATE.md');
+    const agentStateResult = updateAgentState(mainWorkspacePath, pr.number, commitHash);
+    console.log(`  ${formatAgentStateResult(agentStateResult)}`);
+    if (agentStateResult.status === 'updated') releaseFiles.push('docs/AGENT_STATE.md');
 
     // Step 16: commit + optional tag
     if (releaseFiles.length > 0) {
@@ -1894,7 +1902,7 @@ async function main() {
       currentBranch,
       commitHash,
       strategy,
-      agentStateUpdated,
+      agentStateResult,
       newVersion,
       mainWorkspacePath,
       cleanupResult,
@@ -1929,6 +1937,8 @@ module.exports = {
   formatGhError,
   formatAgentStateQaValidatedEntry,
   upsertQaValidatedEntry,
+  updateAgentState,
+  printSummary,
   // B1-B6 surface for unit tests:
   shouldSwitchVscodeWindow,
   switchVscodeWindow,

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
