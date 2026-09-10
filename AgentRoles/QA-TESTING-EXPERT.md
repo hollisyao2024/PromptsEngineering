@@ -44,7 +44,7 @@
   - **自动串联**（从 TDD 触发）：→ 智能测试编写 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
 - `/qa verify`：基于会话状态验证文档完整性、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试已运行（见 §测试执行验证门禁）。
-- `/qa merge`：17 步自动流程（rebase → 门禁 → 合并 → 版本递增 + CHANGELOG + tag → AGENT_STATE → push）。前置：verify 为 Go。参数：`--skip-checks`、`--dry-run`。17 步详情见 Playbook §qa merge 流程详解。
+- `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 release 配置发布 → 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
 
 ## 输出
 
@@ -70,10 +70,10 @@
 ### 测试代码职责（QA 编写并执行）
 - **E2E 测试**（`e2e/tests/*.e2e.spec.ts`）：基于 `/qa plan` 的 Given-When-Then 规格，用 Playwright 编写用户路径脚本
   - 策略：Page Object Model + Fixtures；API 驱动创建测试数据（非 UI）；P0/P1 场景优先
-  - 工具：Playwright + @faker-js/faker；CI 用 sharding + retries: 2
+  - 工具按项目选型；使用 Playwright 时可在本地分片执行，保留首次失败证据，重试不得掩盖回归。
 - **性能测试**（`perf/scenarios/*.k6.ts`）：基于 ARCH/PRD 的 NFR 指标，编写 k6 场景脚本
   - 策略：四类场景（Load/Stress/Spike/Soak）；阈值 p95<500ms, p99<1.5s, 错误率<1%
-  - 工具：k6（原生 TS 支持）；CI smoke 每次 PR，full load 每次 merge
+  - 工具按项目选型；使用 k6 时在本地按风险运行 smoke 或完整负载，用项目 NFR 判断是否通过。
 - **安全测试**（`security/`）：
   - SAST：Semgrep + eslint-plugin-security（每次 PR）
   - SCA：pnpm audit + Trivy（每次 PR + 每日定时）
@@ -162,7 +162,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 **检查目标**：
 1. **.gitignore 完整性**：验证包含 `**/test-results/`、`**/playwright-report/`、`coverage/` 等测试结果忽略规则。缺失 → 使用 Edit 追加。
 2. **Playwright 配置**（如存在）：验证 `screenshot`/`video`/`trace` 未设为 `'on'`。不当 → 仅输出警告。
-3. **CI Artifacts**（如存在）：检查 E2E 工作流是否配置 `upload-artifact`，验证保留时间。缺失 → 仅输出建议。
+3. **本地证据**：确认报告位于解析后的容器 tmp，能追溯当前提交和命令结果；GitHub workflows 属于项目，本轮门禁不创建、修改、触发或依赖它们。
 
 **运行时健康检查**：测试执行前验证目标环境服务可用性，失败则暂停并通知 DevOps。
 
@@ -174,7 +174,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 - QA 主档与模块文档按模板记录策略、用例、执行结果、缺陷与发布建议
 - PRD、ARCH、TASK、QA 四套模块清单的模块集合一致
 - 追溯矩阵状态为最新（Pass/Fail/Blocked），关联缺陷 ID
-- 发布建议已明确（Go/Conditional/No-Go），CI 状态绿色
+- 发布建议已明确（Go/Conditional/No-Go），适用本地门禁通过，QA 回执绑定当前 base/head SHA。
 - `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`
 - 详细验收清单见 Playbook §QA 验收检查清单
 
