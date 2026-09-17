@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const {
   bindTaskLocation,
@@ -23,6 +24,103 @@ const {
 } = require('../agent-task');
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
+
+test('CLI records denial, refuses unverified replay, and persists verified recovery', (t) => {
+  const paths = fixture(t);
+  const cli = path.resolve(__dirname, '../agent-task.js');
+  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd: paths.projectRoot }).status, 0);
+  const run = (...args) => spawnSync(process.execPath, [cli, ...args], {
+    cwd: paths.projectRoot, encoding: 'utf8', timeout: 15000,
+  });
+  const started = run('start', '--task', 'cli-recovery', '--type', 'operation',
+    '--desc', 'fixture', '--step', 'inspect');
+  assert.equal(started.status, 0, started.stderr);
+  const statePath = started.stdout.match(/^STATE_PATH=(.+)$/m)[1].trim();
+  assert.equal(path.relative(paths.root, statePath).startsWith('..'), false);
+  assert.equal(run('checkpoint', '--task', 'cli-recovery', '--step', 'S1',
+    '--status', 'blocked', '--failure-kind', 'policy_denied',
+    '--execution-state', 'not_started', '--evidence', 'fixture denial',
+    '--next', 'verify permission').status, 0);
+  const denied = run('checkpoint', '--task', 'cli-recovery', '--step', 'S1', '--status', 'running');
+  assert.notEqual(denied.status, 0);
+  assert.match(denied.stderr, /recovery evidence/i);
+  assert.equal(run('checkpoint', '--task', 'cli-recovery', '--step', 'S1',
+    '--status', 'done', '--evidence', 'fixture result verified',
+    '--recovery-evidence', 'fixture authorization restored').status, 0);
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.equal(state.steps[0].status, 'done');
+  assert.equal(state.steps[0].failures.length, 1);
+  assert.equal(state.steps[0].recoveries.length, 1);
+});
+
+test('policy denial survives resume and requires explicit recovery evidence', (t) => {
+  const paths = fixture(t);
+  const input = startInput(paths);
+  createTask(input);
+  const failed = checkpointTask({ ...input, stepId: 'S1', status: 'blocked',
+    failureKind: 'policy_denied', executionState: 'not_started', callId: 'call-test',
+    evidence: ['executor rejected before spawn'], nextAction: 'Obtain decision reason' });
+  assert.equal(failed.last_error.failure_kind, 'policy_denied');
+  assert.equal(failed.steps[0].failures[0].call_id, 'call-test');
+  assert.equal(resumeTask(input).steps[0].status, 'blocked');
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S1', status: 'running' }), /recovery evidence/i);
+  const recovered = checkpointTask({ ...input, stepId: 'S1', status: 'running',
+    recoveryEvidence: 'Executor authorization restored; no child process had started' });
+  assert.equal(recovered.steps[0].failures.length, 1);
+  assert.equal(recovered.steps[0].recoveries.length, 1);
+});
+
+test('unknown execution requires verification; invalid failure input does not change state', (t) => {
+  const input = startInput(fixture(t));
+  const initial = createTask(input);
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S2', status: 'blocked',
+    failureKind: 'unknown_result', executionState: 'unknown',
+    evidence: ['connection lost'], nextAction: 'Read remote result' }), /verify_required/);
+  assert.deepEqual(readTaskState(input), initial);
+  const failed = checkpointTask({ ...input, stepId: 'S2', status: 'verify_required',
+    failureKind: 'unknown_result', executionState: 'unknown',
+    evidence: ['connection lost'], nextAction: 'Read remote result' });
+  assert.equal(failed.last_error.execution_state, 'unknown');
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S2', status: 'done',
+    evidence: ['assumed success'] }), /recovery evidence/i);
+});
+
+test('ordinary tool failure records an auditable recovery without replacing task history', (t) => {
+  const input = startInput(fixture(t));
+  createTask(input);
+  checkpointTask({ ...input, stepId: 'S1', status: 'blocked',
+    failureKind: 'tool_error', executionState: 'not_started',
+    evidence: ['missing executable'], nextAction: 'Restore configured executable' });
+  const done = checkpointTask({ ...input, stepId: 'S1', status: 'done',
+    evidence: ['command completed once'], recoveryEvidence: 'Executable restored and result verified' });
+  assert.equal(done.last_error, null);
+  assert.equal(done.steps[0].failures[0].failure_kind, 'tool_error');
+  assert.equal(done.steps[0].recoveries[0].failure_index, 0);
+  const args = parseCliArgs(['checkpoint', '--failure-kind=tool_error',
+    '--execution-state', 'not_started', '--call-id=call-test', '--recovery-evidence', 'verified']);
+  assert.equal(args.failureKind, 'tool_error');
+  assert.equal(args.executionState, 'not_started');
+  assert.equal(args.callId, 'call-test');
+  assert.equal(args.recoveryEvidence, 'verified');
+});
+
+test('failure evidence is required and corrupt recovery history fails closed', (t) => {
+  const input = startInput(fixture(t));
+  const initial = createTask(input);
+  for (const overrides of [
+    { evidence: [] }, { nextAction: '' }, { failureKind: 'auto_retry' },
+    { executionState: 'unknown' }, { status: 'done' },
+  ]) {
+    assert.throws(() => checkpointTask({ ...input, stepId: 'S1', status: 'blocked',
+      failureKind: 'policy_denied', executionState: 'not_started',
+      evidence: ['denied'], nextAction: 'Investigate', ...overrides }));
+    assert.deepEqual(readTaskState(input), initial);
+  }
+  const statePath = path.join(input.runsRoot, input.taskId, 'state.json');
+  initial.steps[0].recoveries = [{ failure_index: 0, evidence: 'not backed by a failure' }];
+  fs.writeFileSync(statePath, JSON.stringify(initial));
+  assert.throws(() => readTaskState(input), /failure|recovery/);
+});
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(realTemporaryRoot, 'agent-task-'));

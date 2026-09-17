@@ -200,6 +200,29 @@ function validateState(inputState, expectedTaskId) {
     if (!Array.isArray(step.evidence)) {
       throw new Error(`invalid task state: evidence must be an array for ${step.id}`);
     }
+    const failures = step.failures === undefined ? [] : step.failures;
+    const recoveries = step.recoveries === undefined ? [] : step.recoveries;
+    if (!Array.isArray(failures) || !Array.isArray(recoveries)) {
+      throw new Error('invalid task state: failure/recovery history must be arrays');
+    }
+    for (const failure of failures) {
+      if (!failure || !['tool_error', 'policy_denied', 'unknown_result'].includes(failure.failure_kind)
+        || !['not_started', 'started', 'unknown'].includes(failure.execution_state)
+        || (failure.failure_kind === 'unknown_result' && failure.execution_state !== 'unknown')
+        || !Array.isArray(failure.evidence) || !failure.evidence.length
+        || !String(failure.next_action || '').trim() || !Number.isFinite(Date.parse(failure.at))) {
+        throw new Error('invalid task state: malformed failure history');
+      }
+    }
+    const recovered = new Set();
+    for (const recovery of recoveries) {
+      if (!recovery || !Number.isInteger(recovery.failure_index) || recovery.failure_index < 0
+        || recovery.failure_index >= failures.length || recovered.has(recovery.failure_index)
+        || !String(recovery.evidence || '').trim() || !Number.isFinite(Date.parse(recovery.at))) {
+        throw new Error('invalid task state: malformed recovery history');
+      }
+      recovered.add(recovery.failure_index);
+    }
   }
   if (!Array.isArray(state.acceptance_criteria)) {
     throw new Error('invalid task state: acceptance_criteria must be an array');
@@ -539,6 +562,31 @@ function checkpointTask(options) {
     const timestamp = nowIso(options.now);
     const stepId = String(options.stepId || '').trim();
     const acceptanceId = String(options.acceptanceId || '').trim();
+    const failureKind = String(options.failureKind || '').trim();
+    const executionState = String(options.executionState || '').trim();
+    const recoveryEvidence = String(options.recoveryEvidence || '').trim();
+    if (failureKind || executionState || options.callId) {
+      if (!stepId || acceptanceId || recoveryEvidence) {
+        throw new Error('failure checkpoint requires a step only and cannot include recovery');
+      }
+      if (!['tool_error', 'policy_denied', 'unknown_result'].includes(failureKind)) {
+        throw new Error('invalid failure kind');
+      }
+      if (!['not_started', 'started', 'unknown'].includes(executionState)) {
+        throw new Error('invalid execution state');
+      }
+      const requiredStatus = executionState === 'not_started' ? 'blocked' : 'verify_required';
+      if (requestedStatus !== requiredStatus) throw new Error('failure requires status=' + requiredStatus);
+      if (failureKind === 'unknown_result' && executionState !== 'unknown') {
+        throw new Error('unknown_result requires execution-state=unknown');
+      }
+      if (!evidence.length || !String(options.nextAction || '').trim()) {
+        throw new Error('failure checkpoint requires evidence and next action');
+      }
+    }
+    if (recoveryEvidence && (!stepId || !['running', 'done'].includes(requestedStatus))) {
+      throw new Error('recovery evidence requires a running or done step');
+    }
     if (!stepId && !acceptanceId) {
       throw new Error('checkpoint requires --step, --acceptance-id, or both');
     }
@@ -560,6 +608,26 @@ function checkpointTask(options) {
       }
       const step = state.steps.find((item) => item.id === stepId);
       if (!step) throw new Error(`unknown step: ${stepId}`);
+      const failures = step.failures || [];
+      const recoveries = step.recoveries || [];
+      const failureIndex = failures.length - 1;
+      const unresolvedFailure = failureIndex >= 0 &&
+        !recoveries.some((item) => item.failure_index === failureIndex);
+      if (unresolvedFailure && ['running', 'done'].includes(requestedStatus) && !recoveryEvidence) {
+        throw new Error('structured failure requires recovery evidence before running or done');
+      }
+      if (recoveryEvidence) {
+        if (!unresolvedFailure) throw new Error('no unresolved structured failure to recover');
+        step.recoveries = [...recoveries, { failure_index: failureIndex, evidence: recoveryEvidence, at: timestamp }];
+        step.evidence = [...step.evidence, recoveryEvidence];
+      }
+      if (failureKind) {
+        step.failures = [...failures, {
+          failure_kind: failureKind, execution_state: executionState,
+          call_id: String(options.callId || '').trim() || null,
+          evidence, next_action: String(options.nextAction).trim(), at: timestamp,
+        }];
+      }
       if (options.replay && !REPLAY_MODES.has(options.replay)) {
         throw new Error(`invalid replay mode: ${options.replay}`);
       }
@@ -574,6 +642,10 @@ function checkpointTask(options) {
           step_id: step.id,
           message: String(options.error || `${step.id} is ${requestedStatus}`),
           at: timestamp,
+          ...(failureKind ? {
+            failure_kind: failureKind, execution_state: executionState,
+            call_id: String(options.callId || '').trim() || null,
+          } : {}),
         };
       } else if (requestedStatus === 'done' && state.last_error && state.last_error.step_id === step.id) {
         state.last_error = null;
@@ -797,6 +869,8 @@ function parseCliArgs(argv) {
     ['step-id', 'stepId'], ['acceptance-id', 'acceptanceId'], ['acceptance', 'acceptance'],
     ['constraint', 'constraint'], ['evidence', 'evidenceItem'], ['next', 'nextAction'],
     ['error', 'error'], ['replay', 'replay'], ['phase', 'phase'], ['reason', 'reason'],
+    ['failure-kind', 'failureKind'], ['execution-state', 'executionState'],
+    ['call-id', 'callId'], ['recovery-evidence', 'recoveryEvidence'],
   ]);
   for (let index = 1; index < normalizedArgv.length; index += 1) {
     const arg = normalizedArgv[index];
@@ -879,6 +953,8 @@ function printHelp() {
   console.log(`Usage:
   node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] [--acceptance <criterion>] --step <safe-step> [--verify-step <effect-step>]
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
+    Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
+    Recovery: --recovery-evidence <verified external outcome or restored authorization>
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
   node infra/scripts/agent-runner/agent-task.js transition --task <id> --phase <phase> --evidence <milestone>

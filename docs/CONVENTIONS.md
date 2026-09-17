@@ -165,7 +165,7 @@ pnpm agent -- task cancel --task <id> --force
 容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
 
 ## 7. 命令面
-
+失败分类与恢复：按可观察回执区分工具故障、策略拒绝和结果未知；协议见 [.codex/README.md](../.codex/README.md#失败分类与恢复)。
 新项目只推荐统一入口：
 
 ```text
