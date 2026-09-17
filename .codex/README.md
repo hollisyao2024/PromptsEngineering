@@ -78,7 +78,7 @@ echo $CODEX_HOME
 |----|------|---------|
 | `"untrusted"` | 仅自动执行已知安全命令 | 不信任的代码库 |
 | `"on-request"` | 由 Codex 判断何时请求批准 | 交互式开发、团队默认 ✅ |
-| `"never"` | 完全自动化 | 个人项目、完全信任 ⚠️ |
+| `"never"` | 不请求交互审批，失败直接返回 | 个人项目、完全信任 ⚠️ |
 
 **团队默认**：`"on-request"`
 
@@ -120,7 +120,7 @@ network_access = true                # 启用网络访问
 
 ```toml
 # 完全自动化：无打扰工作流
-approval_policy = "never"            # 所有命令自动执行
+approval_policy = "never"            # 不请求交互审批；操作仍可能被策略拒绝
 sandbox_mode = "danger-full-access"  # 完全文件系统访问
 
 [sandbox_danger_full_access]
@@ -128,10 +128,10 @@ network_access = true                # 明确启用网络访问
 ```
 
 **效果**：
-- ✅ 所有命令自动执行
-- ✅ 所有文件可以修改（包括系统文件）
+- ✅ 不请求交互审批；操作仍可能被策略拒绝
+- 文件系统沙箱不限制路径，但仍受操作系统权限和平台策略约束
 - ✅ 网络访问允许
-- ⚠️ 无任何安全限制
+- ⚠️ 平台策略、命令规则与操作系统权限仍然生效
 
 **对齐 Claude Code 个人配置**：
 - Claude: `permissions.allow = ["Bash", "Edit", "Write", "WebFetch", ...]`
@@ -196,7 +196,7 @@ sandbox_mode = "danger-full-access"
 network_access = true
 ```
 
-- ⚠️ 所有命令自动执行
+- ⚠️ 不请求交互审批；操作仍可能被策略拒绝
 - ⚠️ 可以修改任何文件（包括系统文件）
 - ⚠️ 可以执行危险操作
 - ⚠️ 允许任意网络访问
@@ -299,3 +299,28 @@ echo $CODEX_HOME
 
 **最后更新**：2026-08-27
 **版本**：3.1 (移除已弃用的审批策略)
+
+
+### 失败分类与恢复
+
+拒绝发生在 shell 进程启动前时，仓库脚本无法捕获它；不要将执行工具的 `CreateProcess … blocked by policy` 等同于脚本返回的 `STATUS=BLOCKED / REASON=…`。不以错误关键词猜测未公开的审批规则。
+
+| failure-kind | 判定证据 | 处理 |
+| --- | --- | --- |
+| tool_error | 已知普通工具故障，如可执行文件缺失、状态锁冲突 | 修复原因；先核查是否已产生副作用，再决定是否重试 |
+| policy_denied | 执行工具明确返回策略拒绝 | 保留原始理由和调用编号；停止被拒绝操作，不能改写命令、换入口或修改安全配置绕过 |
+| unknown_result | 超时、断连，无法确认执行结果 | 先核实远端/文件系统状态，不盲目重放 |
+
+分类由执行者依据工具回执填写，任务脚本只校验和记录，不代替平台权限系统做授权。普通故障也不能仅凭“可重试”就重复部署、扣费或删除。
+
+已有任务的记录示例（单独执行，不与重试命令拼接）：
+
+```bash
+pnpm agent -- task checkpoint --task <id> --step S1 --status blocked --failure-kind policy_denied --execution-state not_started --call-id <id> --evidence "<脱敏拒绝事实>" --next "<查询具体拒绝原因>"
+```
+
+`execution-state=not_started` 要有明确未启动证据，状态只能是 `blocked`；`started|unknown` 必须使用 `verify_required`，`unknown_result` 必须配 `unknown`。不要把外层工具处理器启动误当成子进程启动。没有明确证据时使用 unknown，不推断“没有副作用”。
+
+恢复时，通过 checkpoint 的 `--recovery-evidence "<核实结果或授权恢复依据>"` 进入 running/done；普通完成证据不能替代恢复依据。故障和恢复历史只追加，resume 不执行重试。该参数只是审计记录，不是权限许可；策略拒绝仍须依据实际恢复的授权，不能填写自我批准作为放行理由。
+
+若 task start/checkpoint 本身被拒绝或记录介质故障，不反复调用、不手工伪造 state.json：在当前对话保留目标、验收、操作、时间、调用编号、启动状态、证据位置和唯一下一动作；独立证据文件仅在其写入本身获准时保存。继续允许且不依赖被拒绝操作的只读诊断，必要时输出具体阻塞。工具故障修复后先检查是否已有任务/副作用，再创建或恢复权威状态并补记，不删除既有历史。不因缺失任务记录而跳过 worktree、测试、合并或发布门禁。

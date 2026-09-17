@@ -94,6 +94,9 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 范围演进只用 `pnpm agent -- task extend --task <id> --reason "<原因>" ...` 追加步骤/验收项，不改写已完成历史。
 - 治理阶段交接使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
+- 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
+- 失败先按可观察证据区分普通工具故障、策略拒绝和执行结果未知；已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕，恢复前提供 `--recovery-evidence`。具体协议见 docs/CONVENTIONS.md 的“失败分类与恢复”。
+- 若 task start/checkpoint 本身不可执行，先在当前对话记录任务目标、验收、被拒绝操作、时间、调用编号、启动状态和下一动作；允许且未被拒绝时可保存容器 tmp 脱敏证据。该记录不是另一份 state.json，也不授权跳过 worktree、QA 或安全策略。继续允许且不依赖该操作的工作；恢复记录能力后先核实副作用，再补记真实状态，不伪造成功。
 - 新会话、异常恢复或继续执行时，第一项任务动作必须是：
   `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
 - 全部步骤、验收和仓库门禁通过后执行 `pnpm agent -- task finish --task <id>`；任务关闭只受该 task id 明确绑定的 worktree 生命周期状态阻断，无关任务的 recovery 不得阻止关闭。只有用户明确取消时才可 `cancel --force`。
