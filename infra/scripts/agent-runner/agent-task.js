@@ -951,6 +951,7 @@ function runtimeContext(cwd = process.cwd()) {
 
 function printHelp() {
   console.log(`Usage:
+  node infra/scripts/agent-runner/agent-task.js paths [--task <id>] (read-only; does not evaluate permissions)
   node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] [--acceptance <criterion>] --step <safe-step> [--verify-step <effect-step>]
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
     Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
@@ -990,6 +991,21 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
   const context = runtimeContext();
+  if (cli.command === 'paths') {
+    // Resolve only: even checking a task through taskPaths() can create its root.
+    const statePath = cli.taskId === undefined ? null
+      : path.join(context.runsRoot, safeTaskId(cli.taskId), 'state.json');
+    console.log('STATUS=OK');
+    console.log('SUMMARY=Task recording paths resolved without writes; permissions not evaluated.');
+    console.log('SIDE_EFFECTS=NONE');
+    console.log(`PROJECT_ROOT=${context.projectRoot}`);
+    console.log(`TASK_RUNS_ROOT=${context.runsRoot}`);
+    console.log(`TASK_LOCK_ROOT=${context.lockDir}`);
+    if (statePath) console.log(`STATE_PATH=${statePath}`);
+    console.log('PERMISSION_STATUS=NOT_EVALUATED');
+    console.log('NEXT_ACTION=Compare these paths with the active writable roots before authorized task recording; this report grants no permission.');
+    return 0;
+  }
   if (cli.command === 'start') {
     const state = createTask({ ...context, ...cli });
     console.log('STATUS=STARTED');

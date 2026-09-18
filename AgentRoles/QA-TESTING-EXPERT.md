@@ -12,7 +12,7 @@
 - Worktree Gate：只读验证、查看报告、执行不改 tracked 文件的测试不创建 worktree；若要创建或修改 `/docs/QA.md`、模块 QA、E2E/性能/安全测试脚本等 tracked 文件，必须先进入当前任务 worktree，或执行 `pnpm agent -- worktree new --phase=qa --task <task-id>` 创建 QA 专属 worktree并进入 `NEXT_CWD`。
 
 ## 长任务门禁
-- 跨会话或至少三步的 QA 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；独立 QA 且 `STATUS=NONE` 时使用 `pnpm agent -- task start --task <id> --phase qa --type mutation ...`。
+- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读检查不因步骤数量建任务。需要记录时先 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase qa --type mutation ...`；多候选先核实归属，不猜选无关任务。
 - 新发现的风险、用例或缺陷用 `task extend` 追加；测试脚本/报告写入、环境变更和合并均使用 `pnpm agent -- task checkpoint ...` 记录副作用状态。
 - No-Go 执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "QA No-Go: <缺陷证据>"`；Go 且需要部署时转 `devops`，否则合并及主分支门禁完成后执行 `pnpm agent -- task finish --task <id>`。
 

@@ -75,6 +75,18 @@ Out of Scope：
 | US-CMDSURF-009 | AC-CMDSURF-009-05：Given 实际项目已同步到该模板 SHA，When 再次执行同步或检查结果，Then 收敛结果为无模板差异，并输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 和 `TEMPLATE_CONVERGENCE_STATUS`。 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-06：Given 项目 GH_TOKEN 缺失、无效或仅授权业务仓库且存在 Git 凭据配置，When 获取官方公开模板，Then 请求不携带项目 token、Authorization 或 Cookie，不调用 credential helper/askpass、不应用用户 URL 重写，仍锁定远端 SHA；HTTP 拒绝或网络失败时阻断且不改变目标 tracked 文件，项目自身 GitHub 操作继续沿用原鉴权。 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa |
 
+### US-CMDSURF-010：核查任务记录与执行权限边界
+
+目标：单会话只读核查可以直接完成；需要持久化时，执行者先知道真实写入路径，并准确区分记录失败与平台拒绝。
+
+| Story ID | 验收标准（Given-When-Then） | Task ID | Test Case ID | QA 负责人 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-010 | AC-CMDSURF-010-01：Given 单会话只读解释、查询或诊断，When 拆成三个或更多检查步骤，Then 不因此创建或恢复任务状态；修改 tracked 文件、需恢复的外部副作用、明确持续执行或跨会话任务仍必须记录，各专家统一引用入口规则。 | TASK-CMDSURF-037 | TC-CMDSURF-028 | @qa |
+| US-CMDSURF-010 | AC-CMDSURF-010-02：Given 主仓库或 linked worktree 且容器目录不存在，When 执行 `pnpm agent -- task paths`，Then 只输出解析后的主项目、任务状态与锁绝对路径，不创建目录、不写状态、不执行联网操作，也不宣称平台已授权；可选 task ID 输出精确 state 路径，非法 ID 阻断。 | TASK-CMDSURF-038 | TC-CMDSURF-029 | @qa |
+| US-CMDSURF-010 | AC-CMDSURF-010-03：Given 工具只返回 `blocked by policy`，When 说明错误，Then 只归类为执行工具策略拒绝且具体规则未知，不擅自归因于 Auto-review、路径或 pnpm；记录不可用时继续获准且独立的只读核查，禁止改写被拒绝动作绕过策略。 | TASK-CMDSURF-037 | TC-CMDSURF-030 | @qa |
+
+范围：任务路由、只读路径查询、Codex 配置说明及模板传播契约。非目标：修改用户权限配置、自动扩展可写目录、移动既有状态、取消 mutation 的 worktree/QA/完成门禁，或保证平台审批必然通过。`task paths` 仅为需要记录时的可选检查，不是所有只读请求的新前置门禁。NFR-CMDSURF-013：路径查询不得把操作系统可访问性或命令成功等同于执行平台授权。
+
 ## 4. 非功能需求（NFR）
 
 - NFR-CMDSURF-001：命令选择为确定性映射，不得执行未配置回退。
@@ -130,3 +142,13 @@ Out of Scope：
 - [x] 已同步追溯矩阵。
 - [x] 无图形界面，UX 不适用。
 - [x] 已通知后续 ARCH/TASK/TDD/QA 阶段。
+
+## 12. 开发目录与合并边界（US-CMDSURF-011）
+
+用户要求开发 worktree 不因存在本地内容而被整体禁止合并。
+
+- AC-CMDSURF-011-01：Given 功能分支 QA 回执有效且独立目标主干干净，When 开发目录同时有 staged、unstaged、untracked 内容，Then 仍可合并固定 head，三类本地内容与索引原样保留，未提交内容不进入主干（TC-CMDSURF-031）。
+- AC-CMDSURF-011-02：Given 合并后开发目录仍有内容或 HEAD 已漂移，When 进入清理，Then 保留目录、分支和封印，不启动删除进程，分别输出合并成功与清理保留；目标主干存在本地修改或没有隔离写入目录时仍保护其内容（TC-CMDSURF-032）。
+- AC-CMDSURF-011-03：Given 用户仅需推送已提交交付内容，When 使用 tdd push --committed-only，Then 不自动暂存、提交或回写 tracked 阶段文件，固定 PR base/head 与 QA 验证保持不变（TC-CMDSURF-033）。
+
+该需求解除开发目录整体清洁的合并前置条件，不授权删除已被策略拒绝的文件，不改变系统权限或 completion guard 的数据保护。

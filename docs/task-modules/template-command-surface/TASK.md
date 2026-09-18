@@ -187,6 +187,16 @@
 
 ## 7. 风险登记
 
+### US-CMDSURF-010 增量 WBS
+
+| Task ID | 交付物 | 依赖 | Owner | Estimate | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| TASK-CMDSURF-037 | 统一只读核查豁免、权限范围说明、准确拒绝归因与跨阶段模板契约；TC-CMDSURF-028/030 | PRD/ARCH 已确认 | @tdd | 0.5d | 验收通过 |
+| TASK-CMDSURF-038 | task paths 只读 CLI，缺失目录、linked worktree、定制路径及非法输入回归；TC-CMDSURF-029 | PRD/ARCH 已确认 | @tdd | 0.5d | 验收通过 |
+| TASK-CMDSURF-039 | 定向和全量 Node 回归、模板传播收敛、QA SHA 回执及合并 | TASK-CMDSURF-037/038 | @qa | 0.5d | 回归与传播通过；回执及合并以运行态为准 |
+
+执行顺序：先失败测试 → 规则与 CLI 实现 → 定向/完整回归 → 模板副本 dry-run/apply/convergence → TDD/QA/合并。数据库、部署与权限配置修改均为 No-op；审查重点是只读分支零写入、已有 mutation 门禁保留、平台拒绝不被绕过。
+
 | 风险 | 影响 | 缓解 | 负责人 | 状态 |
 | --- | --- | --- | --- | --- |
 | 显式 profile 被 default 吞掉 | 操作错误目标 | 负向测试与精确选择 | @tdd | 已规划 |
@@ -250,3 +260,13 @@
 - [x] 多电脑协作完成 RED/GREEN；定向回归 90/90、补充 merge 回归 24/24、Windows 可执行全集 342/342、三 clone 交错模拟通过；模板副本 dry-run/apply/convergence 收敛且相关测试 22/22。
 - [x] QA plan 按模板源规则跳过业务文档生成；QA verify 签发绑定 `main` 与功能分支精确 SHA 的通过收据；PR #69 的 base/head/ref 均已核对。
 - [x] 息壤新增任务覆盖 US-CMDSURF-009 的全部 AC，并按 RED → 身份/路由 → fetch/SHA → 自举/收敛 → 传播/QA 排列关键路径。
+
+## 13. 合并门禁增量（2026-09-18）
+
+| Task | 内容 | 验收 | 状态 |
+| --- | --- | --- | --- |
+| TASK-CMDSURF-040 | 开发目录预检与固定 head 合并，真实 Git fixture 覆盖 staged/unstaged/untracked、目标主干保护 | AC-CMDSURF-011-01 | 定向通过 |
+| TASK-CMDSURF-041 | QA head 封印、保留 dirty 目录且不启动清理、显式状态输出 | AC-CMDSURF-011-02 | 定向通过 |
+| TASK-CMDSURF-042 | committed-only 推送、传播和完整回归、实际合并 | AC-CMDSURF-011-03 | 66/66 与全量 514/514、传播通过；交付见任务运行态 |
+
+本轮保留原失败历史，不重试清理被拒绝文件；合并与清理的验收结果分别记录。Review-Class REQUIRED；Domain-Hit 数据保护与共享交付流程；Codex review skipped by policy。

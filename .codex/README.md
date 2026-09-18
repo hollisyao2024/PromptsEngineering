@@ -76,7 +76,6 @@ echo $CODEX_HOME
 
 | 值 | 说明 | 适用场景 |
 |----|------|---------|
-| `"untrusted"` | 仅自动执行已知安全命令 | 不信任的代码库 |
 | `"on-request"` | 由 Codex 判断何时请求批准 | 交互式开发、团队默认 ✅ |
 | `"never"` | 不请求交互审批，失败直接返回 | 个人项目、完全信任 ⚠️ |
 
@@ -153,20 +152,24 @@ network_access = true                # 明确启用网络访问
 | 需求 | Claude Code | Gemini CLI | **Codex** |
 |------|-------------|-----------|-----------|
 | **完全自动化** | `permissions.allow: ["Bash", "Edit", "Write", "WebFetch"]` | `bash.autoExecute: true` `file.confirm: false` `networking.autoPermit: true` | `approval_policy: "never"` `sandbox_mode: "danger-full-access"` `network_access: true` |
-| **保守安全** | 大量 deny 规则 | 所有开关设为 false | `approval_policy: "untrusted"` `sandbox_mode: "read-only"` |
+| **保守安全** | 大量 deny 规则 | 所有开关设为 false | `approval_policy: "on-request"` `sandbox_mode: "read-only"` |
 | **平衡策略** | 精心设计的 allow/deny/ask | 部分开关为 true | `approval_policy: "on-request"` `sandbox_mode: "workspace-write"` `network_access: true` ✅ |
 
-### 架构差异与限制
+### 审批、沙箱与执行规则
 
-| 特性 | Claude Code | Codex CLI | 说明 |
-|------|-------------|-----------|------|
-| **权限粒度** | 细粒度（可针对特定命令/路径） | 全局策略 | Codex 无法实现"允许 git add 但拒绝 git push --force" |
-| **Git 操作** | 可单独配置每个 git 命令 | 统一遵循 approval_policy | `on-request` 在需要时请求批准 |
-| **文件编辑** | 可允许特定目录 `Edit(docs/**)` | 沙箱模式全局控制 | Codex 无法单独允许编辑 docs/ 而拒绝其他 |
-| **网络访问** | `ask: ["WebFetch(domain:*)"]` 可提示确认 | `network_access = true/false` 全局开关 | Codex 只能全开/全关，无法实现"需确认" |
-| **MCP 服务器** | `enableAllProjectMcpServers: true` 全局开关 | 需逐个定义 `[mcp_servers.*]` | Codex 无"自动启用所有"功能 |
+`sandbox_mode` 控制隔离范围，`approval_policy` 控制审批请求，`approvals_reviewer` 决定合格请求由用户还是 Auto-review 审查；命令规则和托管要求还会施加约束，不能用其他工具的设置直接推断 Codex 的实际权限。
 
-**结论**：Codex 采用**策略驱动**的权限模型，无法达到 Claude Code 的**细粒度控制**，但可通过 `approval_policy` 的不同模式实现接近的效果。
+Auto-review 接管审批请求而不扩大可写目录。实际生效的 `approval_policy="never"` 不产生交互审批请求，不能仅凭本地配置或一条 `blocked by policy` 就认定 Auto-review 参与。应检查当次会话的有效权限与原始回执。参见 [官方审批说明](https://learn.chatgpt.com/docs/sandboxing/auto-review) 和 [沙箱与可写目录](https://learn.chatgpt.com/docs/sandboxing)。
+
+### 息壤容器目录与本地任务记录
+
+普通单会话只读解释、状态查询和诊断不因步骤数量创建任务；持久化触发条件统一见 `AGENTS.md`“长任务断点续跑”。`diagnose` 是工作类型，记录和恢复该任务仍可能写文件。
+
+需要记录且路径不清楚时，可选执行 `pnpm agent -- task paths --task <id>`。它只输出 `PROJECT_ROOT`、`TASK_RUNS_ROOT`、`TASK_LOCK_ROOT` 和可选 `STATE_PATH`，不创建目录或锁、不联网；`SIDE_EFFECTS=NONE` 和 `PERMISSION_STATUS=NOT_EVALUATED` 表示此次查询没有副作用、也没有判定权限。该查询不是普通核查的新门禁。
+
+默认状态在 `<container>/tmp/agent-task-runs`，锁在 `<container>/tmp/agent-locks`；两者通常位于 `repo` 之外，且不等同于系统临时目录。linked worktree 也使用主项目解析出的容器路径。`workspace-write` 只覆盖当前会话允许的目录，不能假定整个容器可写。
+
+环境初始化时由用户或管理员核对实际可写根，按需要将精确容器目录纳入授权范围；配置示例仅提供注释，不自动改配置或移动现有状态。目录解析或操作系统访问检查都不能证明平台放行。已发生策略拒绝时保留回执、继续获准且独立的只读核查，禁止以扩大权限、换入口或搬迁记录重试同一被拒绝动作。
 
 ## 🛡️ 安全考虑
 
@@ -200,7 +203,7 @@ network_access = true
 - ⚠️ 可以修改任何文件（包括系统文件）
 - ⚠️ 可以执行危险操作
 - ⚠️ 允许任意网络访问
-- ⚠️ 无任何安全检查
+- 平台策略、命令规则和操作系统权限仍然适用，不能承诺所有操作均获准
 
 **建议**：
 1. 只在信任的项目中使用
@@ -212,7 +215,7 @@ network_access = true
 ### 示例 1：保守模式（最安全）
 
 ```toml
-approval_policy = "untrusted"
+approval_policy = "on-request"
 sandbox_mode = "read-only"
 ```
 
@@ -304,6 +307,8 @@ echo $CODEX_HOME
 ### 失败分类与恢复
 
 拒绝发生在 shell 进程启动前时，仓库脚本无法捕获它；不要将执行工具的 `CreateProcess … blocked by policy` 等同于脚本返回的 `STATUS=BLOCKED / REASON=…`。不以错误关键词猜测未公开的审批规则。
+
+仅有 `blocked by policy` 不能证明 Auto-review 参与，也不能证明具体路径违规或 pnpm 故障。准确表述为“执行工具策略拒绝，具体规则未知”；只有回执明确标识审查来源和理由时才报告具体审批组件。脚本无法给启动前的拒绝补造原因。
 
 | failure-kind | 判定证据 | 处理 |
 | --- | --- | --- |

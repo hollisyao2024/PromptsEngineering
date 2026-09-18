@@ -74,6 +74,14 @@ US-CMDSURF-008 已完成 TC-CMDSURF-016~021：定向回归、三电脑 bare Git�
 
 US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模板引导与全量 Node 回归均零失败。历史合并运行态由当次 task/session 保存，后续兼容结论见 [命令面 QA](../qa-modules/template-command-surface/QA.md)。
 
+## 核查任务记录与权限边界
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-010 | AC-CMDSURF-010-01 | TC-CMDSURF-028 | Pass | [命令面 QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-010 | AC-CMDSURF-010-02 | TC-CMDSURF-029 | Pass | [命令面 QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-010 | AC-CMDSURF-010-03 | TC-CMDSURF-030 | Pass | [命令面 QA](../qa-modules/template-command-surface/QA.md) |
+
 ## 多端 Monorepo 与 Prisma
 
 | Story ID | AC ID | Test Case ID | 状态 | 证据 |
@@ -124,3 +132,11 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-LAZYARCH-004 | AC-LAZYARCH-004-01 | TC-LAZYARCH-004 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
 | US-LAZYARCH-005 | AC-LAZYARCH-005-01 | TC-LAZYARCH-005 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
 | US-LAZYARCH-006 | AC-LAZYARCH-006-01 | TC-LAZYARCH-006 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+
+## 开发目录与合并边界
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-011 | AC-CMDSURF-011-01 | TC-CMDSURF-031 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-011 | AC-CMDSURF-011-02 | TC-CMDSURF-032 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-011 | AC-CMDSURF-011-03 | TC-CMDSURF-033 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |

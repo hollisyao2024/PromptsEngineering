@@ -35,6 +35,7 @@ const {
 } = require('../worktree-tools/worktree-core');
 const {
   markCleanupPending,
+  inspectCleanupState,
   reconcilePendingCleanups,
   sealSupersededSessions,
 } = require('../worktree-tools/deferred-cleanup-state');
@@ -305,24 +306,16 @@ function ensureGhAvailable(options = {}) {
   return ensureGitHubBackend(options);
 }
 
-function ensureCleanWorkingTree() {
-  const status = runGit(['status', '--porcelain'], { capture: true });
-  if (status.trim()) {
-    throw new Error(
-      '工作区有未提交的变动，请先提交后重试：\n' +
-      '  git add docs/ && git commit -m "docs(qa): 更新 QA 文档"'
-    );
+function checkMergeWorktrees(featurePath, mainWorkspacePath) {
+  const status = cwd => runGit(['status', '--porcelain', '--untracked-files=all'], { capture: true, cwd }).trim();
+  const featureDirty = Boolean(status(featurePath));
+  if (isSamePath(featurePath, mainWorkspacePath)) {
+    if (featureDirty) throw new Error('存在本地未提交内容时，需要独立的主干 worktree 执行合并。');
+  } else if (status(mainWorkspacePath)) {
+    throw new Error(`合并目标工作区存在未提交内容，禁止覆盖：${mainWorkspacePath}`);
   }
-}
-
-function ensureCleanWorkingTreeAt(targetPath, label = targetPath) {
-  const status = runGit(['status', '--porcelain'], { capture: true, cwd: targetPath });
-  if (status.trim()) {
-    throw new Error(
-      `${label} 存在未提交的变动，请先清理后重试。\n` +
-      `  目标路径: ${targetPath}`
-    );
-  }
+  // Only the fixed QA head is merged; the feature index and worktree are not inputs.
+  return { featureDirty };
 }
 
 async function findOpenPR(branch, { backend = getGitHubBackend() } = {}) {
@@ -871,11 +864,19 @@ function cleanupWorktree(featureBranch, mainRepoRoot, options = {}) {
   }
 
   const config = options.config || loadConfig({ repoRoot: mainRepoRoot });
-  const expectedHead = entry.head || spawnSync('git', ['rev-parse', featureBranch], {
+  const expectedHead = options.expectedHead || entry.head || spawnSync('git', ['rev-parse', featureBranch], {
     cwd: mainRepoRoot, encoding: 'utf8', stdio: 'pipe',
   }).stdout.trim();
   const persist = options.markCleanupPending || markCleanupPending;
   persist({ config, mainRoot: mainRepoRoot, branch: featureBranch, worktreePath: entry.path, expectedHead });
+
+  const inspection = inspectCleanupState(mainRepoRoot, { branch: featureBranch, worktree: entry.path });
+  if (inspection.dirty || inspection.inspectionError || inspection.branchHead !== expectedHead || inspection.worktreeHead !== expectedHead) {
+    // Keep the seal for completion guard, but do not launch a deletion worker.
+    const reason = inspection.inspectionError || (inspection.dirty ? 'uncommitted-worktree' : 'head-changed');
+    console.log(`保留开发 worktree 和本地分支；合并结果不包含未提交内容：${entry.path}`);
+    return { removed: false, deferred: true, preserved: true, reason, path: entry.path, expectedHead };
+  }
 
   const reconcile = options.reconcilePendingCleanups || reconcilePendingCleanups;
   const sealPredecessors = options.sealSupersededSessions || sealSupersededSessions;
@@ -1563,13 +1564,17 @@ function printSummary(
     `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
   );
   console.log(`  提交:   ${commitHash}`);
+  console.log('MERGE_STATUS=MERGED');
+  console.log(`CLEANUP_STATUS=${cleanupResult.preserved ? 'PRESERVED' : cleanupResult.deferred ? 'PENDING' : 'COMPLETE'}`);
   if (version) {
     console.log(`  版本:   v${version}`);
   }
   console.log(`  状态:   ${formatAgentStateResult(agentStateResult)}`);
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
-  console.log(cleanupResult.deferred
+  console.log(cleanupResult.preserved
+    ? '  本地内容已保留；处理这些内容后再运行 completion guard，当前不宣称生命周期清理完成。'
+    : cleanupResult.deferred
     ? `  切换到 ${baseBranch} 并执行 tdd-completion-guard；如检测到新提交，按 --recover-as 指引恢复。`
     : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
@@ -1620,14 +1625,13 @@ async function main() {
     // Step 3: 确保 gh CLI 可用
     ensureGhAvailable();
 
-    // Step 4: 确保工作区干净
-    // 只检查 cleanliness；不再在主 repo 跑 pnpm install。
+    // Step 4: 主干写入与开发目录隔离；开发目录可有本地未提交内容。
     // 后续步骤在主 repo 只执行纯 git 操作（fetch/ff-only/merge --squash/commit/push），
     // 而 release commit 已通过 --no-verify 显式豁免 pre-commit hook，
     // 因此 main 工作区不需要 node_modules 即可完成 qa:merge 全流程。
-    ensureCleanWorkingTree();
-    if (path.resolve(mainWorkspacePath) !== path.resolve(process.cwd())) {
-      ensureCleanWorkingTreeAt(mainWorkspacePath, `${baseBranch} 工作区`);
+    const mergeWorkspaceState = checkMergeWorktrees(repoRoot, mainWorkspacePath);
+    if (mergeWorkspaceState.featureDirty) {
+      console.log('开发 worktree 存在本地内容：仅合并 QA 回执绑定的提交，不暂存、不 stash、不删除这些内容。');
     }
 
     // Step 5: 验证当前分支
@@ -1706,7 +1710,7 @@ async function main() {
       console.log('  3. 版本递增 + CHANGELOG + AGENT_STATE + tag');
       console.log(`  4. 普通非强制 push ${baseBranch} + tag`);
       console.log('  5. 重新 fetch 并验证本地/远端 SHA 一致');
-      console.log(`  6. 清理 worktree 与分支 ${currentBranch}`);
+      console.log(`  6. 清理可安全回收的 worktree 与分支；有本地内容时保留 ${currentBranch}`);
       console.log('\x1b[33m[DRY RUN] 未执行任何操作\x1b[0m');
       return;
     }
@@ -1873,8 +1877,8 @@ async function main() {
     }
 
     // Step 18: 所有远端更新均已验证后，才清理 worktree/session/本地分支。
-    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot);
-    if (cleanupResult.deferred) {
+    const cleanupResult = cleanupWorktree(currentBranch, mainRepoRoot, { expectedHead: qaReceipt.head_sha });
+    if (cleanupResult.deferred && !cleanupResult.preserved) {
       console.log(`\x1b[33m  合并已完成；worktree 已封印，切换到 ${baseBranch} 后由 completion guard 收敛。\x1b[0m`);
     }
     if (!cleanupResult.deferred) removeSession(config, mainRepoRoot, currentBranch);
@@ -1932,6 +1936,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  checkMergeWorktrees,
   buildBasePushArgs,
   buildFeatureDeleteArgs,
   buildGhMergeArgs,

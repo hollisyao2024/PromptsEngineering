@@ -32,13 +32,13 @@
 
 ### 1. 恢复长任务
 
-若任务可能跨会话，第一项动作是：
+先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读代码审阅不因步骤数量建任务。需要任务状态时，第一项任务动作是：
 
 ```bash
 pnpm agent -- task resume --auto
 ```
 
-无现有状态则用 `pnpm agent -- task start --task <id> --phase tdd --type mutation ...` 创建步骤和验收项。范围变化只用 `task extend` 追加；副作用步骤必须使用 `verify_first` 并通过 `pnpm agent -- task checkpoint ...` 记录，结果未知时先验证外部状态。
+核实无匹配状态则用 `pnpm agent -- task start --task <id> --phase tdd --type mutation ...` 创建步骤和验收项；多候选先核实归属，不猜选无关任务。范围变化只用 `task extend` 追加；副作用步骤必须使用 `verify_first` 并通过 `pnpm agent -- task checkpoint ...` 记录，结果未知时先验证外部状态。
 
 治理流程从 TASK 交接时应已处于 `tdd`；实现和回归证据完成后执行 `pnpm agent -- task transition --task <id> --phase qa --evidence "TDD_DONE: <证据>"`。若验收、架构或需求缺口阻塞，按状态机显式回流对应阶段。
 

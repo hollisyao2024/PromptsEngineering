@@ -48,9 +48,14 @@ function parseCliArgs(argv) {
   let scope = 'session';
   let dryRun = false;
   let baseBranch = '';
+  let committedOnly = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === '--committed-only') {
+      committedOnly = true;
+      continue;
+    }
     if (arg === '--project') {
       scope = 'project';
       continue;
@@ -83,6 +88,7 @@ function parseCliArgs(argv) {
     scope: scope === 'project' ? 'project' : 'session',
     dryRun,
     baseBranch,
+    committedOnly,
   };
 }
 
@@ -142,7 +148,11 @@ function buildAutoCommitMessage(branch) {
 }
 
 function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
-  const statusLines = getWorkingTreeStatusLines();
+  if (options.committedOnly) {
+    console.log('仅推送已有提交；保留本地索引及未提交内容。');
+    return { committed: false, commitMessage: '', changedFiles: 0, retainedWorkingTree: true };
+  }
+  const statusLines = (options.getWorkingTreeStatusLines || getWorkingTreeStatusLines)();
   if (!statusLines.length) {
     return {
       committed: false,
@@ -397,6 +407,7 @@ function main() {
 
     const autoCommitResult = autoCommitWorkingTreeIfNeeded(branch, {
       dryRun: cliArgs.dryRun,
+      committedOnly: cliArgs.committedOnly,
     });
     const reviewDecision = analyzeReviewGate({
       baseBranch: reviewBaseBranch,
@@ -405,7 +416,9 @@ function main() {
 
     if (cliArgs.dryRun) {
       console.log('\x1b[33m[DRY RUN] /tdd push 预览：\x1b[0m');
-      if (!autoCommitResult.changedFiles) {
+      if (autoCommitResult.retainedWorkingTree) {
+        console.log('- committed-only：仅推送已有提交，不改变本地索引或文件');
+      } else if (!autoCommitResult.changedFiles) {
         console.log('- 工作区干净：不会创建自动提交');
       }
       console.log('- 将执行: push 当前分支 → 创建 PR');
@@ -424,16 +437,18 @@ function main() {
     const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
     const currentPr = prAlreadyExists(branch);
     if (currentPr) {
-      writeInProgressFields(agentStatePath, {
-        pr: `#${currentPr.number}`,
-        step: '/tdd push 完成，等待 /qa plan',
-      });
-      try {
-        runGit(['add', agentStatePath]);
-        runGit(['commit', '-m', `chore: track in-progress state [#${currentPr.number}]`]);
-        runGit(['push', 'origin', 'HEAD']);
-      } catch {
-        // 写入失败不阻断流程
+      if (!cliArgs.committedOnly) {
+        writeInProgressFields(agentStatePath, {
+          pr: `#${currentPr.number}`,
+          step: '/tdd push 完成，等待 /qa plan',
+        });
+        try {
+          runGit(['add', agentStatePath]);
+          runGit(['commit', '-m', `chore: track in-progress state [#${currentPr.number}]`]);
+          runGit(['push', 'origin', 'HEAD']);
+        } catch {
+          // 写入失败不阻断流程
+        }
       }
       const mainRoot = getMainRepoRoot(repoRoot);
       const config = loadConfig({ repoRoot: mainRoot });
@@ -460,6 +475,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  parseCliArgs,
+  autoCommitWorkingTreeIfNeeded,
   buildPrCreateArgs,
   main,
 };

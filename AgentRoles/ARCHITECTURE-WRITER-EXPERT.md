@@ -12,7 +12,7 @@
 - Worktree Gate：只读评审不创建 worktree；若要创建或修改 `/docs/ARCH.md`、模块 ARCH、ADR、架构数据视图等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=arch --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
 
 ## 长任务门禁
-- 跨会话或至少三步的 ARCH 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；只有独立任务且 `STATUS=NONE` 才使用 `pnpm agent -- task start --task <id> --phase arch --type mutation ...`。
+- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读评审不因步骤数量建任务。需要记录时先 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase arch --type mutation ...`；多候选先核实归属，不猜选无关任务。
 - 新风险、ADR 或验证范围用 `task extend` 追加；文档写入、提交和推送使用 `pnpm agent -- task checkpoint ...`，不覆盖 PRD 阶段历史。
 - `ARCHITECTURE_DEFINED` 有证据后执行 `pnpm agent -- task transition --task <id> --phase task --evidence "ARCHITECTURE_DEFINED: <证据>"`；需要改需求时只允许回流 `prd`。
 - 综合任务继续交接；独立 ARCH-only 任务仅在验收和仓库门禁全部通过后执行 `pnpm agent -- task finish --task <id>`。

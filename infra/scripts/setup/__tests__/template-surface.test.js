@@ -167,10 +167,40 @@ test('template-owned Codex guidance avoids deprecated approval policies', () => 
     .map((entry) => entry.source || entry.path);
 
   for (const file of codexFiles) {
-    assert.doesNotMatch(read(file), /on-failure/u, `${file} must not recommend deprecated on-failure`);
+    assert.doesNotMatch(read(file), /on-failure|untrusted/u, `${file} must not recommend retired approval policies`);
   }
   assert.match(read('.codex/config.example.toml'), /approval_policy = "on-request"/u);
   assert.match(read('.codex/README.md'), /approval_policy = "on-request"/u);
+});
+
+test('single-session read-only investigation does not acquire durable task state by step count', () => {
+  const agents = read('AGENTS.md');
+  assert.match(agents, /单会话只读.*不.*步骤数量/u);
+  assert.match(agents, /修改 tracked 文件.*必须/u);
+  assert.match(agents, /仅.*需要任务状态.*resume/u);
+  const roles = fs.readdirSync(path.join(ROOT, 'AgentRoles')).filter(name => name.endsWith('-EXPERT.md'));
+  for (const file of ['AGENTS.md', 'docs/CONVENTIONS.md', ...roles.map(name => `AgentRoles/${name}`)]) {
+    assert.doesNotMatch(read(file), /至少\s*(3|三)\s*个?[^\n]*步骤|至少三步/u, file);
+  }
+  for (const role of roles) {
+    assert.match(read(`AgentRoles/${role}`), /AGENTS\.md.*长任务断点续跑/u, role);
+  }
+});
+
+test('recording guidance preserves denial boundaries and makes container permissions explicit', () => {
+  const agents = read('AGENTS.md');
+  const guide = read('.codex/README.md');
+  const config = read('.codex/config.example.toml');
+  assert.match(agents, /task paths/u);
+  assert.match(agents, /具体规则未知/u);
+  assert.match(agents, /继续.*只读/u);
+  assert.match(guide, /TASK_RUNS_ROOT/u);
+  assert.match(guide, /PERMISSION_STATUS=NOT_EVALUATED/u);
+  assert.match(guide, /blocked by policy.*不能.*Auto-review/u);
+  assert.doesNotMatch(guide, /无任何安全检查|Codex 无法实现/u);
+  assert.match(config, /writable_roots/u);
+  assert.match(config, /task paths/u);
+  assert.doesNotMatch(config, /^writable_roots\s*=/mu, 'the template must not silently expand permissions');
 });
 
 test('always-loaded protocol forbids parent-relative patch paths for container writes', () => {

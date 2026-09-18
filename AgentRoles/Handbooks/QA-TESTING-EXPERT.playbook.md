@@ -309,7 +309,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 `pnpm agent -- qa merge` 调用现有合并脚本。以下按验证和副作用边界归纳，具体步骤以脚本为准：
 
 1. 解析当前 worktree、主 worktree 和 `config.baseBranch`；加载项目 `GH_TOKEN` 及 GitHub backend。远端操作经 `github-auth-run.js` 或仓库脚本执行。
-2. 确认当前不是配置主干；当前与主 worktree 都干净，并找到当前分支对应的 open PR。
+2. 确认当前不是配置主干，并找到当前分支对应的 open PR。开发 worktree 的本地未提交内容不阻止合并；含本地内容时须使用独立且干净的目标主干 worktree，禁止把这些内容自动提交、stash 或删除。
 3. required fetch 刷新主干和功能分支，重新读取 PR；逐项复验本机 QA 回执的 base、branch、`BASE_SHA`、`HEAD_SHA` 与远端引用、PR base/head refs。缺少回执、SHA 漂移、PR 变化或冲突均阻断，回到同步、推送和 QA，不自动 rebase 已验证分支。
 4. 执行适用的本地发布检查。`template.role=source` 使用模板源路径，跳过业务 QA 门禁；模板自身回归和文档证据仍须通过。不创建、修改、触发或依赖 GitHub workflows 或 required checks。
 5. 使用期望 head SHA 执行 GitHub squash merge。结果不明时先查询 PR 是否已合并；本地 squash 兜底前重新 fetch 并复验同一回执，只合并已验证的固定 head。
@@ -317,7 +317,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 7. 按 `release.*` 和显式参数决定版本、CHANGELOG、tag；只更新尚未完成的 `QA_VALIDATED` 稳定里程碑。有实际 release/state 变更才提交，不无条件新增版本和运行日志。
 8. 普通非强制 push 配置主干及需要的 tag，再次 fetch，确认本地和远端主分支 SHA 相同；非快进失败不得覆盖远端历史。
 9. 远端复核成功后，以精确 expected SHA 的 `--force-with-lease` 清理功能分支。该 lease 不用于改写配置主干；功能分支漂移或结果不明时保留分支和恢复状态。
-10. 封印并清理当前任务的 worktree、session 和本地功能分支。当前执行目录导致清理延后时，切换主 worktree 后由 completion guard 收敛；存在未提交变更、HEAD 漂移或缺少封印时不删除。
+10. 以 QA head 封印当前任务的 worktree；存在未提交内容或 HEAD 漂移时直接保留目录、本地分支和 session，不启动清理进程，分别报告 `MERGE_STATUS=MERGED`、`CLEANUP_STATUS=PRESERVED`。可安全清理时才进入既有补偿流程；当前执行目录导致延后时，由 completion guard 收敛。清理未完成不回滚已验证合并，也不冒充生命周期完成。
 
 在主 worktree 完成双 SHA 与工作区复核，执行 `pnpm agent -- finish` 和对应 `task finish` 后才宣告交付完成。合并与部署是不同动作，部署按项目需求另行进入 DEVOPS。
 

@@ -115,8 +115,7 @@ pnpm agent -- worktree list
 
 ## 6. 长任务状态文件
 
-满足以下任一条件必须使用任务状态：用户明确要求持续执行；至少 3 个可独立验证步骤；预计跨会话、压缩或进程重启。
-
+是否需要任务状态统一遵循 `AGENTS.md`“长任务断点续跑”：单会话只读核查不按步骤数量触发落盘；修改与需恢复的副作用、明确持续执行或跨会话工作仍须记录。普通只读请求不先执行 `task resume`；该命令可能更新状态和锁。
 状态目录固定为：
 
 ```text
@@ -135,6 +134,7 @@ pnpm agent -- worktree list
 - 完成或清理状态。
 
 状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
+记录前可选用 `pnpm agent -- task paths [--task <id>]` 只读解析状态和锁目录；不创建目录、不联网，`PERMISSION_STATUS=NOT_EVALUATED` 不表示权限已通过。容器 tmp 通常位于 repo 外，必须与实际会话可写范围核对，禁止模板自动扩大权限；检查不是普通查询的新门禁。记录不可用时按失败恢复协议对话留痕，继续获准且独立的只读工作。
 ### 命令
 
 任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。
@@ -224,7 +224,7 @@ pnpm agent -- dev|app|build|ship|private|finish
 - 共享基础设施变更执行单元、集成和相关回归；不得用全量失败掩盖定向结果。
 - 测试证据记录命令、退出码和简短结论，不粘贴超长日志。
 
-修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。
+修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。开发 worktree 可保留 staged、unstaged、untracked 内容；`tdd push --committed-only` 不自动暂存、提交或回写 tracked 阶段文档。`qa merge` 只合并回执绑定的提交，目标主干须独立且干净；本地内容不参与合并、不被 stash 或删除。合并成功与清理完成分开报告，保留的 worktree 仍受 completion guard 保护。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 

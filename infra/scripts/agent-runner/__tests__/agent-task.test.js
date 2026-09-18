@@ -25,6 +25,89 @@ const {
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
 
+function pathsFixture(t, config) {
+  const paths = fixture(t);
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: paths.projectRoot, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git('init', '--quiet');
+  if (config) fs.writeFileSync(path.join(paths.projectRoot, 'agent.config.json'), JSON.stringify(config));
+  const cli = path.resolve(__dirname, '../agent-task.js');
+  const run = (cwd, ...args) => spawnSync(process.execPath, [cli, 'paths', ...args], {
+    cwd, encoding: 'utf8', timeout: 15000,
+  });
+  return { ...paths, git, run };
+}
+
+function outputFields(result) {
+  assert.equal(result.status, 0, result.stderr);
+  return Object.fromEntries(result.stdout.trim().split(/\r?\n/).map(line => {
+    const index = line.indexOf('=');
+    return [line.slice(0, index), line.slice(index + 1)];
+  }));
+}
+
+test('task paths reports required locations without initializing missing container directories', (t) => {
+  const paths = pathsFixture(t);
+  const before = fs.readdirSync(paths.root);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = paths.run(paths.projectRoot);
+    const fields = outputFields(result);
+    assert.equal(fields.STATUS, 'OK');
+    assert.equal(fields.SIDE_EFFECTS, 'NONE');
+    assert.equal(fields.PERMISSION_STATUS, 'NOT_EVALUATED');
+    assert.equal(path.relative(fields.PROJECT_ROOT, paths.projectRoot), '');
+    assert.equal(path.relative(fields.TASK_RUNS_ROOT, path.join(paths.root, 'tmp', 'agent-task-runs')), '');
+    assert.equal(path.relative(fields.TASK_LOCK_ROOT, path.join(paths.root, 'tmp', 'agent-locks')), '');
+    assert.equal(fields.STATE_PATH, undefined);
+    assert.match(fields.NEXT_ACTION, /writable roots/i);
+    assert.deepEqual(fs.readdirSync(paths.root), before);
+  }
+});
+
+test('task paths from a linked worktree honors configured roots without touching existing state or locks', (t) => {
+  const paths = pathsFixture(t, {
+    containerDirs: { tmp: '../runtime' },
+    worktree: { lockDir: '../runtime/locks' },
+  });
+  paths.git('add', 'agent.config.json');
+  paths.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture');
+  paths.git('worktree', 'add', '--quiet', '-b', 'paths-check', paths.worktree);
+  const statePath = path.join(paths.root, 'runtime', 'agent-task-runs', 'existing', 'state.json');
+  const lockDir = path.join(paths.root, 'runtime', 'locks');
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.mkdirSync(lockDir, { recursive: true });
+  fs.writeFileSync(statePath, 'sentinel state: paths must not parse or rewrite this');
+  fs.writeFileSync(path.join(lockDir, 'sentinel.lock'), 'owned by another process');
+  const stateBefore = fs.readFileSync(statePath);
+  const lockBefore = fs.readFileSync(path.join(lockDir, 'sentinel.lock'));
+  const treeBefore = fs.readdirSync(path.join(paths.root, 'runtime'), { recursive: true });
+  const result = paths.run(paths.worktree, '--task', 'existing');
+  const fields = outputFields(result);
+  assert.equal(path.relative(fields.PROJECT_ROOT, paths.projectRoot), '');
+  assert.equal(path.relative(fields.TASK_LOCK_ROOT, lockDir), '');
+  assert.equal(path.relative(fields.STATE_PATH, statePath), '');
+  assert.deepEqual(fs.readFileSync(statePath), stateBefore);
+  assert.deepEqual(fs.readFileSync(path.join(lockDir, 'sentinel.lock')), lockBefore);
+  assert.deepEqual(fs.readdirSync(path.join(paths.root, 'runtime'), { recursive: true }), treeBefore);
+});
+
+test('task paths rejects invalid task IDs and runtime topology without writes', (t) => {
+  const paths = pathsFixture(t);
+  const invalidId = paths.run(paths.projectRoot, '--task', '../escape');
+  assert.notEqual(invalidId.status, 0);
+  assert.match(invalidId.stderr, /invalid task id/);
+  assert.equal(fs.existsSync(path.join(paths.root, 'tmp')), false);
+  fs.writeFileSync(path.join(paths.projectRoot, 'agent.config.json'), JSON.stringify({
+    containerDirs: { tmp: '../worktrees/tmp' },
+  }));
+  const invalidTopology = paths.run(paths.projectRoot);
+  assert.notEqual(invalidTopology.status, 0);
+  assert.match(invalidTopology.stderr, /invalid container topology/);
+  assert.equal(fs.existsSync(path.join(paths.root, 'worktrees')), false);
+});
+
 test('CLI records denial, refuses unverified replay, and persists verified recovery', (t) => {
   const paths = fixture(t);
   const cli = path.resolve(__dirname, '../agent-task.js');

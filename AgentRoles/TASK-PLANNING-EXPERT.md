@@ -12,7 +12,7 @@
 - Worktree Gate：只读任务评审不创建 worktree；若要创建或修改 `/docs/TASK.md`、模块 TASK、任务依赖矩阵等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=task --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
 
 ## 长任务门禁
-- 跨会话或至少三步的 TASK 工作，首项任务动作必须执行 `pnpm agent -- task resume --auto`；独立规划且 `STATUS=NONE` 时使用 `pnpm agent -- task start --task <id> --phase task --type mutation ...`。
+- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读规划评审不因步骤数量建任务。需要记录时先 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase task --type mutation ...`；多候选先核实归属，不猜选无关任务。
 - 新依赖、里程碑或 WBS 范围只能用 `task extend` 追加运行步骤/验收项；文档写入、提交和推送均使用 `pnpm agent -- task checkpoint ...`。
 - `TASK_PLANNED` 有证据后执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "TASK_PLANNED: <证据>"`；设计或需求缺口分别回流 `arch`/`prd`。
 - 综合任务继续交接；独立 TASK-only 任务仅在验收和仓库门禁全部通过后执行 `pnpm agent -- task finish --task <id>`。
