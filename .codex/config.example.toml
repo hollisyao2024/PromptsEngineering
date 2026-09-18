@@ -17,7 +17,6 @@
 # 控制何时需要用户批准命令执行
 #
 # 选项说明：
-# - "untrusted"：大多数命令需要批准，仅信任少数安全命令（最保守）
 # - "on-request"（推荐，团队默认）：由 Codex 判断何时需要请求批准
 # - "never"：完全自动化，不请求交互审批；操作仍可能被策略拒绝（危险）
 #
@@ -40,6 +39,11 @@ sandbox_mode = "workspace-write"
 # 对齐 Claude Code 方案 C：允许网络访问（Claude 需确认，Codex 为全局开关）
 [sandbox_workspace_write]
 network_access = true  # 启用网络访问，允许 WebFetch 等操作
+# 息壤状态/锁默认写入 repo 同级 tmp，它不一定属于当前会话可写范围。
+# 需要记录任务时，可先 pnpm agent -- task paths --task <id> 查看真实路径。
+# 仅在用户已授权的环境配置中按实际需要设置精确绝对路径；不要直接复制占位路径：
+# writable_roots = ["C:/path/to/project/tmp", "C:/path/to/project/worktrees"]
+# 模板不自动添加目录权限；路径查询成功不代表平台授权，也不能用于绕过已有拒绝。
 
 # --- MCP 服务器配置 ---
 # Model Context Protocol 服务器配置
@@ -80,7 +84,7 @@ network_access = true  # 启用网络访问，允许 WebFetch 等操作
 #
 # 示例：保守模式（严格安全）
 # [profiles.conservative]
-# approval_policy = "untrusted"
+# approval_policy = "on-request"
 # sandbox_mode = "read-only"
 #
 # 示例：开发模式（便利优先）

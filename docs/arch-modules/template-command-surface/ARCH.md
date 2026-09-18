@@ -249,3 +249,13 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 - [x] 安全、兼容和可观测性可测试。
 - [x] 无迁移或新部署单元。
 - [x] 风险有验证 Gate。
+
+## 14. 核查记录与权限边界（US-CMDSURF-010）
+
+复用 CMDSURF-SVC-004 的任务 CLI 与 shared config，不新增权限判定器、状态 schema 或部署单元。`AGENTS.md` 维护持久化触发的唯一规则，各专家引用；单会话只读核查按步骤计数触发的旧规则移除。已有 mutation 与副作用恢复门禁保留。
+
+`task paths [--task <id>]` 经统一 CLI 进入只读分支：用 `getMainRepoRoot`、`loadConfig`、`resolveContainerPath` 和 `resolveRuntimePath` 得到主仓库、状态根和锁目录；可选 task ID 用既有 `safeTaskId` 校验后拼接精确 state 路径。不调用 `taskPaths` 的创建分支、锁、mkdir、写探针或联网命令。输出 `STATUS=OK`、`SIDE_EFFECTS=NONE`、`PROJECT_ROOT`、`TASK_RUNS_ROOT`、`TASK_LOCK_ROOT`、可选 `STATE_PATH`、`PERMISSION_STATUS=NOT_EVALUATED` 及下一动作。成功只证明路径解析成功，不证明目录可写或平台授权。
+
+写入前由执行者核对实际会话可写范围；路径查询是可选辅助，不成为普通问答的新门禁。模板不读取或修改用户 Codex 配置，不自动添加 writable roots，不在拒绝后搬迁状态、改写命令或通过路径查询重放被拒绝动作。配置文档解释 repo 同级 tmp 与可写根的区别，用户批准的环境配置与模板运行分离。
+
+错误说明以回执为界：脚本 `STATUS=BLOCKED/REASON`、明确的执行工具策略拒绝、未知结果分别处理；单独的 `blocked by policy` 不证明 Auto-review 参与或具体路径违规。记录不可用时对话留痕并继续获准的独立只读工作。测试覆盖缺失目录、linked worktree 的主仓库解析、定制路径、非法 ID/拓扑，以及查询前后状态字节与目录不变；文档契约测试覆盖全部阶段和模板所有权传播。

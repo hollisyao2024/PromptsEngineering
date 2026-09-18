@@ -75,6 +75,18 @@ Out of Scope：
 | US-CMDSURF-009 | AC-CMDSURF-009-05：Given 实际项目已同步到该模板 SHA，When 再次执行同步或检查结果，Then 收敛结果为无模板差异，并输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 和 `TEMPLATE_CONVERGENCE_STATUS`。 | TASK-CMDSURF-027、030~033 | TC-CMDSURF-026 | @qa |
 | US-CMDSURF-009 | AC-CMDSURF-009-06：Given 项目 GH_TOKEN 缺失、无效或仅授权业务仓库且存在 Git 凭据配置，When 获取官方公开模板，Then 请求不携带项目 token、Authorization 或 Cookie，不调用 credential helper/askpass、不应用用户 URL 重写，仍锁定远端 SHA；HTTP 拒绝或网络失败时阻断且不改变目标 tracked 文件，项目自身 GitHub 操作继续沿用原鉴权。 | TASK-CMDSURF-034~036 | TC-CMDSURF-027 | @qa |
 
+### US-CMDSURF-010：核查任务记录与执行权限边界
+
+目标：单会话只读核查可以直接完成；需要持久化时，执行者先知道真实写入路径，并准确区分记录失败与平台拒绝。
+
+| Story ID | 验收标准（Given-When-Then） | Task ID | Test Case ID | QA 负责人 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-010 | AC-CMDSURF-010-01：Given 单会话只读解释、查询或诊断，When 拆成三个或更多检查步骤，Then 不因此创建或恢复任务状态；修改 tracked 文件、需恢复的外部副作用、明确持续执行或跨会话任务仍必须记录，各专家统一引用入口规则。 | TASK-CMDSURF-037 | TC-CMDSURF-028 | @qa |
+| US-CMDSURF-010 | AC-CMDSURF-010-02：Given 主仓库或 linked worktree 且容器目录不存在，When 执行 `pnpm agent -- task paths`，Then 只输出解析后的主项目、任务状态与锁绝对路径，不创建目录、不写状态、不执行联网操作，也不宣称平台已授权；可选 task ID 输出精确 state 路径，非法 ID 阻断。 | TASK-CMDSURF-038 | TC-CMDSURF-029 | @qa |
+| US-CMDSURF-010 | AC-CMDSURF-010-03：Given 工具只返回 `blocked by policy`，When 说明错误，Then 只归类为执行工具策略拒绝且具体规则未知，不擅自归因于 Auto-review、路径或 pnpm；记录不可用时继续获准且独立的只读核查，禁止改写被拒绝动作绕过策略。 | TASK-CMDSURF-037 | TC-CMDSURF-030 | @qa |
+
+范围：任务路由、只读路径查询、Codex 配置说明及模板传播契约。非目标：修改用户权限配置、自动扩展可写目录、移动既有状态、取消 mutation 的 worktree/QA/完成门禁，或保证平台审批必然通过。`task paths` 仅为需要记录时的可选检查，不是所有只读请求的新前置门禁。NFR-CMDSURF-013：路径查询不得把操作系统可访问性或命令成功等同于执行平台授权。
+
 ## 4. 非功能需求（NFR）
 
 - NFR-CMDSURF-001：命令选择为确定性映射，不得执行未配置回退。

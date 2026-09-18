@@ -187,6 +187,16 @@
 
 ## 7. 风险登记
 
+### US-CMDSURF-010 增量 WBS
+
+| Task ID | 交付物 | 依赖 | Owner | Estimate | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| TASK-CMDSURF-037 | 统一只读核查豁免、权限范围说明、准确拒绝归因与跨阶段模板契约；TC-CMDSURF-028/030 | PRD/ARCH 已确认 | @tdd | 0.5d | 验收通过 |
+| TASK-CMDSURF-038 | task paths 只读 CLI，缺失目录、linked worktree、定制路径及非法输入回归；TC-CMDSURF-029 | PRD/ARCH 已确认 | @tdd | 0.5d | 验收通过 |
+| TASK-CMDSURF-039 | 定向和全量 Node 回归、模板传播收敛、QA SHA 回执及合并 | TASK-CMDSURF-037/038 | @qa | 0.5d | 回归与传播通过；回执及合并以运行态为准 |
+
+执行顺序：先失败测试 → 规则与 CLI 实现 → 定向/完整回归 → 模板副本 dry-run/apply/convergence → TDD/QA/合并。数据库、部署与权限配置修改均为 No-op；审查重点是只读分支零写入、已有 mutation 门禁保留、平台拒绝不被绕过。
+
 | 风险 | 影响 | 缓解 | 负责人 | 状态 |
 | --- | --- | --- | --- | --- |
 | 显式 profile 被 default 吞掉 | 操作错误目标 | 负向测试与精确选择 | @tdd | 已规划 |

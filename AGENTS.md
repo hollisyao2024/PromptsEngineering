@@ -81,13 +81,14 @@
 
 ## 长任务断点续跑
 
-用户明确要求持续执行、含至少 3 个可独立验证步骤，或可能跨会话时，必须创建任务状态：
+修改 tracked 文件或执行提交、推送、部署、数据写删、Computer Use 等需恢复的副作用时，必须使用任务状态；用户明确要求持久化记录、持续执行，或预计跨会话、压缩、进程重启时也必须使用。单会话只读解释、状态查询、诊断和研究不因步骤数量而创建或恢复任务记录，不把“先建核查任务”作为前置条件。
 
 ```bash
 pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<安全步骤>" --verify-step "<副作用步骤>"
 ```
 
 - 新任务默认 `type=mutation` 并执行 completion guard；能证明不会修改 tracked 文件时才显式使用 `diagnose|research|operation`。
+- `diagnose|research` 描述工作类型，`task start/checkpoint/resume` 仍可能写状态或锁。需要记录但路径不明确时可选运行只读 `pnpm agent -- task paths --task <id>`，核对状态和锁绝对路径与实际会话可写范围；不以命令成功推断授权，不自动修改权限配置。
 - 安全步骤仅在开始和结束/失败时 checkpoint；无需为无状态的微小动作反复写盘。
 - 部署、推送、提交、数据库写入、文件系统变更和 Computer Use 等副作用步骤，执行前标记 `running`，结果不明时恢复为 `verify_required`，禁止盲目重放。
 - 一个 checkpoint 可同时完成步骤和验收项，并记录简短证据、退出码、路径或哈希。
@@ -96,8 +97,8 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
 - 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
 - 失败先按可观察证据区分普通工具故障、策略拒绝和执行结果未知；已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕，恢复前提供 `--recovery-evidence`。具体协议见 docs/CONVENTIONS.md 的“失败分类与恢复”。
-- 若 task start/checkpoint 本身不可执行，先在当前对话记录任务目标、验收、被拒绝操作、时间、调用编号、启动状态和下一动作；允许且未被拒绝时可保存容器 tmp 脱敏证据。该记录不是另一份 state.json，也不授权跳过 worktree、QA 或安全策略。继续允许且不依赖该操作的工作；恢复记录能力后先核实副作用，再补记真实状态，不伪造成功。
-- 新会话、异常恢复或继续执行时，第一项任务动作必须是：
+- 若 task start/checkpoint 本身不可执行，先在当前对话记录目标、验收、操作、时间、调用编号、启动状态和下一动作；仅有 `blocked by policy` 时说明“执行工具策略拒绝，具体规则未知”，不得擅自归因于 Auto-review、目录越界或 pnpm。继续获准且不依赖该操作的只读核查，不因记账失败停止整个查询；禁止改写命令、换工具或迁移记录以重试被拒绝动作。独立证据写入也需获准，不伪造 state.json；恢复后先核实副作用再补记，不跳过 mutation 的 worktree、QA 或安全门禁。
+- 仅在需要任务状态的新会话、异常恢复或继续执行时，第一项任务动作是 `resume`；普通单会话只读请求不调用此写入型恢复入口：
   `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
 - 全部步骤、验收和仓库门禁通过后执行 `pnpm agent -- task finish --task <id>`；任务关闭只受该 task id 明确绑定的 worktree 生命周期状态阻断，无关任务的 recovery 不得阻止关闭。只有用户明确取消时才可 `cancel --force`。
 - `state.json` 不得保存密钥、大段日志或隐藏思维过程；大证据放 `evidence/` 并只引用路径与哈希。
