@@ -107,6 +107,8 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 
 TDD 收尾顺序固定：
 
+开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。
+
 1. `pnpm agent -- tdd sync`
 2. `pnpm agent -- tdd push`
 3. `pnpm agent -- qa plan`

@@ -28,3 +28,9 @@
 安全与适用性：`task paths` 只解析路径，明确输出 `PERMISSION_STATUS=NOT_EVALUATED`；不存在配置扩权、替代状态文件、拒绝后重放或绕过 mutation 门禁。属于内部 CLI 与文档变更，浏览器 UI、业务性能及真实项目平台权限不在本轮验收范围。高风险域为共享 CLI 与权限指引；语义审查通过，`Codex review skipped by policy`。
 
 结论：本轮验收通过 / Go；QA SHA 回执与合并结果记录在任务及 worktree 运行态，不写入稳定阶段状态。日志归档于容器 `tmp/qa-reports/task-record-policy-boundary/`，包括初始失败、基线对比、候选源码哈希、全量结果和传播日志。
+
+## 开发目录可保留本地内容（US-CMDSURF-011）
+
+TC-CMDSURF-031～033：真实 bare origin、main 与 linked worktree 集成测试验证固定 head squash 后主干只含已提交交付文件；功能目录 staged、unstaged、untracked 内容及索引均不变。负向覆盖目标主干修改与未隔离目录；清理断言不调用后台 worker、补偿器或前置 session 清理，并保留 QA head 封印。committed-only 覆盖显式参数和自动提交分支短路。
+
+RED 为四个新用例按预期失败；首轮定向 5/5 通过，最终定向回归 66/66。Linux Node 24.19.0 / pnpm 10.18.3 完整回归 514/514，零失败、零跳过；运行前候选 patch 与工作区逐字节匹配。模板副本 dry-run/apply/convergence 通过，6 个增量运行文件逐字节一致，项目 RULES 哨兵不变。语义复核确认只合并 QA head、保留索引与文件、无自动清理 worker；Codex review skipped by policy。QA 结论 Go；实际 PR、SHA 和生命周期结果保存在任务运行态。合并通过不代表保留目录已被安全回收；completion guard 的独立状态必须如实报告。

@@ -132,3 +132,11 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-LAZYARCH-004 | AC-LAZYARCH-004-01 | TC-LAZYARCH-004 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
 | US-LAZYARCH-005 | AC-LAZYARCH-005-01 | TC-LAZYARCH-005 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
 | US-LAZYARCH-006 | AC-LAZYARCH-006-01 | TC-LAZYARCH-006 | Pass | [QA](../qa-modules/architecture-on-demand/QA.md) |
+
+## 开发目录与合并边界
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-011 | AC-CMDSURF-011-01 | TC-CMDSURF-031 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-011 | AC-CMDSURF-011-02 | TC-CMDSURF-032 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
+| US-CMDSURF-011 | AC-CMDSURF-011-03 | TC-CMDSURF-033 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |

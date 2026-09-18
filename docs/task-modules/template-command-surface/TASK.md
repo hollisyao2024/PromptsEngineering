@@ -260,3 +260,13 @@
 - [x] 多电脑协作完成 RED/GREEN；定向回归 90/90、补充 merge 回归 24/24、Windows 可执行全集 342/342、三 clone 交错模拟通过；模板副本 dry-run/apply/convergence 收敛且相关测试 22/22。
 - [x] QA plan 按模板源规则跳过业务文档生成；QA verify 签发绑定 `main` 与功能分支精确 SHA 的通过收据；PR #69 的 base/head/ref 均已核对。
 - [x] 息壤新增任务覆盖 US-CMDSURF-009 的全部 AC，并按 RED → 身份/路由 → fetch/SHA → 自举/收敛 → 传播/QA 排列关键路径。
+
+## 13. 合并门禁增量（2026-09-18）
+
+| Task | 内容 | 验收 | 状态 |
+| --- | --- | --- | --- |
+| TASK-CMDSURF-040 | 开发目录预检与固定 head 合并，真实 Git fixture 覆盖 staged/unstaged/untracked、目标主干保护 | AC-CMDSURF-011-01 | 定向通过 |
+| TASK-CMDSURF-041 | QA head 封印、保留 dirty 目录且不启动清理、显式状态输出 | AC-CMDSURF-011-02 | 定向通过 |
+| TASK-CMDSURF-042 | committed-only 推送、传播和完整回归、实际合并 | AC-CMDSURF-011-03 | 66/66 与全量 514/514、传播通过；交付见任务运行态 |
+
+本轮保留原失败历史，不重试清理被拒绝文件；合并与清理的验收结果分别记录。Review-Class REQUIRED；Domain-Hit 数据保护与共享交付流程；Codex review skipped by policy。

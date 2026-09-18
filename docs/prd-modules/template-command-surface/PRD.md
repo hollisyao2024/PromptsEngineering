@@ -142,3 +142,13 @@ Out of Scope：
 - [x] 已同步追溯矩阵。
 - [x] 无图形界面，UX 不适用。
 - [x] 已通知后续 ARCH/TASK/TDD/QA 阶段。
+
+## 12. 开发目录与合并边界（US-CMDSURF-011）
+
+用户要求开发 worktree 不因存在本地内容而被整体禁止合并。
+
+- AC-CMDSURF-011-01：Given 功能分支 QA 回执有效且独立目标主干干净，When 开发目录同时有 staged、unstaged、untracked 内容，Then 仍可合并固定 head，三类本地内容与索引原样保留，未提交内容不进入主干（TC-CMDSURF-031）。
+- AC-CMDSURF-011-02：Given 合并后开发目录仍有内容或 HEAD 已漂移，When 进入清理，Then 保留目录、分支和封印，不启动删除进程，分别输出合并成功与清理保留；目标主干存在本地修改或没有隔离写入目录时仍保护其内容（TC-CMDSURF-032）。
+- AC-CMDSURF-011-03：Given 用户仅需推送已提交交付内容，When 使用 tdd push --committed-only，Then 不自动暂存、提交或回写 tracked 阶段文件，固定 PR base/head 与 QA 验证保持不变（TC-CMDSURF-033）。
+
+该需求解除开发目录整体清洁的合并前置条件，不授权删除已被策略拒绝的文件，不改变系统权限或 completion guard 的数据保护。

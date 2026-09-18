@@ -224,7 +224,7 @@ pnpm agent -- dev|app|build|ship|private|finish
 - 共享基础设施变更执行单元、集成和相关回归；不得用全量失败掩盖定向结果。
 - 测试证据记录命令、退出码和简短结论，不粘贴超长日志。
 
-修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。
+修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。开发 worktree 可保留 staged、unstaged、untracked 内容；`tdd push --committed-only` 不自动暂存、提交或回写 tracked 阶段文档。`qa merge` 只合并回执绑定的提交，目标主干须独立且干净；本地内容不参与合并、不被 stash 或删除。合并成功与清理完成分开报告，保留的 worktree 仍受 completion guard 保护。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 
