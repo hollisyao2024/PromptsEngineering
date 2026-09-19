@@ -391,16 +391,10 @@ function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
   const analysis = checkers.analyzeDefects(defects);
   const nfr = checkers.checkNFRCompliance();
 
-  const p0OpenCount = (analysis.p0Defects || []).length;
-  const nonCompliantNfrCount = (nfr.nonCompliantNFRs || []).length;
-  const blockers = [];
-  if (p0OpenCount > 0) blockers.push(`${p0OpenCount} 个 P0 缺陷未关闭`);
-  if (nonCompliantNfrCount > 0) blockers.push(`${nonCompliantNfrCount} 项 NFR 未达标`);
-
-  if (blockers.length > 0) {
-    console.error(
-      '\x1b[31m发布门禁未通过：\x1b[0m\n' + blockers.map((b) => `  ❌ ${b}`).join('\n')
-    );
+  const decision = defectBlockerCheckers.determineReleaseDecision(analysis, nfr);
+  for (const warning of decision.warningIssues) console.warn(warning);
+  if (!decision.gatePass) {
+    console.error('发布门禁未通过：\n' + decision.blockingIssues.map(issue => '  ❌ ' + issue).join('\n'));
     return false;
   }
   return true;
