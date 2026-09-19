@@ -50,9 +50,9 @@ test('TC-LAZYARCH-004 corrupt cache and mismatched source block without fallback
 test('TC-LAZYARCH-004 source and cache symlinks and project-local cache are rejected', t => {
   const f = fixture(t), descriptor = describeSource(f.source).descriptor;
   assert.throws(() => resolveSource({ ...f, descriptor, cacheRoot: path.join(f.target, '.cache') }), /outside/);
-  fs.symlinkSync(f.target, f.cacheRoot);
+  fs.symlinkSync(f.target, f.cacheRoot, process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => resolveSource({ ...f, descriptor }), /symlink/);
-  fs.symlinkSync(path.join(f.source, 'package.json'), path.join(f.source, 'architecture/bad.json'));
+  fs.symlinkSync(f.target, path.join(f.source, 'architecture/bad'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => describeSource(f.source), /symlink/);
   assert.deepEqual(fs.readdirSync(f.target), []);
 });
@@ -62,7 +62,7 @@ test('TC-LAZYARCH-004 anonymous transport fetches only pinned official SHA witho
   fetchPinnedSnapshot({ directory: path.join(f.root, 'download'), descriptor, run(command, args, options) {
     calls.push(args); assert.equal(command, 'git'); assert.equal(options.shell, false);
     assert.equal(options.env.GH_TOKEN, undefined); assert.equal(options.env.GITHUB_TOKEN, undefined);
-    assert.equal(options.env.GIT_CONFIG_GLOBAL, os.devNull); assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
+    assert.equal(options.env.GIT_CONFIG_GLOBAL, process.platform === 'win32' ? 'NUL' : os.devNull); assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
     return { status: 0, stdout: args.includes('rev-parse') ? descriptor.commit + '\n' : '' };
   } });
   const fetch = calls.find(args => args.includes('fetch'));

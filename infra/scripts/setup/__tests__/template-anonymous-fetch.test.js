@@ -10,6 +10,7 @@ const cp = require('node:child_process');
 const { promisify } = require('node:util');
 const execFile = promisify(cp.execFile);
 const sync = require('../template-sync');
+const gitNullDevice = process.platform === 'win32' ? 'NUL' : os.devNull;
 
 function scratch(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-anonymous-'));
@@ -52,8 +53,8 @@ test('anonymous environment removes credentials and inherited Git control withou
     'GIT_SSL_NO_VERIFY', 'GIT_SSL_CERT', 'GIT_SSL_KEY', 'GIT_TRACE']) {
     assert.ok(!(key in env), key + ' must be absent');
   }
-  assert.equal(env.GIT_CONFIG_GLOBAL, os.devNull);
-  assert.equal(env.GIT_CONFIG_SYSTEM, os.devNull);
+  assert.equal(env.GIT_CONFIG_GLOBAL, gitNullDevice);
+  assert.equal(env.GIT_CONFIG_SYSTEM, gitNullDevice);
   assert.equal(env.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(env.GIT_TERMINAL_PROMPT, '0');
   assert.equal(env.GCM_INTERACTIVE, 'Never');
@@ -64,7 +65,18 @@ test('anonymous environment removes credentials and inherited Git control withou
   assert.ok(input.GIT_CONFIG_VALUE_0 === 'Authorization: test-only');
   const withoutToken = sync.buildAnonymousGitEnvironment({ PATH: process.env.PATH });
   assert.ok(!('GH_TOKEN' in withoutToken));
-  assert.equal(withoutToken.GIT_CONFIG_GLOBAL, os.devNull);
+  assert.equal(withoutToken.GIT_CONFIG_GLOBAL, gitNullDevice);
+});
+
+test('real Git reads isolated configuration using the native null device', (t) => {
+  const root = scratch(t);
+  const env = sync.buildAnonymousGitEnvironment();
+  const result = cp.spawnSync('git', ['config', '--list', '--name-only'], {
+    cwd: root, env, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git(root, ['config', '--get', 'core.hooksPath'], env), gitNullDevice);
+  assert.equal(git(root, ['config', '--get', 'credential.helper'], env), '');
 });
 
 test('official snapshot uses anonymous environment for init, fetch and checkout without reading project token', (t) => {
@@ -83,8 +95,9 @@ test('official snapshot uses anonymous environment for init, fetch and checkout 
     const sha = 'a'.repeat(40);
     cp.spawnSync = (command, args, options) => {
       assert.ok(!options.env.GH_TOKEN && !options.env.GITHUB_TOKEN, 'no token');
-      assert.equal(options.env.GIT_CONFIG_GLOBAL, require('node:os').devNull);
-      assert.equal(options.env.GIT_CONFIG_SYSTEM, require('node:os').devNull);
+      const nullDevice = process.platform === 'win32' ? 'NUL' : require('node:os').devNull;
+      assert.equal(options.env.GIT_CONFIG_GLOBAL, nullDevice);
+      assert.equal(options.env.GIT_CONFIG_SYSTEM, nullDevice);
       calls.push(args);
       return { status: 0, stdout: args[0] === 'rev-parse' ? sha + '\\n' : '', stderr: '' };
     };
