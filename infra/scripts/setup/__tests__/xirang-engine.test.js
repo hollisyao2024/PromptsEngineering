@@ -77,7 +77,7 @@ test('TC-ARCHPLAT-007 path escape, symlink and duplicate ownership rejected with
   for (const name of ['../escape', '/tmp/escape', '.git/config', '.xirang/escape', 'xirang.lock.json', 'a/../b', 'a\\b']) {
     assert.throws(() => planUpdate({ target: f.target, assets: [asset('x', 'update', name)] }), /path|reserved/i);
   }
-  fs.symlinkSync(os.tmpdir(), path.join(f.target, 'link'));
+  fs.symlinkSync(os.tmpdir(), path.join(f.target, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => planUpdate({ target: f.target, assets: [asset('x', 'update', 'link/x')] }), /symlink/i);
   assert.throws(() => planUpdate({ target: f.target, assets: [asset('a'), asset('b')] }), /duplicate/i);
 });
