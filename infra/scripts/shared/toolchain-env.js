@@ -41,6 +41,18 @@ function resolvePnpmBin(platform = process.platform, env = process.env) {
   return name;
 }
 
+function resolveBashBin(platform = process.platform, env = process.env, exists = fs.existsSync) {
+  if (platform !== 'win32') return 'bash';
+
+  const candidates = [
+    String(env.BASH_PATH || '').trim(),
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => exists(candidate)) || '';
+}
+
 function resolvePnpmNearNodeRuntime(name, execPath = process.execPath) {
   if (!execPath) return '';
   const nodeBin = path.dirname(execPath);
@@ -150,6 +162,7 @@ module.exports = {
   prependPath,
   quoteCmdArg,
   resolvePnpmBin,
+  resolveBashBin,
   resolvePnpmNearNodeRuntime,
   resolvePnpmJsNearNodeRuntime,
   resolveToolchainPathDirs,
