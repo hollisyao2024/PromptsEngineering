@@ -109,6 +109,8 @@ TDD 收尾顺序固定：
 
 开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。
 
+独立清理失败不得自动升级为交付前置条件。进入 QA/DEVOPS 时，可按 `docs/CONVENTIONS.md` 的证据要求通过 `task transition --defer-cleanup-step <id> --cleanup-evidence "<独立性与保留措施>"` 延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。
+
 1. `pnpm agent -- tdd sync`
 2. `pnpm agent -- tdd push`
 3. `pnpm agent -- qa plan`

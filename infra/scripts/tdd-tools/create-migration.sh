@@ -89,6 +89,19 @@ if [[ -z "$TARGET_DIR" ]]; then
   exit 1
 fi
 
+# Normalize native Windows paths before deciding whether a path is relative.
+# Git Bash's cygpath preserves spaces and UNC paths without prefixing REPO_ROOT.
+if [[ "$TARGET_DIR" =~ ^[a-zA-Z]:[\\/] || "$TARGET_DIR" == \\\\* ]]; then
+  if ! command -v cygpath >/dev/null 2>&1; then
+    echo "❌ Windows 路径需要 cygpath；请传入当前 Bash 可识别的绝对路径"
+    exit 1
+  fi
+  TARGET_DIR="$(cygpath -u -- "$TARGET_DIR")"
+elif [[ "$TARGET_DIR" =~ ^[a-zA-Z]: ]]; then
+  echo "❌ 不支持盘符相对路径；请使用完整绝对路径"
+  exit 1
+fi
+
 if [[ "$TARGET_DIR" != /* ]]; then
   TARGET_DIR="$REPO_ROOT/$TARGET_DIR"
 fi

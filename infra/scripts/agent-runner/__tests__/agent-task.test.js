@@ -25,6 +25,39 @@ const {
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
 
+test('independent cleanup can be deferred to finish without recovering or replaying denial', t => {
+  const input = startInput(fixture(t), { phase: 'tdd' });
+  createTask(input);
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: ['code verified'] });
+  const denied = checkpointTask({ ...input, stepId: 'S2', status: 'blocked',
+    failureKind: 'policy_denied', executionState: 'not_started',
+    evidence: ['cleanup rejected before start'], nextAction: 'Retain cleanup target' });
+  const transition = { ...input, phase: 'qa', evidence: ['Tests passed'],
+    deferCleanupStep: 'S2', cleanupEvidence: 'Temporary files are outside the verified commit; preserve the worktree; QA uses clean main' };
+  assert.throws(() => transitionTaskPhase({ ...transition, cleanupEvidence: '' }), /cleanup.*evidence/i);
+  assert.throws(() => transitionTaskPhase({ ...transition, deferCleanupStep: 'S9' }), /cleanup.*step/i);
+  const advanced = transitionTaskPhase(transition);
+  assert.equal(advanced.current_phase, 'qa');
+  assert.equal(advanced.status, 'blocked');
+  assert.deepEqual(advanced.steps, denied.steps);
+  assert.equal(advanced.phase_history.at(-1).deferred_cleanup.step_id, 'S2');
+  assert.equal(finishTask(input).status, 'BLOCKED');
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S2', status: 'running' }), /recovery evidence/);
+  assert.equal(parseCliArgs(['transition', '--defer-cleanup-step', 'S2', '--cleanup-evidence=isolated']).cleanupEvidence, 'isolated');
+});
+
+test('cleanup deferral cannot waive unknown effects or other blockers', t => {
+  for (const executionState of ['unknown', 'started', 'not_started']) {
+    const input = startInput(fixture(t), { phase: 'tdd' }); createTask(input);
+    checkpointTask({ ...input, stepId: 'S2', status: executionState === 'not_started' ? 'blocked' : 'verify_required',
+      failureKind: 'tool_error', executionState, evidence: ['failed'], nextAction: 'Inspect' });
+    if (executionState === 'not_started') checkpointTask({ ...input, stepId: 'S1', status: 'blocked', evidence: ['tests failed'], nextAction: 'Fix tests' });
+    const before = readTaskState(input);
+    assert.throws(() => transitionTaskPhase({ ...input, phase: 'qa', evidence: ['review'], deferCleanupStep: 'S2', cleanupEvidence: 'isolated temporary files' }), /cleanup|unresolved/);
+    assert.deepEqual(readTaskState(input), before);
+  }
+});
+
 function pathsFixture(t, config) {
   const paths = fixture(t);
   const git = (...args) => {

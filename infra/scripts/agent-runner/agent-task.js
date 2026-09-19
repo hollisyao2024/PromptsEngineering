@@ -224,6 +224,17 @@ function validateState(inputState, expectedTaskId) {
       recovered.add(recovery.failure_index);
     }
   }
+  for (const entry of state.phase_history) {
+    if (entry.deferred_cleanup === undefined) continue;
+    const deferred = entry.deferred_cleanup;
+    const step = state.steps.find(item => item.id === deferred?.step_id);
+    const failure = step?.failures?.[deferred?.failure_index];
+    if (!['qa', 'devops'].includes(entry.phase) || !step
+      || !Number.isInteger(deferred.failure_index) || deferred.failure_index < 0
+      || failure?.execution_state !== 'not_started' || !String(deferred.evidence || '').trim()) {
+      throw new Error('invalid task state: malformed deferred cleanup evidence');
+    }
+  }
   if (!Array.isArray(state.acceptance_criteria)) {
     throw new Error('invalid task state: acceptance_criteria must be an array');
   }
@@ -518,7 +529,20 @@ function transitionTaskPhase(options) {
       throw new Error(`invalid phase transition: ${state.current_phase} -> ${targetPhase}`);
     }
     const movesForward = PHASE_ORDER.get(targetPhase) > PHASE_ORDER.get(state.current_phase);
-    const unresolvedEffect = state.steps.find((step) => ['blocked', 'verify_required'].includes(step.status));
+    let deferredCleanup;
+    if (options.deferCleanupStep || options.cleanupEvidence) {
+      if (!movesForward || !['qa', 'devops'].includes(targetPhase)) throw new Error('cleanup deferral only applies to forward QA or DEVOPS transitions');
+      if (!String(options.cleanupEvidence || '').trim()) throw new Error('cleanup deferral requires independence evidence');
+      const step = state.steps.find(item => item.id === options.deferCleanupStep);
+      const failureIndex = (step?.failures?.length || 0) - 1;
+      if (!step || step.status !== 'blocked' || step.failures?.[failureIndex]?.execution_state !== 'not_started'
+        || step.recoveries?.some(item => item.failure_index === failureIndex)) {
+        throw new Error('cleanup step must have an unresolved failure proven not started');
+      }
+      deferredCleanup = { step_id: step.id, failure_index: failureIndex, evidence: options.cleanupEvidence.trim() };
+    }
+    const unresolvedEffect = state.steps.find((step) => ['blocked', 'verify_required'].includes(step.status)
+      && step.id !== deferredCleanup?.step_id);
     if (movesForward && unresolvedEffect) {
       throw new Error(`phase transition blocked by unresolved step ${unresolvedEffect.id}: ${unresolvedEffect.status}`);
     }
@@ -528,6 +552,7 @@ function transitionTaskPhase(options) {
       from_phase: state.current_phase,
       evidence,
       entered_at: timestamp,
+      ...(deferredCleanup ? { deferred_cleanup: deferredCleanup } : {}),
     });
     state.current_phase = targetPhase;
     if (options.projectRoot && isSamePath(options.projectRoot, state.project_root)) {
@@ -871,6 +896,7 @@ function parseCliArgs(argv) {
     ['error', 'error'], ['replay', 'replay'], ['phase', 'phase'], ['reason', 'reason'],
     ['failure-kind', 'failureKind'], ['execution-state', 'executionState'],
     ['call-id', 'callId'], ['recovery-evidence', 'recoveryEvidence'],
+    ['defer-cleanup-step', 'deferCleanupStep'], ['cleanup-evidence', 'cleanupEvidence'],
   ]);
   for (let index = 1; index < normalizedArgv.length; index += 1) {
     const arg = normalizedArgv[index];
@@ -959,6 +985,7 @@ function printHelp() {
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
   node infra/scripts/agent-runner/agent-task.js transition --task <id> --phase <phase> --evidence <milestone>
+    Independent cleanup only: --defer-cleanup-step <S1> --cleanup-evidence <why QA is independent and retained files are protected>
   node infra/scripts/agent-runner/agent-task.js finish --task <id>
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
 

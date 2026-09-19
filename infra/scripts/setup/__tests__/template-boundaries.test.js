@@ -18,7 +18,10 @@ function fixture(t) {
   return { root, target };
 }
 function invoke(script, args) {
-  return spawnSync(process.execPath, [script, ...args], { cwd: source, encoding: 'utf8', timeout: 60000, maxBuffer: 10 * 1024 * 1024 });
+  // The complete installer fsyncs hundreds of files; Windows security scanning
+  // makes this integration fixture slower than the small boundary-only calls.
+  const timeout = process.platform === 'win32' ? 180000 : 60000;
+  return spawnSync(process.execPath, [script, ...args], { cwd: source, encoding: 'utf8', timeout, maxBuffer: 10 * 1024 * 1024 });
 }
 function git(target, args) {
   const r = spawnSync('git', args, { cwd: target, encoding: 'utf8' });
@@ -83,7 +86,8 @@ test('unknown include and invalid scope values block without target writes', t =
   }
   for (const scope of ['unknown', true, '']) assert.throws(() => createTemplatePlan({ source, target: f.target, scope }), /scope/);
   assert.deepEqual(snapshot(f.target), before);
-  for (const include of [[], ['architecture'], ['all']]) assert.deepEqual(createTemplatePlan({ source, target: f.target, include }).conflicts, []);
+  const selections = fs.existsSync(path.join(source, 'architecture/manifest.json')) ? [[], ['architecture'], ['all']] : [[]];
+  for (const include of selections) assert.deepEqual(createTemplatePlan({ source, target: f.target, include }).conflicts, []);
   assert.throws(() => createTemplatePlan({ source, target: f.target, scope: 'agent', include: ['architecture'] }), /agent scope/);
 });
 
@@ -109,7 +113,7 @@ test('updater rejects project-local report directories before creating reports o
 test('template plan output cannot overwrite project files, metadata, Git index or use a symlink alias', async t => {
   for (const destination of ['README.md', 'xirang.lock.json', '.git/index', 'alias']) await t.test(destination, t => {
     const f = fixture(t); initGit(f.target);
-    const alias = path.join(f.root, 'alias'); fs.symlinkSync(f.target, alias);
+    const alias = path.join(f.root, 'alias'); fs.symlinkSync(f.target, alias, process.platform === 'win32' ? 'junction' : 'dir');
     const out = destination === 'alias' ? path.join(alias, 'README.md') : path.join(f.target, destination);
     const before = snapshot(f.target);
     blocked(invoke(engine, ['--source', source, '--target', f.target, '--plan-out', out]), /outside the project|symlink/);
@@ -119,10 +123,13 @@ test('template plan output cannot overwrite project files, metadata, Git index o
 
 test('architecture and template plans cannot write through an alias or into a linked worktree main repository', async t => {
   for (const kind of ['architecture-alias', 'architecture-main', 'template-main']) await t.test(kind, t => {
+    if (kind.startsWith('architecture') && !fs.existsSync(path.join(source, 'architecture/scripts/cli.js'))) {
+      t.skip('Full architecture source kit is not installed in this agent-only consumer'); return;
+    }
     const f = fixture(t); initGit(f.target);
     const linked = path.join(f.root, 'worktrees/task'); git(f.target, ['worktree', 'add', '--quiet', '-b', 'test', linked]);
     const configFile = path.join(f.root, 'config.json'); fs.writeFileSync(configFile, json({ schemaVersion: 1, applications: [{ id: 'api', path: 'apps/api', stack: 'node' }] }));
-    const alias = path.join(f.root, 'alias'); fs.symlinkSync(linked, alias);
+    const alias = path.join(f.root, 'alias'); fs.symlinkSync(linked, alias, process.platform === 'win32' ? 'junction' : 'dir');
     const beforeMain = snapshot(f.target), beforeLinked = snapshot(linked);
     const out = path.join(kind === 'architecture-alias' ? alias : f.target, 'README.md');
     const result = kind.startsWith('architecture')
