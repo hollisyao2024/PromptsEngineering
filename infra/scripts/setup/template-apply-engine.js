@@ -14,7 +14,7 @@ const DEFAULT_MANIFEST = 'infra/templates/agent/template.manifest.json';
 
 function parseArgs(argv) {
   const args = { include: [] };
-  const values = new Set(['source', 'target', 'manifest', 'scope', 'include', 'plan', 'plan-out']);
+  const values = new Set(['source', 'target', 'manifest', 'scope', 'include', 'plan', 'plan-out', 'legacy-baseline']);
   for (let i = 0; i < argv.length; i += 1) {
     const raw = argv[i];
     if (!raw.startsWith('--')) continue;
@@ -513,6 +513,7 @@ function main() {
   if (fs.existsSync(unified)) {
     return require(unified).runTemplate(args, sourceRoot, targetRoot);
   }
+  if (args['legacy-baseline'] !== undefined) throw new Error('legacy baseline migration requires the shared update engine');
   const advertisedManifest = path.join(sourceRoot, DEFAULT_MANIFEST);
   if (fs.existsSync(advertisedManifest) && readJson(advertisedManifest).capabilities?.ownershipUpdates) {
     throw new Error('baseline-aware update capability advertised but shared engine missing');

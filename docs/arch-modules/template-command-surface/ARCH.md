@@ -267,3 +267,11 @@ qa-merge 的预检仅要求实际写入主干的目录干净；开发目录的�
 清理阶段以 QA head 写入既有 cleanup_pending 封印，重新只读检查开发 worktree。检测到本地内容、读取失败或 HEAD 漂移则返回 preserved/deferred，不调用清理补偿器或后台删除进程，也不清理前置 session；后续 completion guard 仍将未安全收敛的目录标为恢复状态。输出 MERGE_STATUS 与 CLEANUP_STATUS 分开表达远端交付和本地回收。
 
 tdd push 新增显式 committed-only 参数，在自动提交和阶段文档回写前短路；仍推送已有 HEAD、维护 PR 与容器 session。不新增权限配置、状态 schema、隐式 ignore/stash 或目录迁移。
+
+## 旧版消费者迁移设计（US-CMDSURF-012）
+
+`template sync/update` 与底层 planner 透传 `--legacy-baseline <ref>`。只在目标没有 lock 时加载；现有 lock 的验证优先，不允许替换其依据。参数与 `--adopt` 互斥，避免把漂移保留与可验证升级混为一谈。
+
+新 helper 在目标 Git 中将显式 ref 解析为固定 commit，读取该 commit 的息壤 manifest。只返回新旧有效规则均为 overwrite、旧 Git blob 为普通文件的文本基线；最具体规则优先，项目/生成/排除项禁止继承。planUpdate 用其补充缺失基线，沿用原 overwrite 的 local==base 门禁、冻结计划目标哈希复验和 journal 原子应用。dry-run 不初始化旧 lock，也不写目标。计划与日志记录固定 SHA；缺失/非法/非息壤基线 fail closed。
+
+消费者边界测试将通用保护与完整架构源码用例明确分离；源码能力缺失只影响源专用用例，通用用例继续执行。消费者传播测试实际安装默认模板后执行边界测试，防止再次传播失败套件。没有新增依赖、数据库、服务或网络认证模式。回滚为 revert；已经生成的 lock 继续走既有校验。

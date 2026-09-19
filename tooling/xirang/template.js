@@ -43,8 +43,10 @@ function validateSelectionOptions(scope = 'all', include = []) {
   if (!Array.isArray(include) || include.some(value => !['architecture','all'].includes(value))) throw new Error('include must contain only architecture or all');
   if (scope === 'agent' && include.length) throw new Error('agent scope cannot include architecture');
 }
-function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,include=[]}) {
+function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,include=[],legacyBaseline}) {
   validateSelectionOptions(scope, include);
+  if (legacyBaseline !== undefined && (typeof legacyBaseline !== 'string' || !legacyBaseline.trim() || legacyBaseline.startsWith('-'))) throw new Error('legacy baseline requires an explicit Git ref');
+  if (legacyBaseline !== undefined && adopt) throw new Error('--legacy-baseline cannot be combined with --adopt');
   if(path.resolve(source)===path.resolve(target))throw new Error('Template source cannot apply onto itself');
   const installed=readLock(target),assets=[],inputs=[],packages={};
   if(scope==='all'||scope==='agent') {
@@ -88,25 +90,30 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
   const identity={id:'xirang',commit:commit.status===0?commit.stdout.trim():null};
   if(packages.agent)packages.agent.source=identity;
   if(packages['architecture:runtime'])packages['architecture:runtime'].source=identity;
-  return planUpdate({target,source:identity,assets:[...unique.values()],inputs,packages,adopt});
+  const selectedAssets = [...unique.values()];
+  const legacy = legacyBaseline !== undefined && read(target,'xirang.lock.json',true) === null
+    ? require('./legacy-baseline').loadLegacyBaseline(target,legacyBaseline,selectedAssets) : undefined;
+  return planUpdate({target,source:identity,assets:selectedAssets,inputs,packages,adopt,legacy});
 }
 function print(plan,write) {
   const counts={};
   console.log(`STATUS=${plan.conflicts.length?'BLOCKED':write?'UPDATED':'DRY_RUN'}\nPLAN_ID=${plan.id}`);
+  if (plan.legacyBaselineCommit) console.log(`LEGACY_BASELINE_COMMIT=${plan.legacyBaselineCommit}`);
   const details=plan.entries.map(entry=>{
     const status=entry.reason?'blocked':entry.before===entry.afterHash?'unchanged':entry.before===null?'created':entry.after===null?'removed':'updated';counts[status]=(counts[status]||0)+1;
     return `${status}\t${entry.strategy}\t${entry.path}${entry.reason?`\tconflicts=${entry.reason}`:''}`;
   });
   for(const p of plan.metadataChanges||[]){counts.updated=(counts.updated||0)+1;details.push(`updated\tmetadata\t${p}`);}
   console.log(`COUNTS=${JSON.stringify(counts)}\nDETAILS_START\n${details.join('\n')}\nDETAILS_END`);
-  console.log('NEXT_ACTION=Review conflicts and plan; explicit adopt is required for existing files without baseline');
+  console.log('NEXT_ACTION=Review conflicts and plan; files without baseline require explicit adopt or a reviewed legacy baseline');
 }
 function runTemplate(args,source,target) {
   validateSelectionOptions(args.scope, args.include);
+  if (args['legacy-baseline'] !== undefined && args.adopt) throw new Error('--legacy-baseline cannot be combined with --adopt');
   if (args.write !== undefined && typeof args.write !== 'boolean') throw new Error('--write does not take a value');
   if (args.write) assertMutationTarget(target);
   const out = args['plan-out'] && assertPlanOutput(target, args['plan-out']);
-  const plan=args.plan?parseJson(fs.readFileSync(args.plan,'utf8'),'plan'):createTemplatePlan({source,target,scope:args.scope,adopt:!!args.adopt,manifestPath:args.manifest,include:args.include});
+  const plan=args.plan?parseJson(fs.readFileSync(args.plan,'utf8'),'plan'):createTemplatePlan({source,target,scope:args.scope,adopt:!!args.adopt,manifestPath:args.manifest,include:args.include,legacyBaseline:args['legacy-baseline']});
   if(path.resolve(plan.target)!==path.resolve(target))throw new Error('plan target mismatch');
   if(out)atomicWrite(out,json(plan),0o600);
   if(args.write) {

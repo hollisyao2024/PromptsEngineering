@@ -270,3 +270,15 @@
 | TASK-CMDSURF-042 | committed-only 推送、传播和完整回归、实际合并 | AC-CMDSURF-011-03 | 66/66 与全量 514/514、传播通过；交付见任务运行态 |
 
 本轮保留原失败历史，不重试清理被拒绝文件；合并与清理的验收结果分别记录。Review-Class REQUIRED；Domain-Hit 数据保护与共享交付流程；Codex review skipped by policy。
+
+## 14. 旧版消费者升级（US-CMDSURF-012）
+
+| Task | 内容与验收 | 依赖 | 负责人 |
+| --- | --- | --- | --- |
+| TASK-CMDSURF-043 | 先写真实 Git 迁移测试，再实现显式旧基线参数、固定 SHA 与受限 overwrite 基线；覆盖漂移、错误身份、无效 ref、锁优先和无写入阻断 | AC-CMDSURF-012-01/02 | @tdd |
+| TASK-CMDSURF-044 | 在实际安装副本运行边界测试，保留完整源架构覆盖；修正必要的能力判断 | AC-CMDSURF-012-03 | @tdd |
+| TASK-CMDSURF-045 | 源仓库完整回归、模板传播收敛、TDD/QA/合并与 completion guard | 043、044 | @qa |
+
+关键路径：治理 → RED → 固定 SHA 迁移与消费者回归 → GREEN → 推送/QA/合并。数据库 No-op，无新增依赖。Review-Class REQUIRED；Domain-Hit 模板写入与共享基础库；Codex review skipped by policy。
+
+043/044 验证：迁移初始 6 项 RED，补充边界后 8/8 GREEN；同步入口 8/8，覆盖 fetched updater 参数透传、dry-run 无目标写入与 apply 收敛。安装副本实际运行 surface 和 boundaries 测试通过，复用主干已有的架构能力判断。045 的完整回归和交付结果见本任务运行态及 QA 模块。

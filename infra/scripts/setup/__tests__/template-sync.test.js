@@ -116,6 +116,7 @@ function createUpstream(testRoot, options = {}) {
     }
   }
 
+  if (options.unified) fs.cpSync(path.join(ROOT, 'tooling/xirang'), path.join(upstream, 'tooling/xirang'), { recursive: true });
   commitAll(upstream, 'xirang fixture v1');
   write(upstream, 'AGENTS.md', '# 息壤 upstream v2\n');
   const latestCommit = commitAll(upstream, 'xirang fixture v2');
@@ -167,6 +168,26 @@ function runSync(cwd, args) {
 function combinedOutput(result) {
   return `${result.stdout || ''}${result.stderr || ''}`;
 }
+
+test('sync forwards explicit legacy migration through the fetched updater and converges', t => {
+  const testRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-legacy-')));
+  t.after(() => fs.rmSync(testRoot, { recursive: true, force: true }));
+  const { upstream } = createUpstream(testRoot, { unified: true });
+  const { linkedRoot } = createTarget(testRoot);
+  write(linkedRoot, 'infra/templates/agent/template.manifest.json', fs.readFileSync(path.join(upstream, 'infra/templates/agent/template.manifest.json'), 'utf8'));
+  const baseline = commitAll(linkedRoot, 'reviewed legacy template baseline');
+  git(linkedRoot, ['update-ref', 'refs/agent/backfill-baseline', baseline]);
+  const args = [`--source-repo=${upstream}`, '--source-branch=main', '--legacy-baseline', 'refs/agent/backfill-baseline'];
+  const dry = runSync(linkedRoot, [...args, '--dry-run']);
+  assert.equal(dry.status, 0, combinedOutput(dry));
+  assert.equal(git(linkedRoot, ['status', '--porcelain']), '');
+  const apply = runSync(linkedRoot, args);
+  assert.equal(apply.status, 0, combinedOutput(apply));
+  assert.match(combinedOutput(apply), new RegExp(`LEGACY_BASELINE_COMMIT=${baseline}`));
+  assert.match(combinedOutput(apply), /TEMPLATE_CONVERGENCE_STATUS=OK/);
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), '# 息壤 upstream v2\n');
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULE_SENTINEL\n');
+});
 
 test('sync fetches the advanced upstream SHA, executes its updater, preserves project-owned files, and converges', (t) => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-success-'));

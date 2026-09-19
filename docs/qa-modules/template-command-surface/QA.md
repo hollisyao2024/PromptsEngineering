@@ -34,3 +34,13 @@
 TC-CMDSURF-031～033：真实 bare origin、main 与 linked worktree 集成测试验证固定 head squash 后主干只含已提交交付文件；功能目录 staged、unstaged、untracked 内容及索引均不变。负向覆盖目标主干修改与未隔离目录；清理断言不调用后台 worker、补偿器或前置 session 清理，并保留 QA head 封印。committed-only 覆盖显式参数和自动提交分支短路。
 
 RED 为四个新用例按预期失败；首轮定向 5/5 通过，最终定向回归 66/66。Linux Node 24.19.0 / pnpm 10.18.3 完整回归 514/514，零失败、零跳过；运行前候选 patch 与工作区逐字节匹配。模板副本 dry-run/apply/convergence 通过，6 个增量运行文件逐字节一致，项目 RULES 哨兵不变。语义复核确认只合并 QA head、保留索引与文件、无自动清理 worker；Codex review skipped by policy。QA 结论 Go；实际 PR、SHA 和生命周期结果保存在任务运行态。合并通过不代表保留目录已被安全回收；completion guard 的独立状态必须如实报告。
+
+## 旧版消费者升级（US-CMDSURF-012）
+
+TC-CMDSURF-LEGACY：真实 Git 主目录与 linked worktree 覆盖无 lock 升级、显式 ref 固定 SHA、dry-run 无目标写入、写入后收敛、已有 lock 优先、本地漂移与计划后漂移阻断、错误 ref/身份、最具体项目所有权、历史 symlink 拒绝及 CLI 缺参。初始 6 项按预期失败；补充后 8/8 通过。sync 的 8 项回归包含 fetched updater 全链迁移及项目规则哨兵不变。
+
+TC-CMDSURF-CONSUMER：实际安装默认模板后运行已安装的 surface 与 boundaries 两套测试，保留项目包名/版本；源端架构边界仍随完整源码套件执行。主干已具备架构能力判断，本次增加传播执行回归。
+
+完整源回归、源文件固定后的验证结果与交付 SHA 记录于任务运行态；初次全量执行期间源文件仍发生编辑，引发两项收敛断言失败，保留失败证据并在候选固定后重新验证。lint/type-check 是源仓库占位入口，不计为实际静态检查；以 Node 语法、真实回归、diff 和所有权边界验证为证据。Review-Class REQUIRED；Domain-Hit 共享更新引擎与模板写入；Codex review skipped by policy。无业务 UI、数据库或部署变更。
+
+固定候选后 macOS / Node 26.7.0 全量 `pnpm test`：530 项，529 通过、0 失败、1 个 Windows 专用测试按平台跳过，退出码 0。迁移、消费者传播及源架构测试均通过，结论 Go；无需业务浏览器 E2E、性能或数据库验证。

@@ -21,7 +21,7 @@ const {
 function parseArgs(argv) {
   const cli = { include: [] };
   const positionals = [];
-  const valueFlags = new Set(['target', 'source', 'include', 'scope']);
+  const valueFlags = new Set(['target', 'source', 'include', 'scope', 'legacy-baseline']);
 
   for (let i = 0; i < argv.length; i += 1) {
     const raw = argv[i];
@@ -301,6 +301,7 @@ function main() {
   const baseArgs = [applyEngine, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
   if (args.scope) baseArgs.push('--scope', args.scope);
   if (args.adopt) baseArgs.push('--adopt');
+  if (args['legacy-baseline']) baseArgs.push('--legacy-baseline', args['legacy-baseline']);
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
