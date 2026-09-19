@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('node:child_process');
 
 const {
   cleanupWorktree,
@@ -22,6 +23,15 @@ function makeContainer() {
   fs.mkdirSync(mainRoot, { recursive: true });
   fs.mkdirSync(worktreesRoot, { recursive: true });
   return { container, mainRoot, worktreesRoot };
+}
+
+function makeCleanWorktree(fixture, branch, leaf) {
+  const git = (args) => execFileSync('git', args, { cwd: fixture.mainRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  git(['init', '--quiet']);
+  git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '-m', 'fixture', '--quiet']);
+  const worktreePath = path.join(fixture.worktreesRoot, leaf);
+  git(['worktree', 'add', '--quiet', '-b', branch, worktreePath]);
+  return { worktreePath, head: git(['rev-parse', branch]) };
 }
 
 test('orphan cleanup fails closed when git worktree listing fails', (t) => {
@@ -162,32 +172,30 @@ test('production cleanup sources never invoke git worktree remove', () => {
 test('qa merge persists the sealed cleanup intent before scheduling deferred cleanup', (t) => {
   const fixture = makeContainer();
   t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
-  const worktreePath = path.join(fixture.worktreesRoot, 'sealed');
-  fs.mkdirSync(worktreePath);
+  const { worktreePath, head } = makeCleanWorktree(fixture, 'fix/sealed', 'sealed');
   const events = [];
 
   const result = cleanupWorktree('fix/sealed', fixture.mainRoot, {
     currentCwd: worktreePath,
-    listWorktrees: () => [{ branch: 'fix/sealed', path: worktreePath, head: 'sealed-head' }],
+    listWorktrees: () => [{ branch: 'fix/sealed', path: worktreePath, head }],
     config: { containerDirs: { worktrees: fixture.worktreesRoot } },
     markCleanupPending: (input) => events.push(['persist', input.expectedHead]),
     scheduleDeferredCleanup: () => events.push(['schedule']),
   });
 
   assert.equal(result.deferred, true);
-  assert.deepEqual(events, [['persist', 'sealed-head'], ['schedule']]);
+  assert.deepEqual(events, [['persist', head], ['schedule']]);
 });
 
 test('qa merge cascades sealed predecessor cleanup before scheduling current worktree removal', (t) => {
   const fixture = makeContainer();
   t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
-  const worktreePath = path.join(fixture.worktreesRoot, 'current');
-  fs.mkdirSync(worktreePath);
+  const { worktreePath, head } = makeCleanWorktree(fixture, 'feature/current', 'current');
   const events = [];
 
   const result = cleanupWorktree('feature/current', fixture.mainRoot, {
     currentCwd: worktreePath,
-    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head: 'current-head' }],
+    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head }],
     config: { containerDirs: { worktrees: fixture.worktreesRoot } },
     markCleanupPending: () => events.push('seal-current'),
     sealSupersededSessions: () => ({
@@ -211,12 +219,11 @@ test('qa merge cascades sealed predecessor cleanup before scheduling current wor
 test('qa merge blocks when a declared predecessor seal cannot be verified', (t) => {
   const fixture = makeContainer();
   t.after(() => safeRemoveTreeNoFollow(fixture.container, { allowedRoot: realTemporaryRoot }));
-  const worktreePath = path.join(fixture.worktreesRoot, 'current');
-  fs.mkdirSync(worktreePath);
+  const { worktreePath, head } = makeCleanWorktree(fixture, 'feature/current', 'current');
 
   assert.throws(() => cleanupWorktree('feature/current', fixture.mainRoot, {
     currentCwd: worktreePath,
-    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head: 'current-head' }],
+    listWorktrees: () => [{ branch: 'feature/current', path: worktreePath, head }],
     config: { containerDirs: { worktrees: fixture.worktreesRoot } },
     markCleanupPending: () => {},
     sealSupersededSessions: () => ({
@@ -230,7 +237,7 @@ test('qa merge blocks when a declared predecessor seal cannot be verified', (t) 
 
 test('qa merge starts cleanup only after the final base push and remote SHA verification', () => {
   const source = fs.readFileSync(path.resolve(__dirname, 'qa-merge.js'), 'utf8');
-  const deferredBlock = source.match(/if \(cleanupResult\.deferred\) \{([\s\S]*?)\n\s*\}/u);
+  const deferredBlock = source.match(/if \(cleanupResult\.deferred && !cleanupResult\.preserved\) \{([\s\S]*?)\n\s*\}/u);
   assert.ok(deferredBlock);
   assert.doesNotMatch(deferredBlock[1], /\breturn\b/u);
   assert.ok(source.indexOf('cleanupResult = cleanupWorktree') > source.indexOf('pushMainAndTag(mainWorkspacePath'));

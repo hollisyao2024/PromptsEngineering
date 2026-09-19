@@ -157,7 +157,8 @@ pnpm agent -- task cancel --task <id> --force
 - 同一次 checkpoint 可更新步骤和验收项，减少机械写盘。
 - 新任务安全默认 `type=mutation`；确认不会修改 tracked 文件时才显式选择只读类型。schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
 - `extend` 只允许追加步骤和验收项并递增 `plan_revision`；不允许删除、重排或重写已完成历史。
-- `transition` 要求证据且校验相邻前进或显式回流路径；存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
+- `transition` 要求证据且校验相邻前进或显式回流路径；默认存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
+- 独立收尾清理可以在进入 QA/DEVOPS 时显式延后：`transition ... --defer-cleanup-step S5 --cleanup-evidence "清理对象不在验证提交中；独立干净主干执行合并；原目录保留"`。仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由。不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用。其他阻塞仍有效；失败状态和恢复要求不变，阶段历史追加所引用失败及证据，`task finish` 仍要求清理完成。此参数不授权执行被拒绝的动作。
 - `resume --auto` 仅在当前主 repo/worktree/branch 唯一匹配时选择任务；否则输出候选和 `STATUS=BLOCKED`。
 
 `task finish --task <id>` 要求该任务所有必需步骤、验收项和证据完成。修改任务还必须通过任务级 completion guard：只把 `lifecycle.keys` 明确绑定到该 task id 的 `cleanup_pending|recovery_required` worktree 作为生命周期 blocker，同时仍要求主分支已合并、工作区干净且与远端一致。无 task scope 的仓库级 `pnpm agent -- finish` 保持全仓 fail-closed，任一受管理 worktree 未收敛都会阻断。任务门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
