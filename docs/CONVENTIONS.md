@@ -164,8 +164,21 @@ pnpm agent -- task cancel --task <id> --force
 
 容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
 
+### 失败分类与恢复
+
+本协议适用于所有执行器。仅有 `blocked by policy` 时报告“执行工具策略拒绝，具体规则未知”，不猜测审批组件、路径或 pnpm 原因。进程启动前的拒绝不能由仓库脚本捕获，须区分工具回执与脚本 `STATUS=BLOCKED / REASON`。
+
+| failure-kind | 判定与下一动作 |
+| --- | --- |
+| tool_error | 已知普通工具故障；修复原因并核实已发生的副作用后再决定是否重试。 |
+| policy_denied | 工具明确拒绝；保留原始理由和调用编号，停止该操作，不改写命令、换入口、搬迁记录或扩大权限绕过。 |
+| unknown_result | 超时或断连且结果不明；先核实真实状态，不盲目重放。 |
+
+已有任务且记录操作本身可执行时，用独立 checkpoint 填写 `--failure-kind`、`--execution-state`、`--call-id`、证据与 `--next`。`not_started` 必须有明确未启动证据并配 `blocked`；`started|unknown` 配 `verify_required`，`unknown_result` 配 `unknown`。没有证据时不推断未启动。
+记录或恢复入口本身不可执行时，在对话保留目标、验收、操作、时间、调用编号、启动状态和下一动作；未知字段明确写未知，不编造。继续获准且独立的只读工作，不反复调用记录入口、不伪造 state.json；独立证据文件的写入也需获准。修改任务仍受 worktree、测试、QA 和合并门禁约束。
+恢复先核实任务与外部副作用，通过 checkpoint 的 `--recovery-evidence` 追加恢复依据；该字段不是权限许可，策略拒绝须有实际授权恢复依据，不能自我批准。resume 不执行重试；恢复和故障历史只追加。
+
 ## 7. 命令面
-失败分类与恢复：按可观察回执区分工具故障、策略拒绝和结果未知；协议见 [.codex/README.md](../.codex/README.md#失败分类与恢复)。
 新项目只推荐统一入口：
 
 ```text

@@ -20,7 +20,7 @@ test('always-loaded routing remains explicit but compact', () => {
   assert.match(agents, /@\.\/docs\/CONVENTIONS\.md/u);
   assert.match(agents, /@\.\/RULES\.md/u);
   assert.ok(lineCount('AGENTS.md') <= 180, 'AGENTS.md should stay within 180 lines');
-  assert.ok(lineCount('docs/CONVENTIONS.md') <= 260, 'CONVENTIONS.md should stay within 260 lines');
+  assert.ok(lineCount('docs/CONVENTIONS.md') <= 280, 'CONVENTIONS.md should stay within 280 lines');
   assert.doesNotMatch(agents, /展示思考过程/u);
 });
 
@@ -208,6 +208,37 @@ test('always-loaded protocol forbids parent-relative patch paths for container w
   assert.match(agents, /apply_patch.*绝对路径/u);
   assert.match(agents, /禁止.*父级相对路径.*apply_patch/u);
   assert.match(agents, /错误写入.*空父目录/u);
+});
+
+test('shared recovery protocol is available without loading client-specific guidance', () => {
+  const conventions = read('docs/CONVENTIONS.md');
+  assert.match(conventions, /### 失败分类与恢复/u);
+  for (const kind of ['tool_error', 'policy_denied', 'unknown_result']) {
+    assert.ok(conventions.includes(kind), kind);
+  }
+  assert.match(conventions, /具体规则未知/u);
+  assert.match(conventions, /继续.*独立.*只读/u);
+  assert.match(conventions, /recovery-evidence.*不是.*许可/u);
+  assert.match(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
+});
+
+test('TDD read-only flow does not require writing diagnostic artifacts', () => {
+  const handbook = read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md');
+  assert.doesNotMatch(handbook, /只读排查[^\n]*产物写容器/u);
+  assert.match(handbook, /只读排查[^\n]*对话/u);
+  assert.match(handbook, /持久化.*AGENTS\.md/u);
+});
+
+test('task CLI help distinguishes work type from state-writing commands', () => {
+  const { spawnSync } = require('node:child_process');
+  const result = spawnSync(process.execPath, ['infra/scripts/agent-runner/agent-task.js', 'start', '--help'], {
+    cwd: ROOT, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Single-session read-only.*do not.*start.*resume/u);
+  assert.match(result.stdout, /diagnose.*research.*operation.*work.*types/u);
+  assert.match(result.stdout, /start.*checkpoint.*resume.*write.*state.*locks/u);
+  assert.doesNotMatch(result.stdout, /read-only task type/u);
 });
 
 test('template release advertises the phase-aware durable task contract', () => {
