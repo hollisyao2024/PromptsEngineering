@@ -966,7 +966,10 @@ Repeat step, acceptance, constraint, and evidence options as needed.
 Mutation tasks require at least one explicit --acceptance; diagnose, research, and operation tasks may use the goal by default.
 Provide --step, --acceptance-id, or both. A done step and acceptance can share one evidence checkpoint.
 Safe steps may be retried after interruption. Verify steps must be checked before replay.
-New tasks default to type=mutation; use an explicit read-only task type only when no tracked mutation is possible.`);
+New tasks default to type=mutation; use diagnose, research, or operation only for work without tracked-file changes.
+diagnose, research, and operation are work classification types, not filesystem permission modes.
+start, checkpoint, and resume can write task state and locks even for those types.
+Single-session read-only investigations do not require start or resume; use paths only when recording locations need clarification.`);
 }
 
 function printResumeState(state, statePath) {

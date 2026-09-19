@@ -194,7 +194,7 @@ pnpm run build
 ```mermaid
 flowchart TD
     A[TDD 专家激活] --> B{任务模式}
-    B -->|只读排查| D0["/tdd diagnose: 留在当前 CWD，产物写容器层 tmp"]
+    B -->|只读排查| D0["留在当前 CWD，只读核查，对话返回结论"]
     D0 --> D1{需要改 tracked 文件?}
     D1 -->|否| END0[输出诊断结论]
     D1 -->|是| C["升级为修改型任务"]
@@ -233,6 +233,8 @@ flowchart TD
     QA6 --> QA9[标记 QA_VALIDATED]
     QA9 --> DEPLOY[交接 DevOps 部署]
 ```
+
+只读核查默认在对话交付；需要持久化时按 `AGENTS.md`“长任务断点续跑”判断，不默认创建报告、任务或锁。获准写入的产物通过 `resolveContainerPath()` 解析容器 tmp；记录失败按 `docs/CONVENTIONS.md`“失败分类与恢复”处理。
 
 ---
 
