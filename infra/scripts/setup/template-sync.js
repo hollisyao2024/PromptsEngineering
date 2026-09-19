@@ -55,6 +55,7 @@ function parseArgs(argv) {
     ['source-branch', 'sourceBranch'],
     ['include', 'include'],
     ['scope', 'scope'],
+    ['legacy-baseline', 'legacyBaseline'],
   ]);
   const booleanFlags = new Map([
     ['dry-run', 'dryRun'],
@@ -350,6 +351,7 @@ function runFetchedUpdater({ args, sourceRoot, targetRoot }) {
   for (const include of args.include || []) updaterArgs.push('--include', include);
   if (args.scope) updaterArgs.push('--scope', args.scope);
   if (args.adopt) updaterArgs.push('--adopt');
+  if (args.legacyBaseline) updaterArgs.push('--legacy-baseline', args.legacyBaseline);
   if (args.dryRun) updaterArgs.push('--dry-run');
   return run(process.execPath, updaterArgs, {
     cwd: targetRoot,

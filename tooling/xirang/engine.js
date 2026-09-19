@@ -169,7 +169,7 @@ function decide(asset, local, base, record, adopt) {
   }
   return mergeText(base, local, upstream);
 }
-function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, adopt = false }) {
+function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, adopt = false, legacy }) {
   target = path.resolve(target);
   const lockBefore = read(target, LOCK, true), previous = readLock(target);
   // A corrupt retained baseline must not be silently carried into the next lock.
@@ -184,7 +184,8 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     if (!STRATEGIES.has(asset.strategy)) throw new Error(`unknown strategy: ${asset.strategy}`);
     if (asset.strategy !== 'remove' && typeof asset.content !== 'string') throw new Error(`asset content must be text: ${asset.path}`);
     if (!asset.owner) throw new Error(`asset owner required: ${asset.path}`);
-    const local = read(target, asset.path), record = previous.files[asset.path], base = baseline(target, record);
+    const local = read(target, asset.path), record = previous.files[asset.path];
+    const base = lockBefore === null && asset.strategy === 'overwrite' ? legacy?.files[asset.path] : baseline(target, record);
     let after = local, reason = '';
     try {
       if (record && record.owner !== asset.owner) throw new Error(`owner conflict: ${record.owner} -> ${asset.owner}`);
@@ -209,6 +210,7 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     if (read(target, p, true) === null && !metadataChanges.includes(p)) metadataChanges.push(p);
   }
   const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineRemovals.map(digest => `.xirang/baselines/${digest}`)] };
+  if (legacy && lockBefore === null) plan.legacyBaselineCommit = legacy.commit;
   plan.id = hash(json(plan));
   return plan;
 }

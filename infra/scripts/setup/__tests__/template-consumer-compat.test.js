@@ -26,7 +26,9 @@ test('installed template contracts accept the consumer package identity and vers
   delete childEnv.NODE_TEST_CONTEXT;
   const check = spawnSync(process.execPath, [
     '--test', path.join(target, 'infra/scripts/setup/__tests__/template-surface.test.js'),
+    path.join(target, 'infra/scripts/setup/__tests__/template-boundaries.test.js'),
   ], { cwd: target, encoding: 'utf8', env: childEnv });
   assert.match(check.stdout, /Xirang identity, official upstream/);
+  assert.match(check.stdout, /standalone template update still creates the workflow and converges/);
   assert.equal(check.status, 0, check.stdout + check.stderr);
 });

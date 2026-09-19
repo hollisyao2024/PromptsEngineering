@@ -140,3 +140,6 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-CMDSURF-011 | AC-CMDSURF-011-01 | TC-CMDSURF-031 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
 | US-CMDSURF-011 | AC-CMDSURF-011-02 | TC-CMDSURF-032 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
 | US-CMDSURF-011 | AC-CMDSURF-011-03 | TC-CMDSURF-033 | Pass | [QA](../qa-modules/template-command-surface/QA.md) |
+
+| US-CMDSURF-012 | AC-CMDSURF-012-01/02 | TASK-CMDSURF-043 | TC-CMDSURF-LEGACY | Pass：真实 Git 迁移与同步收敛 |
+| US-CMDSURF-012 | AC-CMDSURF-012-03 | TASK-CMDSURF-044 | TC-CMDSURF-CONSUMER | Pass：安装副本执行边界测试 |

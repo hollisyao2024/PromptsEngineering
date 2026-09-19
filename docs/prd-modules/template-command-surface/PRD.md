@@ -152,3 +152,13 @@ Out of Scope：
 - AC-CMDSURF-011-03：Given 用户仅需推送已提交交付内容，When 使用 tdd push --committed-only，Then 不自动暂存、提交或回写 tracked 阶段文件，固定 PR base/head 与 QA 验证保持不变（TC-CMDSURF-033）。
 
 该需求解除开发目录整体清洁的合并前置条件，不授权删除已被策略拒绝的文件，不改变系统权限或 completion guard 的数据保护。
+
+## 旧版消费者升级兼容增量
+
+US-CMDSURF-012：维护者升级缺少 lock 的旧项目时，可显式指定已审阅的 Git 基线，避免逐文件手工复制；未经授权的本地定制继续受保护。
+
+- AC-CMDSURF-012-01：Given 无 lock 且显式提供旧 Git 基线，When dry-run/apply，Then 仅新旧 manifest 均归模板 overwrite 所有且当前内容等于旧基线的文件可升级，输出固定基线 SHA；dry-run 不写入项目，应用后收敛。
+- AC-CMDSURF-012-02：Given 无效 ref、基线非息壤、文件漂移或不属于旧模板，When 升级，Then 阻断且不部分写入；不提供参数时保持原 adoption 门禁，已有 lock 优先且不得绕过漂移检查。
+- AC-CMDSURF-012-03：Given 默认消费者没有完整 architecture 源码，When 执行安装后的模板边界测试，Then 通用边界照常通过；仅源码适用的架构用例仍由源仓库全量测试执行。
+
+非范围：不自动信任本地 HEAD、不伪造官方历史、不覆盖项目规则/配置/业务文件、不修改三青鸟业务测试。信任依据由维护者显式选择；新版本来源仍按官方固定 SHA 校验。无 UI 与数据库变更。验证见 TC-CMDSURF-LEGACY 与 TC-CMDSURF-CONSUMER；无未决需求。

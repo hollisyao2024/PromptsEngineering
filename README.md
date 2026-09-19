@@ -87,6 +87,17 @@ pnpm agent -- template update "<目标-worktree>" --scope agent --adopt
 
 `adopt` 保留当前内容作为相对所选上游的项目定制，并建立更新依据。它不证明旧文件来自哪个历史版本，也不会把所有旧协议和脚本强制替换成新内容。接管后必须逐项核对保留的协议、入口和脚本是否需要迁移，不能仅凭 lock 中的版本号宣称每个文件都已升级。
 
+如果没有 lock，但项目保留了已审阅的旧模板 Git 基线，可显式用它升级未改动的模板文件。在干净 linked worktree 中先检查计划，再应用：
+
+~~~bash
+pnpm agent -- template sync --legacy-baseline refs/agent/backfill-baseline --dry-run
+pnpm agent -- template sync --legacy-baseline refs/agent/backfill-baseline
+~~~
+
+此参数表示维护者信任指定的历史提交，不认证其官方来源。命令输出固定的 `LEGACY_BASELINE_COMMIT`；仅当路径在新旧清单中均为 `overwrite`、旧 Git 对象为普通文件且本地内容等于旧基线时升级。项目文件不参与，漂移或无效基线阻断写入。参数与 `--adopt` 互斥；已有 lock 时以 lock 为准，不借旧 ref 绕过冲突。
+
+旧引导器不识别此参数时，从已更新的息壤源仓库执行 `pnpm agent -- template update "<目标-worktree>" --legacy-baseline <已审阅的旧提交SHA> --dry-run`，检查后去掉 `--dry-run` 应用。不要为通过检查而自动把当前 `HEAD` 当成旧模板基线。
+
 已有基线但出现本地漂移或重叠修改时，按计划处理冲突；`adopt` 不能绕过已有的冲突保护。具体语义和恢复方法见[更新、接管与恢复](architecture/README.md#更新接管与恢复)。
 
 ## 按需求初始化架构
