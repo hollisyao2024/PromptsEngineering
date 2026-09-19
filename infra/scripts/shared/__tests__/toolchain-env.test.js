@@ -10,7 +10,22 @@ const {
   createWindowsCmdInvocation,
   resolvePnpmBin,
   resolvePnpmNearNodeRuntime,
+  resolveBashBin,
 } = require('../toolchain-env');
+
+test('Windows Bash resolver selects Git Bash instead of the WSL PATH shim', () => {
+  const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+  assert.equal(resolveBashBin('win32', {}, (file) => file === gitBash), gitBash);
+  const fallback = 'C:\\Program Files\\Git\\usr\\bin\\bash.exe';
+  assert.equal(resolveBashBin('win32', {}, (file) => file === fallback), fallback);
+});
+
+test('Bash resolver preserves explicit installation and fails closed when unavailable', () => {
+  const custom = 'D:\\tools\\Git\\bin\\bash.exe';
+  assert.equal(resolveBashBin('win32', { BASH_PATH: custom }, (file) => file === custom), custom);
+  assert.equal(resolveBashBin('win32', {}, () => false), '');
+  assert.equal(resolveBashBin('linux', {}, () => false), 'bash');
+});
 
 test('resolvePnpmBin prefers AGENT_PNPM_BIN when configured', () => {
   assert.equal(resolvePnpmBin('win32', { AGENT_PNPM_BIN: 'C:\\tools\\pnpm.cjs' }), 'C:\\tools\\pnpm.cjs');

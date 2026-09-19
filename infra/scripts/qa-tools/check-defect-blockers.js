@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { scanStateDocument } = require('../tdd-tools/agent-state-utils');
 const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
@@ -73,12 +74,20 @@ function findHeaderIndex(headers, candidates) {
 }
 
 function normalizeDefectStatus(value) {
-  const status = cleanMarkdownCell(value).replace(/^✅\s*/, '').trim();
+  const raw = cleanMarkdownCell(value).replace(/^✅\s*/, '').trim();
+  const status = raw.replace(/\s*(?:（[^（）]*）|\([^()]*\))$/u, '').trim();
   if (/^(closed|已关闭)$/i.test(status)) return 'Closed';
   if (/^(resolved|已解决)$/i.test(status)) return 'Resolved';
   if (/^(in progress|进行中)$/i.test(status)) return 'In Progress';
   if (/^(open|打开|未关闭)$/i.test(status)) return 'Open';
   return 'Open';
+}
+
+function closureEvidence(value) {
+  const rawStatus = cleanMarkdownCell(value);
+  if (normalizeDefectStatus(rawStatus) !== 'Closed' || !/[（(]/u.test(rawStatus)) return {};
+  // A qualified closure records implementation progress, not final physical evidence.
+  return { rawStatus, validationPending: /代码集成|自动化|TDD|待|未|pending|blocked|exception|partial|not /iu.test(rawStatus) };
 }
 
 function parseDefectContent(content, moduleName) {
@@ -103,7 +112,7 @@ function parseDefectContent(content, moduleName) {
     const bugMatch = cells[headerIDIndex]?.match(new RegExp(`^${BUG_ID_SOURCE}$`));
     if (!bugMatch) continue;
 
-    const titleIndex = findHeaderIndex(headers, ['标题', 'Title']);
+    const titleIndex = findHeaderIndex(headers, ['标题', '问题', 'Title']);
     const severityIndex = findHeaderIndex(headers, ['严重度', '严重级别', 'Severity']);
     const statusIndex = findHeaderIndex(headers, ['状态', 'Status']);
     const storyIndex = findHeaderIndex(headers, ['影响 Story', 'Story']);
@@ -118,6 +127,7 @@ function parseDefectContent(content, moduleName) {
       title: titleIndex >= 0 ? cleanMarkdownCell(cells[titleIndex]) : '',
       severity: severityIndex >= 0 ? cells[severityIndex]?.match(/P[0-2]/)?.[0] || 'P2' : 'P2',
       status: statusIndex >= 0 ? normalizeDefectStatus(cells[statusIndex]) : 'Open',
+      ...closureEvidence(statusIndex >= 0 ? cells[statusIndex] : ''),
       storyId: storyMatch?.[0] || null,
       assignee: assigneeIndex >= 0 && cells[assigneeIndex] ? cleanMarkdownCell(cells[assigneeIndex]) : '未指定',
       eta: etaIndex >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(cells[etaIndex]) ? cells[etaIndex] : '未指定',
@@ -144,6 +154,7 @@ function parseDefectContent(content, moduleName) {
       title: cleanMarkdownCell(heading[2]),
       severity,
       status: normalizeDefectStatus(rawStatus),
+      ...closureEvidence(rawStatus),
       storyId,
       assignee,
       eta,
@@ -170,6 +181,7 @@ function mergeDefect(existing, incoming) {
     title: existing.title || incoming.title,
     severity,
     status: moreBlockingStatus(existing.status, incoming.status),
+    ...(existing.rawStatus || incoming.rawStatus ? { rawStatus: [existing.rawStatus, incoming.rawStatus].filter(Boolean).join("; "), validationPending: Boolean(existing.validationPending || incoming.validationPending) } : {}),
     storyId: existing.storyId || incoming.storyId,
     assignee: existing.assignee !== '未指定' ? existing.assignee : incoming.assignee,
     eta: existing.eta !== '未指定' ? existing.eta : incoming.eta,
@@ -250,7 +262,7 @@ function analyzeDefects(defects) {
 
   ['P0', 'P1', 'P2'].forEach(severity => {
     const stats = severityStats[severity];
-    const statusEmoji = severity === 'P0' && (stats.open > 0 || stats.inProgress > 0) ? '❌ 阻塞' :
+    const statusEmoji = severity === 'P0' && (stats.open > 0 || stats.inProgress > 0 || stats.resolved > 0 || defects.some(d => d.severity === 'P0' && d.validationPending)) ? '❌ 阻塞' :
       severity === 'P1' && stats.open > 0 ? '⚠️  关注' : '✅ 可控';
 
     log(`| ${severity}（${severity === 'P0' ? '阻塞发布' : severity === 'P1' ? '严重' : '一般'}） | ${stats.total} | ${stats.open} | ${stats.inProgress} | ${stats.resolved} | ${stats.closed} | ${statusEmoji} |`);
@@ -258,6 +270,8 @@ function analyzeDefects(defects) {
 
   // P0 缺陷列表
   const p0Defects = defects.filter(d => d.severity === 'P0' && d.status !== 'Closed');
+  const p0ValidationPending = defects.filter(d => d.severity === 'P0' && d.status === 'Closed' && d.validationPending);
+  for (const defect of p0ValidationPending) log(`⚠️ ${defect.bugId}: 缺陷记录已关闭，但验收未完成：${defect.rawStatus}`, 'yellow');
   if (p0Defects.length > 0) {
     log('\n🚨 P0 缺陷列表（阻塞发布）:', 'red');
 
@@ -273,7 +287,7 @@ function analyzeDefects(defects) {
       }
     });
   } else {
-    log('\n✅ 无 P0 缺陷', 'green');
+    log('\n无未关闭 P0；另有 ' + p0ValidationPending.length + ' 项已关闭 P0 待验收', p0ValidationPending.length ? 'yellow' : 'green');
   }
 
   // P1 缺陷列表
@@ -312,13 +326,14 @@ function analyzeDefects(defects) {
 
   moduleStats.forEach((stats, module) => {
     const total = stats.P0 + stats.P1 + stats.P2;
-    const status = stats.P0 > 0 ? '❌ 阻塞发布' : '✅ 无阻塞';
+    const status = [...p0Defects, ...p0ValidationPending].some(d => d.module === module) ? '❌ 阻塞发布' : '✅ 无阻塞';
     log(`| ${module} | ${stats.P0} | ${stats.P1} | ${stats.P2} | ${total} | ${status} |`);
   });
 
   return {
     severityStats,
     p0Defects,
+    p0ValidationPending,
     p1Defects,
     p1Open,
     p1InProgress,
@@ -330,92 +345,79 @@ function analyzeDefects(defects) {
 
 function classifyNFRStatus(status) {
   const normalized = cleanMarkdownCell(status);
-  if (/❌|未达标|no-go|failed?/i.test(normalized)) return 'nonCompliant';
-  if (/⚠️|🟡|条件|未确认|待执行|规划中|contract_ready|evidence_unavailable/i.test(normalized)) {
-    return 'conditional';
-  }
-  if (/✅|达标|passed?|complete/i.test(normalized)) return 'compliant';
+  if (/❌|未达标|不达标|不通过|no-go|\bfail(?:ed|ure)?\b|\bincomplete\b|\bnot (?:passed|complete|compliant)\b/iu.test(normalized)) return 'nonCompliant';
+  if (/⚠|🟡|⏳|🔄|条件|部分|未|待|规划|仅|自动化|TDD|代码|没有|不等于|external gate|pending|blocked|conditional|partial|contract_ready|evidence_unavailable|not_started|not_executed/iu.test(normalized)) return 'conditional';
+  if (/✅|达标|通过|\bpass(?:ed)?\b|\bcomplete(?:d)?\b/iu.test(normalized)) return 'compliant';
   return 'nonCompliant';
+}
+
+const NFR_HEADERS = ['NFR ID', 'NFR', 'NFR / 指标', '子指标'];
+const STATUS_HEADERS = ['状态', 'Status', '当前状态', '结果', '当前结果', '当前结论'];
+const NFR_RANK = { compliant: 2, conditional: 1, nonCompliant: 0 };
+
+function summarizeNFRs(values, sourceAvailable = true) {
+  const compliantNFRs = values.filter(item => item.classification === 'compliant');
+  return { sourceAvailable, totalCount: values.length, compliantCount: compliantNFRs.length,
+    compliantNFRs, conditionalNFRs: values.filter(item => item.classification === 'conditional'),
+    nonCompliantNFRs: values.filter(item => item.classification === 'nonCompliant') };
 }
 
 function parseNFRCompliance(content) {
   const byID = new Map();
   let headers = null;
-  for (const line of String(content || '').split(/\r?\n/)) {
-    const cells = markdownTableCells(line);
-    if (!cells) {
-      headers = null;
-      continue;
-    }
+  for (const [index, line] of scanStateDocument(String(content || '')).lines.entries()) {
+    const cells = markdownTableCells(line.visible || '');
+    if (!cells) { headers = null; continue; }
     if (isMarkdownSeparatorRow(cells)) continue;
-    const idIndex = findHeaderIndex(cells, ['NFR ID']);
-    if (idIndex >= 0) {
-      headers = cells;
-      continue;
-    }
+    if (findHeaderIndex(cells, NFR_HEADERS) >= 0 && findHeaderIndex(cells, STATUS_HEADERS) >= 0) { headers = cells; continue; }
     if (!headers) continue;
-
-    const headerIDIndex = findHeaderIndex(headers, ['NFR ID']);
-    const nfrMatch = cells[headerIDIndex]?.match(new RegExp(`^${NFR_ID_SOURCE}$`));
-    if (!nfrMatch) continue;
-    const descriptionIndex = findHeaderIndex(headers, ['描述', 'Description']);
-    const statusIndex = findHeaderIndex(headers, ['状态', 'Status']);
-    const item = {
-      nfrId: nfrMatch[0],
-      description: descriptionIndex >= 0 ? cleanMarkdownCell(cells[descriptionIndex]) : '未知',
-      status: statusIndex >= 0 ? cleanMarkdownCell(cells[statusIndex]) : '',
-    };
-    const classification = classifyNFRStatus(item.status);
-    const current = byID.get(item.nfrId);
-    const rank = { compliant: 2, conditional: 1, nonCompliant: 0 };
-    if (!current || rank[classification] < rank[current.classification]) {
-      byID.set(item.nfrId, { ...item, classification });
-    }
+    const id = cells[findHeaderIndex(headers, NFR_HEADERS)];
+    if (!id) continue;
+    const descriptionIndex = findHeaderIndex(headers, ['描述', 'Description', '指标', '指标与门槛', '目标值', '目标']);
+    const status = cells[findHeaderIndex(headers, STATUS_HEADERS)] || '';
+    const followUpIndex = findHeaderIndex(headers, ['最终 Gate', '后续 Gate']);
+    const followUpGate = followUpIndex >= 0 ? cells[followUpIndex] || '' : '';
+    let classification = classifyNFRStatus(status);
+    if (classification === 'compliant' && followUpGate && !/^(?:无|none|n\/a|-|—)$/iu.test(followUpGate)) classification = 'conditional';
+    const item = { nfrId: id, description: descriptionIndex >= 0 ? cells[descriptionIndex] || id : id,
+      status, classification, line: index + 1, ...(followUpGate ? {followUpGate} : {}) };
+    const current = byID.get(id);
+    if (!current || NFR_RANK[classification] < NFR_RANK[current.classification]) byID.set(id, item);
   }
-
-  const values = [...byID.values()];
-  const compliantNFRs = values.filter((item) => item.classification === 'compliant');
-  const conditionalNFRs = values.filter((item) => item.classification === 'conditional');
-  const nonCompliantNFRs = values.filter((item) => item.classification === 'nonCompliant');
-  return {
-    sourceAvailable: true,
-    totalCount: values.length,
-    compliantCount: compliantNFRs.length,
-    compliantNFRs,
-    conditionalNFRs,
-    nonCompliantNFRs,
-  };
+  return summarizeNFRs([...byID.values()]);
 }
 
-// 检查 NFR 达标情况
-function checkNFRCompliance() {
-  log('\n🔍 检查 NFR 达标情况...', 'cyan');
-
-  if (!fs.existsSync(CONFIG.nfrTrackingPath)) {
-    log('❌ NFR 追踪表不存在，门禁按 fail-closed 处理', 'red');
-    return {
-      sourceAvailable: false,
-      totalCount: 0,
-      compliantCount: 0,
-      compliantNFRs: [],
-      conditionalNFRs: [],
-      nonCompliantNFRs: [],
-    };
+// Both legacy global and modular files contribute evidence; neither masks the other.
+function checkNFRCompliance(options = {}) {
+  const config = { ...CONFIG, ...options };
+  const files = [];
+  if (fs.existsSync(config.nfrTrackingPath)) files.push(config.nfrTrackingPath);
+  if (fs.existsSync(config.qaModulesDir)) {
+    for (const dir of fs.readdirSync(config.qaModulesDir, {withFileTypes:true}).sort((a,b) => a.name.localeCompare(b.name))) {
+      if (!dir.isDirectory() || dir.name.startsWith('.')) continue;
+      const file = path.join(config.qaModulesDir, dir.name, 'nfr-tracking.md');
+      if (fs.existsSync(file)) files.push(file);
+    }
   }
-
-  log(`📖 读取 NFR 追踪表: ${CONFIG.nfrTrackingPath}`);
-  const result = parseNFRCompliance(fs.readFileSync(CONFIG.nfrTrackingPath, 'utf-8'));
-  if (result.totalCount === 0) {
-    result.sourceAvailable = false;
-    log('❌ NFR 追踪表没有可解析的数据行，门禁按 fail-closed 处理', 'red');
-    return result;
+  const byID = new Map();
+  const evidenceErrors = [];
+  for (const file of files) {
+    let result;
+    try { result = parseNFRCompliance(fs.readFileSync(file, 'utf8')); }
+    catch (error) { evidenceErrors.push({path:file, reason:error.code || 'read failed'}); continue; }
+    if (!result.totalCount) evidenceErrors.push({path:file, reason:'no parseable NFR rows'});
+    for (const item of [...result.compliantNFRs, ...result.conditionalNFRs, ...result.nonCompliantNFRs]) {
+      const key = new RegExp('^' + NFR_ID_SOURCE + '$').test(item.nfrId) ? item.nfrId : file + ':' + item.nfrId;
+      const current = byID.get(key);
+      const sources = [...(current?.sources || []), {path:file, line:item.line, status:item.status}];
+      const worst = !current || NFR_RANK[item.classification] < NFR_RANK[current.classification] ? item : current;
+      byID.set(key, {...worst, sources});
+    }
   }
-
-  log(
-    `NFR 汇总：${result.compliantNFRs.length} 达标 / ` +
-    `${result.conditionalNFRs.length} 条件通过 / ${result.nonCompliantNFRs.length} 未达标`,
-    result.nonCompliantNFRs.length > 0 ? 'red' : result.conditionalNFRs.length > 0 ? 'yellow' : 'green'
-  );
+  const result = {...summarizeNFRs([...byID.values()], files.length > 0 && evidenceErrors.length === 0), files, evidenceErrors};
+  log('NFR 汇总：' + result.totalCount + ' 项，来源 ' + files.length + ' 个文件；' + result.compliantCount + ' 达标 / ' + result.conditionalNFRs.length + ' 条件 / ' + result.nonCompliantNFRs.length + ' 未达标');
+  if (!files.length) log('❌ 未找到全局或模块级 NFR 追踪表', 'red');
+  for (const error of evidenceErrors) log('❌ ' + error.path + ': ' + error.reason, 'red');
   return result;
 }
 
@@ -428,7 +430,8 @@ function determineReleaseDecision(analysisResult, nfrResult) {
   const blockingIssues = [];
   const warningIssues = [];
 
-  if (!nfrResult.sourceAvailable) blockingIssues.push('NFR 追踪表缺失');
+  if (!nfrResult.sourceAvailable) blockingIssues.push(nfrResult.evidenceErrors?.length ? 'NFR 证据文件不可读取或没有可解析数据' : 'NFR 追踪表缺失');
+  if (analysisResult.p0ValidationPending?.length) blockingIssues.push(`${analysisResult.p0ValidationPending.length} 个已关闭 P0 仍待验收`);
   if (p0Defects.length > 0) blockingIssues.push(`${p0Defects.length} 个 P0 缺陷未关闭`);
   if (nonCompliantNFRs.length > 0) blockingIssues.push(`${nonCompliantNFRs.length} 项 NFR 未达标`);
   if (conditionalNFRs.length > 0) warningIssues.push(`${conditionalNFRs.length} 项 NFR 条件通过或尚未确认`);
@@ -493,7 +496,7 @@ function generateReleaseGateReport(defects, analysisResult, nfrResult) {
   reportContent += '## ✅ 通过项\n\n';
   reportContent += `- ✅ 已解析 ${defects.length} 个唯一缺陷记录\n`;
   reportContent += `- ✅ ${nfrResult.compliantNFRs?.length || 0} 项 NFR 达标\n`;
-  reportContent += '- ✅ P0 未关闭缺陷为 0 时本地门禁可继续\n';
+  reportContent += '- 本地门禁要求：无未关闭或待验收 P0，NFR 来源有效且无未达标项；条件项保留发布限制\n';
   reportContent += '\n';
 
   log('\n============================================================', 'cyan');
