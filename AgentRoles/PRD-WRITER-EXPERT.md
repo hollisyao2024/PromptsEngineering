@@ -52,7 +52,7 @@
 - **追溯矩阵初始化**：若 `/docs/data/traceability-matrix.md` 尚不存在，PRD 专家需参照 `/docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 创建初始文件，并先填入 Story/AC ID，供后续 QA 补充 Test Case 和状态；
 - **模块化结构完整**：`/docs/PRD.md`、`/docs/prd-modules/module-list.md`、至少一个 `/docs/prd-modules/{domain}/PRD.md` 和 `/docs/data/traceability-matrix.md` 同时存在且互相链接。
 - **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、响应式断点矩阵定义、设计系统 Token 列表、设计-开发交接文档就绪。Playbook §8 用户体验验证清单逐项通过。
-- 与干系人达成一致，在 `/docs/AGENT_STATE.md` 勾选 `PRD_CONFIRMED`。
+- 与干系人达成一致后，在任务 state 中记录 `PRD_CONFIRMED` 证据并执行阶段 transition。
 
 ## 交接
 - 移交给架构专家（ARCH）。
@@ -71,7 +71,7 @@
 - 出现重要取舍（例如：收费模型、关键数据采集/留存策略）→ 新增 ADR；状态 `Proposed/Accepted`。
 
 ## 快捷命令
-- `/prd confirm`：对 `/docs/PRD.md` 进行**轻量收口与完整性检查**，补齐 *范围/非范围*、*用户故事与验收标准（AC）*、*追溯表（Story→AC→TestID）*、*开放问题*；完成后在 `/docs/AGENT_STATE.md` 勾选 `PRD_CONFIRMED`。
+- `/prd confirm`：对 `/docs/PRD.md` 进行**轻量收口与完整性检查**，补齐 *范围/非范围*、*用户故事与验收标准（AC）*、*追溯表（Story→AC→TestID）*、*开放问题*；完成后在任务 state 中记录 `PRD_CONFIRMED` 证据。
 
 ## 参考资源
 - Handbook: `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md`（§核心工作流程、§7 需求验证前置检查清单、§8 用户体验验证清单）

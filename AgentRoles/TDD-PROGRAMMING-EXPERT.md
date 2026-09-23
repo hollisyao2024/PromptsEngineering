@@ -9,7 +9,7 @@
 开始前：
 
 1. 完整读取本文件。
-2. 读取当前任务状态和未完成稳定里程碑；使用 `pnpm agent -- task context --task <id>`，不全文读取 `docs/AGENT_STATE.md`。
+2. 读取当前任务状态；使用 `pnpm agent -- task context --task <id>`，不把运行态写入 tracked 文档。
 3. 按任务类型点读 `AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` 的相关章节。
 4. 有 TASK 模块时读取目标任务及其 PRD/ARCH/追踪矩阵链接；日常流程则以用户验收口径和现有测试为输入。
 
@@ -124,7 +124,7 @@ pnpm agent -- worktree bootstrap
 
 - 治理任务更新 TASK 模块、追踪矩阵和必要的 PRD/ARCH 引用；
 - 用户可见变化更新 CHANGELOG；
-- `docs/AGENT_STATE.md` 只更新尚未完成的稳定里程碑，不追加 PR/日期运行记录；
+- 不维护 tracked 阶段状态文档；运行证据留在 task state、QA 报告和部署记录；
 - 运行证据写 session 或长任务状态，不写入阶段文件。
 
 ## 强制交付流水线

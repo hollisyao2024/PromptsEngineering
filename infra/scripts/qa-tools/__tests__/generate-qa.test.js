@@ -9,7 +9,6 @@ const {
   generateProjectOverview,
   getQaPlanSessionStatePath,
   planModuleQaWrite,
-  shouldWriteAgentState,
   validateModuleEntriesForGeneration,
   validateUpstreamModuleAlignment,
 } = require('../generate-qa');
@@ -131,9 +130,4 @@ test('QA generation fails closed when any module parses zero stories', () => {
     ]),
     /zero stories.*empty/i
   );
-});
-
-test('QA dry-run never writes AGENT_STATE', () => {
-  assert.equal(shouldWriteAgentState(true), false);
-  assert.equal(shouldWriteAgentState(false), true);
 });

@@ -9,7 +9,6 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { writeInProgressFields } = require('../tdd-tools/agent-state-utils');
 const { getQaPlanSessionStatePath } = require('../worktree-tools/qa-plan-state-audit');
 const {
   getWorktreeRoot,
@@ -529,10 +528,6 @@ function validateModuleEntriesForGeneration(moduleEntries) {
   return true;
 }
 
-function shouldWriteAgentState(dryRun) {
-  return !dryRun;
-}
-
 function generateProjectOverview(moduleEntries) {
   const today = new Date().toISOString().split('T')[0];
   const totalStories = moduleEntries.reduce((sum, entry) => sum + entry.stories.length, 0);
@@ -841,12 +836,6 @@ function main() {
     log('📄 本次未产生文档改动。', 'yellow');
   }
 
-  if (shouldWriteAgentState(cli.dryRun)) {
-    writeInProgressFields(path.resolve(process.cwd(), 'docs/AGENT_STATE.md'), {
-      step: '/qa plan 完成，等待 /qa verify',
-    });
-  }
-
   process.exit(0);
 }
 
@@ -876,6 +865,5 @@ module.exports = {
   resolveExplicitModules,
   validateUpstreamModuleAlignment,
   validateModuleEntriesForGeneration,
-  shouldWriteAgentState,
   getQaPlanSessionStatePath,
 };

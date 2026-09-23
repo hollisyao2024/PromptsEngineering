@@ -4,7 +4,7 @@
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/environment-file-initialization/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/environment-file-initialization/ARCH.md)  
 > **状态**：✅ 兼容回归通过 / Go（[QA 证据](../../qa-modules/environment-file-initialization/QA.md)）
-> **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
+> **Task state Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
 > **Story→Task ID**：`US-ENVINIT-001~003` / `TASK-ENVINIT-001~004` / `TC-ENVINIT-001~004`  
 > **负责团队**：@template-maintainers  
 > **最后更新**：2026-09-11

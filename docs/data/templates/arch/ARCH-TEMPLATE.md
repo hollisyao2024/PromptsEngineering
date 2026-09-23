@@ -75,7 +75,7 @@ graph LR
 | 跨模块一致性 | 可靠性 | 支付+通知 | Traceability Gate 需展示 Saga 流程与 compensating action | 使用 Saga 与事件追踪 | @architect | 设计中 |
 | 合规审计记录 | 合规 | 通知服务 | Legal 审批并记录审计日志 | 补齐审计 + 合规演练 | @security | 审批中 |
 
-> 各项风险/ADR 变更同步到 `AGENT_STATE` / release checklist，并在完成后确认 `ARCHITECTURE_DEFINED` 状态，必要时退回 `PRD_CONFIRMED` 或延迟 Gate。
+> 各项风险/ADR 变更同步到任务 state / release checklist，并在完成后确认 `ARCHITECTURE_DEFINED` 状态，必要时退回 `PRD_CONFIRMED` 或延迟 Gate。
 
 ## 7. 文档审查与更新节奏
 
@@ -85,7 +85,7 @@ graph LR
   | ---- | ---- | -------- | -------- | ------ | ------------------- | ---- |
   | v1.0 | YYYY-MM-DD | 模块重构 | 支付 + 通知 | @architect | Traceability ×，QA Review ✔ | 调整模块边界与跨模块依赖 |
   | v1.1 | YYYY-MM-DD | 合规更新 | 通知服务审计 | @security | Traceability ✔，QA Pending | 补齐审计日志 + DR 计划 |
-- 更新记录应同时更新 `/docs/data/doc-snapshots.md` 或 `AGENT_STATE` Note，包含审核人签字、Doc Sync Gate 结果（如是否已触发 `ARCHITECTURE_DEFINED`）、以及所有相关 traceability/QA 任务的完成状态，便于后续阶段查证。
+- 更新记录应同时更新 `/docs/data/doc-snapshots.md` 或任务 state 证据，包含审核人签字、Doc Sync Gate 结果（如是否已触发 `ARCHITECTURE_DEFINED`）、以及所有相关 traceability/QA 任务的完成状态，便于后续阶段查证。
 
 ## 8. 相关文档
 

@@ -82,7 +82,7 @@ TASK 自动生成工具 v1.0
 2. 运行质量检查：pnpm run task:lint
 3. 验证关键路径：pnpm run task:check-critical-path
 4. 同步 PRD ↔ TASK ID：pnpm run task:sync
-5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED
+5. 在任务 state 中记录 TASK_PLANNED 证据
 ```
 
 **注意事项**：

@@ -10,7 +10,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { writeInProgressFields } = require('../tdd-tools/agent-state-utils');
 const { spawnSync } = require('child_process');
 const {
   buildModuleEntries,
@@ -637,10 +636,6 @@ function main() {
     log(`BASE_SHA=${receipt.base_sha}`, 'gray');
     log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
   }
-  const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
-  writeInProgressFields(agentStatePath, {
-    step: exitCode === 0 ? '/qa verify 通过，等待 /qa merge' : '/qa verify No-Go，流水线阻塞',
-  });
   process.exit(exitCode);
 }
 

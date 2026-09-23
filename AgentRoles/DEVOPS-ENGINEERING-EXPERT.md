@@ -96,7 +96,7 @@
   - [ ] 冒烟测试通过
   - [ ] 关键指标监控确认正常（≥15 分钟）
   - [ ] 部署记录已写入 `/docs/data/deployments/`
-  - [ ] 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
+  - [ ] 在部署记录和任务 state 中记录 `DEPLOYED` 证据
 - **本地服务管理 DoD**：
   - [ ] `/restart` 可稳定重启本地开发服务
   - [ ] `/private restart` 只命中 private profile，未配置时阻断且不回退

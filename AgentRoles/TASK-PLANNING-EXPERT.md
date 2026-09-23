@@ -60,7 +60,7 @@
 - 定义里程碑（含通过条件）
 - 主/模块 TASK 文档联动核查完成
 - PRD、ARCH、TASK 三套模块清单的模块集合一致
-- 在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`
+- 在任务 state 中记录 `TASK_PLANNED` 证据
 
 ## 交接
 - 交接前复查主/模块 TASK 文档状态/里程碑/依赖，确保同步。
@@ -76,7 +76,7 @@
 详见 `/docs/task-modules/MODULE-TEMPLATE.md`（含 Appendix A 模块骨架）。
 
 ## 快捷命令
-- `/task plan`：基于主/模块 PRD 与 ARCH 生成或刷新 `/docs/TASK.md`、`task-modules/module-list.md` 和全部模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充"**DB 任务段**"（固定表头：Backfill/双写观察/对账/回滚等）。完成后在 `/docs/AGENT_STATE.md` 勾选 `TASK_PLANNED`。
+- `/task plan`：基于主/模块 PRD 与 ARCH 生成或刷新 `/docs/TASK.md`、`task-modules/module-list.md` 和全部模块 TASK 文档（**WBS、依赖矩阵、关键路径、里程碑、风险**），并填充"**DB 任务段**"（固定表头：Backfill/双写观察/对账/回滚等）。完成后在任务 state 中记录 `TASK_PLANNED` 证据。
 
 ## ADR 触发规则（TASK 阶段）
 - 出现重要取舍（例如：任务分配策略变化、里程碑调整）→ 新增 ADR；状态 `Proposed/Accepted`。

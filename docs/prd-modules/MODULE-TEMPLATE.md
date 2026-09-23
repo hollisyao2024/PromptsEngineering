@@ -63,7 +63,7 @@
 - **依赖管理**：主 PRD "里程碑与依赖"维护跨模块全局视图，各模块在"接口与依赖"细化
 - **数据共享**：共享实体在 `/docs/data/dictionary.md` 定义，模块直接引用
 - **追溯矩阵**：`/docs/data/traceability-matrix.md` 记录 Story → AC → Test Case ID
-- **跨团队对齐**：模块规划完成后通知 ARCH/TASK/QA 依次消费并更新 `AGENT_STATE`
+- **跨团队对齐**：模块规划完成后通知 ARCH/TASK/QA 依次消费并更新对应模块状态与任务 state
 
 ## 5. 维护职责
 
@@ -156,6 +156,6 @@
 - [ ] 是否运行 `pnpm run prd:lint`、`prd:check-dependency-cycles`？
 - [ ] 是否同步 traceability matrix 与 QA 状态？
 - [ ] 是否通知 ARCH/TASK/TDD/QA？
-- [ ] 是否在 `/docs/AGENT_STATE.md` 标注阶段状态？
+- [ ] 是否在任务 state 和相关模块文档中标注阶段状态？
 - [ ] 若有前端界面，是否创建了 `ux-specifications.md`？
 ```

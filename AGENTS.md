@@ -23,7 +23,6 @@
 
 - `../tmp/agent-task-runs/`：长任务断点状态，唯一事实来源是每个任务的 `state.json`。
 - `../tmp/worktree-sessions/`：分支、PR、QA、合并和清理运行态。
-- `docs/AGENT_STATE.md`：只保存六阶段稳定里程碑，不保存每次 PR、重试或运行日志。
 
 ## 任务输入门禁
 
@@ -51,7 +50,7 @@
 - 安全、隐私、权限或跨模块行为变化；
 - 部署拓扑、发布策略或运行环境变化。
 
-纯解释、状态查询和只读诊断不要求激活专家。无法确定时读取 `docs/AGENT_STATE.md`，选择最小充分流程。
+纯解释、状态查询和只读诊断不要求激活专家。无法确定时读取当前 task state、session 和相关模块文档，选择最小充分流程。
 
 ## 专家路由
 
@@ -82,7 +81,7 @@
 ## 上下文预算与阶段交接
 
 - 单个执行上下文的工作阈值是 `180000` token；Codex 配置应设置 `model_auto_compact_token_limit = 180000`。不得依赖接近模型最大窗口的长线程。
-- 阶段开始先执行 `pnpm agent -- task resume --auto`，再执行 `pnpm agent -- task context --task <id>`；只携带胶囊、当前代码和必要的章节点读，不全文加载 `docs/AGENT_STATE.md`、Handbook 或大型模块文档。
+- 阶段开始先执行 `pnpm agent -- task resume --auto`，再执行 `pnpm agent -- task context --task <id>`；只携带胶囊、当前代码和必要的章节点读，不全文加载 Handbook 或大型模块文档。
 - 普通工具调用默认输出不超过 `4000` token；任何预计超过 5 秒或 2KB 输出的测试、构建、部署命令使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志写入任务 evidence，只回传约 8KB/80 行摘要。
 - 禁止对大日志反复执行 `write_stdin` 轮询；同一长命令最多做一次状态探测，之后等待完成或读取 `task exec` 生成的摘要。
 - PRD、ARCH、TASK、TDD、QA、DEVOPS 每次阶段转换后必须生成上下文胶囊并在新的执行上下文继续；同一阶段内才允许自动连续续跑。

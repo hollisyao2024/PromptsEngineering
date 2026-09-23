@@ -17,6 +17,15 @@
 - 任务 checkpoint 增加普通工具故障、策略拒绝、未知结果的结构化证据和只追加恢复历史；未知执行结果先核验，恢复必须提供依据，不自动重试或修改平台权限。
 - 明确任务记录自身不可用时的最小证据协议、生命周期操作拆分和恢复边界，纠正 Codex never 等于所有命令放行的说明。
 
+## [v3.6.0] - 2026-09-24
+
+### 移除 tracked 阶段状态文件
+
+- 删除 `docs/AGENT_STATE.md` 和状态模板；分支、PR、步骤、重试、QA 回执与部署结论只保存在 task state、worktree session 和权威报告。
+- `tdd push`、`qa plan`、`qa verify` 不再写阶段状态 Markdown；`qa merge` 不再读取或更新该文件。
+- 删除 `agent-state-utils.js` 运行态写入入口；共享 Markdown 扫描器改为只读模块。
+- AGENTS、专家、Handbook 和模板文档移除 `AGENT_STATE` 里程碑回流指令，并增加移除防回归契约。
+
 ## [v3.5.0] - 2026-09-23
 
 ### 上下文预算与阶段交接

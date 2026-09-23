@@ -2,7 +2,6 @@
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
-const { writeInProgressFields } = require('./agent-state-utils');
 const {
   assertSessionCanResume,
   getMainRepoRoot,
@@ -433,23 +432,8 @@ function main() {
     createPullRequest(reviewDecision, baseBranch);
     printReviewDecision(reviewDecision);
 
-    // 更新 IN_PROGRESS：写入 pr 号和当前 step，并单独提交推送（避免残留未提交变更）
-    const agentStatePath = path.join(repoRoot, 'docs', 'AGENT_STATE.md');
     const currentPr = prAlreadyExists(branch);
     if (currentPr) {
-      if (!cliArgs.committedOnly) {
-        writeInProgressFields(agentStatePath, {
-          pr: `#${currentPr.number}`,
-          step: '/tdd push 完成，等待 /qa plan',
-        });
-        try {
-          runGit(['add', agentStatePath]);
-          runGit(['commit', '-m', `chore: track in-progress state [#${currentPr.number}]`]);
-          runGit(['push', 'origin', 'HEAD']);
-        } catch {
-          // 写入失败不阻断流程
-        }
-      }
       const mainRoot = getMainRepoRoot(repoRoot);
       const config = loadConfig({ repoRoot: mainRoot });
       writeSession(config, mainRoot, {

@@ -12,7 +12,7 @@
 ## 1. 报告概要
 
 - **生成时间**：`{生成时间}`
-- **报告版本**：`v{版本}`（版本由 ARCH 专家维护，建议与 `AGENT_STATE` 同步）
+- **报告版本**：`v{版本}`（版本由 ARCH 专家维护，并与任务 state 的阶段证据同步）
 - **覆盖范围**：列出本报告包含的模块/Story/Component 范围（例如 `user-management / payment-system`）
 - **关键发现**：简述 Story vs Arch 之间的主要差异、丢失链接、风险（若无可写 “暂无异常”）
 
@@ -69,7 +69,7 @@
 ## 6. 维护与同步
 
 - 每次 ARCH 模块变更后（新增 Component、接口调整、依赖更替），应重新生成此报告，确保 Story/Component 状态与 `module-list.md`、`traceability-matrix`、`arch-prd-traceability` 一致。  
-- 建议在 `AGENT_STATE` 中记录最新版本，引导 ARCH/PRD/QA/TASK 跟踪变更进度。  
+- 建议在任务 state 中记录最新版本证据，引导 ARCH/PRD/QA/TASK 跟踪变更进度。
 - 若报告中发现 Story/Component 脱节，及时在 `/docs/PRD.md` 或 `/docs/ARCH.md` 中同步更新，并在下一轮生成时验证修复。
 
 ---  

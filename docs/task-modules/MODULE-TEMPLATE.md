@@ -74,7 +74,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 ## 4. 支撑产物说明
 - **任务清单与交付物**：维护包含 Task ID、产出（代码、脚本、文档）、负责角色与验收标准的列表，突出必须完成的 Deliverable 与验证人。
 - **依赖与验证产物**：指明本模块依赖的 PRD/ARCH/其他模块 Task（Story→Task），以及需触发的验证（接口契约验证、DB 回归、性能/安全测试），并在 Traceability Matrix 中打标。
-- **状态同步与 Gate**：列出需同步的主 TASK/模块索引字段（如状态、里程碑、AGENT_STATE），并记录进入 `TDD_DONE`/`QA_VALIDATED` 所需的检查清单与责任人，以确保任务交付与流程一致。
+- **状态同步与 Gate**：列出需同步的主 TASK/模块索引字段（如状态、里程碑、任务 state），并记录进入 `TDD_DONE`/`QA_VALIDATED` 所需的检查清单与责任人，以确保任务交付与流程一致。
 
 ## 5. 模块协作规范
 
@@ -94,7 +94,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 - 若涉及 DB 迁移或接口合同更新，还需通知 ARCH（提供接口文档链接）。
 
 ### 5.3 状态同步与 Gate
-- 模块状态、优先级、完成度要能在主看板/AGENT_STATE 中实时反映，并将 `TASK_PLANNED`/`TDD_DONE`/`QA_VALIDATED` 的触发条件列在 Gate 清单。
+- 模块状态、优先级、完成度要能在主看板和任务 state 中反映，并将 `TASK_PLANNED`/`TDD_DONE`/`QA_VALIDATED` 的触发条件列在 Gate 清单。
 - 每次 Gate 触发前，确认 Story→Task → Test 追溯、里程碑、依赖、风险已同步，并记录在模块 Task 的“自检”或“Gate remarks”字段。
 
 ### 5.4 通知与演练
@@ -106,7 +106,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 ### 6.1 更新节奏
 - 每当 Task/WBS/依赖/风险/里程碑变化时，立即在模块 TASK 中记录版本、日期、负责人，并同步更新 `module-list.md` 与主 TASK 的“模块任务索引”表。
 - 完成变更后运行 `pnpm run task:lint`、`pnpm run task:check-cycles`、`pnpm run task:sync`，保障结构、依赖与 Traceability 与主线对齐。
-- 重大交付（接口变更、DB 迁移、关键里程碑）触发时，按照 AGENT_STATE 的阶段（`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`）更新状态并填补 Gate 注记。
+- 重大交付（接口变更、DB 迁移、关键里程碑）触发时，按照任务 state 的阶段（`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`）更新状态并填补 Gate 注记。
 
 ### 6.2 状态与 Gate 自检
 - 在每个 Gate 之前，确认 Story→Task→Test 追溯、依赖矩阵、里程碑/风险表、验收报告已同步，并把对应信息写入模块 TASK 的自检段。
@@ -124,7 +124,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 | `pnpm run task:check-cycles` | 检查模块与跨模块依赖中的环路与资源冲突 |
 | `pnpm run task:sync` | 同步 `module-list.md`、`story-task-mapping.md`、依赖表与 traceability 记录 |
 | `pnpm run task:generate` | 生成任务卡片/里程碑表、可选 WBS 拆解初稿 |
-| `/tdd tick` | 自动勾选模块/主 TASK 中完成的任务，确保 AGENT_STATE/QA 交付状态更新 |
+| `/tdd tick` | 自动勾选模块/主 TASK 中完成的任务，确保任务 state/QA 交付状态更新 |
 
 ## 8. 相关资源
 
@@ -134,7 +134,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 - `/docs/data/story-task-mapping.md` — Story → Task 映射
 - `/docs/data/traceability-matrix.md` — Story → AC → Test Case 跟踪
 - `/docs/data/milestone-gantt.md` — 里程碑甘特图
-- `/docs/AGENT_STATE.md` + `/AGENTS.md` — 状态阶段与 Agent 阶段职责
+- `/AGENTS.md` + task state — 状态路由与 Agent 阶段职责
 - `/docs/CONVENTIONS.md` — 命名、Task ID、里程碑/模块目录规范
 - `scripts/task-tools/*` 与 `package.json` 中的 `task:*` 命令（`task:lint`/`task:check-cycles`/`task:sync`/`task:generate`）以及 `/tdd tick`
 - `AgentRoles/TASK-PLANNING-EXPERT.md` 与 Handbook — 角色责任、DoD、自检清单
@@ -152,7 +152,7 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 > **关联 PRD 模块**: [prd-modules/{domain}/PRD.md](../prd-modules/{domain}/PRD.md)
 > **关联 ARCH 模块**: [arch-modules/{domain}/ARCH.md](../arch-modules/{domain}/ARCH.md)
 > **状态**: 📝 待开始 / 🚀 进行中 / 🔄 已提交 / ✅ 已完成 / ⏸️ 暂停 / ❌ 已取消
-> **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
+> **Task state Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
 > **Story→Task ID**：列出 `US-...` / `TASK-...` / `TC-...` 并注明主 TASK 对应章节
 > **负责团队**: @qa-team-name
 > **最后更新**: YYYY-MM-DD
@@ -209,5 +209,5 @@ TASK 专家在创建或更新模块时须同步更新以下清单：
 - [ ] 执行 `pnpm run task:lint`、`task:check-cycles`、`task:sync`
 - [ ] 同步 `module-list.md`、`traceability-matrix.md`、`story-task-mapping.md`
 - [ ] 通知 ARCH/TDD/QA（接口、依赖、风险、验证）
-- [ ] 工作态更新至 `/docs/AGENT_STATE.md`
+- [ ] 工作态更新至任务 state 或 worktree session
 ```

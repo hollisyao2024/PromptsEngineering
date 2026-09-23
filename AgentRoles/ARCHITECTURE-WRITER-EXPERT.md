@@ -67,7 +67,7 @@
 - **技术选型表**（方案对比→决策→影响→ADR 链接）。
 - **角色覆盖与依赖一致性**：参考 `persona-story-matrix.md`，保持跨模块依赖与 `global-dependency-graph.md` 同步。
 - **模块结构完整**：主 ARCH、`arch-modules/module-list.md` 与全部 PRD 模块对应的模块 ARCH 均存在，且模块集合一致。
-- 在 `/docs/AGENT_STATE.md` 勾选 `ARCHITECTURE_DEFINED`。
+- 在任务 state 中记录 `ARCHITECTURE_DEFINED` 证据并执行阶段 transition。
 
 ## 应用架构规划与初始化交接
 

@@ -444,14 +444,14 @@ test('validates phase transitions and preserves evidence-backed history', (t) =>
     ...paths,
     taskId: 'durable-task',
     phase: 'arch',
-    evidence: ['PRD_CONFIRMED in docs/AGENT_STATE.md'],
+    evidence: ['PRD_CONFIRMED in task state'],
     now: '2026-08-16T01:03:00.000Z',
   });
   assert.equal(architecture.current_phase, 'arch');
   assert.deepEqual(architecture.phase_history.at(-1), {
     phase: 'arch',
     from_phase: 'prd',
-    evidence: ['PRD_CONFIRMED in docs/AGENT_STATE.md'],
+    evidence: ['PRD_CONFIRMED in task state'],
     entered_at: '2026-08-16T01:03:00.000Z',
   });
 });
