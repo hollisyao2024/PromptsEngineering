@@ -1,14 +1,14 @@
 # AGENTS.md — 轻量路由与执行规范
 
-> 目标：默认只加载本文件、通用约定和项目规则；专家资料按阶段加载。相对路径均以 Git 主 worktree 根 `repo/` 为基准。
+> 目标：默认只加载本文件；通用约定、项目规则、专家资料和阶段文档按当前阶段点读。相对路径均以 Git 主 worktree 根 `repo/` 为基准。
 
 ## 必须加载的上下文
 
 @./docs/CONVENTIONS.md
 @./RULES.md
 
-- `docs/CONVENTIONS.md` 是模板提供的通用约定。
-- `RULES.md` 是实际项目自行维护的专用规则。模板源不提供、创建或覆盖它；项目可按自身工具约定让缺失引用为空。
+- `docs/CONVENTIONS.md` 是模板提供的通用约定；只读取与当前阶段和任务相关的章节，不要求每次全文加载。
+- `RULES.md` 是实际项目自行维护的专用规则。模板源不提供、创建或覆盖它；只读取与当前变更相关的规则。
 - 不得输出模型隐藏思维过程；用中文给出结论、证据、风险与下一动作。
 
 ## 仓库与状态边界
@@ -79,6 +79,16 @@
 - 多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。
 - `worktree new` 在 required fetch 后发现远端同名分支时必须阻断；只有显式 `worktree resume` 可以按远端分支的固定 SHA 建立本机 worktree 和 session。
 
+## 上下文预算与阶段交接
+
+- 单个执行上下文的工作阈值是 `180000` token；Codex 配置应设置 `model_auto_compact_token_limit = 180000`。不得依赖接近模型最大窗口的长线程。
+- 阶段开始先执行 `pnpm agent -- task resume --auto`，再执行 `pnpm agent -- task context --task <id>`；只携带胶囊、当前代码和必要的章节点读，不全文加载 `docs/AGENT_STATE.md`、Handbook 或大型模块文档。
+- 普通工具调用默认输出不超过 `4000` token；任何预计超过 5 秒或 2KB 输出的测试、构建、部署命令使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志写入任务 evidence，只回传约 8KB/80 行摘要。
+- 禁止对大日志反复执行 `write_stdin` 轮询；同一长命令最多做一次状态探测，之后等待完成或读取 `task exec` 生成的摘要。
+- PRD、ARCH、TASK、TDD、QA、DEVOPS 每次阶段转换后必须生成上下文胶囊并在新的执行上下文继续；同一阶段内才允许自动连续续跑。
+- 连续 10 次请求中，稳定阶段的缓存命中率必须达到 `70%`。不达标时先切换缓存可靠的模型或通道；无法切换时，同阶段最多连续执行 8 次模型请求后强制交接。
+- 工具输出、摘要或上下文达到预算时不得偷偷截断为“完成”；必须保留日志路径、哈希、未验证状态和下一动作。
+
 ## 长任务断点续跑
 
 修改 tracked 文件或执行提交、推送、部署、数据写删、Computer Use 等需恢复的副作用时，必须使用任务状态；用户明确要求持久化记录、持续执行，或预计跨会话、压缩、进程重启时也必须使用。单会话只读解释、状态查询、诊断和研究不因步骤数量而创建或恢复任务记录，不把“先建核查任务”作为前置条件。
@@ -93,7 +103,7 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 部署、推送、提交、数据库写入、文件系统变更和 Computer Use 等副作用步骤，执行前标记 `running`，结果不明时恢复为 `verify_required`，禁止盲目重放。
 - 一个 checkpoint 可同时完成步骤和验收项，并记录简短证据、退出码、路径或哈希。
 - 范围演进只用 `pnpm agent -- task extend --task <id> --reason "<原因>" ...` 追加步骤/验收项，不改写已完成历史。
-- 治理阶段交接使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。
+- 治理阶段交接使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。转换输出 `CONTEXT_HANDOFF_REQUIRED=true` 时必须先运行 `pnpm agent -- task context --task <id>`，当前上下文到此停止。
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
 - 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
 - 失败先按可观察证据区分普通工具故障、策略拒绝和执行结果未知；已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕，恢复前提供 `--recovery-evidence`。具体协议见 docs/CONVENTIONS.md 的“失败分类与恢复”。

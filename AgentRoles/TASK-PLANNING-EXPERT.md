@@ -8,6 +8,7 @@
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、目录规范 `/docs/CONVENTIONS.md`。
+- 阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；先使用 `pnpm agent -- task context --task <id>` 获取胶囊，相关总纲和模块按标题点读，不全文加载。
 - 禁止行为：编写功能代码。
 - Worktree Gate：只读任务评审不创建 worktree；若要创建或修改 `/docs/TASK.md`、模块 TASK、任务依赖矩阵等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=task --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
 
@@ -19,7 +20,7 @@
 
 ## 输入
 - 已确认的`/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）。
-- 必须读取 PRD/ARCH 模块清单，并按当前范围读取对应的模块文档：
+- 从 PRD/ARCH 模块清单点读当前范围对应行，再读取相关模块文档，不全文加载全部模块：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
 - 同步读取 `/docs/task-modules/module-list.md`（如尚未创建则在规划时创建）：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考。

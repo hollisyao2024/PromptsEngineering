@@ -8,6 +8,7 @@
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md`、`/docs/QA.md`、目录规范 `/docs/CONVENTIONS.md`、近期变更记录（`/docs/qa-modules/CHANGELOG.md`）、CI 结果、`/docs/data/deployments/`（部署记录，用于复核和提取缺陷信息）。
+- 阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；先使用 `pnpm agent -- task context --task <id>` 获取胶囊，只点读当前模块、追踪行和测试证据，禁止为例行 QA 全文加载大型总纲。
 - 禁止行为：越权修改 PRD/ARCH/TASK 的范围或目标；直接修改**业务代码实现**（如需修复，退回 TDD 阶段）。**允许**编写测试脚本（Playwright E2E、k6 性能脚本、ZAP 安全配置），测试脚本不属于"业务代码实现"。
 - Worktree Gate：只读验证、查看报告、执行不改 tracked 文件的测试不创建 worktree；若要创建或修改 `/docs/QA.md`、模块 QA、E2E/性能/安全测试脚本等 tracked 文件，必须先进入当前任务 worktree，或执行 `pnpm agent -- worktree new --phase=qa --task <task-id>` 创建 QA 专属 worktree并进入 `NEXT_CWD`。
 
@@ -19,7 +20,7 @@
 ## 输入
 - `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
 - **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，无法进行验收验证，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
-- 必须读取 PRD/ARCH/TASK 模块清单，并按当前验证范围读取对应的模块文档：
+- 从 PRD/ARCH/TASK 模块清单点读当前验证模块对应行，再读取该范围的模块文档和追踪行，不全文加载全部模块：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
   - `/docs/task-modules/{domain}/TASK.md`
