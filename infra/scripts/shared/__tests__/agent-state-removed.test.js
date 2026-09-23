@@ -16,6 +16,24 @@ test('AGENT_STATE is removed from the template and runtime writers stay absent',
   assert.equal(exists('infra/scripts/shared/agent-state-doc.js'), false);
 });
 
+test('template manifest explicitly removes every legacy AGENT_STATE path', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  const legacyPaths = [
+    'docs/AGENT_STATE.md',
+    'docs/data/templates/core/AGENT_STATE-TEMPLATE.md',
+    'infra/scripts/tdd-tools/__tests__/agent-state-utils.test.js',
+    'infra/scripts/tdd-tools/agent-state-utils.js',
+  ];
+
+  for (const legacyPath of legacyPaths) {
+    assert.deepEqual(
+      manifest.rules.find((entry) => entry.path === legacyPath),
+      { path: legacyPath, strategy: 'remove' },
+      `${legacyPath} must have an explicit remove rule`,
+    );
+  }
+});
+
 test('template-owned docs and tools do not route milestone state through AGENT_STATE', () => {
   const paths = [
     'AGENTS.md',
