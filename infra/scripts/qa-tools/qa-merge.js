@@ -18,7 +18,6 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
-const { clearInProgressContent, scanStateDocument } = require('../tdd-tools/agent-state-utils');
 const {
   loadConfig,
   resolveRepoRoot,
@@ -1372,73 +1371,6 @@ async function getPrTitle(prNumber, { backend = getGitHubBackend() } = {}) {
   return null;
 }
 
-function formatAgentStateQaValidatedEntry(prNumber, commitHash, date) {
-  void prNumber;
-  void commitHash;
-  void date;
-  return '- [x] 5. QA_VALIDATED';
-}
-
-function upsertQaValidatedEntry(content, prNumber, commitHash, date) {
-  const document = scanStateDocument(content);
-  const entries = document.lines.flatMap((line) => {
-    const match = line.visible?.match(/^( {0,3})[-+*][ \t]+\[([ xX])\][ \t]+(?:5\.[ \t]+)?QA_VALIDATED(?:[ \t].*)?$/u);
-    return match ? [{ line, indent: match[1], checked: match[2].toLowerCase() === 'x' }] : [];
-  });
-  if (entries.length > 1) throw new Error('Multiple QA_VALIDATED milestones; resolve the ambiguous state document first.');
-  if (entries.length) {
-    const { line, indent, checked } = entries[0];
-    if (checked) return content;
-    const commentStart = line.text.indexOf('<!--');
-    const commentSuffix = commentStart < 0 ? '' : ` ${line.text.slice(commentStart)}`;
-    const entry = indent + formatAgentStateQaValidatedEntry(prNumber, commitHash, date) + commentSuffix;
-    return content.slice(0, line.start) + entry + content.slice(line.end);
-  }
-
-  if (document.unterminated) throw new Error(`Cannot initialize QA_VALIDATED inside an unterminated ${document.unterminated}.`);
-  const newline = document.lines.find((line) => line.newline)?.newline || '\n';
-  const trimmed = content.trimEnd();
-  const separator = trimmed ? newline + newline : '';
-  return `${trimmed}${separator}${formatAgentStateQaValidatedEntry(prNumber, commitHash, date)}${newline}`;
-}
-
-function updateAgentState(mainRepoRoot, prNumber, commitHash) {
-  const agentStatePath = path.join(mainRepoRoot, 'docs', 'AGENT_STATE.md');
-  try {
-    if (!fs.existsSync(agentStatePath)) {
-      return { status: 'missing' };
-    }
-
-    const content = fs.readFileSync(agentStatePath, 'utf8');
-    const date = new Date().toISOString().slice(0, 10);
-    let updated = upsertQaValidatedEntry(content, prNumber, commitHash, date);
-
-    if (updated === content) {
-      return { status: 'already-complete' };
-    }
-
-    updated = clearInProgressContent(updated);
-
-    fs.writeFileSync(agentStatePath, updated, 'utf8');
-    return { status: 'updated' };
-  } catch (err) {
-    return { status: 'failed', error: err.message };
-  }
-}
-
-function formatAgentStateResult(result) {
-  switch (result.status) {
-    case 'updated':
-      return '\x1b[32m✓ AGENT_STATE.md 已更新（QA_VALIDATED）\x1b[0m';
-    case 'already-complete':
-      return '\x1b[32m✓ QA_VALIDATED 已完成，AGENT_STATE.md 保持不变\x1b[0m';
-    case 'missing':
-      return '\x1b[33m⚠ AGENT_STATE.md 不存在，已跳过自动更新\x1b[0m';
-    default:
-      return `\x1b[33m⚠ AGENT_STATE.md 更新失败（${result.error || '未知状态'}），请检查文件后手动勾选 QA_VALIDATED\x1b[0m`;
-  }
-}
-
 function commitReleaseAndTag(
   mainRepoRoot,
   version,
@@ -1456,7 +1388,7 @@ function commitReleaseAndTag(
   // Re-synchronize at the commit boundary and verify the exact staged bytes;
   // once the index matches, later watcher writes cannot corrupt this commit.
   stageConfiguredVersionFiles(mainRepoRoot, versionSyncFiles, version);
-  // release/state files (package.json#version、CHANGELOG、AGENT_STATE) are non-source —
+  // release/state files (package.json#version and CHANGELOG) are non-source —
   // pre-commit typecheck/lint is not applicable, and requiring main-repo node_modules
   // just to satisfy that hook costs ~5min on first qa:merge per worktree-first session.
   runGit(['commit', '--no-verify', '-m', version ? `chore(release): ${tagPrefix}${version}` : 'chore(qa): update merge state'], {
@@ -1522,7 +1454,6 @@ function printSummary(
   featureBranch,
   commitHash,
   strategy,
-  agentStateResult,
   version,
   mainRepoRoot,
   cleanupResult = {},
@@ -1563,7 +1494,6 @@ function printSummary(
   if (version) {
     console.log(`  版本:   v${version}`);
   }
-  console.log(`  状态:   ${formatAgentStateResult(agentStateResult)}`);
   console.log('');
   console.log('\x1b[33m下一步:\x1b[0m');
   console.log(cleanupResult.preserved
@@ -1701,7 +1631,7 @@ async function main() {
       console.log(`  0. 复核 ${baseBranch}=${qaReceipt.base_sha} 与 ${currentBranch}=${qaReceipt.head_sha}`);
       console.log(`  1. squash merge PR #${pr.number} (${currentBranch}) → ${baseBranch}`);
       console.log(`  2. 同步本地 ${baseBranch}`);
-      console.log('  3. 版本递增 + CHANGELOG + AGENT_STATE + tag');
+      console.log('  3. 版本递增 + CHANGELOG + tag');
       console.log(`  4. 普通非强制 push ${baseBranch} + tag`);
       console.log('  5. 重新 fetch 并验证本地/远端 SHA 一致');
       console.log(`  6. 清理可安全回收的 worktree 与分支；有本地内容时保留 ${currentBranch}`);
@@ -1768,7 +1698,7 @@ async function main() {
       );
     }
 
-    // Step 15: 可选版本递增 / CHANGELOG / AGENT_STATE / tag
+    // Step 15: 可选版本递增 / CHANGELOG / tag
     const releaseConfig = config.release || {};
     const shouldBumpVersion =
       args.bumpVersion || (releaseConfig.bumpVersion === true && !args.noVersionBump);
@@ -1814,11 +1744,7 @@ async function main() {
       console.log('\x1b[36m  跳过 CHANGELOG 更新（release.updateChangelog=false）\x1b[0m');
     }
 
-    // 更新 AGENT_STATE
     const commitHash = getLatestMainCommit(mainWorkspacePath);
-    const agentStateResult = updateAgentState(mainWorkspacePath, pr.number, commitHash);
-    console.log(`  ${formatAgentStateResult(agentStateResult)}`);
-    if (agentStateResult.status === 'updated') releaseFiles.push('docs/AGENT_STATE.md');
 
     // Step 16: commit + optional tag
     if (releaseFiles.length > 0) {
@@ -1909,7 +1835,6 @@ async function main() {
       currentBranch,
       commitHash,
       strategy,
-      agentStateResult,
       newVersion,
       mainWorkspacePath,
       cleanupResult,
@@ -1943,9 +1868,6 @@ module.exports = {
   syncLocalMain,
   verifyRemoteBase,
   formatGhError,
-  formatAgentStateQaValidatedEntry,
-  upsertQaValidatedEntry,
-  updateAgentState,
   printSummary,
   // B1-B6 surface for unit tests:
   shouldSwitchVscodeWindow,

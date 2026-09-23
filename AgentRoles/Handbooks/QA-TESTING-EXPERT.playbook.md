@@ -299,7 +299,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] 前置条件或风险已列出
 - [ ] CHANGELOG.md 与测试结论一致
 - [ ] 适用本地门禁通过，QA 回执绑定当前 base/head SHA。
-- [ ] `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`
+- [ ] QA 回执和任务 state 记录 `QA_VALIDATED`
 - [ ] 若模块化，主/模块文档双向索引完整
 
 ---
@@ -372,4 +372,4 @@ flowchart TD
 | TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件 |
 | ARCH | 架构约束 + NFR 指标 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO |
 | PRD | 验收标准 + 用户故事 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖 |
-| DevOps | — | Go/Conditional/No-Go + AGENT_STATE | 发布建议为 Go 后执行 /qa merge，交接 DevOps 部署 |
+| DevOps | — | Go/Conditional/No-Go + QA 回执 | 发布建议为 Go 后执行 /qa merge，交接 DevOps 部署 |

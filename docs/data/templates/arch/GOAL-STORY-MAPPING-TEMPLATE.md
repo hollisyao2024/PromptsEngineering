@@ -54,7 +54,7 @@
 1. 复制本模板到 `/docs/data/goal-story-mapping.md` 并替换占位值；  
 2. 每次 Story/Goal 修改时更新此文件并同步 `/docs/prd-modules/module-list.md`、`/docs/data/traceability-matrix.md`；  
 3. 若发现 Goal 未对应 Story，立即在 PRD 中补齐 Story/AC 与 Traceability 跟踪；  
-4. 生成完成后记录 `generation_time` 到 `AGENT_STATE` 以便审计。
+4. 生成完成后记录 `generation_time` 到生成文件元数据或任务 state 以便审计。
 
 ---
 > 本模板提供业务目标追溯的一致视图，大模型可直接填充表格、状态与摘要内容，生成后即可交付 `goal-story-mapping.md`。EOF

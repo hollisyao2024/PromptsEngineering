@@ -99,7 +99,7 @@
    - ARCH 运维视图对照：验证部署拓扑、SLO 指标与 `/docs/ARCH.md` 定义一致
 3. **确认与记录**：
    - 在 `/docs/data/deployments/` 新建本次部署记录文件并更新 `README.md` 状态表
-   - 在 `/docs/AGENT_STATE.md` 勾选 `DEPLOYED`
+   - 在部署记录和任务 state 中记录 `DEPLOYED` 证据
 
 ### 灰度/金丝雀部署验证
 - 采用金丝雀部署时，按 5%→25%→100% 分阶段放量，每阶段完成冒烟测试 + 关键指标对比后再扩量。

@@ -24,7 +24,6 @@ const CONFIG = {
   archModulesDir: path.join(__dirname, '../../../docs/arch-modules'),
   taskPath: path.join(__dirname, '../../../docs/TASK.md'),
   taskModulesDir: path.join(__dirname, '../../../docs/task-modules'),
-  stateFile: path.join(__dirname, '../../../docs/AGENT_STATE.md'),
 
   // Task 粒度约束（单位：天）
   taskSizeConstraints: {
@@ -743,7 +742,6 @@ function main() {
   log(`2. 运行质量检查：pnpm run task:lint`, 'yellow');
   log(`3. 验证关键路径：pnpm run task:check-critical-path`, 'yellow');
   log(`4. 同步 PRD ↔ TASK ID：pnpm run task:sync`, 'yellow');
-  log(`5. 在 /docs/AGENT_STATE.md 勾选 TASK_PLANNED`, 'yellow');
   log(`\n`, 'reset');
 }
 

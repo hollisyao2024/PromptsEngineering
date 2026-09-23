@@ -79,7 +79,7 @@ test('dirty worktree is sealed and retained without scheduling cleanup or deleti
   assert.equal(session.cleanup.expectedHead, f.head);
   const output = [];
   t.mock.method(console, 'log', (...args) => output.push(args.join(' ')));
-  printSummary({ number: 1, title: 'verified change' }, 'fix/dirty', f.head, 'gh', { status: 'already-complete' }, '', f.main, result);
+  printSummary({ number: 1, title: 'verified change' }, 'fix/dirty', f.head, 'gh', '', f.main, result);
   assert.match(output.join('\n'), /MERGE_STATUS=MERGED/);
   assert.match(output.join('\n'), /CLEANUP_STATUS=PRESERVED/);
 });

@@ -16,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { scanStateDocument } = require('../tdd-tools/agent-state-utils');
+const { scanMarkdownDocument } = require('../shared/markdown-document');
 const shouldWriteReports = process.env.QA_WRITE_REPORTS === '1';
 
 // 配置
@@ -365,7 +365,7 @@ function summarizeNFRs(values, sourceAvailable = true) {
 function parseNFRCompliance(content) {
   const byID = new Map();
   let headers = null;
-  for (const [index, line] of scanStateDocument(String(content || '')).lines.entries()) {
+  for (const [index, line] of scanMarkdownDocument(String(content || '')).lines.entries()) {
     const cells = markdownTableCells(line.visible || '');
     if (!cells) { headers = null; continue; }
     if (isMarkdownSeparatorRow(cells)) continue;

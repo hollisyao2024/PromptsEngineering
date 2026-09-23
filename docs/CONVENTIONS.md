@@ -84,16 +84,7 @@ updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run�
 - `docs/{prd|arch|task|qa}-modules/<domain>/`：功能域详情。
 - `docs/data/traceability-matrix.md`：需求到测试的追踪关系。
 
-`docs/AGENT_STATE.md` 只保存稳定里程碑，默认按当前任务和未完成状态点读，禁止为了例行恢复全文加载：
-
-1. `PRD_CONFIRMED`
-2. `ARCHITECTURE_DEFINED`
-3. `TASK_PLANNED`
-4. `TDD_DONE`
-5. `QA_VALIDATED`
-6. `DEPLOYED`
-
-里程碑已勾选时不得附加新的 PR、日期或重试行。运行态由外部 session 文件承担，避免每次合并产生无意义文档提交。
+阶段状态由容器层 `agent-task-runs/state.json`、worktree session、PR、QA 回执、部署记录和模块报告承担。仓库不再维护 tracked 的阶段状态 Markdown 文件，也不得把 branch、PR、重试、执行步骤或 QA 历史写回阶段总纲。
 
 ## 5. Worktree 生命周期
 

@@ -76,7 +76,7 @@ graph TB
 
 1. 复制本模板到 `/docs/data/global-dependency-graph.md` 并替换占位内容（如 `{module_list}`、`{summary}`）。  
 2. 更新后同 步 `module-list.md` 与 `/docs/TASK.md` 的依赖部分；若 QA/Traceability 也受影响，请在 `/docs/data/traceability-matrix.md` 备注。  
-3. 每次生成记录 `生成时间` 与 `报告版本` 到 `AGENT_STATE`，便于追踪演进。
+3. 每次生成记录 `生成时间` 与 `报告版本` 到任务 state 或报告元数据，便于追踪演进。
 
 ---
 > 本模板为 global dependency graph 的唯一真相，大模型只需输出上述段落以生成完整档案。

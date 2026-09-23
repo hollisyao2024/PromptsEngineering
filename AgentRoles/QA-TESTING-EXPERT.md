@@ -176,7 +176,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 - PRD、ARCH、TASK、QA 四套模块清单的模块集合一致
 - 追溯矩阵状态为最新（Pass/Fail/Blocked），关联缺陷 ID
 - 发布建议已明确（Go/Conditional/No-Go），适用本地门禁通过，QA 回执绑定当前 base/head SHA。
-- `/docs/AGENT_STATE.md` 打勾 `QA_VALIDATED`
+- 在 QA 回执和任务 state 中记录 `QA_VALIDATED` 结论
 - 详细验收清单见 Playbook §QA 验收检查清单
 
 ## 交接

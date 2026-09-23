@@ -4,7 +4,7 @@
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/template-command-surface/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/template-command-surface/ARCH.md)  
 > **状态**：✅ 官方匿名获取回归通过
-> **AGENT_STATE Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`  
+> **Task state Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
 > **负责团队**：@template-maintainers  
 > **最后更新**：2026-09-11
 > **版本**：v1.6
