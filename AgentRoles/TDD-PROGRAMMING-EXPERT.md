@@ -9,9 +9,11 @@
 开始前：
 
 1. 完整读取本文件。
-2. 读取 `docs/AGENT_STATE.md` 和当前任务状态。
+2. 读取当前任务状态和未完成稳定里程碑；使用 `pnpm agent -- task context --task <id>`，不全文读取 `docs/AGENT_STATE.md`。
 3. 按任务类型点读 `AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md` 的相关章节。
 4. 有 TASK 模块时读取目标任务及其 PRD/ARCH/追踪矩阵链接；日常流程则以用户验收口径和现有测试为输入。
+
+阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；长测试、构建和部署输出使用 `pnpm agent -- task exec`，不反复轮询大日志。
 
 ## 工作边界
 

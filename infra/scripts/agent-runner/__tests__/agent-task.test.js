@@ -8,12 +8,15 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const {
+  buildTaskContext,
   bindTaskLocation,
   cancelTask,
   checkpointTask,
   createTask,
+  executeTaskCommand,
   extendTask,
   finishTask,
+  formatTransitionOutput,
   parseCliArgs,
   readTaskState,
   runMutationCompletionGuard,
@@ -365,6 +368,24 @@ test('CLI keeps --step compatible between start declarations and checkpoints', (
   assert.deepEqual(transitioned.evidence, ['PRD_CONFIRMED']);
 });
 
+test('CLI parses bounded context and delegated exec arguments', () => {
+  const context = parseCliArgs([
+    'context', '--task', 'durable-task', '--max-bytes', '4096',
+    '--include', 'docs/context.md#L2-L3',
+  ]);
+  assert.equal(context.command, 'context');
+  assert.equal(context.maxBytes, '4096');
+  assert.deepEqual(context.includes, ['docs/context.md#L2-L3']);
+
+  const exec = parseCliArgs([
+    'exec', '--task', 'durable-task', '--name', 'tests', '--',
+    'node', '-e', 'console.log("ok")',
+  ]);
+  assert.equal(exec.command, 'exec');
+  assert.equal(exec.name, 'tests');
+  assert.deepEqual(exec.execCommand, ['node', '-e', 'console.log("ok")']);
+});
+
 test('appends plan changes without rewriting completed work', (t) => {
   const paths = fixture(t);
   createTask(startInput(paths, {
@@ -669,6 +690,111 @@ test('explicit lifecycle binding moves an active task to its managed worktree', 
     worktree: reboundWorktree,
     branch: 'recovery/durable-task',
   }).task_id, 'durable-task');
+});
+
+test('task context is bounded, read-only, and supports point reads', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, {
+    goal: `Keep the complete delivery boundary ${'goal '.repeat(180)}`,
+    acceptanceCriteria: [
+      'all steps verified',
+      `keep the evidence complete ${'acceptance '.repeat(80)}`,
+    ],
+  }));
+  checkpointTask({
+    ...paths,
+    taskId: 'durable-task',
+    stepId: 'S1',
+    status: 'done',
+    evidence: [`verified ${'evidence '.repeat(120)}`],
+  });
+  fs.mkdirSync(path.join(paths.worktree, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(paths.worktree, 'docs', 'context.md'), [
+    '# Context',
+    'first line',
+    'second line',
+    'third line',
+  ].join('\n'));
+  const before = fs.readdirSync(paths.root, { recursive: true });
+
+  const capsule = buildTaskContext({
+    ...paths,
+    taskId: 'durable-task',
+    maxBytes: 2048,
+    includes: ['docs/context.md#L2-L3'],
+  });
+  const after = fs.readdirSync(paths.root, { recursive: true });
+
+  assert.ok(Buffer.byteLength(capsule, 'utf8') <= 2048);
+  assert.match(capsule, /STATUS=OK/u);
+  assert.match(capsule, /SIDE_EFFECTS=NONE/u);
+  assert.match(capsule, /TASK_ID=durable-task/u);
+  assert.match(capsule, /CURRENT_PHASE=unspecified/u);
+  assert.match(capsule, /CURRENT_STEP=S2/u);
+  assert.match(capsule, /HANDOFF_PROMPT=/u);
+  assert.match(capsule, /TRUNCATED=true/u);
+  assert.match(capsule, /first line/u);
+  assert.match(capsule, /second line/u);
+  assert.doesNotMatch(capsule, /third line/u);
+  assert.deepEqual(after, before);
+  assert.throws(() => buildTaskContext({ ...paths, taskId: 'missing-task' }), /not found/u);
+  assert.throws(() => buildTaskContext({
+    ...paths,
+    taskId: 'durable-task',
+    includes: ['../outside.md#L1-L1'],
+  }), /inside/u);
+  assert.ok(Buffer.byteLength(buildTaskContext({
+    ...paths,
+    taskId: 'durable-task',
+  }), 'utf8') <= 8192);
+});
+
+test('task exec preserves logs, strips ANSI summaries, and returns the child exit code', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { worktree: paths.worktree }));
+  const result = executeTaskCommand({
+    ...paths,
+    taskId: 'durable-task',
+    name: 'focused-check',
+    command: [
+      process.execPath,
+      '-e',
+      "process.stdout.write('\\u001b[31mfirst\\u001b[0m\\nsecond\\nthird\\nfourth\\n'); process.exit(7);",
+    ],
+    maxSummaryBytes: 256,
+    maxSummaryLines: 2,
+  });
+
+  assert.equal(result.status, 'FAILED');
+  assert.equal(result.exitCode, 7);
+  assert.match(result.logPath, /durable-task[\\/]evidence[\\/]focused-check\.log$/u);
+  assert.equal(fs.existsSync(result.logPath), true);
+  const log = fs.readFileSync(result.logPath, 'utf8');
+  assert.match(log, /\u001b\[31mfirst/u);
+  assert.match(result.summary, /third/u);
+  assert.match(result.summary, /fourth/u);
+  assert.doesNotMatch(result.summary, /\u001b\[/u);
+  assert.doesNotMatch(result.summary, /first/u);
+  assert.ok(Buffer.byteLength(result.summary, 'utf8') <= 256);
+  assert.match(result.logSha256, /^[a-f0-9]{64}$/u);
+  assert.throws(() => executeTaskCommand({
+    ...paths,
+    taskId: 'durable-task',
+    name: 'focused-check',
+    command: [process.execPath, '-e', 'process.exit(0)'],
+  }), /already exists/u);
+});
+
+test('transition output requires a fresh bounded context before the next phase', () => {
+  const output = formatTransitionOutput({
+    task_id: 'durable-task',
+    current_phase: 'qa',
+    next_action: 'run focused QA',
+  });
+  assert.match(output, /STATUS=TRANSITIONED/u);
+  assert.match(output, /CURRENT_PHASE=qa/u);
+  assert.match(output, /CONTEXT_HANDOFF_REQUIRED=true/u);
+  assert.match(output, /CONTEXT_COMMAND=pnpm agent -- task context --task durable-task/u);
 });
 
 test('CLI publishes task-state readers before running main to avoid audit circular loading', () => {

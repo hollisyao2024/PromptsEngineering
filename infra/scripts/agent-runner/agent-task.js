@@ -3,6 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { StringDecoder } = require('string_decoder');
 const { spawnSync } = require('child_process');
 const {
   getMainRepoRoot,
@@ -21,6 +23,9 @@ const {
 
 const SCHEMA_VERSION = 2;
 const LEGACY_SCHEMA_VERSION = 1;
+const DEFAULT_CONTEXT_BYTES = 8192;
+const DEFAULT_SUMMARY_BYTES = 8192;
+const DEFAULT_SUMMARY_LINES = 80;
 const TASK_STATUSES = new Set(['running', 'blocked', 'completed', 'cleanup_pending']);
 const TASK_TYPES = new Set(['operation', 'mutation', 'diagnose', 'deploy', 'computer_use', 'research']);
 const STEP_STATUSES = new Set(['pending', 'running', 'done', 'blocked', 'verify_required']);
@@ -878,6 +883,290 @@ function cancelTask(options) {
   });
 }
 
+function boundedInteger(value, fallback, { name, min, max }) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  }
+  return number;
+}
+
+function clipText(value, maxChars = 600) {
+  const text = String(value || '').replace(/\s+/gu, ' ').trim();
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function clipSummary(value, maxBytes, maxLines) {
+  const text = String(value || '').replace(/\r/gu, '').replace(/\s+$/u, '');
+  const selected = text.split('\n').slice(-maxLines).join('\n');
+  const bytes = Buffer.from(selected, 'utf8');
+  if (bytes.length <= maxBytes) return selected;
+  return bytes.subarray(bytes.length - maxBytes).toString('utf8');
+}
+
+function readBoundedLineRange(filePath, { startLine = 1, endLine = null, maxBytes }) {
+  const descriptor = fs.openSync(filePath, 'r');
+  const decoder = new StringDecoder('utf8');
+  const buffer = Buffer.allocUnsafe(16384);
+  const selected = [];
+  let pending = '';
+  let currentLine = 1;
+  let usedBytes = 0;
+  let done = false;
+
+  const consumeLine = (line) => {
+    if (currentLine > (endLine || currentLine)) return false;
+    if (currentLine >= startLine) {
+      const normalized = line.endsWith('\r') ? line.slice(0, -1) : line;
+      const lineBytes = Buffer.byteLength(normalized, 'utf8') + (selected.length > 0 ? 1 : 0);
+      if (usedBytes + lineBytes > maxBytes) return false;
+      selected.push(normalized);
+      usedBytes += lineBytes;
+    }
+    currentLine += 1;
+    return true;
+  };
+
+  try {
+    while (!done) {
+      const bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) {
+        pending += decoder.end();
+        if (pending) done = !consumeLine(pending);
+        break;
+      }
+      pending += decoder.write(buffer.subarray(0, bytesRead));
+      const lines = pending.split('\n');
+      pending = lines.pop();
+      for (const line of lines) {
+        if (!consumeLine(line)) {
+          done = true;
+          break;
+        }
+      }
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  return selected.join('\n');
+}
+
+function parseContextInclude(spec) {
+  const value = String(spec || '').trim();
+  const match = value.match(/^(.*?)(?:#L(\d+)(?:-L?(\d+))?)?$/u);
+  if (!match || !match[1]) throw new Error(`invalid context include: ${value}`);
+  const startLine = match[2] ? Number(match[2]) : 1;
+  const endLine = match[3] ? Number(match[3]) : null;
+  if (startLine < 1 || (endLine !== null && endLine < startLine)) {
+    throw new Error(`invalid context line range: ${value}`);
+  }
+  return { path: match[1], startLine, endLine };
+}
+
+function buildTaskContext(options) {
+  const taskId = safeTaskId(options.taskId);
+  const maxBytes = boundedInteger(options.maxBytes, DEFAULT_CONTEXT_BYTES, {
+    name: '--max-bytes', min: 512, max: 65536,
+  });
+  const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+  const statePath = path.join(options.runsRoot, taskId, 'state.json');
+  const baseRoot = state.worktree && path.isAbsolute(state.worktree) ? state.worktree : state.project_root;
+  const includes = normalizeTextList(options.includes);
+  const lines = [];
+  let truncated = false;
+  const append = (line, maxChars = 1200) => {
+    const normalized = clipText(line, maxChars);
+    const candidate = [...lines, normalized].join('\n');
+    if (Buffer.byteLength(candidate, 'utf8') > maxBytes - 64) {
+      truncated = true;
+      return false;
+    }
+    lines.push(normalized);
+    return true;
+  };
+
+  append('STATUS=OK');
+  append('SIDE_EFFECTS=NONE');
+  append(`TASK_ID=${state.task_id}`);
+  append(`TASK_STATUS=${state.status}`);
+  append(`CURRENT_PHASE=${state.current_phase}`);
+  append(`PLAN_REVISION=${state.plan_revision}`);
+  append(`WORKTREE=${state.worktree}`);
+  append(`BRANCH=${state.branch}`);
+  append(`CURRENT_STEP=${state.current_step}`);
+  append(`NEXT_ACTION=${state.next_action}`, 900);
+  append(`CONTEXT_BUDGET_BYTES=${maxBytes}`);
+  append(`STATE_PATH=${statePath}`);
+  append(`HANDOFF_PROMPT=Run pnpm agent -- task resume --auto, then use this capsule as the only carried context; do not reload full phase documents unless required.`);
+  append('CAPSULE_BEGIN');
+
+  for (const include of includes) {
+    const parsed = parseContextInclude(include);
+    if (path.isAbsolute(parsed.path)) throw new Error(`context include must be repo-relative: ${include}`);
+    const resolved = path.resolve(baseRoot, parsed.path);
+    if (!isPathInside(baseRoot, resolved)) {
+      throw new Error(`context include must stay inside the task worktree: ${include}`);
+    }
+    const stat = fs.lstatSync(resolved);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      throw new Error(`context include must be a real file: ${include}`);
+    }
+    const excerpt = readBoundedLineRange(resolved, {
+      startLine: parsed.startLine,
+      endLine: parsed.endLine,
+      maxBytes: Math.max(256, Math.min(2048, Math.floor(maxBytes / 4))),
+    });
+    append(`## Included: ${parsed.path}#L${parsed.startLine}${parsed.endLine ? `-L${parsed.endLine}` : ''}`, 300);
+    for (const line of excerpt.split('\n')) {
+      if (!append(`  ${line}`, 400)) break;
+    }
+  }
+
+  append('## Goal', 80);
+  append(`  ${state.goal}`, 800);
+  append('## Acceptance', 80);
+  for (const criterion of state.acceptance_criteria) {
+    if (!append(`  [${criterion.status === 'done' ? 'x' : ' '}] ${criterion.id}: ${criterion.text}`, 320)) break;
+  }
+  const recentEvidence = [];
+  for (const step of state.steps) {
+    for (const evidence of step.evidence || []) {
+      recentEvidence.push(`${step.id}: ${clipText(evidence, 260)}`);
+    }
+  }
+  for (const criterion of state.acceptance_criteria) {
+    for (const evidence of criterion.evidence || []) {
+      recentEvidence.push(`${criterion.id}: ${clipText(evidence, 260)}`);
+    }
+  }
+  if (recentEvidence.length > 0) {
+    append('## Recent Evidence', 80);
+    for (const evidence of recentEvidence.slice(-8)) {
+      if (!append(`  - ${evidence}`, 360)) break;
+    }
+  }
+  const blockers = state.steps
+    .filter((step) => ['blocked', 'verify_required', 'running'].includes(step.status))
+    .map((step) => `${step.id}:${step.status}:${clipText(step.next_action, 180)}`);
+  if (blockers.length > 0) {
+    append('## Blockers', 80);
+    append(`  ${blockers.join(' | ')}`, 900);
+  }
+  append('CAPSULE_END');
+  if (truncated && Buffer.byteLength([...lines, 'TRUNCATED=true'].join('\n'), 'utf8') <= maxBytes) {
+    lines.splice(lines.indexOf('CAPSULE_END'), 0, 'TRUNCATED=true');
+  }
+  const output = lines.join('\n');
+  if (Buffer.byteLength(output, 'utf8') > maxBytes) {
+    throw new Error('task context exceeded the requested byte budget');
+  }
+  return output;
+}
+
+function formatTransitionOutput(state) {
+  return [
+    'STATUS=TRANSITIONED',
+    `TASK_ID=${state.task_id}`,
+    `CURRENT_PHASE=${state.current_phase}`,
+    `NEXT_ACTION=${state.next_action}`,
+    'CONTEXT_HANDOFF_REQUIRED=true',
+    `CONTEXT_COMMAND=pnpm agent -- task context --task ${state.task_id}`,
+  ].join('\n');
+}
+
+function stripAnsi(value) {
+  return String(value || '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, '');
+}
+
+function readFileTail(filePath, maxBytes) {
+  const descriptor = fs.openSync(filePath, 'r');
+  try {
+    const stat = fs.fstatSync(descriptor);
+    const length = Math.min(stat.size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    if (length === 0) return '';
+    fs.readSync(descriptor, buffer, 0, length, stat.size - length);
+    return buffer.toString('utf8');
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function hashFile(filePath) {
+  const descriptor = fs.openSync(filePath, 'r');
+  const hash = crypto.createHash('sha256');
+  const buffer = Buffer.allocUnsafe(65536);
+  try {
+    while (true) {
+      const bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      hash.update(buffer.subarray(0, bytesRead));
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  return hash.digest('hex');
+}
+
+function executeTaskCommand(options) {
+  const taskId = safeTaskId(options.taskId);
+  const name = String(options.name || '').trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,79}$/u.test(name)) {
+    throw new Error('exec name must use 1-80 lowercase letters, numbers, dots, underscores, or hyphens');
+  }
+  const command = Array.isArray(options.command) ? options.command.map((part) => String(part)) : [];
+  if (command.length === 0 || !command[0]) throw new Error('exec requires a command after --');
+  const maxSummaryBytes = boundedInteger(options.maxSummaryBytes, DEFAULT_SUMMARY_BYTES, {
+    name: '--max-summary-bytes', min: 256, max: 65536,
+  });
+  const maxSummaryLines = boundedInteger(options.maxSummaryLines, DEFAULT_SUMMARY_LINES, {
+    name: '--max-summary-lines', min: 1, max: 400,
+  });
+  const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+  const taskDir = path.join(options.runsRoot, taskId);
+  const evidenceDir = path.join(taskDir, 'evidence');
+  ensureRealDirectory(evidenceDir);
+  if (!isPathInside(taskDir, evidenceDir)) throw new Error('task evidence path escapes the task directory');
+  const logPath = path.join(evidenceDir, `${name}.log`);
+  if (fs.existsSync(logPath)) throw new Error(`task exec log already exists: ${logPath}`);
+  const cwd = path.resolve(state.worktree || state.project_root);
+  const cwdStat = fs.lstatSync(cwd);
+  if (cwdStat.isSymbolicLink() || !cwdStat.isDirectory()) throw new Error(`exec cwd must be a real directory: ${cwd}`);
+
+  const descriptor = fs.openSync(logPath, 'wx', 0o600);
+  const startedAt = Date.now();
+  let result;
+  try {
+    result = spawnSync(command[0], command.slice(1), {
+      cwd,
+      env: process.env,
+      shell: false,
+      stdio: ['ignore', descriptor, descriptor],
+      windowsHide: true,
+    });
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  const durationMs = Date.now() - startedAt;
+  const exitCode = result.error ? 127 : (typeof result.status === 'number' ? result.status : 1);
+  const rawTail = readFileTail(logPath, Math.max(65536, maxSummaryBytes * 8));
+  const summary = clipSummary(stripAnsi(rawTail), maxSummaryBytes, maxSummaryLines);
+  return {
+    status: exitCode === 0 && !result.error ? 'OK' : 'FAILED',
+    taskId,
+    name,
+    exitCode,
+    durationMs,
+    logPath,
+    logBytes: fs.statSync(logPath).size,
+    logSha256: hashFile(logPath),
+    summary,
+    spawnError: result.error ? result.error.message : '',
+  };
+}
+
 function parseCliArgs(argv) {
   const normalizedArgv = argv[0] === '--' ? argv.slice(1) : argv;
   const options = {
@@ -886,6 +1175,8 @@ function parseCliArgs(argv) {
     acceptanceCriteria: [],
     constraints: [],
     evidence: [],
+    includes: [],
+    execCommand: [],
     auto: false,
     force: false,
   };
@@ -897,12 +1188,23 @@ function parseCliArgs(argv) {
     ['failure-kind', 'failureKind'], ['execution-state', 'executionState'],
     ['call-id', 'callId'], ['recovery-evidence', 'recoveryEvidence'],
     ['defer-cleanup-step', 'deferCleanupStep'], ['cleanup-evidence', 'cleanupEvidence'],
+    ['name', 'name'], ['max-bytes', 'maxBytes'], ['max-summary-bytes', 'maxSummaryBytes'],
+    ['max-summary-lines', 'maxSummaryLines'],
   ]);
   for (let index = 1; index < normalizedArgv.length; index += 1) {
     const arg = normalizedArgv[index];
     if (arg === '--auto') options.auto = true;
     else if (arg === '--force') options.force = true;
     else if (arg === '--help' || arg === '-h') options.help = true;
+    else if (arg === '--') {
+      if (options.command !== 'exec') throw new Error('-- command separator is only valid for exec');
+      options.execCommand = normalizedArgv.slice(index + 1);
+      break;
+    } else if (arg === '--include') {
+      const value = normalizedArgv[++index];
+      if (!value) throw new Error('--include requires a value');
+      options.includes.push(value);
+    }
     else if (arg === '--step' && options.command === 'checkpoint') {
       const value = normalizedArgv[++index];
       if (!value) throw new Error(`${arg} requires a value`);
@@ -934,6 +1236,12 @@ function parseCliArgs(argv) {
         const value = parts.join('=');
         if (!value) throw new Error('--add-acceptance requires a value');
         options.acceptanceCriteria.push(value);
+        continue;
+      }
+      if (rawKey === 'include') {
+        const value = parts.join('=');
+        if (!value) throw new Error('--include requires a value');
+        options.includes.push(value);
         continue;
       }
       const key = valueKeys.get(rawKey);
@@ -978,10 +1286,12 @@ function runtimeContext(cwd = process.cwd()) {
 function printHelp() {
   console.log(`Usage:
   node infra/scripts/agent-runner/agent-task.js paths [--task <id>] (read-only; does not evaluate permissions)
+  node infra/scripts/agent-runner/agent-task.js context --task <id> [--max-bytes <bytes>] [--include <path#Lx-Ly>]...
   node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] [--acceptance <criterion>] --step <safe-step> [--verify-step <effect-step>]
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
     Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
     Recovery: --recovery-evidence <verified external outcome or restored authorization>
+  node infra/scripts/agent-runner/agent-task.js exec --task <id> --name <evidence-name> -- <command...>
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
   node infra/scripts/agent-runner/agent-task.js transition --task <id> --phase <phase> --evidence <milestone>
@@ -1021,6 +1331,28 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
   const context = runtimeContext();
+  if (cli.command === 'context') {
+    if (!cli.taskId) throw new Error('context requires --task <id>');
+    console.log(buildTaskContext({ ...context, ...cli }));
+    return 0;
+  }
+  if (cli.command === 'exec') {
+    if (!cli.taskId) throw new Error('exec requires --task <id>');
+    const result = executeTaskCommand({ ...context, ...cli, command: cli.execCommand });
+    console.log(`STATUS=${result.status}`);
+    console.log(`TASK_ID=${result.taskId}`);
+    console.log(`NAME=${result.name}`);
+    console.log(`EXIT_CODE=${result.exitCode}`);
+    console.log(`DURATION_MS=${result.durationMs}`);
+    console.log(`LOG_PATH=${result.logPath}`);
+    console.log(`LOG_BYTES=${result.logBytes}`);
+    console.log(`LOG_SHA256=${result.logSha256}`);
+    if (result.spawnError) console.log(`SPAWN_ERROR=${result.spawnError}`);
+    console.log('SUMMARY_BEGIN');
+    if (result.summary) console.log(result.summary);
+    console.log('SUMMARY_END');
+    return result.exitCode;
+  }
   if (cli.command === 'paths') {
     // Resolve only: even checking a task through taskPaths() can create its root.
     const statePath = cli.taskId === undefined ? null
@@ -1070,10 +1402,7 @@ function main(argv = process.argv.slice(2)) {
     if (!cli.taskId) throw new Error('transition requires --task <id>');
     if (!cli.phase) throw new Error('transition requires --phase <phase>');
     const state = transitionTaskPhase({ ...context, ...cli });
-    console.log('STATUS=TRANSITIONED');
-    console.log(`TASK_ID=${state.task_id}`);
-    console.log(`CURRENT_PHASE=${state.current_phase}`);
-    console.log(`NEXT_ACTION=${state.next_action}`);
+    console.log(formatTransitionOutput(state));
     return 0;
   }
   if (cli.command === 'resume') {
@@ -1123,13 +1452,16 @@ module.exports = {
   SCHEMA_VERSION,
   TASK_TYPES,
   TASK_PHASES,
+  buildTaskContext,
   bindTaskLocation,
   cancelTask,
   checkpointTask,
   completionBlockers,
   createTask,
+  executeTaskCommand,
   extendTask,
   finishTask,
+  formatTransitionOutput,
   listTaskStates,
   parseCliArgs,
   readTaskState,

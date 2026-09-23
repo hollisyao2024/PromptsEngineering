@@ -84,7 +84,7 @@ updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run�
 - `docs/{prd|arch|task|qa}-modules/<domain>/`：功能域详情。
 - `docs/data/traceability-matrix.md`：需求到测试的追踪关系。
 
-`docs/AGENT_STATE.md` 只保存稳定里程碑：
+`docs/AGENT_STATE.md` 只保存稳定里程碑，默认按当前任务和未完成状态点读，禁止为了例行恢复全文加载：
 
 1. `PRD_CONFIRMED`
 2. `ARCHITECTURE_DEFINED`
@@ -191,6 +191,13 @@ pnpm agent -- template <action>
 pnpm agent -- dev|app|build|ship|private|finish
 ```
 
+任务上下文与长命令输出使用：
+
+```bash
+pnpm agent -- task context --task <id> [--max-bytes 8192] [--include <path#Lx-Ly>]...
+pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
+```
+
 旧 aliases 在已有项目中保留兼容，但模板不继续增加同义入口。命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
 
 ### 客户端与服务端快捷命令
@@ -271,3 +278,11 @@ skipped_count
 ```
 
 并满足 `matched_count = modified_count + skipped_count`。范围变化时创建新 manifest，不得静默缩小。
+
+## 11. 上下文预算与阶段交接
+
+单次执行上下文以 `180000` token 为阈值；Codex 设置 `model_auto_compact_token_limit = 180000`，模型原生窗口只决定上限。阶段边界先 `task transition`，看到 `CONTEXT_HANDOFF_REQUIRED=true` 后执行 `pnpm agent -- task context --task <id>`，当前上下文停止；新阶段在新上下文 `task resume --auto` 后只读胶囊、当前代码和明确引用章节。
+
+普通工具调用默认不超过 `4000` 输出 token，文件点读使用 `rg`、标题和行范围，禁止 `cat` 大型生成物。预计超过 5 秒或 2KB 输出的命令使用 `task exec`，完整日志写入容器 `tmp/agent-task-runs/<task-id>/evidence/`，摘要不超过 `8KB/80` 行并携带路径和 SHA-256；不得反复 `write_stdin` 回灌大日志。
+
+连续 10 次请求中，稳定阶段缓存命中率必须达到 `70%`；不达标时切换缓存可靠的模型或通道，无法切换时每 8 次请求交接。`task context` 是只读状态投影，不创建目录、锁或状态；截断必须输出 `TRUNCATED=true` 并保留 `STATE_PATH` 与 `NEXT_ACTION`。

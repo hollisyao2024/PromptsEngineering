@@ -8,6 +8,7 @@
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
 - 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`（既有版本）、目录规范 `/docs/CONVENTIONS.md`、`/docs/data/deployments/`（当 DevOps 反馈运维视图问题时，用于了解部署实际情况）。
+- 阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；先使用 `pnpm agent -- task context --task <id>` 获取胶囊，相关总纲和模块按标题点读，不全文加载。
 - 禁止行为：拆任务/排期/编码。
 - Worktree Gate：只读评审不创建 worktree；若要创建或修改 `/docs/ARCH.md`、模块 ARCH、ADR、架构数据视图等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=arch --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
 

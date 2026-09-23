@@ -20,7 +20,7 @@ test('always-loaded routing remains explicit but compact', () => {
   assert.match(agents, /@\.\/docs\/CONVENTIONS\.md/u);
   assert.match(agents, /@\.\/RULES\.md/u);
   assert.ok(lineCount('AGENTS.md') <= 180, 'AGENTS.md should stay within 180 lines');
-  assert.ok(lineCount('docs/CONVENTIONS.md') <= 280, 'CONVENTIONS.md should stay within 280 lines');
+  assert.ok(lineCount('docs/CONVENTIONS.md') <= 300, 'CONVENTIONS.md should stay within 300 lines');
   assert.doesNotMatch(agents, /展示思考过程/u);
 });
 
@@ -145,6 +145,36 @@ test('every phase expert explicitly participates in durable task recovery', () =
   }
 });
 
+test('phase experts use bounded context handoffs instead of full document reloads', () => {
+  const agents = read('AGENTS.md');
+  const conventions = read('docs/CONVENTIONS.md');
+  const config = read('.codex/config.example.toml');
+  assert.match(agents, /## 上下文预算与阶段交接/u);
+  assert.match(agents, /180000/u);
+  assert.match(agents, /pnpm agent -- task context/u);
+  assert.match(agents, /pnpm agent -- task exec/u);
+  assert.match(agents, /70%/u);
+  assert.match(conventions, /## 11\. 上下文预算与阶段交接/u);
+  assert.match(conventions, /8KB\/80/u);
+  assert.match(config, /model_auto_compact_token_limit = 180000/u);
+
+  const experts = [
+    'AgentRoles/PRD-WRITER-EXPERT.md',
+    'AgentRoles/ARCHITECTURE-WRITER-EXPERT.md',
+    'AgentRoles/TASK-PLANNING-EXPERT.md',
+    'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
+    'AgentRoles/QA-TESTING-EXPERT.md',
+    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+  ];
+  for (const expert of experts) {
+    const source = read(expert);
+    assert.match(source, /上下文预算与阶段交接/u, expert);
+    assert.match(source, /pnpm agent -- task context/u, expert);
+  }
+  assert.doesNotMatch(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md'), /读取 `docs\/AGENT_STATE\.md` 和当前任务状态/u);
+  assert.doesNotMatch(read('AgentRoles/QA-TESTING-EXPERT.md'), /必须读取 PRD\/ARCH\/TASK 模块清单/u);
+});
+
 test('always-loaded protocol makes mutation and phase explicit', () => {
   const agents = read('AGENTS.md');
   const conventions = read('docs/CONVENTIONS.md');
@@ -243,7 +273,7 @@ test('task CLI help distinguishes work type from state-writing commands', () => 
 
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
-  assert.equal(manifest.templateVersion, '3.4.3');
+  assert.equal(manifest.templateVersion, '3.5.0');
   assert.match(manifest.description, /phase-aware durable tasks/u);
 });
 

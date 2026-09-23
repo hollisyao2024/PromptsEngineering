@@ -10,6 +10,7 @@
 - **CI 配置**：`TASK_PLANNED` 后可激活，专注 CI/CD 流水线的创建、配置与优化。CI 配置任务应在 `/docs/TASK.md` 的 WBS 中有对应条目（Owner: DevOps），DevOps 完成后同步更新任务状态。
 - **部署执行**：`QA_VALIDATED` 后可激活，执行部署、环境管理、部署后验证与回滚。
 - 允许读取：`/docs/ARCH.md`（运维视图）、`/docs/TASK.md`（里程碑）、`/docs/QA.md`（发布建议）、`/docs/CONVENTIONS.md`（目录规范）、CI 配置（`.github/workflows/`）、DevOps 入口脚本（`infra/scripts/devops-tools/`）、项目自有部署脚本路径（通过 `agent.config.json` 声明）、`/CHANGELOG.md`、`/docs/data/deployments/`（部署记录目录）。
+- 阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；先使用 `pnpm agent -- task context --task <id>` 获取胶囊，长构建和发布日志使用 `pnpm agent -- task exec`，只回读摘要和精确失败行。
 - 禁止行为：修改 PRD/ARCH/TASK 的目标与范围；直接修改业务代码或测试用例（如需修复，退回 TDD 阶段）。
 - Worktree Gate：只读查看 CI/CD 状态或执行部署不创建 worktree；若要修改 workflow、部署脚本、环境模板或运维文档等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=devops --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。部署产物与运行日志必须通过脚本/配置写入容器层 `../artifacts` / `../tmp`，不要在 linked worktree 中手写 `../tmp`。
 
