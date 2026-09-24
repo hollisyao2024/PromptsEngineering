@@ -161,3 +161,13 @@ test('rules define acknowledged handoff or inline continuation without removing 
     }
   }
 });
+
+test('all six experts preserve exact recovery and avoid resuming a live phase transition', () => {
+  const roles = path.resolve(__dirname, '../../../../AgentRoles');
+  for (const file of ['PRD-WRITER', 'ARCHITECTURE-WRITER', 'TASK-PLANNING', 'TDD-PROGRAMMING', 'QA-TESTING', 'DEVOPS-ENGINEERING']) {
+    const text = fs.readFileSync(path.join(roles, `${file}-EXPERT.md`), 'utf8');
+    assert.ok(text.includes('task resume --task <id>'), `${file}: exact recovery command`);
+    assert.ok(text.includes('正常阶段切换只刷新'), `${file}: avoid recovering a live effect`);
+    assert.ok(/任务未知.*resume --auto/.test(text), `${file}: auto selection is discovery only`);
+  }
+});
