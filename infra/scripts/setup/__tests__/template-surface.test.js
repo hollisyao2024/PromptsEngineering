@@ -175,6 +175,41 @@ test('phase experts use bounded context handoffs instead of full document reload
   assert.doesNotMatch(read('AgentRoles/QA-TESTING-EXPERT.md'), /必须读取 PRD\/ARCH\/TASK 模块清单/u);
 });
 
+test('context governance uses staged soft watermarks without blocking lightweight work', () => {
+  const agents = read('AGENTS.md');
+  const conventions = read('docs/CONVENTIONS.md');
+  for (const watermark of ['80000', '120000', '150000']) {
+    assert.match(agents, new RegExp(watermark, 'u'));
+    assert.match(conventions, new RegExp(watermark, 'u'));
+  }
+  assert.match(agents, /新对话.*可.*创建/u);
+  assert.match(agents, /轻量.*不.*限制/u);
+  assert.match(agents, /长命令.*继续/u);
+  assert.match(agents, /后台.*暂停/u);
+  assert.match(conventions, /自然.*边界/u);
+  assert.match(conventions, /1-2 条重型任务/u);
+  assert.match(conventions, /8-10 次模型请求\/分钟/u);
+  assert.match(conventions, /2\.5M TPM/u);
+  assert.match(conventions, /3M.*告警/u);
+  assert.match(conventions, /4M.*后台/u);
+  assert.match(conventions, /4\.5M.*重型.*排队/u);
+  assert.match(conventions, /429.*退避/u);
+  assert.match(conventions, /不降低.*验收/u);
+  assert.doesNotMatch(conventions, /禁止新会话|强制杀死/u);
+
+  const experts = [
+    'AgentRoles/PRD-WRITER-EXPERT.md',
+    'AgentRoles/ARCHITECTURE-WRITER-EXPERT.md',
+    'AgentRoles/TASK-PLANNING-EXPERT.md',
+    'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
+    'AgentRoles/QA-TESTING-EXPERT.md',
+    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+  ];
+  for (const expert of experts) {
+    assert.match(read(expert), /上下文预算与阶段交接/u, expert);
+  }
+});
+
 test('always-loaded protocol makes mutation and phase explicit', () => {
   const agents = read('AGENTS.md');
   const conventions = read('docs/CONVENTIONS.md');
