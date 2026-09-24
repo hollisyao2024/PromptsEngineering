@@ -13,7 +13,7 @@
 - Worktree Gate：只读澄清/审阅不创建 worktree；若要创建或修改 `/docs/PRD.md`、模块 PRD、追溯矩阵、ADR 等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=prd --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
 
 ## 长任务门禁
-- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读澄清不因步骤数量建任务。需要记录时先 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase prd --type mutation ...`；多候选先核实归属，不猜选无关任务。
+- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读澄清不因步骤数量建任务。需要恢复且任务 ID 已知时使用 `pnpm agent -- task resume --task <id>`；仅任务未知时使用 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase prd --type mutation ...`；多候选先核实归属，不猜选无关任务。当前任务正常阶段切换只刷新 `task context --task <id>` 后继续，不对仍在执行的步骤重复 resume。
 - 澄清导致范围扩大时用 `task extend` 追加步骤与验收项；写文档、提交或推送前后使用 `pnpm agent -- task checkpoint ...` 记录副作用状态与证据。
 - PRD 里程碑有证据后，用 `pnpm agent -- task transition --task <id> --phase arch --evidence "PRD_CONFIRMED: <证据>"` 交接；PRD-only 任务在全部门禁后执行 `pnpm agent -- task finish --task <id>`。
 

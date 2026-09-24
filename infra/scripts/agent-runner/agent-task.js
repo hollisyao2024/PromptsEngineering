@@ -990,6 +990,8 @@ function buildTaskContext(options) {
   append('STATUS=OK');
   append('SIDE_EFFECTS=NONE');
   append(`TASK_ID=${state.task_id}`);
+  // Keep recovery routing before optional evidence, including in a 512-byte capsule.
+  for (const line of continuationFields(state)) append(line);
   append(`TASK_STATUS=${state.status}`);
   append(`CURRENT_PHASE=${state.current_phase}`);
   append(`PLAN_REVISION=${state.plan_revision}`);
@@ -999,7 +1001,7 @@ function buildTaskContext(options) {
   append(`NEXT_ACTION=${state.next_action}`, 900);
   append(`CONTEXT_BUDGET_BYTES=${maxBytes}`);
   append(`STATE_PATH=${statePath}`);
-  append(`HANDOFF_PROMPT=Run pnpm agent -- task resume --auto, then use this capsule as the only carried context; do not reload full phase documents unless required.`);
+  append(`HANDOFF_PROMPT=In WORKTREE run pnpm agent -- task resume --task ${state.task_id}, then task context --task ${state.task_id}. Follow CONTINUATION_ACTION; continue authorized work without repeated confirmation. A new executor must acknowledge takeover before the current one stops.`);
   append('CAPSULE_BEGIN');
 
   for (const include of includes) {
@@ -1065,14 +1067,44 @@ function buildTaskContext(options) {
   return output;
 }
 
+function continuationFields(state) {
+  const steps = state.steps || [];
+  const unresolved = steps.filter(step => ['blocked', 'verify_required'].includes(step.status));
+  // A recorded, verified-independent cleanup deferral permits QA, not task completion.
+  const entry = (state.phase_history || []).at(-1);
+  const deferred = entry?.phase === state.current_phase && ['qa', 'devops'].includes(state.current_phase)
+    ? entry.deferred_cleanup : null;
+  const isDeferredCleanup = step => deferred?.step_id === step.id
+    && step.status === 'blocked'
+    && step.failures?.[deferred.failure_index]?.execution_state === 'not_started';
+  const blocking = unresolved.some(step => !isDeferredCleanup(step));
+  let action = 'CONTINUE_CURRENT_TASK';
+  if (state.status === 'completed') action = 'TASK_COMPLETE';
+  else if (state.status === 'cleanup_pending') action = 'RESOLVE_BLOCKER';
+  else if (blocking || (state.status === 'blocked' && !unresolved.length)) action = 'RESOLVE_BLOCKER';
+  else if (steps.length && steps.every(step => step.status === 'done')
+    && (state.acceptance_criteria || []).every(item => item.status === 'done')) action = 'RUN_COMPLETION_GUARD';
+  return [
+    `RESUME_COMMAND=pnpm agent -- task resume --task ${safeTaskId(state.task_id)}`,
+    `AUTO_CONTINUE=${['CONTINUE_CURRENT_TASK', 'RUN_COMPLETION_GUARD'].includes(action)}`,
+    `CONTINUATION_ACTION=${action}`,
+  ];
+}
+
 function formatTransitionOutput(state) {
   return [
     'STATUS=TRANSITIONED',
     `TASK_ID=${state.task_id}`,
     `CURRENT_PHASE=${state.current_phase}`,
     `NEXT_ACTION=${state.next_action}`,
-    'CONTEXT_HANDOFF_REQUIRED=true',
+    ...continuationFields(state),
+    'CONTEXT_REFRESH_REQUIRED=true',
+    // Refresh the capsule at every boundary; a phase change alone does not require a new executor.
+    'CONTEXT_HANDOFF_REQUIRED=false',
     `CONTEXT_COMMAND=pnpm agent -- task context --task ${state.task_id}`,
+    `WORKTREE=${state.worktree || state.project_root || ''}`,
+    `ACTIVATE_ROLE=${state.current_phase.toUpperCase()}`,
+    'CONTINUATION_PROMPT=Refresh context, activate the current phase and execute the next authorized step in the current task. If a fresh executor is needed, wait for its takeover acknowledgement; otherwise continue inline within the context budget. Preserve blockers and completion gates.',
   ].join('\n');
 }
 
@@ -1314,6 +1346,7 @@ function printResumeState(state, statePath) {
   console.log(`TASK_ID=${state.task_id}`);
   console.log(`TASK_STATUS=${state.status}`);
   console.log(`CURRENT_PHASE=${state.current_phase}`);
+  for (const line of continuationFields(state)) console.log(line);
   console.log(`PLAN_REVISION=${state.plan_revision}`);
   console.log(`STATE_PATH=${statePath}`);
   console.log(`GOAL=${state.goal}`);
