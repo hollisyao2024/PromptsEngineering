@@ -785,7 +785,7 @@ test('task exec preserves logs, strips ANSI summaries, and returns the child exi
   }), /already exists/u);
 });
 
-test('transition output requires a fresh bounded context before the next phase', () => {
+test('transition refreshes the bounded context without stopping authorized continuation', () => {
   const output = formatTransitionOutput({
     task_id: 'durable-task',
     current_phase: 'qa',
@@ -793,7 +793,10 @@ test('transition output requires a fresh bounded context before the next phase',
   });
   assert.match(output, /STATUS=TRANSITIONED/u);
   assert.match(output, /CURRENT_PHASE=qa/u);
-  assert.match(output, /CONTEXT_HANDOFF_REQUIRED=true/u);
+  assert.match(output, /CONTEXT_HANDOFF_REQUIRED=false/u);
+  assert.match(output, /CONTEXT_REFRESH_REQUIRED=true/u);
+  assert.match(output, /AUTO_CONTINUE=true/u);
+  assert.match(output, /RESUME_COMMAND=pnpm agent -- task resume --task durable-task/u);
   assert.match(output, /CONTEXT_COMMAND=pnpm agent -- task context --task durable-task/u);
 });
 

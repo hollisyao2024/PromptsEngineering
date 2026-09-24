@@ -278,8 +278,12 @@ skipped_count
 
 遇到 `429` 先短时退避、checkpoint 并保留时间、状态码、provider 和日志路径证据，禁止重试风暴或盲目更换模型。节流不得跳过测试、关键读取、证据或最终门禁，不降低准确性、覆盖范围与验收；存在依赖时按原顺序执行。
 
-阶段边界先 `task transition`，看到 `CONTEXT_HANDOFF_REQUIRED=true` 后执行 `pnpm agent -- task context --task <id>`，当前上下文停止；新上下文 `task resume --auto` 后只读胶囊、当前代码和明确引用章节。胶囊至少保留任务/阶段/验收、分支与 HEAD、当前步骤、证据路径、未验证状态和唯一下一动作。
+阶段边界先 `task transition`，再按 `CONTEXT_COMMAND` 刷新胶囊、激活下一阶段专家并在当前任务中继续，PRD → ARCH → TASK → TDD → QA 不重复要求用户确认已授权范围。`CONTEXT_REFRESH_REQUIRED=true` 表示必须刷新材料；`CONTEXT_HANDOFF_REQUIRED=false` 表示阶段转换本身不强制换执行器。胶囊保留任务/阶段/验收、worktree、当前步骤、证据路径、未验证状态和唯一下一动作，需要核验提交时在该 worktree 读取 HEAD。新执行上下文使用输出的 `RESUME_COMMAND=pnpm agent -- task resume --task <id>`，再读取当前胶囊；只有任务未知才允许 `resume --auto`。当前任务正常推进不反复 resume 仍在执行的步骤。
+
+`AUTO_CONTINUE=true` 与 `CONTINUATION_ACTION=CONTINUE_CURRENT_TASK` 要求执行器继续已有任务；它是执行指令，不表示脚本已经启动后台模型或新会话。`RUN_COMPLETION_GUARD` 仍须执行适用的 QA、合并、主干同步和 task finish；进入 QA 或全部步骤 done 都不能冒充任务完成。`RESOLVE_BLOCKER` 要求先解决真实阻塞、核验未知副作用及留存恢复证据；政策拒绝不能自动重试。已证实独立的清理延后只允许继续 QA/DEVOPS，最终完成门禁仍阻断未清理项。
+
+需要新执行器时，由宿主已授权能力传递精确任务 ID、WORKTREE 和胶囊，后继读取最新 state、完成恢复核查并给出接管确认后，原执行器才释放执行权；同一任务不能由两个执行器并发 mutation。分派成功或阶段字段变化不等于接管成功。宿主不支持自动交接且预算允许时，在当前任务中减少重复材料、按胶囊继续，不虚构新上下文，也不凭模板擅自创建用户可见任务或扩大权限。硬限制、真实阻塞或用户明确暂停才允许停下，并记录未完成工作和恢复入口。旧版本 `CONTEXT_HANDOFF_REQUIRED=true` 同样受此协议约束。
 
 普通工具调用默认不超过 `4000` 输出 token，文件点读使用 `rg`、标题和行范围，禁止 `cat` 大型生成物。预计超过 5 秒或 2KB 输出的命令使用 `task exec`，完整日志写入容器 `tmp/agent-task-runs/<task-id>/evidence/`，摘要不超过 `8KB/80` 行并携带路径和 SHA-256；不得反复 `write_stdin` 回灌大日志。
 
-连续 10 次请求中，稳定阶段缓存命中率必须达到 `70%`；不达标时切换缓存可靠的模型或通道，无法切换时每 8 次请求交接。`task context` 是只读状态投影，不创建目录、锁或状态；截断必须输出 `TRUNCATED=true` 并保留 `STATE_PATH` 与 `NEXT_ACTION`。
+连续 10 次请求中，稳定阶段缓存命中率目标为 `70%`；仅依据实际可观测指标优化重复读取，在授权允许时调整模型或通道。缺少指标时不猜测，不按固定请求次数强制停下；需换上下文时采用接管确认协议。`task context` 是只读状态投影，不创建目录、锁或状态；优先保留精确任务恢复入口，截断输出 `TRUNCATED=true`，使用默认预算重新读取完整 `STATE_PATH`、`NEXT_ACTION` 和证据，不将截断内容当作完整验收。
