@@ -33,6 +33,26 @@ test('TC-ARCHPLAT-006 overwrite drift and overlapping update block entire batch 
   }
   assert.equal(f.get('apps/web/component.ts'), 'local\n');
 });
+test('adopted overwrite baseline converges after an upstream upgrade', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  install(f, [asset('old\n', 'overwrite')]);
+  const lock = readLock(f.target);
+  lock.files[file].adoptedLocal = hash('old\n');
+  f.put('xirang.lock.json', `${JSON.stringify(lock, null, 2)}\n`);
+
+  install(f, [asset('new\n', 'overwrite')]);
+  assert.equal(f.get(file), 'new\n');
+  assert.equal(readLock(f.target).files[file].adoptedLocal, undefined);
+  assert.equal(planUpdate({ target: f.target, assets: [asset('new\n', 'overwrite')] }).changes.length, 0);
+});
+test('adopted local overwrite stays protected while upstream is unchanged', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  f.put(file, 'custom\n');
+  install(f, [asset('upstream\n', 'overwrite')], { adopt: true });
+  assert.equal(f.get(file), 'custom\n');
+  assert.equal(planUpdate({ target: f.target, assets: [asset('upstream\n', 'overwrite')] }).changes.length, 0);
+  assert.ok(planUpdate({ target: f.target, assets: [asset('next\n', 'overwrite')] }).conflicts.length);
+});
 test('TC-ARCHPLAT-006 JSON fields merge while preserving project keys; stable append rejects rewritten IDs', t => {
   const f = fixture(t); const a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
   install(f, [a({ scripts: { build: 'old' }, dependencies: { a: '1' } })]);
