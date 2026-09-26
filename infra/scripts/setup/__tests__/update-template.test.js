@@ -319,6 +319,11 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   const firstOutput = `${first.stdout || ''}${first.stderr || ''}`;
   assert.equal(first.status, 0, firstOutput.slice(-5000));
   assert.match(firstOutput, /^CONVERGENCE_STATUS=OK$/mu);
+  const claudeSettings = JSON.parse(fs.readFileSync(path.join(linkedRoot, '.claude/settings.json'), 'utf8'));
+  assert.equal(claudeSettings.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW, '200000');
+  assert.equal(claudeSettings.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE, '90');
+  const geminiSettings = fs.readFileSync(path.join(linkedRoot, '.gemini/settings.json'), 'utf8');
+  assert.match(geminiSettings, /"model"\s*:\s*\{\s*"compressionThreshold"\s*:\s*0\.18\s*\}/u);
   assert.match(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), /更新息壤模板/u);
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULES_SENTINEL\n');
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'README.md'), 'utf8'), 'PROJECT_README_SENTINEL\n');

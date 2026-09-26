@@ -24,6 +24,17 @@ test('TC-ARCHPLAT-006 three-way update preserves local and upstream disjoint edi
   assert.equal(f.get('apps/web/component.ts'), 'local\nunchanged\nupstream\n');
   assert.equal(planUpdate({ target: f.target, assets: [asset('first\nunchanged\nupstream\n')] }).changes.length, 0);
 });
+test('Gemini workspace compression preference survives a repeated template sync', t => {
+  const f = fixture(t);
+  const file = '.gemini/settings.json';
+  const base = '{\n  // project settings\n  "model": { "compressionThreshold": 0.18 },\n  "context": { "fileName": ["AGENTS.md"] }\n}\n';
+  const local = base.replace('0.18', '0.42');
+  install(f, [asset(base, 'update', file)]);
+  f.put(file, local);
+  install(f, [asset(base, 'update', file)]);
+  assert.match(f.get(file), /"compressionThreshold": 0\.42/u);
+  assert.equal(planUpdate({ target: f.target, assets: [asset(base, 'update', file)] }).changes.length, 0);
+});
 test('TC-ARCHPLAT-006 overwrite drift and overlapping update block entire batch before writes', t => {
   const f = fixture(t); install(f, [asset('base\n', 'overwrite')]); f.put('apps/web/component.ts', 'local\n');
   for (const strategy of ['overwrite', 'update']) {
