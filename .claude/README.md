@@ -14,6 +14,10 @@
 - **提交状态**：❌ 不提交（已在 `.gitignore` 中忽略）
 - **目标**：覆盖团队配置，实现无打扰的自动化工作流
 
+## 自动压缩水位
+
+团队配置在 `.claude/settings.json` 的 `env` 中设置 `CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000` 和 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=90`，使支持自动压缩的 Claude Code 会话约在 180k token 触发。实际窗口受所用模型上限约束；用户可在 `.claude/settings.local.json` 的 `env` 中覆盖这两项。已运行的会话需重新启动才会读取新配置。
+
 ## 🎯 配置策略
 
 ### 团队共享配置 (`settings.json`)

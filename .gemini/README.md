@@ -9,10 +9,13 @@
 - **提交状态**：✅ 应提交到 Git 仓库
 - **目标**：设定安全基准，所有操作需要确认（保守策略）
 
-### `settings.local.json` - 个人配置
-- **用途**：个人覆盖配置，实现完全自动化
-- **提交状态**：❌ 不提交（已在 `.gitignore` 中忽略）
-- **目标**：覆盖团队配置，实现无打扰的自动化工作流
+### `settings.local.json` - 历史示例
+- 当前 Gemini CLI 不读取此文件；它仍被 Git 忽略，但其中的设置不会生效。
+- 项目设置应写在 `.gemini/settings.json`。息壤同步保留已有字段值；若需要不同压缩水位，可在项目中调整 `model.compressionThreshold`。
+
+## 自动压缩水位
+
+`.gemini/settings.json` 设置 `model.compressionThreshold = 0.18`。Gemini CLI 按当前模型的上下文窗口比例触发压缩，1M 窗口约对应 180k token；换用其他窗口大小时，触发 token 数随之变化。工作区未获信任时，Gemini CLI 不加载项目设置。已运行的会话需重新启动才会读取新配置。
 
 ## 🎯 配置策略
 
@@ -41,7 +44,7 @@
 - `slashCommand.autoExecute: false` - 斜杠命令前需要确认 ⚠️
 - `jupyter.autoEdit: false` - Jupyter 编辑前需要确认 ⚠️
 
-### 个人配置 (`settings.local.json`)
+### 旧版个人配置示例（当前 Gemini CLI 不读取）
 
 #### 完全自动化配置
 ```json
@@ -64,15 +67,14 @@
 ## 🔄 配置合并规则
 
 配置按以下优先级合并（从高到低）：
-1. 个人配置（`settings.local.json`）
-2. 团队配置（`settings.json`）
-3. 用户全局配置（`~/.gemini/settings.json`）
+1. 工作区配置（项目 `.gemini/settings.json`）
+2. 用户全局配置（`~/.gemini/settings.json`）
 
-个人配置会覆盖团队配置的相同字段。
+`settings.local.json` 不参与合并；现有项目自定义值保留在工作区配置中。
 
 ## 📊 使用场景对比
 
-### 新团队成员（没有 `.local.json`）
+### 默认工作区配置
 ```
 Bash 命令    → ⚠️ 需要确认
 文件编辑     → ⚠️ 需要确认
@@ -87,7 +89,7 @@ Jupyter 编辑 → ⚠️ 需要确认
 - 不信任的代码库
 - 高安全性要求的环境
 
-### 有个人配置的成员
+### 旧版个人配置示例（当前不会生效）
 ```
 Bash 命令    → ✅ 自动执行
 文件编辑     → ✅ 自动执行
@@ -97,10 +99,7 @@ MCP 连接     → ✅ 自动执行
 Jupyter 编辑 → ✅ 自动执行
 ```
 
-**适用场景**：
-- 熟悉项目的成员
-- 信任的代码库
-- 快速开发迭代
+如需更改实际行为，请使用 Gemini CLI 支持的 `.gemini/settings.json` 字段并提交项目变更。
 
 ## 🛡️ 安全考虑
 
@@ -125,23 +124,11 @@ Jupyter 编辑 → ✅ 自动执行
 
 ## 🚀 如何自定义
 
-### 创建个人配置（完全自动化）
+### 修改项目压缩阈值
 
-```bash
-cat > .gemini/settings.local.json << 'EOF'
-{
-  "bash.autoExecute": true,
-  "file.autoSave": true,
-  "file.confirm": false,
-  "networking.autoPermit": true,
-  "mcp.autoConnect": true,
-  "slashCommand.autoExecute": true,
-  "jupyter.autoEdit": true
-}
-EOF
-```
+在已有 `.gemini/settings.json` 的 `model` 对象中调整 `compressionThreshold`。例如，1M 窗口模型下 `0.18` 约对应 180k token。已有项目值在息壤同步时保留。
 
-### 部分自动化
+### 旧版部分自动化示例（当前字段需按官方文档核对）
 
 如果你只想自动化某些操作：
 
@@ -186,7 +173,7 @@ git commit -m "chore: update team Gemini CLI settings"
 
 ### 不要提交
 
-个人配置不应提交：
+历史 `settings.local.json` 不应提交，Gemini CLI 也不会读取：
 ```bash
 # settings.local.json 已在 .gitignore 中
 # 无需手动排除
@@ -196,7 +183,7 @@ git commit -m "chore: update team Gemini CLI settings"
 
 ### 新成员入职
 1. 克隆仓库后，先使用团队配置（有确认提示）
-2. 熟悉项目后，创建 `settings.local.json` 实现自动化
+2. 熟悉项目后，按 Gemini CLI 当前设置文档修改项目的 `.gemini/settings.json`
 3. 根据个人偏好调整自动化程度
 
 ### 敏感操作
