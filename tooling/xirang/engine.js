@@ -196,7 +196,9 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     if (reason || asset.strategy === 'project-owned') continue;
     if (asset.strategy === 'remove') { delete nextLock.files[asset.path]; continue; }
     nextLock.files[asset.path] = { owner: asset.owner, version: asset.version || '1', strategy: asset.strategy, base: hash(asset.content) };
-    if (asset.strategy === 'overwrite' && ((adopt && base === undefined && local !== null && local !== asset.content) || record?.adoptedLocal)) nextLock.files[asset.path].adoptedLocal = hash(local);
+    const adoptingLocal = adopt && base === undefined && local !== null && local !== asset.content;
+    const preservingAdoptedLocal = record?.adoptedLocal && asset.content === base && local !== base;
+    if (asset.strategy === 'overwrite' && (adoptingLocal || preservingAdoptedLocal)) nextLock.files[asset.path].adoptedLocal = hash(local);
   }
   const lockAfter = json(nextLock);
   const metadataChanges = [];
