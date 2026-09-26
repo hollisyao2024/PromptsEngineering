@@ -13,9 +13,10 @@
 # 默认：使用 Codex 默认模型
 # model = "gpt-5-codex"
 
-# 息壤工作上下文阈值：模型原生窗口可以更大，但长任务应在 180k token 前压缩和交接。
-# 若当前模型/通道的缓存命中率连续 10 次低于 70%，应切换缓存可靠的模型或按阶段使用新执行上下文。
+# 息壤自动压缩水位：按总 token 计数，在约 180k token 时触发压缩。
+# 项目实际使用的 .codex/config.toml 若已有任一字段，应保留该字段的项目取值。
 model_auto_compact_token_limit = 180000
+model_auto_compact_token_limit_scope = "total"
 
 # 工具默认输出预算由任务规则控制：普通调用 <= 4000 token；长命令使用
 # pnpm agent -- task exec，只回传约 8KB/80 行摘要，完整日志留在容器 tmp evidence。
