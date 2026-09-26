@@ -129,6 +129,7 @@ function createTarget(testRoot, options = {}) {
   const linkedRoot = path.join(container, 'worktrees', 'xirang-sync');
   initializeRepository(mainRoot);
   write(mainRoot, 'AGENTS.md', '# local old template\n');
+  write(mainRoot, '.gitignore', '.codex/config.toml\n');
   write(mainRoot, 'RULES.md', 'PROJECT_RULE_SENTINEL\n');
   write(mainRoot, 'src/business.js', 'module.exports = "PROJECT_BUSINESS_SENTINEL";\n');
   write(mainRoot, 'package.json', `${JSON.stringify({
@@ -193,7 +194,7 @@ test('sync fetches the advanced upstream SHA, executes its updater, preserves pr
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-success-'));
   t.after(() => fs.rmSync(testRoot, { recursive: true, force: true }));
   const { latestCommit, upstream } = createUpstream(testRoot);
-  const { container, linkedRoot } = createTarget(testRoot);
+  const { container, linkedRoot, mainRoot } = createTarget(testRoot);
 
   const first = runSync(linkedRoot, [
     `--source-repo=${upstream}`,
@@ -207,6 +208,11 @@ test('sync fetches the advanced upstream SHA, executes its updater, preserves pr
   assert.match(firstOutput, /TEMPLATE_FETCH_STATUS=OK/u);
   assert.match(firstOutput, /TEMPLATE_APPLY_STATUS=UPDATED/u);
   assert.match(firstOutput, /TEMPLATE_CONVERGENCE_STATUS=OK/u);
+  const mainConfig = path.join(mainRoot, '.codex/config.toml');
+  const linkedConfig = path.join(linkedRoot, '.codex/config.toml');
+  assert.equal(fs.readFileSync(mainConfig, 'utf8'),
+    'model_auto_compact_token_limit = 180000\nmodel_auto_compact_token_limit_scope = "total"\n');
+  assert.equal(fs.realpathSync(linkedConfig), fs.realpathSync(mainConfig));
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), '# 息壤 upstream v2\n');
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULE_SENTINEL\n');
   assert.equal(
@@ -223,6 +229,8 @@ test('sync fetches the advanced upstream SHA, executes its updater, preserves pr
   const secondOutput = combinedOutput(second);
   assert.equal(second.status, 0, secondOutput);
   assert.match(secondOutput, /TEMPLATE_CONVERGENCE_STATUS=OK/u);
+  assert.equal(fs.readFileSync(mainConfig, 'utf8'),
+    'model_auto_compact_token_limit = 180000\nmodel_auto_compact_token_limit_scope = "total"\n');
   assert.equal(git(linkedRoot, ['status', '--porcelain']), '');
 
   const runsRoot = path.join(container, 'tmp', 'template-sync-runs');

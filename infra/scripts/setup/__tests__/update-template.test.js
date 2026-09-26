@@ -12,6 +12,7 @@ const {
   createBackfillBaseline,
   ENVIRONMENT_FILE_PAIRS,
   hasConvergenceDrift,
+  initializeCodexConfig,
   initializeEnvironmentFiles,
   parseApplyCounts,
 } = require('../update-template');
@@ -184,6 +185,87 @@ test('environment initialization creates six files with the expected Git ownersh
   }
 });
 
+function createCodexWorktreeFixture(t) {
+  const container = mkTmpDir('codex-config');
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+  const mainRoot = path.join(container, 'repo');
+  const linkedRoot = path.join(container, 'worktrees', 'linked');
+  fs.mkdirSync(mainRoot, { recursive: true });
+  git(mainRoot, ['init']);
+  git(mainRoot, ['config', 'user.name', 'Template Test']);
+  git(mainRoot, ['config', 'user.email', 'template-test@example.invalid']);
+  writeFile(mainRoot, '.gitignore', '.codex/config.toml\n');
+  writeFile(mainRoot, 'README.md', 'seed\n');
+  git(mainRoot, ['add', '--all']);
+  git(mainRoot, ['commit', '-m', 'initial']);
+  fs.mkdirSync(path.dirname(linkedRoot), { recursive: true });
+  git(mainRoot, ['worktree', 'add', '-b', 'test/codex-config', linkedRoot, 'HEAD']);
+  fs.mkdirSync(path.join(linkedRoot, '.codex'), { recursive: true });
+  return { container, mainRoot, linkedRoot };
+}
+
+test('Codex config dry-run is read-only; write creates minimal ignored main config and worktree link', t => {
+  const { mainRoot, linkedRoot } = createCodexWorktreeFixture(t);
+  const mainConfig = path.join(mainRoot, '.codex/config.toml');
+  const linkedConfig = path.join(linkedRoot, '.codex/config.toml');
+  assert.equal(initializeCodexConfig(linkedRoot, false).status, 'created');
+  assert.equal(fs.existsSync(mainConfig), false);
+  assert.equal(fs.existsSync(linkedConfig), false);
+
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'created');
+  assert.equal(fs.readFileSync(mainConfig, 'utf8'),
+    'model_auto_compact_token_limit = 180000\nmodel_auto_compact_token_limit_scope = "total"\n');
+  assert.equal(fs.lstatSync(linkedConfig).isSymbolicLink(), true);
+  assert.equal(fs.realpathSync(linkedConfig), fs.realpathSync(mainConfig));
+  assert.equal(git(mainRoot, ['status', '--porcelain']), '');
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'unchanged');
+});
+
+test('Codex config preserves user values and unrelated TOML while filling only missing fields', t => {
+  const { mainRoot, linkedRoot } = createCodexWorktreeFixture(t);
+  const mainConfig = path.join(mainRoot, '.codex/config.toml');
+  const linkedConfig = path.join(linkedRoot, '.codex/config.toml');
+  fs.mkdirSync(path.dirname(mainConfig), { recursive: true });
+  const userConfig = 'model_auto_compact_token_limit = 120000\n[sandbox_workspace_write]\nnetwork_access = true\n';
+  fs.writeFileSync(mainConfig, userConfig, { mode: 0o600 });
+  fs.symlinkSync(path.relative(path.dirname(linkedConfig), mainConfig), linkedConfig);
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'updated');
+  assert.equal(fs.readFileSync(mainConfig, 'utf8'),
+    'model_auto_compact_token_limit_scope = "total"\n\n' + userConfig);
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'unchanged');
+  const bothSet = fs.readFileSync(mainConfig);
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'unchanged');
+  assert.deepEqual(fs.readFileSync(mainConfig), bothSet);
+});
+
+test('Codex config preserves both existing project settings byte for byte', t => {
+  const { mainRoot, linkedRoot } = createCodexWorktreeFixture(t);
+  const mainConfig = path.join(mainRoot, '.codex/config.toml');
+  fs.mkdirSync(path.dirname(mainConfig), { recursive: true });
+  const custom = '# user choice\nmodel_auto_compact_token_limit = 90000\nmodel_auto_compact_token_limit_scope = "active"\n';
+  fs.writeFileSync(mainConfig, custom);
+  assert.equal(initializeCodexConfig(linkedRoot, true).status, 'unchanged');
+  assert.equal(fs.readFileSync(mainConfig, 'utf8'), custom);
+  assert.equal(fs.lstatSync(path.join(linkedRoot, '.codex/config.toml')).isSymbolicLink(), true);
+});
+
+test('Codex config refuses an escaping worktree link without changing its target', t => {
+  const { container, linkedRoot, mainRoot } = createCodexWorktreeFixture(t);
+  const outside = path.join(container, 'outside.toml');
+  fs.writeFileSync(outside, 'user_setting = true\n');
+  fs.symlinkSync(outside, path.join(linkedRoot, '.codex/config.toml'));
+  assert.throws(() => initializeCodexConfig(linkedRoot, true), /symlink|link/u);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'user_setting = true\n');
+  assert.equal(fs.existsSync(path.join(mainRoot, '.codex/config.toml')), false);
+});
+
+test('Codex config creation refuses a target not ignored by the main project', t => {
+  const { mainRoot, linkedRoot } = createCodexWorktreeFixture(t);
+  fs.writeFileSync(path.join(mainRoot, '.gitignore'), 'other-file\n');
+  assert.throws(() => initializeCodexConfig(linkedRoot, true), /ignored|ignore/u);
+  assert.equal(fs.existsSync(path.join(mainRoot, '.codex/config.toml')), false);
+});
+
 test('template convergence accepts only no-drift apply counts', () => {
   assert.deepEqual(
     parseApplyCounts('STATUS=DRY_RUN\nCOUNTS={"unchanged":4,"skipped":2}\n'),
@@ -207,6 +289,7 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   git(mainRoot, ['config', 'user.email', 'template-bootstrap@example.invalid']);
   git(mainRoot, ['branch', '-M', 'main']);
   writeFile(mainRoot, 'README.md', 'PROJECT_README_SENTINEL\n');
+  writeFile(mainRoot, '.gitignore', '.codex/config.toml\n');
   writeFile(mainRoot, 'RULES.md', 'PROJECT_RULES_SENTINEL\n');
   writeFile(mainRoot, 'src/business.js', 'module.exports = "PROJECT_BUSINESS_SENTINEL";\n');
   writeFile(mainRoot, 'package.json', `${JSON.stringify({

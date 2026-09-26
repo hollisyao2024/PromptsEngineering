@@ -187,6 +187,130 @@ function reportEnvironmentFiles(results) {
   }
 }
 
+const CODEX_CONFIG_RELATIVE = '.codex/config.toml';
+const CODEX_COMPACTION_DEFAULTS = Object.freeze({
+  model_auto_compact_token_limit: '180000',
+  model_auto_compact_token_limit_scope: '"total"',
+});
+
+function lstatIfPresent(filePath) {
+  try { return fs.lstatSync(filePath); }
+  catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+function readUtf8Exactly(filePath) {
+  const bytes = fs.readFileSync(filePath);
+  const content = bytes.toString('utf8');
+  if (!Buffer.from(content, 'utf8').equals(bytes)) {
+    throw new Error(`${CODEX_CONFIG_RELATIVE} is not valid UTF-8`);
+  }
+  return content;
+}
+
+function configuredCodexCompactionKeys(content) {
+  const found = new Set();
+  const keys = Object.keys(CODEX_COMPACTION_DEFAULTS);
+  for (const line of content.replace(/^\uFEFF/u, '').split(/\r?\n/u)) {
+    const text = line.trimStart();
+    if (!text || text.startsWith('#')) continue;
+    // A tiny, conservative top-level scanner is enough for these two keys.
+    // Refuse ambiguous multiline strings rather than misreading their contents.
+    if (text.includes('"""') || text.includes("'''")) {
+      throw new Error(`Cannot safely inspect multiline TOML in ${CODEX_CONFIG_RELATIVE}`);
+    }
+    if (text.startsWith('[')) {
+      if (!/^\[\[?[^\]]+\]\]?\s*(?:#.*)?$/u.test(text)) {
+        throw new Error(`Cannot safely inspect table header in ${CODEX_CONFIG_RELATIVE}`);
+      }
+      break;
+    }
+    for (const key of keys) {
+      if (new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*=`, 'u').test(text)) found.add(key);
+      else if (new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*\\.`, 'u').test(text)) {
+        throw new Error(`Cannot safely update dotted ${key} in ${CODEX_CONFIG_RELATIVE}`);
+      }
+    }
+  }
+  return found;
+}
+
+function writePrivateConfigAtomically(filePath, content, mode, previous) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporary = path.join(path.dirname(filePath), `.config.toml.xirang-${process.pid}-${Date.now()}`);
+  try {
+    const handle = fs.openSync(temporary, 'wx', mode);
+    try {
+      fs.writeFileSync(handle, content, 'utf8');
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    const current = lstatIfPresent(filePath);
+    if (previous === null ? current !== null : !current || !current.isFile() || readUtf8Exactly(filePath) !== previous) {
+      throw new Error(`${CODEX_CONFIG_RELATIVE} changed during template sync`);
+    }
+    fs.renameSync(temporary, filePath);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+}
+
+function initializeCodexConfig(targetRoot, write) {
+  const mainRoot = isGitWorktree(targetRoot) ? getMainRepoRoot(targetRoot) : targetRoot;
+  const mainConfig = path.join(mainRoot, CODEX_CONFIG_RELATIVE);
+  const linkedConfig = path.join(targetRoot, CODEX_CONFIG_RELATIVE);
+  const mainStat = lstatIfPresent(mainConfig);
+  const linkedStat = linkedConfig === mainConfig ? mainStat : lstatIfPresent(linkedConfig);
+  if (mainStat && !mainStat.isFile()) {
+    throw new Error(`${CODEX_CONFIG_RELATIVE} in the main project must be a regular file`);
+  }
+  if (linkedConfig !== mainConfig && linkedStat) {
+    if (!linkedStat.isSymbolicLink()) {
+      throw new Error(`${CODEX_CONFIG_RELATIVE} in the linked worktree conflicts with the main project config`);
+    }
+    if (!mainStat || fs.realpathSync(linkedConfig) !== fs.realpathSync(mainConfig)) {
+      throw new Error(`${CODEX_CONFIG_RELATIVE} worktree symlink does not point to the main project config`);
+    }
+  }
+
+  const oldContent = mainStat ? readUtf8Exactly(mainConfig) : '';
+  const present = configuredCodexCompactionKeys(oldContent);
+  const missing = Object.keys(CODEX_COMPACTION_DEFAULTS).filter(key => !present.has(key));
+  const status = !mainStat ? 'created' : missing.length ? 'updated' : 'unchanged';
+  const linkStatus = linkedConfig !== mainConfig && !linkedStat ? 'created' : 'unchanged';
+  if (missing.length && isGitWorktree(mainRoot)) {
+    const tracked = run('git', ['ls-files', '--error-unmatch', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
+    if (tracked.status === 0) throw new Error(`${CODEX_CONFIG_RELATIVE} is tracked; refusing to change a project-owned file`);
+    const ignored = run('git', ['check-ignore', '--quiet', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
+    if (ignored.status !== 0) throw new Error(`${CODEX_CONFIG_RELATIVE} must be ignored by the main project before initialization`);
+  }
+  if (!write) return { status, linkStatus, missing };
+
+  if (missing.length) {
+    const newline = oldContent.includes('\r\n') ? '\r\n' : '\n';
+    const bom = oldContent.startsWith('\uFEFF') ? '\uFEFF' : '';
+    const body = bom ? oldContent.slice(1) : oldContent;
+    const additions = missing.map(key => `${key} = ${CODEX_COMPACTION_DEFAULTS[key]}`).join(newline);
+    const next = bom + additions + newline + (body ? newline + body : '');
+    writePrivateConfigAtomically(mainConfig, next, mainStat ? mainStat.mode & 0o777 : 0o600,
+      mainStat ? oldContent : null);
+  }
+  if (linkStatus === 'created') {
+    fs.mkdirSync(path.dirname(linkedConfig), { recursive: true });
+    fs.symlinkSync(mainConfig, linkedConfig);
+  }
+  return { status, linkStatus, missing };
+}
+
+function reportCodexConfig(result) {
+  console.log(`CODEX_CONFIG_STATUS=${result.status}`);
+  console.log(`CODEX_CONFIG_LINK_STATUS=${result.linkStatus}`);
+  console.log(`CODEX_CONFIG_MISSING_KEYS=${result.missing.join(',') || '(none)'}`);
+}
+
 function isGitWorktree(targetRoot) {
   const result = run('git', ['rev-parse', '--is-inside-work-tree'], { cwd: targetRoot });
   return result.status === 0 && result.stdout.trim() === 'true';
@@ -302,10 +426,12 @@ function main() {
   if (args.scope) baseArgs.push('--scope', args.scope);
   if (args.adopt) baseArgs.push('--adopt');
   if (args['legacy-baseline']) baseArgs.push('--legacy-baseline', args['legacy-baseline']);
+  const codexConfigPlan = initializeCodexConfig(targetRoot, false);
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
   reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, false));
+  reportCodexConfig(codexConfigPlan);
 
   if (dryRun.status !== 0) {
     block('dry-run failed', { dry_run_log: dryRunLog });
@@ -343,6 +469,7 @@ function main() {
     block('write failed', { write_log: writeLogPath });
   }
   reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, true));
+  reportCodexConfig(initializeCodexConfig(targetRoot, true));
 
   validateJsonFiles(targetRoot, [
     'agent.config.json',
@@ -395,6 +522,11 @@ function main() {
       counts: JSON.stringify(convergenceCounts),
     });
   }
+  const codexConfigConvergence = initializeCodexConfig(targetRoot, false);
+  if (codexConfigConvergence.status !== 'unchanged' || codexConfigConvergence.linkStatus !== 'unchanged') {
+    block('Codex config did not converge', { config: CODEX_CONFIG_RELATIVE });
+  }
+  console.log('CODEX_CONFIG_CONVERGENCE_STATUS=OK');
   console.log('CONVERGENCE_STATUS=OK');
 
   console.log('STATUS=UPDATED');
@@ -418,6 +550,7 @@ module.exports = {
   createBackfillBaseline,
   ENVIRONMENT_FILE_PAIRS,
   hasConvergenceDrift,
+  initializeCodexConfig,
   initializeEnvironmentFiles,
   parseApplyCounts,
   parseArgs,
