@@ -344,9 +344,9 @@ function analyzeDefects(defects) {
 }
 
 function classifyNFRStatus(status) {
-  const normalized = cleanMarkdownCell(status);
+  const normalized = cleanMarkdownCell(status).replace(/(?<![\d.])0(?:\.0+)?%\s+fail(?:ure)?(?:s)?\b/giu, 'zero error rate');
   if (/❌|未达标|不达标|不通过|no-go|\bfail(?:ed|ure)?\b|\bincomplete\b|\bnot (?:passed|complete|compliant)\b/iu.test(normalized)) return 'nonCompliant';
-  if (/⚠|🟡|⏳|🔄|条件|部分|未|待|规划|仅|自动化|TDD|代码|没有|不等于|external gate|pending|blocked|conditional|partial|contract_ready|evidence_unavailable|not_started|not_executed/iu.test(normalized)) return 'conditional';
+  if (/⚠|🟡|⏳|🔄|⏸|暂缓|条件|部分|未|待|规划|仅|自动化|TDD|代码|没有|不等于|external gate|pending|blocked|conditional|partial|contract_ready|evidence_unavailable|not_started|not_executed/iu.test(normalized)) return 'conditional';
   if (/✅|达标|通过|\bpass(?:ed)?\b|\bcomplete(?:d)?\b/iu.test(normalized)) return 'compliant';
   return 'nonCompliant';
 }
@@ -373,8 +373,11 @@ function parseNFRCompliance(content) {
     if (!headers) continue;
     const id = cells[findHeaderIndex(headers, NFR_HEADERS)];
     if (!id) continue;
+    // Group headings have a label only; a real NFR with missing evidence still blocks.
+    if (/(?:类|性)\s+NFR$/u.test(cleanMarkdownCell(id)) && cells.filter(cell => cleanMarkdownCell(cell)).length === 1) continue;
     const descriptionIndex = findHeaderIndex(headers, ['描述', 'Description', '指标', '指标与门槛', '目标值', '目标']);
-    const status = cells[findHeaderIndex(headers, STATUS_HEADERS)] || '';
+    const statusIndex = STATUS_HEADERS.map(name => findHeaderIndex(headers, [name])).find(index => index >= 0);
+    const status = cells[statusIndex] || '';
     const followUpIndex = findHeaderIndex(headers, ['最终 Gate', '后续 Gate']);
     const followUpGate = followUpIndex >= 0 ? cells[followUpIndex] || '' : '';
     let classification = classifyNFRStatus(status);

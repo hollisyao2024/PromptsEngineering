@@ -69,3 +69,20 @@ test('merge gate uses the same missing-evidence and conditional semantics as CLI
   fake.checkNFRCompliance=()=>({sourceAvailable:true,conditionalNFRs:[{nfrId:'NFR-TEST-001'}]});
   assert.equal(runPreMergeChecks({checkers:fake}), true);
 });
+test('NFR parser ignores section rows and prioritizes explicit status over observations', () => {
+  const text = '| NFR ID | 结果 | 状态 |\n|---|---|---|\n| **性能类 NFR** |||\n| NFR-TEST-001 | 2/3/5/6 columns | Pass |';
+  const result = checker.parseNFRCompliance(text);
+  assert.equal(result.totalCount, 1);
+  assert.equal(result.compliantCount, 1);
+  assert.equal(checker.parseNFRCompliance(table('')).nonCompliantNFRs.length, 1);
+  assert.equal(checker.parseNFRCompliance(table('', 'Named metric')).nonCompliantNFRs.length, 1);
+});
+
+test('zero failure rates are observations while explicit failures still block', () => {
+  assert.equal(checker.parseNFRCompliance(table('✅ 113.95ms，0% fail')).compliantCount, 1);
+  for (const status of ['✅ 10% fail', '✅ 0% fail; failed security', '❌ 0% fail', '✅ 10.0% fail']) {
+    assert.equal(checker.parseNFRCompliance(table(status)).nonCompliantNFRs.length, 1, status);
+  }
+  assert.equal(checker.parseNFRCompliance(table('⏸️ 暂缓')).conditionalNFRs.length, 1);
+  assert.equal(checker.parseNFRCompliance(table('unknown')).nonCompliantNFRs.length, 1);
+});
