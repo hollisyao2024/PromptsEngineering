@@ -70,10 +70,11 @@ echo $CODEX_HOME
 
 ### 4. Token 与上下文预算
 
-- 默认设置 `model_auto_compact_token_limit = 180000`；不要为了让线程保持更长而把工作阈值提高到模型最大窗口。
-- 阶段转换后使用 `pnpm agent -- task context --task <id>` 生成最多 8KB 的交接胶囊；新阶段在新执行上下文中继续。
+- 模板示例设置 `model_auto_compact_token_limit = 180000` 和 `model_auto_compact_token_limit_scope = "total"`，按总 token 在约 180k 时触发自动压缩；这不是精确的单次请求上限。
+- 实际生效的是项目的 `.codex/config.toml`；模板同步不会覆盖该忽略文件。更新实际项目时仅补缺失字段，已有字段值由项目自行决定。
+- 阶段转换后使用 `pnpm agent -- task context --task <id>` 生成最多 8KB 的交接胶囊，并按 `AGENTS.md` 的接管协议继续已授权工作。
 - 长测试、构建和部署使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志进入容器 `tmp`，模型只读取有界摘要。
-- 连续 10 次请求中，稳定阶段缓存命中率应达到 70%；低于该门槛时切换缓存可靠的模型或通道，无法切换时每 8 次请求交接一次。
+- 连续 10 次请求中，稳定阶段缓存命中率目标为 70%；不达标时在授权允许下调整模型或通道，否则减少重复读取并准备胶囊。
 
 ## 🎯 Codex 配置核心概念
 
