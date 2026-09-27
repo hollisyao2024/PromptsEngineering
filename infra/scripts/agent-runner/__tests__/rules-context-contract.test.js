@@ -8,9 +8,12 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const { resolveCommand } = require('../agent-cli');
 
-test('new contexts must read all three complete rule files before side effects', () => {
+test('applied projects read three complete rules while the official template source reads its two files', () => {
   const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
-  assert.match(agents, /新执行上下文.*完整读取.*AGENTS\.md.*CONVENTIONS\.md.*RULES\.md/u);
+  assert.equal(fs.existsSync(path.join(ROOT, 'RULES.md')), false);
+  assert.match(agents, /实际项目.*完整读取.*AGENTS\.md.*CONVENTIONS\.md.*RULES\.md/u);
+  assert.match(agents, /origin.*官方息壤源.*PromptsEngineering.*RULES\.md.*免读/u);
+  assert.match(agents, /项目.*RULES\.md.*缺失.*停止后续副作用/u);
   assert.match(agents, /输出截断.*补读.*文件末尾/u);
   assert.match(agents, /读取失败.*停止后续副作用/u);
   assert.doesNotMatch(agents, /rules load|CONTENT_END/u);
@@ -25,8 +28,10 @@ test('new contexts must read all three complete rule files before side effects',
 test('handoff and CLI no longer require the removed rule loader', () => {
   const task = fs.readFileSync(path.join(ROOT, 'infra/scripts/agent-runner/agent-task.js'), 'utf8');
   const conventions = fs.readFileSync(path.join(ROOT, 'docs/CONVENTIONS.md'), 'utf8');
-  assert.match(task, /HANDOFF_PROMPT=.*read AGENTS\.md, docs\/CONVENTIONS\.md, and RULES\.md/u);
-  assert.match(task, /complete truncated output/u);
+  assert.match(task, /HANDOFF_PROMPT=.*read AGENTS\.md and docs\/CONVENTIONS\.md completely/u);
+  assert.match(task, /applied projects must also read RULES\.md completely/u);
+  assert.match(task, /official PromptsEngineering template source.*skip that project-owned file/u);
+  assert.match(task, /[Cc]omplete truncated output/u);
   assert.doesNotMatch(task, /rules load/u);
   assert.doesNotMatch(conventions, /rules load/u);
   assert.throws(() => resolveCommand(['rules', 'load', '--file', 'RULES.md']), /unknown agent command/u);
