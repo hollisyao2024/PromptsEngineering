@@ -34,13 +34,7 @@
 
 ### 1. 恢复长任务
 
-先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读代码审阅不因步骤数量建任务。需要恢复且任务 ID 已知时，第一项任务动作是：
-
-```bash
-pnpm agent -- task resume --task <id>
-```
-
-仅任务未知时使用 `pnpm agent -- task resume --auto`；核实无匹配状态则用 `pnpm agent -- task start --task <id> --phase tdd --type mutation ...` 创建步骤和验收项，多候选先核实归属，不猜选无关任务。当前任务正常阶段切换只刷新 `task context --task <id>` 后继续，不对仍在执行的步骤重复 resume。范围变化只用 `task extend` 追加；副作用步骤必须使用 `verify_first` 并通过 `pnpm agent -- task checkpoint ...` 记录，结果未知时先验证外部状态。
+任务状态、恢复与阶段切换遵循 `AGENTS.md`“长任务断点续跑”；本阶段新建记录使用 `--phase tdd`。副作用步骤使用 `verify_first`，结果未知时先验证外部状态。
 
 治理流程从 TASK 交接时应已处于 `tdd`；实现和回归证据完成后执行 `pnpm agent -- task transition --task <id> --phase qa --evidence "TDD_DONE: <证据>"`。若验收、架构或需求缺口阻塞，按状态机显式回流对应阶段。
 
@@ -72,7 +66,7 @@ pnpm agent -- worktree bootstrap
 2. **GREEN**：实现满足测试的最小改动。
 3. **REFACTOR**：消除重复、改善边界和命名，不改变行为。
 4. **REGRESSION**：运行相关测试、lint、类型检查及必要构建。
-5. **CHECKPOINT**：记录步骤结果、证据和唯一下一动作。
+5. **CHECKPOINT**：在任务步骤结束、失败或需要交接时记录结果、证据和唯一下一动作；无状态的微小动作不反复 checkpoint。
 
 测试优先级：
 
@@ -139,7 +133,7 @@ pnpm agent -- qa verify
 pnpm agent -- qa merge
 ```
 
-若用户明确 `--no-qa`，只可跳过 QA plan/verify，仍需执行合并和 completion guard。脚本输出 BLOCKED 时按 `NEXT_COMMANDS` 继续；外部权限或用户决策确实缺失时才停下。
+QA plan/verify 是合并前必需门禁；用户明确要求只创建 PR 或不合并时，按 `AGENTS.md` 的交付例外停止在相应阶段，不把跳过 QA 当作可合并路径。脚本输出 BLOCKED 时按 `NEXT_COMMANDS` 继续；外部权限或用户决策确实缺失时才停下。
 
 ## 完成门禁
 
