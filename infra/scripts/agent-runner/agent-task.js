@@ -1001,7 +1001,7 @@ function buildTaskContext(options) {
   append(`NEXT_ACTION=${state.next_action}`, 900);
   append(`CONTEXT_BUDGET_BYTES=${maxBytes}`);
   append(`STATE_PATH=${statePath}`);
-  append(`HANDOFF_PROMPT=In WORKTREE run pnpm agent -- task resume --task ${state.task_id}, then task context --task ${state.task_id}. Follow CONTINUATION_ACTION; continue authorized work without repeated confirmation. A new executor must acknowledge takeover before the current one stops.`);
+  append(`HANDOFF_PROMPT=In WORKTREE read AGENTS.md, docs/CONVENTIONS.md, and RULES.md completely with read-only UTF-8 tools before task resume; complete truncated output to EOF and stop side effects if a file cannot be read. Then run pnpm agent -- task resume --task ${state.task_id}, then task context --task ${state.task_id}. Follow CONTINUATION_ACTION; continue authorized work without repeated confirmation. A new executor must acknowledge takeover before the current one stops.`);
   append('CAPSULE_BEGIN');
 
   for (const include of includes) {
