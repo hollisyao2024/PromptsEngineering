@@ -18,9 +18,9 @@
 - No-Go 执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "QA No-Go: <缺陷证据>"`；Go 且需要部署时转 `devops`，否则合并及主分支门禁完成后执行 `pnpm agent -- task finish --task <id>`。
 
 ## 输入
-- `/docs/PRD.md`（作为总纲）、`/docs/ARCH.md`（作为总纲）、`/docs/TASK.md`（作为总纲）、`/docs/QA.md` 历史记录、CI 报告、部署信息。
-- **预检查**：若 `/docs/TASK.md` 不存在，提示："TASK.md 未找到，无法进行验收验证，请先激活 TASK 专家执行 `/task plan` 生成任务计划"，然后停止激活。
-- 从 PRD/ARCH/TASK 模块清单点读当前验证模块对应行，再读取该范围的模块文档和追踪行，不全文加载全部模块：
+- 治理流程读取 `/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md` 的相关总纲与模块；日常流程以用户验收口径、完整交付 diff、现有测试和有效证据为输入，不以缺少 TASK 文档阻断 QA。
+- 治理流程缺少必要的 `/docs/TASK.md` 时，记录缺口并回流 TASK；日常流程继续按风险验证。
+- 治理流程从 PRD/ARCH/TASK 模块清单点读当前验证模块对应行，再读取该范围的模块文档和追踪行，不全文加载全部模块：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
   - `/docs/task-modules/{domain}/TASK.md`
@@ -41,27 +41,27 @@
 **作用域**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
 
 **命令说明**：
-- `/qa plan`：读取 PRD/ARCH/TASK → 生成测试用例和策略 → 记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。
+- `/qa plan`：按治理或日常流程读取适用输入，形成测试范围、用例和策略并记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。
   - **自动串联**（从 TDD 触发）：→ 智能测试编写 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
-- `/qa verify`：基于会话状态验证文档完整性、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试已运行（见 §测试执行验证门禁）。
+- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。
 - `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 release 配置发布 → 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
 
 ## 输出
 
 ### 核心产物
-- **`/docs/QA.md`（主 QA 文档）**：汇总级测试交付，记录测试策略、用例/执行概览、缺陷汇总与发布建议，是 QA 阶段的唯一权威版本，也是模块 QA 文档的总纲与索引。每次 `/qa plan` 触发都会依据模板刷新主文档。
-- **`/docs/qa-modules/{domain}/QA.md`（模块 QA 文档）**：每个功能域详细描述该模块的测试策略、用例、执行记录、缺陷与 NFR 验证，与主文档互链。模块目录结构、模板与 ID 规范在 `/docs/qa-modules/MODULE-TEMPLATE.md` 说明。
+- **`/docs/QA.md`（主 QA 文档）**：维护稳定测试策略、用例索引、质量风险与发布建议，作为模块 QA 文档的总纲与索引；运行历史和当前回执以 task state、session 与 QA 证据为准。
+- **`/docs/qa-modules/{domain}/QA.md`（模块 QA 文档）**：每个功能域描述该模块的测试策略、用例、缺陷与 NFR 验证口径，并链接对应执行证据，与主文档互链。模块目录结构、模板与 ID 规范在 `/docs/qa-modules/MODULE-TEMPLATE.md` 说明。
 
 ### 文档结构（强制）
-所有项目统一使用“主 QA 总纲与索引 + 模块 QA”结构，不支持单一 QA 模式。每个 PRD/ARCH/TASK 模块必须有对应 `/docs/qa-modules/{domain}/QA.md`，详细测试用例、执行记录、缺陷与 NFR 验证只维护在模块 QA 中。
+治理文档统一使用“主 QA 总纲与索引 + 模块 QA”结构，不支持单一 QA 模式。每个 PRD/ARCH/TASK 模块必须有对应 `/docs/qa-modules/{domain}/QA.md`；日常流程不因缺少治理文档而补建全部模块。详细测试用例、缺陷与 NFR 验证维护在模块 QA 中，单次执行记录保存在 QA 证据中。
 
 ### 全局数据（存放在 `/docs/data/`）
 - **全局测试策略矩阵**：`/docs/data/test-strategy-matrix.md`
 - **测试用例优先级动态评分矩阵**：`/docs/data/test-priority-matrix.md`
 - **测试风险识别与缓解矩阵**：`/docs/data/test-risk-matrix.md`
 - 全局矩阵模板位于 `docs/data/templates/qa/`，`/qa plan` 时直接引用填充。
-- **追溯矩阵更新**：测试执行中及时更新 `/docs/data/traceability-matrix.md` 的测试状态与缺陷 ID。
+- **追溯矩阵更新**：需求或用例映射变化时更新 `/docs/data/traceability-matrix.md` 的 Story/AC/Test Case ID；本次执行状态与缺陷证据记录在 QA 报告和任务运行态。
 - 缺陷条目需遵循缺陷报告规范（复现步骤、预期/实际结果、环境、严重程度、优先级、影响分析与回流建议）。
 - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
 - 全局报告归档详见 Playbook §全局报告归档说明。
@@ -174,16 +174,16 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 ## 完成定义（DoD）
 - **量化门槛**：P0 通过率 = 100%、总通过率 ≥ 90%、需求覆盖率 ≥ 85%、P0 缺陷全部关闭
 - P1~P2 缺陷有缓解方案或验证计划
-- QA 主档与模块文档按模板记录策略、用例、执行结果、缺陷与发布建议
-- PRD、ARCH、TASK、QA 四套模块清单的模块集合一致
-- 追溯矩阵状态为最新（Pass/Fail/Blocked），关联缺陷 ID
+- QA 主档与模块文档按模板记录稳定策略、用例、缺陷与发布建议；执行结果可追溯至本次 QA 证据
+- 治理流程中 PRD、ARCH、TASK、QA 四套模块清单的模块集合一致；日常流程核对适用的已有文档
+- 追溯矩阵的 Story/AC/Test Case ID 映射准确；本次 Pass/Fail/Blocked 与缺陷 ID 可在 QA 证据中追溯
 - 发布建议已明确（Go/Conditional/No-Go），适用本地门禁通过，QA 回执绑定当前 base/head SHA。
 - 在 QA 回执和任务 state 中记录 `QA_VALIDATED` 结论
 - 详细验收清单见 Playbook §QA 验收检查清单
 
 ## 交接
-- 发布前将 QA 结论同步给干系人；自动串联模式下 No-Go 自动取消 `TDD_DONE` 并触发 TDD 修复循环（含 circuit breaker）；手动模式下需人工取消并协助修复。
-- 对关键风险或流程缺口，在 `/docs/TASK.md` 更新风险登记或触发回流记录。
+- 发布前记录 QA 结论；No-Go 按本文件的阶段门禁附缺陷证据回流 TDD，保留已有 `TDD_DONE` 历史，再完成修复与复验。
+- 对关键风险或流程缺口，在 QA 证据中记录回流建议；需要改变计划时交由 TASK 阶段更新规划文档。
 - 部署交接：QA 验证通过后执行 `/qa merge`，完成后交接 DevOps 专家执行部署。部署后验证由 DevOps 独立完成，QA 可读取部署记录复核。
 - **发布后**：若部署后回滚，QA 被重新激活后从回滚记录中提取信息在 `defect-log.md` 登记缺陷，退回 TDD 修复。
 - 交接流程图见 Playbook §QA 交接流程图。

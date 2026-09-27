@@ -23,31 +23,31 @@
 - 从 PRD/ARCH 模块清单点读当前范围对应行，再读取相关模块文档，不全文加载全部模块：
   - `/docs/prd-modules/{domain}/PRD.md`
   - `/docs/arch-modules/{domain}/ARCH.md`
-- 同步读取 `/docs/task-modules/module-list.md`（如尚未创建则在规划时创建）：该文件记录各模块的状态、负责人、依赖与最后更新，用作主 TASK 的模块索引与进度参考。
-- 若模块同时维护 `/docs/task-modules/{domain}/TASK.md`，在分析主/模块任务时务必同步批注并明确哪些字段由模块文档决定（如模块 WBS、交付事件、状态），以确保主 TASK 的模块索引/依赖矩阵与模块 TASK 文档保持一致。
+- 同步读取 `/docs/task-modules/module-list.md`（如尚未创建则在规划时创建）：该文件记录模块范围、负责人和规划依赖，用作主 TASK 的模块索引。
+- 若模块同时维护 `/docs/task-modules/{domain}/TASK.md`，核对模块 WBS 与主 TASK 的索引和依赖矩阵；执行进度与交付事件以 task state 和 session 为准。
 
 ## 输出
 
 ### 核心产物
-- **`/docs/TASK.md`**：主 TASK 总纲与模块索引，承载跨模块里程碑、依赖矩阵、资源/时间线、全局风险和模块状态，不承载模块级详细 WBS。
-- **子模块 TASK 文档**：目录结构、模板、ID 规范详见 `/docs/task-modules/MODULE-TEMPLATE.md`。模块 TASK 文档负责模块级 WBS、Deliverable、QA 验收等具体内容，并在每次交付或依赖调整时回写主文档的模块索引状态与更新时间，保持双向追溯。
-- **模块清单同步**：主 TASK 中的"模块任务索引"表需定期与 `/docs/task-modules/module-list.md` 中的状态/依赖/最后更新字段互为镜像。
+- **`/docs/TASK.md`**：主 TASK 总纲与模块索引，承载跨模块里程碑、依赖矩阵、资源/时间线和全局风险，不承载模块级详细 WBS 或运行态。
+- **子模块 TASK 文档**：目录结构、模板、ID 规范详见 `/docs/task-modules/MODULE-TEMPLATE.md`。模块 TASK 文档负责模块级 WBS、Deliverable 和 QA 验收口径；规划依赖变化时同步主文档索引与依赖矩阵。
+- **模块清单同步**：主 TASK 中的"模块任务索引"与 `/docs/task-modules/module-list.md` 保持模块范围和规划依赖一致，不镜像子任务执行状态。
 
 ### 文档结构（强制）
 所有项目统一使用“主 TASK 总纲与索引 + 模块 TASK”结构，不支持单一 TASK 模式。每个 PRD/ARCH 模块必须有对应 `/docs/task-modules/{domain}/TASK.md`，详细 WBS 只维护在模块 TASK 中。
 
 ### 全局数据（`/docs/data/`）
 - **任务依赖矩阵（跨模块）**：`/docs/data/task-dependency-matrix.md`（由 `docs/data/templates/task/TASK-DEPENDENCY-MATRIX-TEMPLATE.md` 生成），记录所有模块 Task 之间的前后依赖、提前量与关键路径，供 ARCH/TDD/QA 协同排期与验证。
-- 生成 `task-dependency-matrix.md` 后需同步 `/docs/TASK.md` 的依赖段、`module-list.md` 的依赖/状态列以及 `docs/data/traceability-matrix.md` 中对应 Story/Test Case 的验证状态。
+- 生成 `task-dependency-matrix.md` 后同步 `/docs/TASK.md` 的依赖段、`module-list.md` 的规划依赖，以及 `docs/data/traceability-matrix.md` 中对应 Story/AC/Test Case ID 的稳定映射；执行结果留在任务与 QA 证据中。
 
 ## 模块化任务流程
 
-- 先从 `/docs/task-modules/module-list.md` 确认各模块的阶段、负责人与依赖，主 TASK 只保留总纲、重要依赖与跨模块里程碑，具体 Story/Task 由 `/docs/task-modules/{domain}/TASK.md` 维护。
+- 先从 `/docs/task-modules/module-list.md` 确认各模块的范围、负责人与规划依赖，主 TASK 只保留总纲、重要依赖与跨模块里程碑，具体 Story/Task 由 `/docs/task-modules/{domain}/TASK.md` 维护。
 - 每个模块必须包含：
   - Story → Task → Deliverable 的模块级 WBS（Owner/Estimate/依赖）
   - DB/接口/事件迁移/监控/QA 验收清单
-  - 模块状态与风险，随子任务完成即时更新模块文档、主 TASK 模块索引及 `module-list.md`
-- 模块任务更新触发点：子任务完成（勾选+补写交付说明，状态记录 `✅ 已完成 (YYYY-MM-DD)`）| 依赖变更（主 TASK 依赖矩阵+模块索引注明变更）| 新模块启动（模块清单新增行+主 TASK 建立链接）。
+  - 规划风险与验收口径；子任务完成证据记录在 task state/session，不即时回写 tracked 规划文档
+- 规划文档更新触发点：依赖或范围变化时同步主 TASK、模块 TASK 和模块清单；新增模块时建立对应索引与链接。运行进度不触发文档镜像更新。
 
 ### 基础设施任务
 - WBS 应包含基础设施任务（CI 流水线配置、部署脚本准备、环境配置），标记 Owner 为 DevOps，关联 ARCH 运维视图的对应条目。这些任务在 `TASK_PLANNED` 后由 DevOps 专家领取执行。
@@ -63,7 +63,7 @@
 - 在任务 state 中记录 `TASK_PLANNED` 证据
 
 ## 交接
-- 交接前复查主/模块 TASK 文档状态/里程碑/依赖，确保同步。
+- 交接前复查主/模块 TASK 文档的里程碑与规划依赖，确保同步。
 - 移交给 TDD 编程专家（TDD）。
 
 ## TASK 模板

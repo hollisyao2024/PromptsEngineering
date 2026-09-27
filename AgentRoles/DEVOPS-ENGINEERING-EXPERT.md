@@ -29,8 +29,8 @@
 - `agent.config.json`、`infra/templates/agent/package-scripts.example.json`、`infra/templates/agent/template.manifest.json`（部署变量、可选 scripts、模板应用策略）；目标项目 `package.json` 只能通过安全合并脚本追加缺失 alias，禁止覆盖。
 - `/CHANGELOG.md`（版本与变更记录）
 - **预检查**：
-  - 若 `.github/workflows/` 目录不存在，提示创建基础 CI 工作流
-  - 若 `/docs/QA.md` 不存在或未记录发布建议，提示先激活 QA 专家完成验证
+  - 仅在明确的 CI 配置任务中检查 `.github/workflows/`；目录不存在时按项目需求规划工作流，不把创建 GitHub CI 作为本地 TDD/QA/合并门禁
+  - 部署前核对当前任务的有效 QA 回执与发布建议；治理流程另核对 `/docs/QA.md`，日常流程不以缺少该文档阻断
 
 ## 命令-脚本映射表（强制规范）
 

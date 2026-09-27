@@ -6,7 +6,7 @@
 ## 工作环境与目录边界
 遵循 `/docs/CONVENTIONS.md` 的命名与目录规范，仅在授权范围内操作。关键目录速查：
 - `docs/QA.md`：QA 主文档（测试策略、用例概览、缺陷汇总、发布建议）
-- `docs/qa-modules/{domain}/QA.md`：模块级 QA 文档（测试用例、执行记录、缺陷日志）
+- `docs/qa-modules/{domain}/QA.md`：模块级 QA 文档（测试用例、缺陷与 NFR 验证口径；执行证据另存）
 - `docs/data/traceability-matrix.md`：追溯矩阵（Story → AC → Test Case 映射）
 - `docs/data/test-strategy-matrix.md`、`test-priority-matrix.md`、`test-risk-matrix.md`：全局测试矩阵
 - `docs/data/qa-reports/`：全局质量报告归档
@@ -21,9 +21,9 @@
 
 ### 第一步：测试计划（/qa plan）
 1. 执行 `pnpm run qa:generate` 脚本
-2. 脚本读取 PRD/ARCH/TASK，解析 Story → AC → Test Case 映射
+2. 治理流程读取 PRD/ARCH/TASK 并解析 Story → AC → Test Case；日常流程读取用户验收、交付 diff 与已有测试
 3. 按 session 目标生成或更新相关 QA 文档；仅显式 project 范围覆盖全部模块，文档范围不自动决定测试执行范围
-4. 更新追溯矩阵（`docs/data/traceability-matrix.md`）
+4. 映射有变化时更新追溯矩阵（`docs/data/traceability-matrix.md`）
 5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/worktree-sessions/qa-plan/<worktree-name>-<worktree-path-hash>.json`；同一 worktree 稳定复用，不同并行 worktree 相互隔离
 
 ### 第 1.5 步：编写测试代码（/qa plan 之后）
@@ -105,7 +105,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 2. 按优先级执行（P0 → P1 → P2），记录每条用例结果（通过/失败/阻塞）与环境信息
 3. 发现缺陷时，完整填写复现步骤、影响分析、严重程度
 4. P0 阻塞缺陷立即通知 TDD 修复
-5. 更新追溯矩阵中的测试状态
+5. 在 QA 证据中记录本次测试状态与关联缺陷
 
 ### 第三步：验收检查（/qa verify）
 1. 确认 §测试执行验证门禁（Expert 文件）全部满足
@@ -120,7 +120,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 3. 合并、主分支同步和 completion guard 通过后关闭任务；需要部署时再交接 DevOps。
 
 ### 回退触发
-- 发布建议为 No-Go → 退回 TDD 修复，取消 `TDD_DONE`
+- 发布建议为 No-Go → 附缺陷证据回流 TDD，保留已有 `TDD_DONE` 里程碑历史
 - 部署后回滚 → 从部署记录中提取信息，在 `defect-log.md` 登记缺陷
 - 范围偏差 → 记录回流建议并通知对应阶段
 
@@ -129,23 +129,23 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 ## 自动生成规范（/qa plan 详细流程）
 
 ### 生成触发条件
-- **首次激活**：当 `/docs/QA.md` 不存在，或用户显式调用 `/qa plan --init` 时
+- **首次激活**：治理流程需要建立 QA 文档且 `/docs/QA.md` 不存在，或用户显式调用 `/qa plan --init` 时；日常流程不因缺少治理文档自动初始化全部模块
 - **更新已有**：当 `/docs/QA.md` 存在，`/qa plan` 刷新时
 - **增量编辑**：QA 专家可在生成产物基础上进行人工调整（如补充缺陷详情、测试结果）
 
 ### 生成输入源
 - **主输入**：`/docs/PRD.md`（Story、AC、验收标准、优先级）
 - **架构输入**：`/docs/ARCH.md`（组件、技术选型、NFR）
-- **任务输入**：`/docs/TASK.md`（WBS、里程碑、Owner、任务状态）
+- **任务输入**：治理流程的 `/docs/TASK.md`（WBS、里程碑、Owner）；日常流程使用用户验收、交付 diff 与有效测试证据
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（Story → AC → Test Case 映射）
 - **模块输入**：根据模块清单读取 `/docs/prd-modules/{domain}/PRD.md`、`/docs/arch-modules/{domain}/ARCH.md`、`/docs/task-modules/{domain}/TASK.md`
 - **模块 QA 参考**：若已有模块 QA 数据，读取 `/docs/qa-modules/{domain}/priority-matrix.md`、`nfr-tracking.md`、`defect-log.md`，便于延续历史信息
-- **历史数据**（如存在）：已有的 `/docs/QA.md` 的人工标注（测试执行结果、缺陷状态）
+- **历史数据**（如存在）：已有的 QA 稳定策略与缺陷资料；单次执行结果从 QA 证据读取
 
 ### 生成逻辑（6 步）
 
 #### 第一步：锁定模块集合
-读取 PRD、ARCH、TASK 的 `module-list.md` 和模块目录，确认模块集合一致；缺少模块清单或对应模块文档时阻断生成。
+治理流程读取 PRD、ARCH、TASK 的 `module-list.md` 和模块目录，确认模块集合一致；缺少必要模块文档时回流。日常流程按受影响范围规划，不要求补建治理模块。
 
 #### 第二步：测试用例生成（Story → Test Case 映射）
 - FOR EACH Story in PRD：
@@ -172,12 +172,8 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
   3. 定义测试优先级策略
   4. 生成测试工具链清单
 
-#### 第四步：测试执行记录模板
-根据 TASK.md 的里程碑：
-  1. 为每个里程碑创建测试轮次模板（Round 1/2/3）
-  2. 生成测试用例执行清单（状态：Pending）
-  3. 预留缺陷列表模板（P0/P1/P2 分级）
-  4. 生成测试指标统计表格
+#### 第四步：测试执行证据模板
+按适用里程碑或本次交付范围，在 QA 证据目录准备测试清单、环境、命令、退出码、缺陷 ID 与质量指标；不把轮次状态回写阶段总纲。
 
 #### 第五步：生成模块化 QA
 1. 在 `/docs/qa-modules/module-list.md` 注册完整模块索引
@@ -188,8 +184,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 #### 第六步：追溯矩阵更新
 生成或更新 `/docs/data/traceability-matrix.md`：
 - FOR EACH Story：列出关联的 AC 与 Test Case ID
-- 标记测试状态（Pending/Pass/Fail/Blocked），关联缺陷 ID
-- 同步模块 `defect-log.md`/`nfr-tracking.md`
+- 执行状态（Pending/Pass/Fail/Blocked）与缺陷 ID 保存在本次 QA 证据；稳定缺陷与 NFR 口径按需同步模块资料
 
 ### 更新现有 QA.md 的保留策略
 当 `/qa plan` 刷新已有的 QA.md 时（MVP 版简化策略）：
@@ -286,7 +281,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 
 ### 文档完整性
 - [ ] `/docs/QA.md` 包含测试策略、用例概览、缺陷汇总、发布建议
-- [ ] 追溯矩阵（`traceability-matrix.md`）状态为最新（Pass/Fail/Blocked）
+- [ ] 追溯矩阵的 Story/AC/Test Case ID 映射准确；本次 Pass/Fail/Blocked 状态可从 QA 证据追溯
 - [ ] 模块 QA 文档（如模块化）与主文档双向索引一致
 - [ ] 缺陷报告字段完整（复现步骤、环境、严重程度、回流建议）
 
