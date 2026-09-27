@@ -65,7 +65,7 @@ pnpm agent -- worktree bootstrap
 1. **RED**：写最小失败测试，确认失败原因是目标行为缺失。
 2. **GREEN**：实现满足测试的最小改动。
 3. **REFACTOR**：消除重复、改善边界和命名，不改变行为。
-4. **REGRESSION**：运行相关测试、lint、类型检查及必要构建。
+4. **REGRESSION**：按 `docs/CONVENTIONS.md` §测试范围与证据复用，运行受影响模块及消费者的相关测试、适用的 lint、类型检查及必要构建；全量须记录触发依据，向 QA 交付可复用的受测提交/文件摘要与环境证据。
 5. **CHECKPOINT**：在任务步骤结束、失败或需要交接时记录结果、证据和唯一下一动作；无状态的微小动作不反复 checkpoint。
 
 测试优先级：
@@ -110,7 +110,7 @@ pnpm agent -- worktree bootstrap
 - 共享基础库或跨文件业务联动；
 - hotfix。
 
-同时输出 `Domain-Hit` 和简短 `Reason`。Codex 按仓库策略记录 `Codex review skipped by policy` 后继续，其余执行器按项目要求执行 review。未命中可标记 OPTIONAL，但 lint、类型检查和测试仍是强制项。
+同时输出 `Domain-Hit` 和简短 `Reason`。Codex 按仓库策略记录 `Codex review skipped by policy` 后继续，其余执行器按项目要求执行 review。未命中可标记 OPTIONAL，但适用的 lint、类型检查和测试仍是强制项；高风险标签本身不触发全量，按通用约定界定范围。
 
 ## 文档同步
 
