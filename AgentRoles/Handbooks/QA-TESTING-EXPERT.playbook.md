@@ -275,6 +275,8 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 
 ## QA 验收检查清单
 
+以下清单仅核验本次受影响范围和项目适用门禁；不适用项记录理由，不能据此默认新增测试类型或扩大为全量。有效的 TDD 证据按通用约定复用。
+
 ### 质量门槛
 - [ ] P0 通过率 = 100%
 - [ ] 总通过率 ≥ 90%
@@ -289,9 +291,9 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] 缺陷报告字段完整（复现步骤、环境、严重程度、回流建议）
 
 ### 测试交付完整性
-- [ ] E2E 测试脚本已创建（`e2e/` 目录），P0 场景全部覆盖
-- [ ] 性能测试脚本已创建并执行，核心接口响应时间满足 NFR 阈值
-- [ ] 安全测试已执行（ZAP 扫描或手工清单），无高危漏洞
+- [ ] 涉及用户路径时，相关 E2E 已覆盖受影响 P0 场景；已有脚本可复用
+- [ ] 命中性能风险时，专项验证满足相关 NFR 阈值
+- [ ] 命中安全风险时，对应验证已执行，无未解决的阻塞漏洞
 - [ ] NFR 验收在模块 `nfr-tracking.md` 中有最新状态
 - [ ] 全局矩阵（strategy/priority/risk）反映当前覆盖/优先级/风险
 
