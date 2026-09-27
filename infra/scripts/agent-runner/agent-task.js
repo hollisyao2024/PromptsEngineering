@@ -1032,29 +1032,20 @@ function buildTaskContext(options) {
   for (const criterion of state.acceptance_criteria) {
     if (!append(`  [${criterion.status === 'done' ? 'x' : ' '}] ${criterion.id}: ${criterion.text}`, 320)) break;
   }
-  const recentEvidence = [];
-  for (const step of state.steps) {
-    for (const evidence of step.evidence || []) {
-      recentEvidence.push(`${step.id}: ${clipText(evidence, 260)}`);
-    }
-  }
-  for (const criterion of state.acceptance_criteria) {
-    for (const evidence of criterion.evidence || []) {
-      recentEvidence.push(`${criterion.id}: ${clipText(evidence, 260)}`);
-    }
-  }
-  if (recentEvidence.length > 0) {
-    append('## Recent Evidence', 80);
-    for (const evidence of recentEvidence.slice(-8)) {
-      if (!append(`  - ${evidence}`, 360)) break;
-    }
-  }
   const blockers = state.steps
     .filter((step) => ['blocked', 'verify_required', 'running'].includes(step.status))
     .map((step) => `${step.id}:${step.status}:${clipText(step.next_action, 180)}`);
   if (blockers.length > 0) {
     append('## Blockers', 80);
     append(`  ${blockers.join(' | ')}`, 900);
+  }
+  const evidenceIndex = [...state.steps, ...state.acceptance_criteria]
+    .filter((item) => (item.evidence || []).length > 0)
+    .map((item) => `${item.id}:${item.evidence.length}`);
+  if (evidenceIndex.length > 0) {
+    append('## Evidence Index', 80);
+    append(`  ${evidenceIndex.join(' | ')}`, 900);
+    append('  Read full entries from STATE_PATH before recovery or completion.', 120);
   }
   append('CAPSULE_END');
   if (truncated && Buffer.byteLength([...lines, 'TRUNCATED=true'].join('\n'), 'utf8') <= maxBytes) {
