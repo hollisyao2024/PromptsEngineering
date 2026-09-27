@@ -15,7 +15,7 @@
 - Worktree Gate：只读查看 CI/CD 状态或执行部署不创建 worktree；若要修改 workflow、部署脚本、环境模板或运维文档等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=devops --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。部署产物与运行日志必须通过脚本/配置写入容器层 `../artifacts` / `../tmp`，不要在 linked worktree 中手写 `../tmp`。
 
 ## 长任务门禁
-- 先按 `AGENTS.md`“长任务断点续跑”判断是否需要持久化；单会话只读运维查询不因步骤数量建任务。需要恢复且任务 ID 已知时使用 `pnpm agent -- task resume --task <id>`；仅任务未知时使用 `pnpm agent -- task resume --auto`，核实无匹配任务后使用 `pnpm agent -- task start --task <id> --phase devops --type mutation ...`；多候选先核实归属，不猜选无关任务。当前任务正常阶段切换只刷新 `task context --task <id>` 后继续，不对仍在执行的步骤重复 resume。
+- 任务状态、恢复与阶段切换遵循 `AGENTS.md`“长任务断点续跑”；本阶段新建记录使用 `--phase devops`。
 - 部署、回滚、推送、环境或文件系统写入必须在执行前通过 `pnpm agent -- task checkpoint ...` 标记 `running/verify_first`；结果不明先验证真实环境，计划变化用 `task extend` 追加。
 - 部署成功并取得 `DEPLOYED` 证据后执行 `pnpm agent -- task finish --task <id>`；回滚或发布失败只允许带证据转回 `qa`、`tdd` 或需修订运维架构时转 `arch`。
 
@@ -34,20 +34,20 @@
 
 ## 命令-脚本映射表（强制规范）
 
-执行快捷命令时，**必须首先调用对应模板脚本入口**；已安全合并 package aliases 时可用 `pnpm run <script>`。脚本不可用或失败时**必须向用户报告**，禁止自行绕过流程。
+执行快捷命令时，优先使用已支持的 `pnpm agent -- <domain> <action>` 稳定入口；`cd`、`ci`、`env` 当前未接入 `pnpm agent`，暂用表中的模板脚本。已有 package aliases 仅作兼容。入口不可用或失败时必须报告，禁止自行绕过流程。
 
 | 快捷命令 | 模板脚本入口 | 可选 package alias |
 |---------|---------|------|
-| `/ship dev` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=dev` | `pnpm ship:dev` |
-| `/ship staging` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=staging` | `pnpm ship:staging` |
-| `/ship prod` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=production` | `pnpm ship:prod` |
+| `/ship dev` | `pnpm agent -- ship dev` | `pnpm ship:dev` |
+| `/ship staging` | `pnpm agent -- ship staging` | `pnpm ship:staging` |
+| `/ship prod` | `pnpm agent -- ship production` | `pnpm ship:prod` |
 | `/cd staging` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=staging` | `pnpm cd:staging` |
 | `/cd prod` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=production` | `pnpm cd:prod` |
 | `/ci run` | `node infra/scripts/devops-tools/devops-run.js --action=ci-run` | `pnpm ci:run` |
 | `/ci status` | `node infra/scripts/devops-tools/devops-run.js --action=ci-status` | `pnpm ci:status` |
 | `/env check <env>` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` | `pnpm env:check -- --env=<env>` |
 | `/env status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | `pnpm env:status` |
-| `/restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | `pnpm dev:restart` |
+| `/restart` | `pnpm agent -- dev restart` | `pnpm dev:restart` |
 | `/private restart` | `pnpm agent -- private restart` | `pnpm private:restart` |
 | `/dev app <platform>` | `pnpm agent -- dev app <platform>` | 项目已有客户端 alias（可选） |
 | `/private dev app <platform>` | `pnpm agent -- private dev app <platform>` | 项目已有 private 客户端 alias（可选） |

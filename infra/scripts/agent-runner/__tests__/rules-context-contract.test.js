@@ -37,3 +37,18 @@ test('handoff and CLI no longer require the removed rule loader', () => {
   assert.throws(() => resolveCommand(['rules', 'load', '--file', 'RULES.md']), /unknown agent command/u);
   assert.equal(fs.existsSync(path.join(ROOT, 'infra/scripts/agent-runner/rules-load.js')), false);
 });
+
+test('expert command guidance follows the available dispatcher and mandatory QA gates', () => {
+  const readRole = (name) => fs.readFileSync(path.join(ROOT, 'AgentRoles', name), 'utf8');
+  const qa = readRole('QA-TESTING-EXPERT.md');
+  const devops = readRole('DEVOPS-ENGINEERING-EXPERT.md');
+  const tdd = readRole('TDD-PROGRAMMING-EXPERT.md');
+  for (const action of ['plan', 'verify', 'merge']) {
+    assert.ok(qa.includes('| `/qa ' + action + '` | `pnpm agent -- qa ' + action + '`'), `missing qa ${action} dispatcher`);
+  }
+  assert.match(devops, /`pnpm agent -- ship staging`/u);
+  assert.match(devops, /`pnpm agent -- dev restart`/u);
+  assert.match(devops, /`cd`、`ci`、`env`.*未接入.*pnpm agent/u);
+  assert.doesNotMatch(tdd, /若用户明确 `--no-qa`/u);
+  assert.match(tdd, /无状态的微小动作.*不.*checkpoint/u);
+});
