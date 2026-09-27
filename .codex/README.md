@@ -26,11 +26,11 @@
 - **目标**：覆盖团队配置，实现无打扰的自动化工作流
 - **格式**：TOML（从 `config.example.toml` 复制并修改）
 
-### `hooks.json` - 团队共享启动钩子
-- **用途**：会话启动/恢复时读取当前仓库 `.env.local`，把 `GH_TOKEN` 注入 CLI 环境文件，确保 GitHub 操作优先使用 repo-local token
-- **提交状态**：✅ 应提交到 Git 仓库
-- **安全边界**：只提交读取与转发逻辑，不提交 token 值；真实 token 仍只放在 `.env.local`
-- **适用场景**：Claude/Codex 相关本地会话需要继承项目级 `GH_TOKEN` 时默认生效
+### GitHub 鉴权
+
+- Codex 的 `SessionStart` Hook 输出不支持修改父进程环境变量，Codex 也不提供 `CLAUDE_ENV_FILE`；因此不再向 Codex 安装 `.codex/hooks.json` 环境注入钩子。
+- Windows、macOS 和 Linux 的远端 Git/GitHub 操作统一执行 `node infra/scripts/shared/github-auth-run.js -- <command...>`。该 Node 入口会按当前 worktree、主 worktree、进程环境依次解析 `.env.local` 中的 `GH_TOKEN`。
+- 真实 token 只放在被忽略的 `.env.local`，不得写入模板、命令参数、日志或任何 tracked 文件。
 
 ### 其他忽略的文件
 以下文件由 Codex 运行时生成，不应提交到 Git：
@@ -271,7 +271,7 @@ env = { "GITHUB_TOKEN" = "your-token" }
 ### 提交变更
 
 ```bash
-git add .codex/config.example.toml .codex/hooks.json .codex/README.md
+git add .codex/config.example.toml .codex/README.md
 git commit -m "chore: update Codex config template"
 ```
 

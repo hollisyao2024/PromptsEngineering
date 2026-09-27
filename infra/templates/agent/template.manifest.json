@@ -69,7 +69,7 @@
     },
     {
       "path": ".codex/hooks.json",
-      "strategy": "overwrite"
+      "strategy": "remove"
     },
     {
       "path": ".gemini/README.md",

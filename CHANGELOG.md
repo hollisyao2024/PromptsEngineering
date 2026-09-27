@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 移除 Codex 侧无效的 `SessionStart` `GH_TOKEN` 环境注入钩子。Codex 不提供 `CLAUDE_ENV_FILE`，且 Hook 输出不能修改父进程环境；模板迁移会显式删除旧 `.codex/hooks.json`，Windows/macOS/Linux 的远端 GitHub 操作统一使用跨平台 Node 鉴权入口读取 `.env.local`。
+
 - 修复阶段交接导致已授权任务停顿：PRD→ARCH→TASK→TDD→QA 默认刷新胶囊后连续推进，转换、恢复和胶囊统一输出自动续跑状态及精确 task ID 恢复命令。确需换执行器时先确认接管，宿主无交接能力且预算允许时在当前任务继续；保留未知副作用、真实阻塞、QA 和 completion guard，并增加跨进程完整阶段与中断恢复回归。
 
 - 修正 `3.6.0` 迁移清单遗漏，显式删除状态模板和 `agent-state-utils` 实现及旧测试，确保旧消费者同步后不会残留已废弃入口。
