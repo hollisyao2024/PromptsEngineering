@@ -31,7 +31,7 @@
 2. **运行单一测试**：使用针对性的命令（如 `CI=1 pnpm test -- --runTestsByPath path/to.spec.ts`、`pytest path/test_file.py -k case_name`）确认测试失败
 3. **实现最小功能**：只写让测试通过所需的最小生产代码，保留 TODO 记录潜在重构点
 4. **验证通过**：重复运行同一测试或相关测试集，确保绿灯且无 flake
-5. **重构与清理**：在测试全绿前禁止重构；重构后必须再次执行测试
+5. **重构与清理**：选定范围的测试通过后重构；重构后重跑受影响测试。测试范围、全量升级与 QA 证据复用遵循 `docs/CONVENTIONS.md` §测试范围与证据复用。
 6. **记录与提交**：更新直接相关文档和用户可见变更的 CHANGELOG，准备语义化 commit，并确保差异满足代码审查要求。只有项目启用相应发布配置时，`/qa merge` 才执行版本或发布日志生成；不得假定其自动补齐。
 
 ### 回退触发
@@ -139,20 +139,21 @@ TDD 负责编写并运行：单元、集成、契约、降级测试。E2E/性能
 ## 常用命令与自动化
 
 ### 前端
+以下是命令示例，须按项目运行器核实过滤参数并选择受影响用例；全量命令仅在满足通用约定的升级条件时使用，不按示例逐条执行。
 ```bash
 cd frontend
 pnpm install --frozen-lockfile
 pnpm run lint
-CI=1 pnpm test -- --runInBand --watchAll=false
+CI=1 pnpm test -- --runTestsByPath path/to.spec.ts --watchAll=false  # Jest 定向示例
 pnpm run typecheck
-pnpm vitest run --runInBand
+pnpm vitest run path/to.spec.ts
 ```
 
 ### 后端
 ```bash
 cd backend
 pip install -r requirements.txt
-pytest -q
+pytest path/test_file.py -q
 pnpm test <integration-test-path>
 black .
 uvicorn app.main:app --reload  # 本地联调需手动停止

@@ -22,7 +22,7 @@
 ### 第一步：测试计划（/qa plan）
 1. 执行 `pnpm run qa:generate` 脚本
 2. 脚本读取 PRD/ARCH/TASK，解析 Story → AC → Test Case 映射
-3. 生成或更新主 QA 总纲、模块清单与全部模块 QA 文档
+3. 按 session 目标生成或更新相关 QA 文档；仅显式 project 范围覆盖全部模块，文档范围不自动决定测试执行范围
 4. 更新追溯矩阵（`docs/data/traceability-matrix.md`）
 5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/worktree-sessions/qa-plan/<worktree-name>-<worktree-path-hash>.json`；同一 worktree 稳定复用，不同并行 worktree 相互隔离
 
@@ -36,7 +36,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **优先级**：P0 核心用户旅程 → P1 关键业务场景 → P2 边界
 - **命名**：`{module}.e2e.spec.ts`（如 `auth.e2e.spec.ts`、`checkout.e2e.spec.ts`）
 - **工具**：Playwright + @faker-js/faker
-- **命令**：`pnpm playwright test`（headless）；调试用 `--ui` 或 `--trace on`
+- **命令**：`pnpm playwright test e2e/tests/<affected>.e2e.spec.ts`（headless 定向）；调试用 `--ui` 或 `--trace on`
 - **本地执行**：需要时使用 `--shard=N/M` 与 headless 模式；失败 Trace 留在容器 tmp，重试不能替代失败分析，不将 GitHub CI 作为合并门禁。
 
 #### 性能测试（k6）
@@ -58,10 +58,10 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
   - Smoke 脚本必须包含数据验证（检查响应 body 非仅 status）
 
 #### 安全测试
-- **SAST**（每次 PR）：`semgrep --config=security/semgrep/.semgrep.yml`（diff-aware，只扫变更文件）
-- **SCA**（每次 PR + 每日定时）：`pnpm audit --audit-level=high` + `trivy fs .`
-- **DAST**（每次部署 + 每周全扫描）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf`
-- **认证/授权测试**：放 `apps/server/tests/security/*.security.test.ts`，与集成测试同频每次 PR
+- **SAST**（受影响安全逻辑或项目门禁）：使用项目已选工具，覆盖变更及相关安全路径
+- **SCA**（依赖/供应链配置变化或项目门禁）：`pnpm audit --audit-level=high`、`trivy fs .` 为按需示例
+- **DAST**（受影响对外入口或部署门禁）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf` 为按需示例；定期全扫描按项目既定计划
+- **认证/授权测试**：放 `apps/server/tests/security/*.security.test.ts`，覆盖受影响端点与权限消费者
 - **阻断策略**：Critical/High → 阻断部署；Medium → 限期修复；Low → 记录跟踪
 - **认证/授权测试最低清单**（每个需认证的 endpoint 必须覆盖）：
   - [ ] 无 token 访问 → 401
@@ -101,7 +101,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - [ ] 共享链接的权限检查
 
 ### 第二步：测试执行
-1. **按风险执行测试**：先判定完整 diff 的影响范围；低风险执行定向检查与相关回归，高风险或范围不明执行全量单元/集成测试及专项回归，具体门禁见 Expert 文件
+1. **按影响执行测试**：按 `docs/CONVENTIONS.md` §测试范围与证据复用选择定向、消费者及专项回归，核实有效 TDD 证据；仅满足明确升级条件时执行对应应用/测试类型的全量，具体门禁见 Expert 文件
 2. 按优先级执行（P0 → P1 → P2），记录每条用例结果（通过/失败/阻塞）与环境信息
 3. 发现缺陷时，完整填写复现步骤、影响分析、严重程度
 4. P0 阻塞缺陷立即通知 TDD 修复
@@ -151,7 +151,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - FOR EACH Story in PRD：
   1. 读取 Story 的所有 AC（验收标准）
   2. 为每个 AC 生成测试用例，遵循**基线 + 模式触发**规则：
-     - **基线**（固定最低 3 个）：正常路径 ×1 + 输入边界 ×1 + 错误路径 ×1
+     - **基线**（新增或改变关键用户路径的受影响 Story）：正常路径、适用输入边界及错误恢复；复用已有用例并补缺口，不对纯文档或局部样式固定新增 3 个 E2E
      - **模式触发追加**：AC 涉及条件分支→追加分支测试；涉及多实体→追加关联测试；涉及认证→追加权限边界测试；涉及状态变更→追加幂等/负面测试
      - **断言质量**：每用例 ≥2 个有效断言（验证状态变更或业务数据，禁止仅检查 defined/null/truthy）
      - **负面测试**：必须包含验证"不应发生"的行为
@@ -201,7 +201,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 ## 测试策略与覆盖
 - **优先级**：P0（阻塞）> P1（严重）> P2（一般）；P0 通过率必须 100%
 - **测试类型覆盖**：功能/集成/E2E/回归/契约/降级/性能/安全/无障碍
-- **快速通道**：时间受限时，P0 用例 + 变更影响范围内回归用例
+- **执行范围**：按影响和风险选择 P0 及相关回归；时间受限不豁免必需验证，全量与证据复用遵循通用约定
 - **非功能验证**：性能基准对比、可靠性指标、安全扫描、WCAG 2.1 AA 合规
 - **设计还原度**：对照 UX 规范验证间距、色彩、排版、响应式断点
 
@@ -237,19 +237,20 @@ pnpm run qa:sync-prd-qa-ids            # PRD ↔ QA ID 同步
 ```
 
 ### 测试执行（TDD 已写的测试）
+以下示例按项目运行器选择并核实过滤参数；不逐条执行，不因进入 QA 自动运行全量或生成全仓覆盖率。
 ```bash
 cd <primary-app>
-pnpm test                                              # 高风险或范围不明时运行全量测试，使用项目默认并发
+pnpm test                                              # 仅满足明确全量升级条件时执行
 pnpm test tests/integration/                           # 受影响的集成测试
 pnpm test tests/contract/                              # 受影响的契约测试（Provider 验证）
 pnpm test tests/resilience/                            # 受影响的降级测试
-pnpm test -- --coverage                                # 带覆盖率
+pnpm test -- --coverage                                # 项目要求覆盖率时，按运行器指定范围
 ```
 
 ### 测试执行（QA 编写的测试）
 ```bash
 # E2E 测试
-pnpm playwright test                                   # 全量 E2E（headless）
+pnpm playwright test e2e/tests/<affected>.e2e.spec.ts     # 定向 E2E（headless）
 pnpm playwright test --shard=1/4                       # 分片并行
 pnpm playwright test --ui                              # 调试模式
 pnpm playwright test --trace on                        # 带 Trace
@@ -274,6 +275,8 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 
 ## QA 验收检查清单
 
+以下清单仅核验本次受影响范围和项目适用门禁；不适用项记录理由，不能据此默认新增测试类型或扩大为全量。有效的 TDD 证据按通用约定复用。
+
 ### 质量门槛
 - [ ] P0 通过率 = 100%
 - [ ] 总通过率 ≥ 90%
@@ -288,9 +291,9 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] 缺陷报告字段完整（复现步骤、环境、严重程度、回流建议）
 
 ### 测试交付完整性
-- [ ] E2E 测试脚本已创建（`e2e/` 目录），P0 场景全部覆盖
-- [ ] 性能测试脚本已创建并执行，核心接口响应时间满足 NFR 阈值
-- [ ] 安全测试已执行（ZAP 扫描或手工清单），无高危漏洞
+- [ ] 涉及用户路径时，相关 E2E 已覆盖受影响 P0 场景；已有脚本可复用
+- [ ] 命中性能风险时，专项验证满足相关 NFR 阈值
+- [ ] 命中安全风险时，对应验证已执行，无未解决的阻塞漏洞
 - [ ] NFR 验收在模块 `nfr-tracking.md` 中有最新状态
 - [ ] 全局矩阵（strategy/priority/risk）反映当前覆盖/优先级/风险
 
@@ -329,9 +332,9 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 flowchart TD
     A[TDD 自动串联 or 手动激活] --> B["/qa plan 生成测试计划"]
     B --> B1{命中风险域?}
-    B1 -->|未命中| B2[跳过编写，执行已有测试]
+    B1 -->|未命中| B2[定向检查或复用有效证据]
     B1 -->|命中| B3["按命中域补写 E2E/性能/安全/回归"]
-    B2 --> C["按风险执行定向或全量测试，记录结果"]
+    B2 --> C["核对影响范围，按需补测；全量须有依据"]
     B3 --> C
     C --> D["/qa verify 验收检查"]
     D --> E{发布建议}
