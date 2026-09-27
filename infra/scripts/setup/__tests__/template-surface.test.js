@@ -228,7 +228,7 @@ test('always-loaded protocol makes mutation and phase explicit', () => {
 test('template-owned Codex guidance avoids deprecated approval policies', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
   const codexFiles = manifest.rules
-    .filter((entry) => entry.path.startsWith('.codex/'))
+    .filter((entry) => entry.path.startsWith('.codex/') && entry.strategy !== 'remove')
     .map((entry) => entry.source || entry.path);
 
   for (const file of codexFiles) {
@@ -236,6 +236,20 @@ test('template-owned Codex guidance avoids deprecated approval policies', () => 
   }
   assert.match(read('.codex/config.example.toml'), /approval_policy = "on-request"/u);
   assert.match(read('.codex/README.md'), /approval_policy = "on-request"/u);
+});
+
+test('Codex authentication uses the cross-platform wrapper instead of a non-functional session hook', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  assert.deepEqual(
+    manifest.rules.find((entry) => entry.path === '.codex/hooks.json'),
+    { path: '.codex/hooks.json', strategy: 'remove' },
+  );
+  assert.equal(fs.existsSync(path.join(ROOT, '.codex/hooks.json')), false);
+
+  const guide = read('.codex/README.md');
+  assert.match(guide, /github-auth-run\.js/u);
+  assert.match(guide, /Codex.*SessionStart.*不.*环境变量|Codex.*不.*Hook.*注入/u);
+  assert.doesNotMatch(guide, /hooks\.json.*把 `GH_TOKEN` 注入 CLI 环境文件/u);
 });
 
 test('single-session read-only investigation does not acquire durable task state by step count', () => {
