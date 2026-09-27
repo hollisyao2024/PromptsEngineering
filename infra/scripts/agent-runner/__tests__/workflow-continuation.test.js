@@ -156,21 +156,20 @@ test('real CLI transition and resume publish the same continuation contract acro
 
 test('rules define acknowledged handoff or inline continuation without removing gates', () => {
   const root = path.resolve(__dirname, '../../../..');
-  for (const file of ['AGENTS.md', 'docs/CONVENTIONS.md']) {
-    const text = fs.readFileSync(path.join(root, file), 'utf8');
-    assert.equal(/当前上下文(?:到此)?停止|同一阶段内才允许自动连续续跑/.test(text), false, `${file}: unconditional stop`);
-    for (const pattern of [/接管确认/, /当前任务.*继续/, /不.*重复.*确认/, /真实阻塞/, /completion guard|完成门禁/, /task resume --task <id>/]) {
-      assert.equal(pattern.test(text), true, `${file}: missing ${pattern}`);
-    }
+  const agents = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
+  const conventions = fs.readFileSync(path.join(root, 'docs/CONVENTIONS.md'), 'utf8');
+  assert.equal(/当前上下文(?:到此)?停止|同一阶段内才允许自动连续续跑/.test(agents), false);
+  for (const pattern of [/接管确认/, /当前任务.*继续/, /不.*重复.*确认/, /真实阻塞/, /completion guard|完成门禁/, /task resume --task <id>/]) {
+    assert.equal(pattern.test(agents), true, `AGENTS.md: missing ${pattern}`);
   }
+  assert.match(conventions, /AGENTS\.md.*上下文预算与阶段交接/u);
+  assert.match(conventions, /接管确认/u);
 });
 
-test('all six experts preserve exact recovery and avoid resuming a live phase transition', () => {
+test('all six experts use the shared task recovery policy', () => {
   const roles = path.resolve(__dirname, '../../../../AgentRoles');
   for (const file of ['PRD-WRITER', 'ARCHITECTURE-WRITER', 'TASK-PLANNING', 'TDD-PROGRAMMING', 'QA-TESTING', 'DEVOPS-ENGINEERING']) {
     const text = fs.readFileSync(path.join(roles, `${file}-EXPERT.md`), 'utf8');
-    assert.ok(text.includes('task resume --task <id>'), `${file}: exact recovery command`);
-    assert.ok(text.includes('正常阶段切换只刷新'), `${file}: avoid recovering a live effect`);
-    assert.ok(/任务未知.*resume --auto/.test(text), `${file}: auto selection is discovery only`);
+    assert.match(text, /任务状态、恢复与阶段切换遵循 `AGENTS\.md`“长任务断点续跑”/u, `${file}: shared recovery policy`);
   }
 });
