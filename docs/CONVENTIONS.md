@@ -278,7 +278,7 @@ skipped_count
 
 遇到 `429` 先短时退避、checkpoint 并保留时间、状态码、provider 和日志路径证据，禁止重试风暴或盲目更换模型。节流不得跳过测试、关键读取、证据或最终门禁，不降低准确性、覆盖范围与验收；存在依赖时按原顺序执行。
 
-阶段边界先 `task transition`，再按 `CONTEXT_COMMAND` 刷新胶囊、激活下一阶段专家并在当前任务中继续，PRD → ARCH → TASK → TDD → QA 不重复要求用户确认已授权范围。`CONTEXT_REFRESH_REQUIRED=true` 表示必须刷新材料；`CONTEXT_HANDOFF_REQUIRED=false` 表示阶段转换本身不强制换执行器。胶囊保留任务/阶段/验收、worktree、当前步骤、证据路径、未验证状态和唯一下一动作，需要核验提交时在该 worktree 读取 HEAD。新执行上下文使用输出的 `RESUME_COMMAND=pnpm agent -- task resume --task <id>`，再读取当前胶囊；只有任务未知才允许 `resume --auto`。当前任务正常推进不反复 resume 仍在执行的步骤。
+阶段边界先 `task transition`，再按 `CONTEXT_COMMAND` 刷新胶囊、激活下一阶段专家并在当前任务中继续，PRD → ARCH → TASK → TDD → QA 不重复要求用户确认已授权范围。`CONTEXT_REFRESH_REQUIRED=true` 表示必须刷新材料；`CONTEXT_HANDOFF_REQUIRED=false` 表示阶段转换本身不强制换执行器。胶囊保留任务/阶段/验收、worktree、当前步骤、证据索引与状态路径、未验证状态和唯一下一动作；完整证据仍以 `STATE_PATH` 指向的状态文件为准，在恢复、核验和完成前按需读取，需要核验提交时在该 worktree 读取 HEAD。新执行上下文使用输出的 `RESUME_COMMAND=pnpm agent -- task resume --task <id>`，再读取当前胶囊；只有任务未知才允许 `resume --auto`。当前任务正常推进不反复 resume 仍在执行的步骤。
 
 `AUTO_CONTINUE=true` 与 `CONTINUATION_ACTION=CONTINUE_CURRENT_TASK` 要求执行器继续已有任务；它是执行指令，不表示脚本已经启动后台模型或新会话。`RUN_COMPLETION_GUARD` 仍须执行适用的 QA、合并、主干同步和 task finish；进入 QA 或全部步骤 done 都不能冒充任务完成。`RESOLVE_BLOCKER` 要求先解决真实阻塞、核验未知副作用及留存恢复证据；政策拒绝不能自动重试。已证实独立的清理延后只允许继续 QA/DEVOPS，最终完成门禁仍阻断未清理项。
 

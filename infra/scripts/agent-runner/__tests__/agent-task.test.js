@@ -749,6 +749,32 @@ test('task context is bounded, read-only, and supports point reads', (t) => {
   }), 'utf8') <= 8192);
 });
 
+test('task context indexes evidence without repeating its body or changing recovery routing', (t) => {
+  const paths = fixture(t);
+  const input = startInput(paths, { phase: 'tdd' });
+  createTask(input);
+  const fullEvidence = `verified delivery ${'unique supporting detail '.repeat(70)}`;
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: [fullEvidence] });
+  checkpointTask({ ...input, stepId: 'S2', status: 'verify_required',
+    failureKind: 'unknown_result', executionState: 'unknown',
+    evidence: ['push outcome is unknown'], nextAction: 'Check remote SHA' });
+  checkpointTask({ ...input, acceptanceId: 'AC1', status: 'done', evidence: ['acceptance checked'] });
+  const stateBefore = readTaskState(input);
+
+  const capsule = buildTaskContext(input);
+
+  assert.match(capsule, /RESUME_COMMAND=pnpm agent -- task resume --task durable-task/u);
+  assert.match(capsule, /AUTO_CONTINUE=false/u);
+  assert.match(capsule, /CONTINUATION_ACTION=RESOLVE_BLOCKER/u);
+  assert.match(capsule, /S2:verify_required:Check remote SHA/u);
+  assert.match(capsule, /## Evidence Index/u);
+  assert.match(capsule, /S1:1.*S2:1.*AC1:1/u);
+  assert.ok(capsule.includes(`STATE_PATH=${path.join(paths.runsRoot, 'durable-task', 'state.json')}`));
+  assert.doesNotMatch(capsule, /unique supporting detail|push outcome is unknown|acceptance checked/u);
+  assert.ok(Buffer.byteLength(capsule, 'utf8') < Buffer.byteLength(fullEvidence, 'utf8'));
+  assert.deepEqual(readTaskState(input), stateBefore);
+});
+
 test('task exec preserves logs, strips ANSI summaries, and returns the child exit code', (t) => {
   const paths = fixture(t);
   createTask(startInput(paths, { worktree: paths.worktree }));
