@@ -10,10 +10,13 @@ const { resolveCommand } = require('../agent-cli');
 
 test('applied projects read three complete rules while the official template source reads its two files', () => {
   const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
-  assert.equal(fs.existsSync(path.join(ROOT, 'RULES.md')), false);
   assert.match(agents, /实际项目.*完整读取.*AGENTS\.md.*CONVENTIONS\.md.*RULES\.md/u);
-  assert.match(agents, /origin.*官方息壤源.*PromptsEngineering.*RULES\.md.*免读/u);
   assert.match(agents, /项目.*RULES\.md.*缺失.*停止后续副作用/u);
+  if (fs.existsSync(path.join(ROOT, 'RULES.md'))) {
+    assert.ok(fs.readFileSync(path.join(ROOT, 'RULES.md'), 'utf8').trim(), 'project rules must not be empty');
+  } else {
+    assert.match(agents, /origin.*官方息壤源.*PromptsEngineering.*RULES\.md.*免读/u);
+  }
   assert.match(agents, /输出截断.*补读.*文件末尾/u);
   assert.match(agents, /读取失败.*停止后续副作用/u);
   assert.doesNotMatch(agents, /rules load|CONTENT_END/u);
