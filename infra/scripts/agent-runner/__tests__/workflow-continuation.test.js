@@ -44,8 +44,9 @@ test('PRD to QA continues in order with persistent checkpoints, exact resume and
     assert.equal(capsule.AUTO_CONTINUE, 'true');
     assert.equal(capsule.RESUME_COMMAND, 'pnpm agent -- task resume --task workflow');
     assert.doesNotMatch(capsule.HANDOFF_PROMPT, /--auto/);
-    assert.match(capsule.HANDOFF_PROMPT, /read AGENTS\.md, docs\/CONVENTIONS\.md, and RULES\.md completely.*before task resume/u);
-    assert.match(capsule.HANDOFF_PROMPT, /complete truncated output to EOF/u);
+    assert.match(capsule.HANDOFF_PROMPT, /read AGENTS\.md and docs\/CONVENTIONS\.md completely.*before task resume/u);
+    assert.match(capsule.HANDOFF_PROMPT, /applied projects must also read RULES\.md completely/u);
+    assert.match(capsule.HANDOFF_PROMPT, /[Cc]omplete truncated output to EOF/u);
     assert.equal(capsule.CONTINUATION_ACTION, 'CONTINUE_CURRENT_TASK');
     checkpointTask({ ...input, stepId: `S${i + 1}`, status: 'running', nextAction: `Execute ${phases[i]}` });
     // A process boundary rewinds only a safe, unfinished step.
