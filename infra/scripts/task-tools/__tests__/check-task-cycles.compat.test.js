@@ -77,3 +77,19 @@ test('invalid dependency detection distinguishes canonical definitions from refe
   ]);
 });
 
+test('WBS recognizes 前置 and expands bounded historical task ranges', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'task-wbs-range-'));
+  const file = path.join(root, 'TASK.md');
+  fs.writeFileSync(file, [
+    '| Task ID | 名称 | 前置 | 状态 |',
+    '| --- | --- | --- | --- |',
+    '| TASK-DESKTOP-001..003 | Historical tasks | - | complete |',
+    '| TASK-DESKTOP-004 | Current task | TASK-DESKTOP-003 | pending |',
+  ].join('\n'));
+  const graph = parseDependencies(file);
+  assert.deepEqual([...graph.definedTasks].sort(), [
+    'TASK-DESKTOP-001', 'TASK-DESKTOP-002', 'TASK-DESKTOP-003', 'TASK-DESKTOP-004',
+  ]);
+  assert.deepEqual(graph.get('TASK-DESKTOP-004'), ['TASK-DESKTOP-003']);
+  assert.deepEqual(detectInvalidDependencies(graph), []);
+});

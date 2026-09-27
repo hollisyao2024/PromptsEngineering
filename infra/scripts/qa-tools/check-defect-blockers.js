@@ -76,7 +76,7 @@ function findHeaderIndex(headers, candidates) {
 function normalizeDefectStatus(value) {
   const raw = cleanMarkdownCell(value).replace(/^✅\s*/, '').trim();
   const status = raw.replace(/\s*(?:（[^（）]*）|\([^()]*\))$/u, '').trim();
-  if (/^(closed|已关闭)$/i.test(status)) return 'Closed';
+  if (/^(closed|verified\/closed|已关闭)$/i.test(status)) return 'Closed';
   if (/^(resolved|已解决)$/i.test(status)) return 'Resolved';
   if (/^(in progress|进行中)$/i.test(status)) return 'In Progress';
   if (/^(open|打开|未关闭)$/i.test(status)) return 'Open';
@@ -114,7 +114,7 @@ function parseDefectContent(content, moduleName) {
 
     const titleIndex = findHeaderIndex(headers, ['标题', '问题', 'Title']);
     const severityIndex = findHeaderIndex(headers, ['严重度', '严重级别', 'Severity']);
-    const statusIndex = findHeaderIndex(headers, ['状态', 'Status']);
+    const statusIndex = findHeaderIndex(headers, ['状态', '最终状态', 'Status']);
     const storyIndex = findHeaderIndex(headers, ['影响 Story', 'Story']);
     const assigneeIndex = findHeaderIndex(headers, ['负责人', 'Assignee']);
     const etaIndex = findHeaderIndex(headers, ['预计修复', 'ETA']);
@@ -346,13 +346,13 @@ function analyzeDefects(defects) {
 function classifyNFRStatus(status) {
   const normalized = cleanMarkdownCell(status).replace(/(?<![\d.])0(?:\.0+)?%\s+fail(?:ure)?(?:s)?\b/giu, 'zero error rate');
   if (/❌|未达标|不达标|不通过|no-go|\bfail(?:ed|ure)?\b|\bincomplete\b|\bnot (?:passed|complete|compliant)\b/iu.test(normalized)) return 'nonCompliant';
-  if (/⚠|🟡|⏳|🔄|⏸|暂缓|条件|部分|未|待|规划|仅|自动化|TDD|代码|没有|不等于|external gate|pending|blocked|conditional|partial|contract_ready|evidence_unavailable|not_started|not_executed/iu.test(normalized)) return 'conditional';
+  if (/⚠|🟡|⏳|🔄|⏸|暂缓|条件|部分|未|待|规划|仅|自动化|TDD|代码|没有|不等于|非阻断观察|external gate|pending|blocked|conditional|partial|contract_ready|evidence_unavailable|not_started|not_executed|pass_with_risk|archived|\bopen\b/iu.test(normalized)) return 'conditional';
   if (/✅|达标|通过|\bpass(?:ed)?\b|\bcomplete(?:d)?\b/iu.test(normalized)) return 'compliant';
   return 'nonCompliant';
 }
 
-const NFR_HEADERS = ['NFR ID', 'NFR', 'NFR / 指标', '子指标'];
-const STATUS_HEADERS = ['状态', 'Status', '当前状态', '结果', '当前结果', '当前结论'];
+const NFR_HEADERS = ['NFR ID', 'NFR', 'NFR / 指标', '子指标', '指标'];
+const STATUS_HEADERS = ['状态', 'Status', '当前状态', '最终状态', '状态 / 残余边界', '结果', '当前结果', '当前结论'];
 const NFR_RANK = { compliant: 2, conditional: 1, nonCompliant: 0 };
 
 function summarizeNFRs(values, sourceAvailable = true) {
