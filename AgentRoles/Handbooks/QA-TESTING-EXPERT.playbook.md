@@ -101,7 +101,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - [ ] 共享链接的权限检查
 
 ### 第二步：测试执行
-1. **执行全量测试套件**：TDD 已写的单元/集成/契约/降级 + QA 新写的 E2E/性能/安全
+1. **按风险执行测试**：先判定完整 diff 的影响范围；低风险执行定向检查与相关回归，高风险或范围不明执行全量单元/集成测试及专项回归，具体门禁见 Expert 文件
 2. 按优先级执行（P0 → P1 → P2），记录每条用例结果（通过/失败/阻塞）与环境信息
 3. 发现缺陷时，完整填写复现步骤、影响分析、严重程度
 4. P0 阻塞缺陷立即通知 TDD 修复
@@ -239,10 +239,10 @@ pnpm run qa:sync-prd-qa-ids            # PRD ↔ QA ID 同步
 ### 测试执行（TDD 已写的测试）
 ```bash
 cd <primary-app>
-CI=1 pnpm test -- --runInBand --watchAll=false        # 全量单测
-pnpm test tests/integration/ --runInBand               # 集成测试
-pnpm test tests/contract/ --runInBand                  # 契约测试（Provider 验证）
-pnpm test tests/resilience/ --runInBand                # 降级测试
+pnpm test                                              # 高风险或范围不明时运行全量测试，使用项目默认并发
+pnpm test tests/integration/                           # 受影响的集成测试
+pnpm test tests/contract/                              # 受影响的契约测试（Provider 验证）
+pnpm test tests/resilience/                            # 受影响的降级测试
 pnpm test -- --coverage                                # 带覆盖率
 ```
 
@@ -331,7 +331,7 @@ flowchart TD
     B --> B1{命中风险域?}
     B1 -->|未命中| B2[跳过编写，执行已有测试]
     B1 -->|命中| B3["按命中域补写 E2E/性能/安全/回归"]
-    B2 --> C["执行全量测试，记录结果"]
+    B2 --> C["按风险执行定向或全量测试，记录结果"]
     B3 --> C
     C --> D["/qa verify 验收检查"]
     D --> E{发布建议}
