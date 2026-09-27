@@ -65,6 +65,20 @@ function isSchedulingDependency(type) {
   return normalized === '' || ['FS', 'SS', 'FF', 'SF'].includes(normalized);
 }
 
+function expandTaskIds(value) {
+  const ids = extractIds(value, TASK_ID_SOURCE);
+  const range = /\b(TASK-[A-Z0-9-]+?)(\d{3})\.\.(\d{3})\b/gu;
+  for (const match of String(value).matchAll(range)) {
+    const start = Number(match[2]);
+    const end = Number(match[3]);
+    if (end < start || end - start > 100) continue;
+    for (let number = start; number <= end; number += 1) {
+      ids.push(`${match[1]}${String(number).padStart(3, '0')}`);
+    }
+  }
+  return [...new Set(ids)];
+}
+
 // 解析单个文件的依赖关系。WBS 表中的依赖列、模块矩阵和全局矩阵
 // 具有不同方向；CHECK 是验证关系，不是调度边。
 function parseDependencies(filePath) {
@@ -80,7 +94,7 @@ function parseDependencies(filePath) {
 
     const normalizedHeader = header.map(cell => cell.replace(/\s+/g, ' ').trim());
     const taskColumn = normalizedHeader.findIndex(cell => /^(?:Task ID|任务)$/i.test(cell));
-    const dependencyColumn = normalizedHeader.findIndex(cell => /^(?:Dependencies|依赖|前置任务)$/i.test(cell));
+    const dependencyColumn = normalizedHeader.findIndex(cell => /^(?:Dependencies|依赖|前置任务|前置)$/i.test(cell));
     const prerequisiteColumn = normalizedHeader.findIndex(cell => /^前置任务$/u.test(cell));
     const successorColumn = normalizedHeader.findIndex(cell => /^后置任务$/u.test(cell));
     const typeColumn = normalizedHeader.findIndex(cell => /^(?:类型|依赖类型)$/u.test(cell));
@@ -116,7 +130,7 @@ function parseDependencies(filePath) {
           }
         }
       } else {
-        const tasks = extractIds(cells[taskColumn] || '', TASK_ID_SOURCE);
+        const tasks = expandTaskIds(cells[taskColumn] || '');
         const prerequisites = extractIds(cells[dependencyColumn] || '', TASK_ID_SOURCE);
         for (const taskId of tasks) {
           dependencies.definedTasks.add(taskId);
@@ -185,10 +199,9 @@ function collectAllDependencies() {
 
     entries.forEach(entry => {
       if (entry.isDirectory()) {
-        // 扫描模块子目录下的 TASK.md
-        const moduleTaskPath = path.join(CONFIG.taskModulesDir, entry.name, 'TASK.md');
-        if (fs.existsSync(moduleTaskPath)) {
-          mergeGraph(parseDependencies(moduleTaskPath));
+        // 模块增量任务可能定义在独立的 Markdown 文件中。
+        for (const name of fs.readdirSync(path.join(CONFIG.taskModulesDir, entry.name))) {
+          if (name.endsWith('.md')) mergeGraph(parseDependencies(path.join(CONFIG.taskModulesDir, entry.name, name)));
         }
       }
     });

@@ -27,6 +27,19 @@ test('unknown Closed-like strings never normalize to a closed defect', () => {
   }
 });
 
+test('verified closure in the project defect-log format is closed, while a pending verification blocks', () => {
+  const rows = '| 缺陷 ID | 严重度 | 最终状态 | 证据 |\n|---|---|---|---|\n'
+    + '| BUG-AUTH-001 | P0 | Verified/Closed | 复验通过 |\n'
+    + '| BUG-AUTH-002 | P0 | Closed（真机待验） | 待验 |';
+  const defects = checker.parseDefectContent(rows, 'authentication');
+  assert.equal(defects[0].status, 'Closed');
+  assert.equal(defects[1].status, 'Closed');
+  assert.equal(defects[1].validationPending, true);
+  const analysis = checker.analyzeDefects(defects);
+  assert.equal(analysis.p0Defects.length, 0);
+  assert.equal(analysis.p0ValidationPending.length, 1);
+});
+
 test('NFR aliases, named metrics, limitations and follow-up gates remain visible', () => {
   assert.equal(checker.parseNFRCompliance(table('Pass')).compliantCount, 1);
   assert.equal(checker.parseNFRCompliance(table('External Gate')).conditionalNFRs.length, 1);
@@ -41,6 +54,27 @@ test('NFR aliases, named metrics, limitations and follow-up gates remain visible
   assert.equal(result.totalCount, 1);
   assert.equal(result.conditionalNFRs.length, 1);
   assert.equal(result.conditionalNFRs[0].followUpGate, '真机复验');
+});
+
+test('existing module NFR table headers preserve risk and genuine incomplete status', () => {
+  const named = '| 指标 | 目标 | 当前测量 | 状态 | 证据 |\n|---|---|---|---|---|\n'
+    + '| 登录 P95 | <300ms | 153ms | 达标 | k6 |';
+  assert.equal(checker.parseNFRCompliance(named).compliantCount, 1);
+  const tracked = '| NFR | 目标 | 最终状态 | 证据 |\n|---|---|---|---|\n'
+    + '| NFR-AUTH-001 | <300ms | PASS_WITH_RISK | 外部时延待验 |\n'
+    + '| NFR-WORK-PARITY-001 | 全功能闭合 | ❌ 未完成 | 仍有差距 |';
+  const result = checker.parseNFRCompliance(tracked);
+  assert.deepEqual(result.conditionalNFRs.map(item => item.nfrId), ['NFR-AUTH-001']);
+  assert.deepEqual(result.nonCompliantNFRs.map(item => item.nfrId), ['NFR-WORK-PARITY-001']);
+});
+
+test('nonblocking observations remain conditional while unfinished NFRs block', () => {
+  const rows = '| 指标 | 状态 |\n|---|---|\n'
+    + '| 构建包 ready | 非阻断观察 |\n'
+    + '| NFR-WORK-PARITY-001 | ❌ 未完成 |';
+  const result = checker.parseNFRCompliance(rows);
+  assert.deepEqual(result.conditionalNFRs.map(item => item.nfrId), ['构建包 ready']);
+  assert.deepEqual(result.nonCompliantNFRs.map(item => item.nfrId), ['NFR-WORK-PARITY-001']);
 });
 
 test('module NFR evidence is read even without a global file; conflicts fail closed', t => {
