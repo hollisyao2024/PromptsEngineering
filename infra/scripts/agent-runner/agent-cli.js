@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 
 const ROUTES = new Map([
   ['run', 'infra/scripts/agent-runner/agent-run.js'],
+  ['test', 'infra/scripts/agent-runner/targeted-test.js'],
   ['finish', 'infra/scripts/tdd-tools/tdd-finish.js'],
   ['tdd:sync', 'infra/scripts/tdd-tools/tdd-sync.js'],
   ['tdd:push', 'infra/scripts/tdd-tools/tdd-push.js'],
@@ -102,6 +103,7 @@ function printHelp() {
   console.log(`Usage: pnpm agent -- <command> [args]
 
 Core commands:
+  test --file <test-file> -- <runner> [args]
   task <paths|context|start|checkpoint|exec|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
   tdd <sync|push|finish|guard>

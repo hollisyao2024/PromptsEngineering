@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { StringDecoder } = require('string_decoder');
 const { spawnSync } = require('child_process');
+const { assertTestCommandScope } = require('./test-command-scope');
 const {
   getMainRepoRoot,
   getWorktreeRoot,
@@ -1148,6 +1149,7 @@ function executeTaskCommand(options) {
     name: '--max-summary-lines', min: 1, max: 400,
   });
   const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+  assertTestCommandScope(command, state);
   const taskDir = path.join(options.runsRoot, taskId);
   const evidenceDir = path.join(taskDir, 'evidence');
   ensureRealDirectory(evidenceDir);

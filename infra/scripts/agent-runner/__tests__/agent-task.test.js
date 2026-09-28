@@ -811,6 +811,18 @@ test('task exec preserves logs, strips ANSI summaries, and returns the child exi
   }), /already exists/u);
 });
 
+test('task exec rejects an implicit full test before creating a log or spawning', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { worktree: paths.worktree }));
+  assert.throws(() => executeTaskCommand({
+    ...paths,
+    taskId: 'durable-task',
+    name: 'accidental-full-test',
+    command: ['pnpm', 'test'],
+  }), /TEST_SCOPE_DECISION.*full/u);
+  assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task', 'evidence', 'accidental-full-test.log')), false);
+});
+
 test('transition refreshes the bounded context without stopping authorized continuation', () => {
   const output = formatTransitionOutput({
     task_id: 'durable-task',
