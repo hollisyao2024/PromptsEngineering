@@ -241,6 +241,7 @@ QA/合并策略：`qa verify` 在本地检查通过后原子写入包含 configu
 | US-CMDSURF-007 | CMDSURF-API-001、CMDSURF-SVC-005、Git origin/base 与 worktree lifecycle |
 | US-CMDSURF-008 | CMDSURF-API-001、CMDSURF-SVC-005~007、Git origin/PR/base 与本机 session lifecycle |
 | US-CMDSURF-009 | CMDSURF-API-001、CMDSURF-SVC-008~009、息壤 identity、官方 GitHub 源、template manifest 与目标 linked worktree |
+| US-CMDSURF-013 | CMDSURF-SVC-004、CMDSURF-SVC-007、TDD/QA 专家及测试范围约定 |
 
 ## 13. 完成检查
 
@@ -275,3 +276,13 @@ tdd push 新增显式 committed-only 参数，在自动提交和阶段文档回�
 新 helper 在目标 Git 中将显式 ref 解析为固定 commit，读取该 commit 的息壤 manifest。只返回新旧有效规则均为 overwrite、旧 Git blob 为普通文件的文本基线；最具体规则优先，项目/生成/排除项禁止继承。planUpdate 用其补充缺失基线，沿用原 overwrite 的 local==base 门禁、冻结计划目标哈希复验和 journal 原子应用。dry-run 不初始化旧 lock，也不写目标。计划与日志记录固定 SHA；缺失/非法/非息壤基线 fail closed。
 
 消费者边界测试将通用保护与完整架构源码用例明确分离；源码能力缺失只影响源专用用例，通用用例继续执行。消费者传播测试实际安装默认模板后执行边界测试，防止再次传播失败套件。没有新增依赖、数据库、服务或网络认证模式。回滚为 revert；已经生成的 lock 继续走既有校验。
+
+## 16. 测试范围决策与 QA 证据门禁（US-CMDSURF-013）
+
+共同测试门槛只在 `docs/CONVENTIONS.md` 定义；TDD 在运行回归前形成范围决策，QA 审核其影响分析和结果复用。两份专家文件只写阶段动作与证据要求，避免各自维护不同的全量触发清单。CLI 不推断业务影响、不启动全量测试。
+
+复用 task state 的现有 `steps[].evidence`，不升级状态 schema。当前任务使用两条带前缀的单行 JSON 证据：`TEST_SCOPE_DECISION=` 包含 `version=1`、`mode=targeted|full|static`、非空 `impact_paths`、非空 `commands`、`not_run` 数组和非空 `reason`；full 另需枚举 `full_trigger` 与非空 `trigger_evidence`。`TEST_SCOPE_RESULT=` 包含 `version=1`、当前远端功能分支的 `head_sha`、`environment`、`dependencies` 和每个决策命令对应的 `checks`（命令、退出码 0、证据引用）。预提交运行的结果只有在受测内容与当前提交核对一致后才能绑定该 SHA。静态/文档任务在 `mode=static` 明确记录不运行业务测试，但仍列出并执行适用静态/契约检查。覆盖内容、未运行项合理性及证据真实性仍由 QA 语义审查。
+
+`qa verify` 先执行既有本地检查并获取 base/head 身份，再在写本机回执前只读定位与当前主项目、linked worktree 和 branch 精确匹配的唯一运行中 mutation 任务，解析其最后一对证据；缺失、歧义、格式不合法、失败或结果 SHA 不等于即将写入回执的 HEAD 均阻断。不存在任务的实际项目 mutation QA 也阻断，旧任务允许在 QA 前通过 checkpoint 补录同格式证据；不能静默按创建日期豁免。官方模板源跳过此应用项目证据门禁，保留现有本地 QA 和 SHA 回执。项目硬门禁与双 SHA 合并复验不受影响。
+
+不新增 CI、网络 API、数据库或用户配置。若规则引发误判，可回滚本次模板变更；已有 task state 的其他证据仍按原格式可读。见 [ADR-032](../../adr/032-arch-test-scope-evidence-gate.md)。

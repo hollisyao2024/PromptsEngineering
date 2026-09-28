@@ -1,0 +1,109 @@
+'use strict';
+
+const path = require('node:path');
+
+const MODES = new Set(['targeted', 'full', 'static']);
+const FULL_TRIGGERS = new Set([
+  'explicit_requirement',
+  'whole_scope_impact',
+  'unbounded_after_investigation',
+  'cross_domain_failure',
+]);
+
+function samePath(left, right) {
+  return typeof left === 'string' && typeof right === 'string' && left.length > 0 && right.length > 0
+    && path.resolve(left) === path.resolve(right);
+}
+
+function nonempty(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function stringList(value, { allowEmpty = false } = {}) {
+  return Array.isArray(value)
+    && (allowEmpty || value.length > 0)
+    && value.every(nonempty)
+    && new Set(value).size === value.length;
+}
+
+function parseRecord(raw, prefix) {
+  try {
+    const value = JSON.parse(raw.slice(prefix.length));
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  } catch { /* report one stable error below */ }
+  throw new Error(`${prefix.slice(0, -1)} must contain a JSON object`);
+}
+
+function validateDecision(value) {
+  if (value.version !== 1 || !MODES.has(value.mode)) {
+    throw new Error('TEST_SCOPE_DECISION requires version=1 and mode=targeted|full|static');
+  }
+  if (!stringList(value.impact_paths)) throw new Error('TEST_SCOPE_DECISION impact_paths must be nonempty');
+  if (!stringList(value.commands)) throw new Error('TEST_SCOPE_DECISION commands must be nonempty');
+  if (!stringList(value.not_run, { allowEmpty: true })) {
+    throw new Error('TEST_SCOPE_DECISION not_run must be an array of distinct descriptions');
+  }
+  if (!nonempty(value.reason)) throw new Error('TEST_SCOPE_DECISION reason is required');
+  if (value.mode === 'full') {
+    if (!FULL_TRIGGERS.has(value.full_trigger)) {
+      throw new Error('TEST_SCOPE_DECISION full_trigger must name an approved full-test trigger');
+    }
+    if (!nonempty(value.trigger_evidence)) {
+      throw new Error('TEST_SCOPE_DECISION trigger_evidence is required for full mode');
+    }
+  } else if (value.full_trigger !== undefined || value.trigger_evidence !== undefined) {
+    throw new Error('TEST_SCOPE_DECISION full_trigger is only valid for full mode');
+  }
+  return value;
+}
+
+function validateResult(value, decision, headSha) {
+  if (value.version !== 1 || !/^[0-9a-f]{40}$/.test(value.head_sha || '')) {
+    throw new Error('TEST_SCOPE_RESULT requires version=1 and a commit head_sha');
+  }
+  if (value.head_sha !== headSha) {
+    throw new Error('TEST_SCOPE_RESULT head_sha does not match the QA receipt HEAD');
+  }
+  if (!nonempty(value.environment) || !nonempty(value.dependencies)) {
+    throw new Error('TEST_SCOPE_RESULT environment and dependencies are required');
+  }
+  if (!Array.isArray(value.checks) || value.checks.length !== decision.commands.length) {
+    throw new Error('TEST_SCOPE_RESULT checks must cover every selected command');
+  }
+  const checks = new Map();
+  for (const check of value.checks) {
+    if (!check || !nonempty(check.command) || check.exit_code !== 0 || !nonempty(check.evidence)) {
+      throw new Error('TEST_SCOPE_RESULT checks require command, exit_code=0 and evidence');
+    }
+    if (checks.has(check.command)) throw new Error('TEST_SCOPE_RESULT checks contain duplicate commands');
+    checks.set(check.command, check);
+  }
+  if (decision.commands.some((command) => !checks.has(command))) {
+    throw new Error('TEST_SCOPE_RESULT checks do not match TEST_SCOPE_DECISION commands');
+  }
+}
+
+function verifyTestScopeEvidence({ states, context, headSha, templateSource = false }) {
+  if (templateSource) return { skipped: true };
+  const matches = states.filter((state) => state.status === 'running'
+    && samePath(state.project_root, context.projectRoot)
+    && samePath(state.worktree, context.worktree)
+    && state.branch === context.branch);
+  if (matches.length === 0) throw new Error('QA requires a matching mutation task with test scope evidence');
+  if (matches.length > 1) throw new Error('QA found ambiguous mutation tasks for this worktree and branch');
+
+  const task = matches[0];
+  if (task.task_type !== 'mutation') return { skipped: true };
+  const records = (task.steps || []).flatMap((step) => Array.isArray(step.evidence) ? step.evidence : []);
+  const decisionIndex = records.findLastIndex((item) => typeof item === 'string' && item.startsWith('TEST_SCOPE_DECISION='));
+  if (decisionIndex < 0) throw new Error('TEST_SCOPE_DECISION is missing from the current task');
+  const decision = validateDecision(parseRecord(records[decisionIndex], 'TEST_SCOPE_DECISION='));
+  const resultRaw = records.slice(decisionIndex + 1).findLast((item) => (
+    typeof item === 'string' && item.startsWith('TEST_SCOPE_RESULT=')
+  ));
+  if (!resultRaw) throw new Error('TEST_SCOPE_RESULT is missing after the latest decision');
+  validateResult(parseRecord(resultRaw, 'TEST_SCOPE_RESULT='), decision, headSha);
+  return { taskId: task.task_id, mode: decision.mode, commands: decision.commands };
+}
+
+module.exports = { verifyTestScopeEvidence };
