@@ -143,3 +143,12 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 
 | US-CMDSURF-012 | AC-CMDSURF-012-01/02 | TASK-CMDSURF-043 | TC-CMDSURF-LEGACY | Pass：真实 Git 迁移与同步收敛 |
 | US-CMDSURF-012 | AC-CMDSURF-012-03 | TASK-CMDSURF-044 | TC-CMDSURF-CONSUMER | Pass：安装副本执行边界测试 |
+
+## 测试范围决策与 QA 证据门禁
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-013 | AC-CMDSURF-013-01 | TC-CMDSURF-034 | 待 TDD/QA | 范围决策与纯文档任务用例 |
+| US-CMDSURF-013 | AC-CMDSURF-013-02 | TC-CMDSURF-035 | 待 TDD/QA | 全量触发与非触发规则检查 |
+| US-CMDSURF-013 | AC-CMDSURF-013-03 | TC-CMDSURF-036 | 待 TDD/QA | `qa verify` 证据门禁正反例 |
+| US-CMDSURF-013 | AC-CMDSURF-013-04 | TC-CMDSURF-037 | 待 TDD/QA | QA 证据复用与语义复核 |

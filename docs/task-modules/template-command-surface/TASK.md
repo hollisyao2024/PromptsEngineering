@@ -282,3 +282,13 @@
 关键路径：治理 → RED → 固定 SHA 迁移与消费者回归 → GREEN → 推送/QA/合并。数据库 No-op，无新增依赖。Review-Class REQUIRED；Domain-Hit 模板写入与共享基础库；Codex review skipped by policy。
 
 043/044 验证：迁移初始 6 项 RED，补充边界后 8/8 GREEN；同步入口 8/8，覆盖 fetched updater 参数透传、dry-run 无目标写入与 apply 收敛。安装副本实际运行 surface 和 boundaries 测试通过，复用主干已有的架构能力判断。045 的完整回归和交付结果见本任务运行态及 QA 模块。
+
+## 15. 测试范围决策与 QA 证据门禁（US-CMDSURF-013）
+
+| Task | 交付物与验收 | 依赖 | Owner | 估时 |
+| --- | --- | --- | --- | --- |
+| TASK-CMDSURF-046 | 先写 QA 证据门禁正反例：缺失/格式错误/失败/陈旧 SHA/歧义阻断，定向及静态模式通过，模板源兼容；TC-CMDSURF-036 | PRD/ARCH 已确认 | @tdd | 0.5d |
+| TASK-CMDSURF-047 | 更新共同测试规则和 TDD/QA 专家；实现只读 task evidence 解析、结构校验、回执前阻断；同步版本和模板传播契约；TC-CMDSURF-034/035/037 | 046 | @tdd | 1d |
+| TASK-CMDSURF-048 | 定向回归、模板同步收敛、应用项目实证与 TDD/QA/合并门禁；只在达到全量触发条件时升级对应范围 | 047 | @qa | 0.5d |
+
+关键路径：治理 → 046 RED → 047 GREEN → 048 模板源合并 → GuiXu 同步和项目验收。无数据库、部署或 CI 任务；Review-Class REQUIRED（共享 QA 基础门禁），Codex review skipped by policy。执行结果仅记录在 task/session/QA 证据，不镜像到本 WBS。

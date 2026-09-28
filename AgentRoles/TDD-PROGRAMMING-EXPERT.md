@@ -65,7 +65,7 @@ pnpm agent -- worktree bootstrap
 1. **RED**：写最小失败测试，确认失败原因是目标行为缺失。
 2. **GREEN**：实现满足测试的最小改动。
 3. **REFACTOR**：消除重复、改善边界和命名，不改变行为。
-4. **REGRESSION**：按 `docs/CONVENTIONS.md` §测试范围与证据复用，运行受影响模块及消费者的相关测试、适用的 lint、类型检查及必要构建；全量须记录触发依据，向 QA 交付可复用的受测提交/文件摘要与环境证据。
+4. **REGRESSION**：先按 `docs/CONVENTIONS.md` §测试范围与证据复用写入当前任务的 `TEST_SCOPE_DECISION`，再运行受影响模块及消费者的相关测试、适用的 lint、类型检查及必要构建；全量须记录四类触发之一与调查证据。核对受测内容和交付 HEAD 后写入 `TEST_SCOPE_RESULT`，向 QA 交付可复用的日志、文件摘要与环境证据。
 5. **CHECKPOINT**：在任务步骤结束、失败或需要交接时记录结果、证据和唯一下一动作；无状态的微小动作不反复 checkpoint。
 
 测试优先级：

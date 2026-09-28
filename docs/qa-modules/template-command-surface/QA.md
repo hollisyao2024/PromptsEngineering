@@ -44,3 +44,14 @@ TC-CMDSURF-CONSUMER：实际安装默认模板后运行已安装的 surface 与 
 完整源回归、源文件固定后的验证结果与交付 SHA 记录于任务运行态；初次全量执行期间源文件仍发生编辑，引发两项收敛断言失败，保留失败证据并在候选固定后重新验证。lint/type-check 是源仓库占位入口，不计为实际静态检查；以 Node 语法、真实回归、diff 和所有权边界验证为证据。Review-Class REQUIRED；Domain-Hit 共享更新引擎与模板写入；Codex review skipped by policy。无业务 UI、数据库或部署变更。
 
 固定候选后 macOS / Node 26.7.0 全量 `pnpm test`：530 项，529 通过、0 失败、1 个 Windows 专用测试按平台跳过，退出码 0。迁移、消费者传播及源架构测试均通过，结论 Go；无需业务浏览器 E2E、性能或数据库验证。
+
+## 测试范围决策与 QA 证据门禁（US-CMDSURF-013）
+
+| 用例 | 验证内容 |
+| --- | --- |
+| TC-CMDSURF-034 | 共同规则与 TDD 在回归前记录定向或静态范围、影响路径/消费者、命令和未运行项 |
+| TC-CMDSURF-035 | 全量只有四类触发，要求调查证据；文件数量、共享/高风险标签和阶段变化不单独触发 |
+| TC-CMDSURF-036 | 当前 mutation 任务的决策/结果缺失、格式错误、失败、陈旧 SHA、错误 worktree 或歧义时阻断回执；定向/静态通过，模板源及非 mutation 兼容 |
+| TC-CMDSURF-037 | QA 审查当前 HEAD、命令退出码、环境和依赖后复用有效 TDD 证据，只补新增或失效范围 |
+
+执行证据、实际结果、模板传播和合并 SHA 以本次 task state、QA 回执及目标项目任务为准；本模块不镜像运行态。适用范围为模板规则和本地 QA 门禁，业务 UI、数据库与部署验收不适用。Review-Class REQUIRED；Domain-Hit 共享 QA 基础门禁；Codex review skipped by policy。

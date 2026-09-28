@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-09-28：[ADR 032](032-arch-test-scope-evidence-gate.md)，全量测试高门槛、task evidence 决策与 QA 回执前结构校验。
+
 - 2026-09-10：[ADR 031](031-arch-on-demand-runtime.md)，轻量架构入口、固定来源缓存及旧包安全缩减。
 
 | ADR | 日期 | 状态 | 摘要 |

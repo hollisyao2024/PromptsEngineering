@@ -29,6 +29,8 @@ const {
   writeQaVerificationReceipt,
 } = require('./qa-verification-state');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
+const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
+const { verifyTestScopeEvidence } = require('./qa-test-scope');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
@@ -630,6 +632,16 @@ function main() {
 
   if (exitCode === 0) {
     const receipt = captureQaVerificationIdentity({ config });
+    if (!templateSource) {
+      const taskContext = runtimeContext(repoRoot);
+      const scope = verifyTestScopeEvidence({
+        states: listTaskStates({ runsRoot: taskContext.runsRoot }),
+        context: taskContext,
+        headSha: receipt.head_sha,
+      });
+      if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
+      else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
+    }
     const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
     log(`QA_RECEIPT=${receiptPath}`, 'green');
     log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
