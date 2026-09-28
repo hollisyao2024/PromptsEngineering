@@ -24,6 +24,13 @@ test('task exec rejects generic test scripts and unbounded runners before execut
     ['pnpm', 'test', 'tests/one.test.ts'],
     ['pnpm', '--filter', '@app/web', 'test'],
     ['pnpm', 'run', 'test:all'],
+    ['pnpm', '-r', 'test'],
+    ['turbo', 'run', 'test'],
+    ['npx', 'turbo', 'run', 'test'],
+    ['bash', '-lc', 'pnpm test'],
+    ['python3', '-m', 'pytest'],
+    ['node', 'infra/scripts/shared/test-budget.js', '--name=command-test', '--', 'pnpm', 'test'],
+    ['node', 'infra/scripts/test-tools/run-with-test-guards.js', 'pnpm', 'exec', 'turbo', 'run', 'test'],
     ['pnpm', 'exec', 'turbo', 'run', 'test'],
     ['pnpm', 'exec', 'vitest', 'run'],
     ['node', '--test'],
@@ -34,6 +41,8 @@ test('task exec permits explicit file runners and the guarded template route', (
   for (const command of [
     ['pnpm', 'agent', '--', 'test', '--file', 'tests/one.test.ts', '--', 'pnpm', 'exec', 'vitest', 'run'],
     ['pnpm', 'exec', 'vitest', 'run', 'tests/one.test.ts'],
+    ['pnpm', 'exec', 'playwright', 'test', 'tests/one.spec.ts'],
+    ['node', 'infra/scripts/shared/test-budget.js', '--', 'pnpm', 'exec', 'vitest', 'run', 'tests/one.test.ts'],
     ['node', '--test', 'tests/one.test.js'],
     ['pnpm', 'typecheck'],
   ]) assert.doesNotThrow(() => assertTestCommandScope(command, { steps: [] }));
