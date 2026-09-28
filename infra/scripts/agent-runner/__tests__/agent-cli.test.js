@@ -30,6 +30,10 @@ test('unified agent CLI routes stable workflow commands', () => {
     script: 'infra/scripts/tdd-tools/tdd-finish.js',
     args: [],
   });
+  assert.deepEqual(resolveCommand(['test', '--file', 'tests/unit.test.js', '--', 'node', '--test']), {
+    script: 'infra/scripts/agent-runner/targeted-test.js',
+    args: ['--file', 'tests/unit.test.js', '--', 'node', '--test'],
+  });
   assert.deepEqual(resolveCommand(['app', 'dev', '--platform=mac']), {
     script: 'infra/scripts/devops-tools/devops-run.js',
     args: ['--action=app-dev', '--platform=mac'],

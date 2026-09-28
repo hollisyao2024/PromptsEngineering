@@ -17,7 +17,7 @@
   "commands": {
     "lint": "pnpm run lint",
     "typecheck": "pnpm run type-check",
-    "test": "pnpm test",
+    "test": "pnpm agent -- test",
     "build": "pnpm run build",
     "qaGenerate": "pnpm run qa:generate",
     "qaVerify": "pnpm run qa:verify",

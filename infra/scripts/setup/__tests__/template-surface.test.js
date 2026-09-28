@@ -58,6 +58,8 @@ test('new projects receive a small canonical command surface', () => {
   const names = Object.keys(example.scripts || {});
   assert.ok(names.length <= 20, `expected <=20 scripts, found ${names.length}`);
   assert.equal(example.scripts.agent, 'node infra/scripts/agent-runner/agent-cli.js');
+  const config = JSON.parse(read('infra/templates/agent/config.example.json'));
+  assert.equal(config.commands.test, 'pnpm agent -- test');
   assert.equal(example.scripts['agent:task'], 'node infra/scripts/agent-runner/agent-task.js');
   assert.equal(example.scripts['tdd:new-worktree'], undefined);
   assert.equal(example.scripts['tdd:worktree-list'], undefined);
