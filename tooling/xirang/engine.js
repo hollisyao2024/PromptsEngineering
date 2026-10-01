@@ -128,7 +128,8 @@ function managedBlock(content, marker) {
 }
 function decide(asset, local, base, record, adopt) {
   const upstream = asset.content;
-  if (asset.strategy === 'project-owned' || (asset.strategy === 'init-if-missing' && local !== null)) return local;
+  if (asset.strategy === 'project-owned') return local;
+  if (asset.strategy === 'init-if-missing') return local === null ? upstream : local;
   if (asset.strategy === 'remove') {
     if (local === null) return null;
     if (base === undefined || local !== base) throw new Error('removal conflict: reliable unmodified baseline required');

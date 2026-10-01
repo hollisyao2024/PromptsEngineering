@@ -1,6 +1,6 @@
 # 通用工程约定
 
-本文件定义模型作业包的详细协议；应用技术架构独立维护于息壤源的 `architecture/`，实际项目按需取得轻量入口和所选实现。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源不提供 `RULES.md`。
+本文件定义模型作业包的详细协议；应用技术架构独立维护于息壤源的 `architecture/`，实际项目按需取得轻量入口和所选实现。项目专用规则放在根目录 `RULES.md`，项目参数放在稀疏 `agent.config.json`；模板源根目录不提供项目 `RULES.md`；首次应用与更新均从 `infra/templates/agent/RULES.example.md` 初始化缺失的目标文件，已有文件保持不变。
 
 ## 1. 路径与仓库拓扑
 
@@ -53,7 +53,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 - `init-if-missing`：仅初始化，已有项目文件不覆盖。
 - `project-owned`：模板永不写入。
 
-`RULES.md`、真实项目文档、源码、业务部署脚本和已有 `agent.config.json` 均属于项目。模板更新流程必须：
+`RULES.md`、真实项目文档、源码、业务部署脚本和已有 `agent.config.json` 均属于项目；`RULES.md` 仅在缺失时初始化，已有内容（包括空文件）不改写，初始化后由项目维护。仅模板接入初始化允许缺失规则，创建后必须全文预读再进行其他项目副作用；空文件或读取失败仍按基础规则阻断。模板更新流程必须：
 
 1. dry-run 并报告 create/update/merge/conflict/skip；
 2. 冲突时 fail-closed；

@@ -85,7 +85,9 @@ function createUpstream(testRoot, options = {}) {
         source: 'infra/templates/agent/package-scripts.example.json',
         strategy: 'merge-package-scripts',
       },
-      { path: 'RULES.md', strategy: 'project-owned' },
+      options.initializeRules
+        ? JSON.parse(fs.readFileSync(path.join(ROOT, 'infra/templates/agent/template.manifest.json'), 'utf8')).rules.find(r => r.path === 'RULES.md')
+        : { path: 'RULES.md', strategy: 'project-owned' },
       { path: 'src', strategy: 'project-owned' },
     ],
   };
@@ -94,6 +96,7 @@ function createUpstream(testRoot, options = {}) {
   }
 
   write(upstream, 'AGENTS.md', '# 息壤 upstream v1\n');
+  if (options.initializeRules) write(upstream, 'infra/templates/agent/RULES.example.md', '# 项目规则初始骨架\n');
   write(upstream, 'infra/templates/agent/config.example.json', `${JSON.stringify(defaults, null, 2)}\n`);
   write(upstream, 'infra/templates/agent/template.manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
   write(upstream, 'infra/templates/agent/package-scripts.example.json', `${JSON.stringify({
@@ -130,7 +133,7 @@ function createTarget(testRoot, options = {}) {
   initializeRepository(mainRoot);
   write(mainRoot, 'AGENTS.md', '# local old template\n');
   write(mainRoot, '.gitignore', '.codex/config.toml\n');
-  write(mainRoot, 'RULES.md', 'PROJECT_RULE_SENTINEL\n');
+  if (!options.omitRules) write(mainRoot, 'RULES.md', 'PROJECT_RULE_SENTINEL\n');
   write(mainRoot, 'src/business.js', 'module.exports = "PROJECT_BUSINESS_SENTINEL";\n');
   write(mainRoot, 'package.json', `${JSON.stringify({
     name: 'actual-project',
@@ -401,4 +404,28 @@ test('sync refuses the main worktree and the template source role', (t) => {
   assert.notEqual(sourceResult.status, 0, combinedOutput(sourceResult));
   assert.match(combinedOutput(sourceResult), /source role/u);
   assert.equal(git(sourceTarget.linkedRoot, ['status', '--porcelain']), '');
+});
+
+test('TC-CMDSURF-038 sync initializes missing RULES and later preserves project customization', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-rules-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { upstream } = createUpstream(root, { initializeRules: true, unified: true });
+  const { linkedRoot } = createTarget(root, { omitRules: true });
+  const file = path.join(linkedRoot, 'RULES.md');
+  const args = [`--source-repo=${upstream}`, '--source-branch=main', '--adopt'];
+  const dry = runSync(linkedRoot, [...args, '--dry-run']);
+  assert.equal(dry.status, 0, combinedOutput(dry));
+  assert.equal(fs.existsSync(file), false);
+  const first = runSync(linkedRoot, args);
+  assert.equal(first.status, 0, combinedOutput(first));
+  assert.equal(fs.readFileSync(file, 'utf8'), '# 项目规则初始骨架\n');
+  assert.match(combinedOutput(first), /TEMPLATE_CONVERGENCE_STATUS=OK/);
+  write(linkedRoot, 'RULES.md', '# 项目自定义规则\r\n');
+  commitAll(linkedRoot, 'apply and customize project rules');
+  write(upstream, 'infra/templates/agent/RULES.example.md', '# 上游新版规则\n');
+  commitAll(upstream, 'advance rules skeleton');
+  const second = runSync(linkedRoot, args);
+  assert.equal(second.status, 0, combinedOutput(second));
+  assert.equal(fs.readFileSync(file, 'utf8'), '# 项目自定义规则\r\n');
+  assert.match(combinedOutput(second), /TEMPLATE_CONVERGENCE_STATUS=OK/);
 });

@@ -8,9 +8,9 @@
 @./RULES.md
 
 - 新执行上下文进入实际项目任务时，先使用只读工具按 UTF-8 完整读取 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`，并确认各文件已读到末尾；`@` 路径只表示引用，不能当作正文已加载。输出截断时按行范围补读至文件末尾。
-- 仅在通过只读 `git remote get-url origin` 确认当前仓库是官方息壤源 `hollisyao2024/PromptsEngineering.git`，且该源未提供 `RULES.md` 时，`RULES.md` 免读；实际项目的 `RULES.md` 缺失、为空或读取失败时停止后续副作用。两类仓库的 `AGENTS.md` 或 `docs/CONVENTIONS.md` 缺失、为空或读取失败时也停止后续副作用。
+- 仅在通过只读 `git remote get-url origin` 确认当前仓库是官方息壤源 `hollisyao2024/PromptsEngineering.git`，且该源未提供 `RULES.md` 时，`RULES.md` 免读；实际项目的 `RULES.md` 缺失、为空或读取失败时停止后续副作用；仅明确的首次应用或模板更新可在 `RULES.md` 缺失时继续模板初始化，按既有任务、worktree 与所有权门禁创建，创建后必须完整读取再执行其他项目副作用；已有空文件或读取失败不适用此例外。两类仓库的 `AGENTS.md` 或 `docs/CONVENTIONS.md` 缺失、为空或读取失败时也停止后续副作用。
 - 当前执行上下文已完整读取的必需基础规则，阶段切换不重复全文加载；激活专家仍完整读取对应文件，handbook 与阶段文档按需点读。
-- `docs/CONVENTIONS.md` 由模板提供；`RULES.md` 由实际项目维护，模板源不提供、创建或覆盖它。
+- `docs/CONVENTIONS.md` 由模板提供；`RULES.md` 由实际项目维护；首次应用与更新仅在缺失时从模板骨架初始化，已有文件保持不变，模板源根目录不提供项目规则文件。
 - 不得输出模型隐藏思维过程；用中文给出结论、证据、风险与下一动作。
 
 ## 仓库与状态边界
@@ -166,7 +166,7 @@ pnpm agent -- finish
 - 架构规划先按项目需求选择应用、存储、平台与目录，记录 `architecture.config.json`；用 `architecture plan/init/update/check` 落地。已选 shadcn 的控件和 DataTable 约束见架构标准，`RULES.md` 不重复抄写。
 - 升级按文件/字段所有权执行，`xirang.lock.json` 与 `.xirang/baselines` 保存版本依据；未知基线、覆盖漂移、合并冲突或恢复态阻断，不静默丢弃定制。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
-- `RULES.md`、业务源码、真实项目文档和部署实现属于项目；模板更新不得覆盖。
+- `RULES.md`、业务源码、真实项目文档和部署实现属于项目；模板更新不得覆盖已有内容；`RULES.md` 缺失时按 `init-if-missing` 初始化。
 - 应用模板：`pnpm agent -- template update <target>`；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。
 - 回灌模板是显式操作：`pnpm agent -- template backfill <source>`；不得回灌项目配置、规则、业务脚本或 generated 文件。
 

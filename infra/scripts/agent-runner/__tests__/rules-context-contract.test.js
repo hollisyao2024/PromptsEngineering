@@ -19,6 +19,8 @@ test('applied projects read three complete rules while the official template sou
   }
   assert.match(agents, /输出截断.*补读.*文件末尾/u);
   assert.match(agents, /读取失败.*停止后续副作用/u);
+  assert.match(agents, /首次应用.*模板更新.*RULES\.md.*缺失/u);
+  assert.match(agents, /创建后.*完整读取/u);
   assert.doesNotMatch(agents, /rules load|CONTENT_END/u);
   for (const role of ['PRD', 'ARCH', 'TASK', 'TDD', 'QA', 'DEVOPS']) {
     assert.match(agents, new RegExp(`\\[\\[ACTIVATE: .*\\b${role}\\b`, 'u'));
@@ -35,6 +37,7 @@ test('handoff and CLI no longer require the removed rule loader', () => {
   assert.match(task, /applied projects must also read RULES\.md completely/u);
   assert.match(task, /official PromptsEngineering template source.*skip that project-owned file/u);
   assert.match(task, /[Cc]omplete truncated output/u);
+  assert.match(task, /template application or update.*missing RULES\.md/u);
   assert.doesNotMatch(task, /rules load/u);
   assert.doesNotMatch(conventions, /rules load/u);
   assert.throws(() => resolveCommand(['rules', 'load', '--file', 'RULES.md']), /unknown agent command/u);

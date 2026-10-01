@@ -292,3 +292,13 @@
 | TASK-CMDSURF-048 | 定向回归、模板同步收敛、应用项目实证与 TDD/QA/合并门禁；只在达到全量触发条件时升级对应范围 | 047 | @qa | 0.5d |
 
 关键路径：治理 → 046 RED → 047 GREEN → 048 模板源合并 → GuiXu 同步和项目验收。无数据库、部署或 CI 任务；Review-Class REQUIRED（共享 QA 基础门禁），Codex review skipped by policy。执行结果仅记录在 task/session/QA 证据，不镜像到本 WBS。
+
+## RULES 缺失初始化 WBS（US-CMDSURF-014）
+
+| Task | Deliverable | Owner | Estimate | 依赖 |
+| --- | --- | --- | --- | --- |
+| TASK-CMDSURF-014-01 | 缺失、已有自定义/空内容、dry-run、更新收敛失败测试 | TDD | 1h | AC01-03/ARCH所有权 |
+| TASK-CMDSURF-014-02 | manifest init-if-missing与规则骨架；预读、胶囊、README一致 | TDD | 1h | 014-01 |
+| TASK-CMDSURF-014-03 | 模板应用、同步、引擎和规则上下文定向回归，QA SHA绑定与合并 | QA | 1h | 014-02 |
+
+覆盖边界：现有模板引擎及 update/sync 消费者；不变更应用代码、数据库、部署或CI，无DevOps任务。风险：旧所有权断言与骨架升级误覆盖，正反例验证并沿用固定SHA QA。验收引用 TC-CMDSURF-038~040；证据留任务状态。

@@ -175,3 +175,13 @@ US-CMDSURF-012：维护者升级缺少 lock 的旧项目时，可显式指定已
 - AC-CMDSURF-013-04：Given QA 检查 TDD 已执行的验证，When 证据绑定当前提交且范围、命令、退出码、依赖和环境有效，Then 复用证据并只补做未覆盖或已失效的检查；QA 审查范围决策的语义充分性，CLI 不自动选择或启动全量测试（TC-CMDSURF-037）。
 
 范围：通用约定、TDD/QA 专家、当前任务的结构化证据及 `qa verify` 本地门禁。非范围：修改项目业务测试、添加新的 CI、自动发现完整调用图、变更项目配置的必需硬门禁。无 UI、schema、外部 API 变化；开放问题：无。
+
+## 项目规则缺失初始化（US-CMDSURF-014）
+
+目标：首次应用与后续更新均补齐缺失的项目规则，避免接入流程被缺失文件阻断。
+
+- AC-CMDSURF-014-01：Given 目标无 RULES.md，When template update 或 template sync 应用成功，Then 创建非空 UTF-8 初始规则；dry-run 仅报告，不写入（TC-CMDSURF-038）。
+- AC-CMDSURF-014-02：Given RULES.md 已存在（含空文件与定制内容），When 应用或再次更新，Then 原始字节保持不变；初始化后归项目维护，后续模板不覆盖（TC-CMDSURF-039）。
+- AC-CMDSURF-014-03：Given 文件缺失或已由项目修改，When 再次预演，Then 无模板漂移；规则预读允许仅模板接入命令补齐缺失文件，其他任务仍完整预读且空文件或读取失败仍阻断（TC-CMDSURF-040）。
+
+范围：manifest、初始规则骨架、接入说明与预读协议。非范围：代填业务需求、覆盖既有规则、改变 worktree 或 QA 门禁。CLI 无 UI；不涉及数据与新依赖；开放问题：无。NFR：已有文件零字节变更，应用后零漂移。
