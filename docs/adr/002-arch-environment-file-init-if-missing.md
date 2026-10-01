@@ -24,3 +24,7 @@
 - 正向：首次初始化完整、后续幂等、目标项目内容安全、Git 边界明确。
 - 代价：example 更新不会自动传播，项目需自行维护。
 - 风险控制：目标 example 缺失时 fail closed；实际文件使用独占创建；测试验证 sentinel 内容逐字节不变。
+
+## 主 repo 路径补充（2026-10-01）
+
+用户确认 linked worktree 更新时的实际可用配置必须补齐到目标项目主 `repo`。保留开发 worktree 的 example tracked 交付，在更新 apply 成功后独立解析目标主 repo，补齐其缺失 example，再从主 repo example 创建实际文件。已有主 repo example 优先于模板和开发 worktree。非 Git 显式目标保持直接初始化；Git 路径解析失败必须阻断，禁止回落模板源。dry-run 不写入，真实环境文件仅保存在主 repo 且通过本地 Git exclude 保护至 tracked ignore 合并。
