@@ -32,6 +32,8 @@
 | US-ENVINIT-001 | Git 所有权边界 | AC-ENVINIT-001-02 | TC-ENVINIT-002 | ✅ QA 通过 | @qa | example 可跟踪、实际文件被忽略 |
 | US-ENVINIT-002 | 已有文件保护 | AC-ENVINIT-002-01 | TC-ENVINIT-003 | ✅ QA 通过 | @qa | 后续 apply 不修改已有内容 |
 | US-ENVINIT-003 | Dry-run 无副作用 | AC-ENVINIT-003-01 | TC-ENVINIT-004 | ✅ QA 通过 | @qa | 只报告缺失文件，不写盘 |
+| US-ENVINIT-004 | 主 repo 环境文件补齐 | AC-ENVINIT-004-01 | TC-ENVINIT-005 | 待验证 | @qa | linked worktree 更新以目标项目主 repo 为准 |
+| US-ENVINIT-004 | 主 repo 优先与幂等 | AC-ENVINIT-004-02 | TC-ENVINIT-006 | 待验证 | @qa | 主 repo example 优先、dry-run 无写入、重复收敛 |
 | US-CMDSURF-009 | 官方模板匿名获取 | AC-CMDSURF-009-06 | TC-CMDSURF-027 | ✅ TDD 通过 | @qa | 官方无/无效 token、HTTP 请求无凭据、401 单次阻断、真实匿名 fetch 及项目鉴权回归通过 |
 | US-ARCHPLAT-001 | 独立模型作业包 | AC-ARCHPLAT-001-01 | TC-ARCHPLAT-001 | ✅ QA 通过 | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |
 | US-ARCHPLAT-002 | 多应用与多存储选型 | AC-ARCHPLAT-002-01 | TC-ARCHPLAT-002 | ✅ QA 通过 | @qa | [QA 证据](../qa-modules/architecture-platform/QA.md) |

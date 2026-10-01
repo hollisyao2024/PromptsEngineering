@@ -69,6 +69,15 @@ flowchart LR
 3. 初始化器使用独占创建；目标已存在则不读取、不追加、不覆盖。
 4. 第二次 apply 所有六个文件均收敛为 unchanged。
 
+### 主 repo 补齐（2026-10-01，US-ENVINIT-004）
+
+- 环境初始化器显式接收 sourceRoot 与 targetRoot，先确认目标 Git 身份，再调用共享 `getMainRepoRoot(targetRoot)` 解析主 repo；非 Git 新项目使用其显式 targetRoot，禁止落回模板源目录。
+- manifest 仍在开发 worktree 维护可跟踪的 example；六文件补齐独立在主 repo 执行，不把实际文件加入开发 worktree、Git index、lock 或 baseline。
+- 主 repo example 已存在时优先保留；缺失时从固定模板 source 以 `wx` 创建，随后实际文件仅从主 repo 对应 example 创建。预检全部需要的 source/example，失败时不进行环境文件写入。
+- dry-run 在同一主 repo 计算六文件状态，输出 `ENVIRONMENT_ROOT`；apply 成功才补齐，重复执行全部 unchanged。主 repo 中原有实际文件和 example 均不得追加、覆盖或读取实际文件内容。
+- 主 repo 缺少 ignore 规则时，仅在主 repo `.git/info/exclude` 追加三个精确环境路径，保证合并前实际文件也不会成为未跟踪凭据；项目 `.gitignore` 仍通过普通 tracked 模板交付。
+- 测试使用真实 Git linked worktree，覆盖主 repo 与开发 worktree 不同 example、缺失补建、已有 sentinel、dry-run、二次收敛及非 Git target。
+
 ## 4. 接口与合约
 
 ### 提供的接口

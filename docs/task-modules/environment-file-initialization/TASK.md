@@ -24,6 +24,7 @@
 | TASK-ENVINIT-002 | Example sources、manifest 与 ignore 契约 | @tdd | 0.5d | P0 | TASK-ENVINIT-001 | ✅ 已完成 | 2026-08-24 |
 | TASK-ENVINIT-003 | 实际文件 init-if-missing 初始化器 | @tdd | 0.5d | P0 | TASK-ENVINIT-002 | ✅ 已完成 | 2026-08-24 |
 | TASK-ENVINIT-004 | 双次 apply、Git 状态、回归与合并 Gate | @qa / @devops | 0.5d | P0 | TASK-ENVINIT-003 | ✅ 兼容回归通过 | 2026-09-11（复核） |
+| TASK-ENVINIT-005 | 主 repo 六文件补齐及 linked worktree 回归 | @tdd / @qa | 0.5d | P0 | TASK-ENVINIT-004 | 计划 | - |
 
 ### 2.2 任务详细说明
 
@@ -31,6 +32,7 @@
 - `TASK-ENVINIT-002`：新增 `.env.staging.example`、`.env.production.example`；把三个 example 登记为 `init-if-missing`；确认 ignore block 精确覆盖三个实际文件。
 - `TASK-ENVINIT-003`：以固定映射在 manifest write 后读取目标 example，并 exclusive create 对应实际文件；逐文件输出 created/unchanged，错误 fail closed。
 - `TASK-ENVINIT-004`：临时 Git 目标执行 dry-run、首次 write、第二次收敛；验证三个 example 可跟踪、三个实际文件 ignored，并执行相关全量回归与仓库门禁。
+- `TASK-ENVINIT-005`：先写真实 Git linked worktree 定向失败测试；实现主 repo 路径解析、六文件预检与独占补建、主 repo example 优先、本地 ignore 保护和六状态输出；回归非 Git 初始化、dry-run、已有 sentinel、重复收敛和官方 sync 调用链。只在主 repo 创建实际环境文件，example 的 tracked 模板交付继续保留。
 
 ## 3. 依赖矩阵（模块内）
 
@@ -64,6 +66,8 @@
 | US-ENVINIT-001 | AC-ENVINIT-001-02 | TASK-ENVINIT-002、004 | TC-ENVINIT-002 | @qa | ✅ QA 通过 |
 | US-ENVINIT-002 | AC-ENVINIT-002-01 | TASK-ENVINIT-001、003 | TC-ENVINIT-003 | @qa | ✅ QA 通过 |
 | US-ENVINIT-003 | AC-ENVINIT-003-01 | TASK-ENVINIT-001、003、004 | TC-ENVINIT-004 | @qa | ✅ QA 通过 |
+| US-ENVINIT-004 | AC-ENVINIT-004-01 | TASK-ENVINIT-005 | TC-ENVINIT-005 | @qa | 计划 |
+| US-ENVINIT-004 | AC-ENVINIT-004-02 | TASK-ENVINIT-005 | TC-ENVINIT-006 | @qa | 计划 |
 
 已同步 `traceability-matrix.md`、`story-task-mapping.md` 与 `task-dependency-matrix.md`。
 
