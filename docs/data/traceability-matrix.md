@@ -152,3 +152,12 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-CMDSURF-013 | AC-CMDSURF-013-02 | TC-CMDSURF-035 | 待 TDD/QA | 全量触发与非触发规则检查 |
 | US-CMDSURF-013 | AC-CMDSURF-013-03 | TC-CMDSURF-036 | 待 TDD/QA | `qa verify` 证据门禁正反例 |
 | US-CMDSURF-013 | AC-CMDSURF-013-04 | TC-CMDSURF-037 | 待 TDD/QA | QA 证据复用与语义复核 |
+
+## Drizzle 数据访问
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-DRIZZLE-001 | AC-DRIZZLE-001 | TC-DRIZZLE-001 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
+| US-DRIZZLE-002 | AC-DRIZZLE-002 | TC-DRIZZLE-002 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
+| US-DRIZZLE-003 | AC-DRIZZLE-003 | TC-DRIZZLE-003 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
+| US-DRIZZLE-004 | AC-DRIZZLE-004 | TC-DRIZZLE-004 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |

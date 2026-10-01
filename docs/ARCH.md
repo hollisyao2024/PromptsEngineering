@@ -174,3 +174,5 @@ sequenceDiagram
 ## 公共 UI 扩展索引
 
 3.1 表单、选择器、日期与反馈组件及初始化依赖闭包见 [架构模块 §8](arch-modules/architecture-platform/ARCH.md#8-四组公共-ui-与按需组件集31)。
+
+Drizzle 与常见数据库：[模块 ARCH](arch-modules/drizzle/ARCH.md)。

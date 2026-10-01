@@ -25,3 +25,5 @@
 - [ADR 028](028-arch-monorepo-prisma.md)：多端 Monorepo、Prisma、按需安装、预置组合与业务所有权。
 
 - [ADR 027](027-arch-ui-component-sets.md)：四组公共 UI、可选择组件集、依赖闭包和日历日期合约。
+
+- 2026-10-01 ADR-033：并列 ORM、常见数据库支持矩阵与稳定版迁移保护。

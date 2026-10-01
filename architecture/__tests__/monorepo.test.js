@@ -61,7 +61,7 @@ test('TC-MONOPLAT-002 v2 rejects Prisma browser/native consumers and incompatibl
 });
 test('TC-MONOPLAT-008 unknown blueprint and unsupported database fail before mutation',()=>{
   assert.throws(()=>project.expandBlueprint('unknown',{source}),/blueprint/);
-  assert.throws(()=>project.expandBlueprint('admin-api',{source,database:'mysql'}),/database/);
+  assert.throws(()=>project.expandBlueprint('admin-api',{source,database:'oracle'}),/database/);
 });
 test('TC-MONOPLAT-001 minimal workspace and provider-specific install scripts remain valid',t=>{
   const f=fixture(t),config={schemaVersion:2,workspace:{packageManager:'pnpm@10.18.3'},applications:[],datastores:[],modules:[]};

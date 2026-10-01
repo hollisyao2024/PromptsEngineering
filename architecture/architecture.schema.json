@@ -129,7 +129,11 @@
           "engine": {
             "enum": [
               "postgres",
-              "sqlite"
+              "mysql",
+              "mariadb",
+              "sqlite",
+              "sqlserver",
+              "cockroachdb"
             ]
           },
           "consumers": {
@@ -140,7 +144,10 @@
             }
           },
           "access": {
-            "const": "prisma"
+            "enum": [
+              "prisma",
+              "drizzle"
+            ]
           }
         },
         "required": [

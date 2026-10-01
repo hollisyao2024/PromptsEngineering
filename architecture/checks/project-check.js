@@ -65,7 +65,7 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
     checks.push(`application:${app.id}`);
   }
   for (const store of config.datastores) {
-    if(store.access==='prisma')continue;
+    if(store.access)continue;
     try {
       const registry = parseJson(read(target,`${store.path}/migrations.json`) || 'null','migration registry');
       if (!Array.isArray(registry)) throw new Error('Missing migration registry');

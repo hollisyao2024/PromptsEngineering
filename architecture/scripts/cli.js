@@ -41,7 +41,7 @@ function printPlan(plan) {
 }
 function main(argv=process.argv.slice(2)) {
   const cli=args(argv),target=path.resolve(cli.target||process.cwd()),source=path.resolve(cli.source||path.join(__dirname,'../..'));
-  if(cli.action==='help') {console.log('Usage: pnpm agent -- architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps> [--target path] [--config file] [--scope owner] [--out file] [--plan file] [--dry-run] [--no-install] [--blueprint id --database postgres|sqlite]\nStandalone: node architecture/scripts/cli.js <action>');return;}
+  if(cli.action==='help') {console.log('Usage: pnpm agent -- architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps> [--target path] [--config file] [--scope owner] [--out file] [--plan file] [--dry-run] [--no-install] [--blueprint id --database postgres|mysql|mariadb|sqlite|sqlserver|cockroachdb --orm prisma|drizzle]\nStandalone: node architecture/scripts/cli.js <action>');return;}
   if(cli.action==='catalog'){console.log(json(catalog(source)));return;}
   if(cli.action==='detect'){console.log(json(detectProject(target)));return;}
   if(!fs.existsSync(target))throw new Error('Target directory must exist');
@@ -53,9 +53,9 @@ function main(argv=process.argv.slice(2)) {
     preparePlanSource(plan,source);console.log(json(applyPlan(plan,{runRoot})));console.log('DEPENDENCIES=NOT_RUN\nNEXT_ACTION=architecture install-deps followed by architecture check');return;
   }
   const configFile=cli.config?path.resolve(cli.config):path.join(target,CONFIG);
-  if(cli.database&&!cli.blueprint)throw new Error('--database requires --blueprint');
+  if((cli.database||cli.orm)&&!cli.blueprint)throw new Error('--database/--orm requires --blueprint');
   if(cli.blueprint&&(cli.config||read(target,CONFIG)!==null||!['init','plan'].includes(cli.action)))throw new Error('Blueprint expansion is only allowed for new init/plan choices');
-  const config=validateConfig(cli.blueprint?expandBlueprint(cli.blueprint,{source,database:cli.database}):parseJson(fs.readFileSync(configFile,'utf8'),CONFIG),{target,source});
+  const config=validateConfig(cli.blueprint?expandBlueprint(cli.blueprint,{source,database:cli.database,orm:cli.orm}):parseJson(fs.readFileSync(configFile,'utf8'),CONFIG),{target,source});
   if(cli.action==='validate'){console.log('STATUS=OK');return;}
   if(cli.action==='check'){const result=checkProject(target,config,{source});console.log(json(result));if(result.status!=='OK')process.exitCode=1;return;}
   if(cli.action==='install-deps'){assertMutationTarget(target);console.log(json(installDependencies(target,config)));return;}

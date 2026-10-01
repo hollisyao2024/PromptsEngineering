@@ -4,7 +4,7 @@
 
 认证、权限、队列、存储和高级交互的逐项状态见 [组件目录](open-source-catalog.json)，使用方式见 [开源能力](guides/open-source-components.md) 与 [文件存储](guides/file-storage.md)。完整可选组合见 [Monorepo 配置示例](examples/open-source-monorepo.json)，项目可按需求裁减；该示例的队列需要独立 Redis。
 
-多端 Monorepo、Prisma 和四种预置组合的完整操作见 [Monorepo 指南](guides/monorepo.md)。模板源不预装应用依赖；新项目可用 `architecture init --blueprint admin-api --database sqlite` 按需生成。
+多端 Monorepo、Prisma/Drizzle 和四种预置组合的完整操作见 [Monorepo 指南](guides/monorepo.md)。模板源不预装应用依赖；新项目可用 `architecture init --blueprint admin-api --database sqlite` 按需生成。
 
 ## 从模板到实际项目
 
@@ -86,7 +86,7 @@ pnpm agent -- architecture check
 | --- | --- |
 | react-vite | React/Vite/TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
 | react-next | Next App Router、TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
-| node-ts / Prisma（v2） | 类型化 Node API、Prisma PG/SQLite、OpenAPI、Query 与真实任务 CRUD；见 Monorepo 指南 |
+| node-ts / Prisma、Drizzle（v2） | 类型化 Node API、Prisma 六种数据库或 Drizzle 四种稳定数据库、OpenAPI、Query 与真实任务 CRUD；见 Monorepo 指南 |
 | node | Node HTTP API、健康接口、HTTP 测试；`pnpm test`、`pnpm build` |
 | go | Go HTTP API、健康接口、测试；`go test ./...`、`go build .` |
 | tauri | Tauri 2 + React/Vite、Rust 入口、能力清单与平台矩阵；`pnpm build:web`，宿主机完整构建 `pnpm build` |
@@ -166,3 +166,5 @@ pnpm agent -- architecture resume
 同一引擎也恢复模板写入；仅安装作业包时用 `node tooling/xirang/resume.js`。轻量入口的 resume 直接使用冻结日志，不要求中断中的 runtime 指针与 lock 已同步，也不联网获取新源。若首次升级中连入口工具都尚未写全，可从已固定的息壤源码调用 `node architecture/scripts/cli.js resume --target <目标>`。恢复按 before/after 哈希判断已写入项；用户额外修改引起第三种状态时阻断。修复/恢复明确文件后重试，不删除整个 worktree 或日志。恢复后补依赖、checks、构建、再次 dry-run 和项目交付门禁。
 
 文件锁只协调本机写入器，Git worktree/分支仍是最终审查和历史边界。普通初始化/更新不执行数据库迁移或部署。若遗留 writer-recovery.lock，先确认相关进程和日志状态，再恢复精确锁文件；不自动清理不明恢复状态。
+
+ORM 由 `--orm prisma|drizzle` 与首次 `--blueprint` 一起选择；数据库选项为 postgres、mysql、mariadb、sqlite、sqlserver、cockroachdb。默认 Prisma；Drizzle 的 SQL Server/CockroachDB 预发布 dialect 被明确阻断。支持矩阵和迁移差异见 [数据标准](standards/data.md)。
