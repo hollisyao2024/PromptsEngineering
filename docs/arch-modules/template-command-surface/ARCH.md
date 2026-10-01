@@ -286,3 +286,9 @@ tdd push 新增显式 committed-only 参数，在自动提交和阶段文档回�
 `qa verify` 先执行既有本地检查并获取 base/head 身份，再在写本机回执前只读定位与当前主项目、linked worktree 和 branch 精确匹配的唯一运行中 mutation 任务，解析其最后一对证据；缺失、歧义、格式不合法、失败或结果 SHA 不等于即将写入回执的 HEAD 均阻断。不存在任务的实际项目 mutation QA 也阻断，旧任务允许在 QA 前通过 checkpoint 补录同格式证据；不能静默按创建日期豁免。官方模板源跳过此应用项目证据门禁，保留现有本地 QA 和 SHA 回执。项目硬门禁与双 SHA 合并复验不受影响。
 
 不新增 CI、网络 API、数据库或用户配置。若规则引发误判，可回滚本次模板变更；已有 task state 的其他证据仍按原格式可读。见 [ADR-032](../../adr/032-arch-test-scope-evidence-gate.md)。
+
+## RULES 初始化所有权（US-CMDSURF-014）
+
+复用 manifest 的 init-if-missing：目标 RULES.md 从 infra/templates/agent/RULES.example.md 初始化；不在模板源根目录创建 RULES.md。update 与 sync 共用冻结计划和 apply 引擎，已有目标（含空内容）返回原字节，项目定制不会与新骨架形成覆盖冲突。dry-run 只计划，apply 后沿用哈希与收敛校验。
+
+预读协议只豁免明确的首次接入/模板更新在缺失 RULES.md 时的初始化步骤；创建后须全文读取再开展其他项目副作用。已有空文件或读取失败仍阻断其他任务，不自动修复。AGENTS、CONVENTIONS、README 与任务胶囊保持同一语义。无新依赖、数据库或外部接口；路径安全继续由现有引擎保护。风险为误把初始化当覆盖，使用既有自定义/空文件回归与源根目录无 RULES 契约验证。

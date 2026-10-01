@@ -24,10 +24,14 @@ test('always-loaded routing remains explicit but compact', () => {
   assert.doesNotMatch(agents, /展示思考过程/u);
 });
 
-test('RULES remains project-owned and is never copied from the template source', () => {
+test('RULES initializes only when missing and the source root has no project rules', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
   const rule = manifest.rules.find((entry) => entry.path === 'RULES.md');
-  assert.deepEqual(rule, { path: 'RULES.md', strategy: 'project-owned' });
+  assert.deepEqual(rule, { path: 'RULES.md', source: 'infra/templates/agent/RULES.example.md', strategy: 'init-if-missing' });
+  assert.ok(read(rule.source).trim());
+  if (JSON.parse(read('agent.config.json')).template?.role === 'source') {
+    assert.equal(fs.existsSync(path.join(ROOT, 'RULES.md')), false);
+  }
 });
 
 test('environment examples initialize once while runtime files stay ignored', () => {

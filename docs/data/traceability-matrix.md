@@ -164,3 +164,11 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-DRIZZLE-003 | AC-DRIZZLE-003 | TC-DRIZZLE-003 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
 | US-DRIZZLE-004 | AC-DRIZZLE-004 | TC-DRIZZLE-004 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
 | US-DRIZZLE-005 | AC-DRIZZLE-005 | TC-DRIZZLE-006 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
+
+## 项目规则初始化
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-014 | AC-CMDSURF-014-01 | TC-CMDSURF-038 | 待验证 | 首次应用/同步与 dry-run |
+| US-CMDSURF-014 | AC-CMDSURF-014-02 | TC-CMDSURF-039 | 待验证 | 既有规则字节保护 |
+| US-CMDSURF-014 | AC-CMDSURF-014-03 | TC-CMDSURF-040 | 待验证 | 收敛与预读契约 |

@@ -35,7 +35,7 @@ pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent
 pnpm agent -- template update "<目标目录或目标-worktree>" --include architecture
 ~~~
 
-首次接入会初始化缺失的项目配置和环境示例；已有 `agent.config.json`、环境文件、`RULES.md`、业务源码和真实项目文档保持项目所有。根 `package.json` 按字段合并，项目名称、业务依赖和项目独有脚本保留。
+首次接入会初始化缺失的项目配置、环境示例及 `RULES.md`；后续模板更新也会补齐缺失的 `RULES.md`，已有文件（包括空文件）保持原样，由项目维护；已有 `agent.config.json`、环境文件、`RULES.md`、业务源码和真实项目文档保持项目所有。根 `package.json` 按字段合并，项目名称、业务依赖和项目独有脚本保留。
 
 将生成的 `xirang.lock.json` 与 `.xirang/baselines/` 一起提交。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。新项目应在完成自身 Git 初始化后纳入版本管理；已有 Git 项目完成下面的交付链再合并。
 
@@ -171,7 +171,8 @@ Git 下载和缓存可能包含完整源码快照；轻量化指项目只提交�
 | 迁移与稳定 ID 注册项 | 只追加；已有内容不可改写 |
 | `.gitignore`、`.envrc` 的受管区域 | `managed-block`；块外内容归项目 |
 | 初始业务代码、配置、环境示例 | `init-if-missing`；已有文件保持原样 |
-| `RULES.md`、项目独有源码、真实项目文档、部署实现、`.github/workflows/` | 项目所有，模板不写入 |
+| `RULES.md` | 缺失时从模板骨架初始化，已有文件不改写，此后由项目维护 |
+| 项目独有源码、真实项目文档、部署实现、`.github/workflows/` | 项目所有，模板不写入 |
 
 项目差异写入稀疏 `agent.config.json`、`architecture.config.json`、环境变量或项目自有文件。通用协议或工具本身需要改进时，更新息壤源再分发。已有项目的旧 package aliases 保留兼容；新说明统一使用 pnpm agent -- <domain> <action>。
 
