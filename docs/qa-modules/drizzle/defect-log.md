@@ -6,4 +6,6 @@
 | FIX-DRIZZLE-002 | major | PG Kit 外键显式 public，search_path 无法隔离 | 使用独立数据库/public，拒绝非 public schema；PG 实测 | Closed |
 | FIX-DRIZZLE-003 | major | libSQL 原生历史 SERIAL id 可空 | 原生 rowid 排序校验，不改账本；两迁移追加/异常历史回归 | Closed |
 
+| FIX-DRIZZLE-004 | major | Prisma MySQL/MariaDB原生标题列191字符小于API上限200，复现P2000 | 新初始化schema及DDL改为255；新库各3项通过，已应用迁移不改写 | Closed |
+
 无未解决的本范围 P0/P1 实现缺陷。回流规则见 [QA](QA.md)。

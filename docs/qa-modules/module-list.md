@@ -10,4 +10,4 @@
 | 开源公共组件 | [QA.md](open-source-components/QA.md) | 3.3 功能验收通过 / Go |
 | 统一文件存储 | [QA.md](file-storage/QA.md) | 3.3 功能验收通过 / Go，真实云未验证 |
 
-| Drizzle 数据访问 | [QA.md](drizzle/QA.md) | 功能/回归/性能通过；最新范围与源自动版本待复核 |
+| Drizzle 数据访问 | [QA.md](drizzle/QA.md) | 四库矩阵/原生迁移/API/性能及自动源版本通过 |

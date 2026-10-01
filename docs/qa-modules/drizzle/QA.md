@@ -24,6 +24,7 @@ Node 24.19.0、pnpm 10.18.3；Prisma 7.10.0、Drizzle ORM 0.45.3、Kit 0.31.11�
 | US-DRIZZLE-002 / AC-DRIZZLE-002 | TC-DRIZZLE-002 | P0 | 生成两次 Kit 迁移并部署/重放；篡改/缺失/异常历史/恢复锁明确阻断 | Pass |
 | US-DRIZZLE-003 / AC-DRIZZLE-003 | TC-DRIZZLE-003 | P0 | 注册→会话→组织隔离；SQL 权限默认拒绝；文件版本竞态一胜；任务/队列回滚 | Pass |
 | US-DRIZZLE-004 / AC-DRIZZLE-004 | TC-DRIZZLE-004 | P0 | 旧 Prisma/SQL 与定制保留、迁移保护、重复更新收敛、客户端 SDK 泄漏阻断 | Pass |
+| US-DRIZZLE-005 / AC-DRIZZLE-005 | TC-DRIZZLE-006 | P0 | 官方源固定基线自动版本、幂等、失败零写、主目录阻断、项目隔离 | Pass |
 | US-DRIZZLE-001 / AC-DRIZZLE-001 | TC-DRIZZLE-005 | P1 | 本地单并发 API 延迟 smoke，保持 CRUD/分页结果 | Pass |
 
 自动化：architecture/__tests__/drizzle.test.js、database-safety.test.mjs 与九套受影响回归；architecture/tests/drizzle.integration.test.mjs、drizzle-api.integration.test.mjs、prisma-database.integration.test.mjs、drizzle-performance.test.mjs。入口均为 pnpm agent -- test --file <file> -- node --test <file>，长运行由 task exec 留证。
@@ -34,14 +35,17 @@ Node 24.19.0、pnpm 10.18.3；Prisma 7.10.0、Drizzle ORM 0.45.3、Kit 0.31.11�
 
 | 验证 | 结果 | 证据日志 |
 | --- | --- | --- |
-| 九套架构定向回归 | 44 项 Pass | drizzle-targeted-final-corrected.log |
-| 最后 Drizzle/安全/Monorepo 回归 | 11 项 Pass | drizzle-final-delta-regression.log |
-| Drizzle 四库实测 | SQLite 6、PG 7、MySQL 5、MariaDB 5 Pass；两项只适用 PG/SQLite 的隔离用例在 MySQL/MariaDB 明确 Skip | drizzle-authorization-final-runtime.log |
-| Task API E2E | SQLite/MySQL/PG 各 8 项 Pass | drizzle-{sqlite,mysql,postgres}-task-api.log |
-| 最后 SDK 子路径边界 | 三个消费者各 1 项 Pass | drizzle-final-boundary-{sqlite,mysql,postgres}.log |
-| Prisma MySQL/MariaDB 实测 | 各 2 项 Pass | prisma-{mysql,mariadb}-runtime.log |
-| 独立消费者与完整任务 API 构建 | strict-peer 安装/类型/构建 Pass | drizzle-final-consumer-builds.log、drizzle-final-example-builds.log、drizzle-final-authorization-build.log |
+| 收窄范围定向回归 | 前12套55项 Pass；发布面长度失败修正后22/22 Pass | drizzle-revised-regressions.log、source-version-surface-corrected.log |
+| 标题修复影响回归 | Drizzle/PG安全/Monorepo共11项 Pass | drizzle-title-final-delta.log |
+| 四库 Drizzle 实测 | SQLite 6、PG 7、MySQL 5、MariaDB 5 Pass；MySQL/MariaDB 各1项专属隔离用例 Skip | drizzle-revised-real-runtime.log |
+| Task API E2E | SQLite/MySQL/PG 各8项 Pass | drizzle-{sqlite,mysql,postgres}-task-api.log |
+| SDK 子路径边界 | 三个消费者各1项 Pass | drizzle-revised-boundaries.log |
+| Prisma MySQL/MariaDB | 各3项 Pass，包含200个Unicode字符标题、CAS/回滚、历史摘要 | prisma-title-green-runtime.log |
+| 独立消费者构建 | 六消费者及修复后的两新Prisma消费者 strict-peer安装/类型/构建 Pass | drizzle-revised-consumer-builds.log、prisma-title-final-builds.log |
+| 源版本与主干集成 | 源版本4项；Monorepo5、模板升级9、环境初始化6项 Pass | drizzle-base-integration-regressions.log |
+| 实际源同步 | required fetch、固定基线、版本一致、Schema-Doc同步 Pass | drizzle-final-source-sync-recovered.log |
 
+分批回归存在重叠，不累加为独立测试总数。首次发布面测试的长度失败保留原日志，修正规范长度后仅重跑失败范围；200字符标题先复现 P2000，再在新数据库验证修复，未改写已应用迁移。
 
 ## 5. 非功能与安全
 
@@ -58,7 +62,7 @@ Node 24.19.0、pnpm 10.18.3；Prisma 7.10.0、Drizzle ORM 0.45.3、Kit 0.31.11�
 
 ## 7. 发布建议
 
-
+Go / PASS：5个受影响 Story、5个必需AC均有通过证据，P0用例全部通过，无未关闭的本范围P0/P1缺陷。模板3.7.0、架构包3.5.0。升级先 dry-run/检查冲突，再应用、检查收敛并在隔离库审核和执行项目迁移。源版本同步不连接业务数据库。生产容量、真实云和未改变的浏览器UI未执行。
 
 ## 8. 证据摘要
 
@@ -66,23 +70,29 @@ Node 24.19.0、pnpm 10.18.3；Prisma 7.10.0、Drizzle ORM 0.45.3、Kit 0.31.11�
 
 | 日志 | SHA-256 |
 | --- | --- |
-| drizzle-targeted-final-corrected.log | 75fdc6f74b9fa3e1be78852fc66ca0e899802c3fba532f974b6af56805a759e4 |
-| drizzle-final-delta-regression.log | 9c7dfbd0f323b5278b54b754bab7196f34953f0998696d9ec190f8431e615fb6 |
-| drizzle-authorization-final-runtime.log | 5981c6e7b88af8b4c38d8f4bc1b36503f078fbd2ac7840b795e8072a51309951 |
+| drizzle-revised-regressions.log | 6d0b862be50f5e53a2b171473ab1418f1bd09ac3abfa29c19c4fe6203be9c149 |
+| source-version-surface-corrected.log | f3739de01004e2482fadb9262756001dd466c6d6ef03b2dfe1646cfe689f7ccd |
+| drizzle-title-final-delta.log | c5828222fbd0352e29f9b875e924ec063a3a76d61535a907914a89f5f5e1bf84 |
+| drizzle-revised-real-runtime.log | 2e9868b5b097a5a54062d59b8ab582e815c02461c03f3c37e2949477b0ddfdb7 |
+| drizzle-revised-boundaries.log | 825414dfc3e653953e8f97f30e757cdf12d0198b95f0fd44a29ac5732a517c5d |
+| prisma-title-green-runtime.log | 06974799005b1546b9330f4c4fd823d318947dadb2e715e79caabd3aa5704cd5 |
+| prisma-title-final-builds.log | 09490e9c3820e93ca4294024a03ac66848e0e39feb55674dd1ceb5296f0dc928 |
+| drizzle-revised-consumer-builds.log | 7de9979b38caa31eb7af799ea78e05de1c44939157d5bf3c725e79e59a1bccb7 |
+| drizzle-base-integration-regressions.log | ff69b97b963c115177c8bd6046a845f2ff0ce58cefec491899b15b372ac17397 |
+| drizzle-final-source-sync-recovered.log | d1ae6018e79978e10d1939c0b51cbce38b94d96fc2cae9740ae7887f4f316ad9 |
 | drizzle-sqlite-task-api.log | 169c8a2c3a4cb3d0892fcab4903c9929b7d7cdd62fa0b7155b75d947772a5434 |
 | drizzle-mysql-task-api.log | a3a1b14a377a1cbdb2494525fd20b1d084bae7549362c542527e4522cb894608 |
 | drizzle-postgres-task-api.log | 1fe2b4b6dfe6fdf7f0da4bb6b57ff17eb567d9e075665a965117b722913ce49f |
-| drizzle-final-boundary-sqlite.log | 090c4f70d102001ea42eb293bcc4ba7ea5199c1158effc9e86a792dcfda6e006 |
-| drizzle-final-boundary-mysql.log | 18cf7ac767d57d3bc54373239c9d1090de3c86a361279a0d2d32199c242e19c9 |
-| drizzle-final-boundary-postgres.log | 597827bb44e7c2bea88ed00f5da3fb2115bac83c6419b46c5aaf6788bbee8d6f |
-| prisma-mysql-runtime.log | 4a51ff4b90bb5a6e44380b57beaf70300abbdf371c1fa76e1062988f351203eb |
-| prisma-mariadb-runtime.log | 143aaf81947dafa72a205deb53a43a882fb7c945b9d47eea3b1af484124330cc |
-| drizzle-final-consumer-builds.log | b41ddad1bdf83ce4a207f90d2ff5ccb69d570c474bc3d38d23f587c728b3df2c |
-| drizzle-final-example-builds.log | 1f94ec32d05a3aa1f354f15587177b97ff6dafe5eb4d8234f267e3258625c263 |
-| drizzle-final-authorization-build.log | b326f63734803067d825f52c0817c30846f46fe7def23a3cd794c24a80235fae |
 | drizzle-qa-performance.log | 19f8f46e94f472d93a54575af94846ae04f7ffc5a6ae9412341a4d1cef56626d |
-| drizzle-template-version-surface.log | f1a658f83aaf483fb028d21bb02b4378753bb31f1b9738bc320c594f2cc9c1d8 |
 
-## 用户最新范围与自动模板版本
+## 9. 覆盖摘要
 
-数据库仅 PostgreSQL、MySQL/MariaDB、SQLite，两套稳定 ORM 一致；其他方言实现与专项测试移除。US-DRIZZLE-005 / AC-DRIZZLE-005 / TC-DRIZZLE-006 验证官方源交付同步自动发布：固定基线、整体与独立架构版本、幂等、更高显式版本保留、失败阻断与实际项目隔离。新回归结果完成后绑定本次 HEAD，先前已验证的无变化 API/身份/文件/性能证据按影响复用。
+| Story | 实际覆盖 | 性能 | 安全与边界 |
+| --- | --- | --- | --- |
+| US-DRIZZLE-001 | 三种任务API各8项E2E；正常/空列表/错误恢复/竞态；四库生成及构建 | 三库smoke | 参数化查询/字面量过滤/SDK隔离 |
+| US-DRIZZLE-002 | 四库原生追加/部署/重放、历史异常与恢复锁集成 | N/A | 历史改写/混用/非隔离目标阻断 |
+| US-DRIZZLE-003 | 四库身份会话/组织隔离、权限、文件CAS；PG队列事务 | 沿用API smoke | 未登录/错误token/跨主体/未知条件拒绝 |
+| US-DRIZZLE-004 | Prisma/旧SQL回归、升级收敛/定制保留/已发布迁移保护 | N/A | 三消费者SDK子路径边界 |
+| US-DRIZZLE-005 | 真实Git worktree专项4项及实际同步/清单契约 | N/A | fetch失败零写/主目录阻断/项目隔离 |
+
+需求覆盖5/5、必需AC5/5、最终P0通过率100%。本次没有新增UI、生产负载或正式SAST/DAST工具选型，对应范围未运行；不把未运行项计为通过。

@@ -15,7 +15,6 @@
 | US-DRIZZLE-002 | AC-DRIZZLE-002：Given schema/SQL/快照/历史，When 生成和显式应用迁移，Then 真实数据库执行与回滚验证通过，已应用 SQL 缺失/改写、异常历史与混用迁移器阻断；环境按 worktree 隔离 | TC-DRIZZLE-002 |
 | US-DRIZZLE-003 | AC-DRIZZLE-003：Given Drizzle 数据包，When 选择身份权限、文件元数据或同库队列事务，Then 配套适配和授权、CAS、回滚验证通过 | TC-DRIZZLE-003 |
 | US-DRIZZLE-004 | AC-DRIZZLE-004：Given Prisma/旧 SQL 或有定制的 Drizzle 项目，When 更新/检查，Then 旧行为保持、业务 schema 不覆盖、迁移受保护、重复更新收敛且浏览器访问数据库阻断 | TC-DRIZZLE-004 |
-
 | US-DRIZZLE-005 | AC-DRIZZLE-005：Given 官方息壤源 linked worktree 有修改，When 完成交付同步，Then 整体模板版本自动递增并同步清单；架构修改同步递增独立架构版本；重复同步不重复递增，实际项目仍保持自身发布策略 | TC-DRIZZLE-006 |
 
 ## 4. 非功能需求

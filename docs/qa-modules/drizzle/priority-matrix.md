@@ -6,6 +6,7 @@
 | TC-DRIZZLE-002 | P0 | schema 与历史不可改写、迁移恢复 |
 | TC-DRIZZLE-003 | P0 | 身份权限、文件 CAS 与事务 |
 | TC-DRIZZLE-004 | P0 | 已有项目兼容与边界 |
+| TC-DRIZZLE-006 | P0 | 自动源版本、幂等和项目边界 |
 | TC-DRIZZLE-005 | P1 | 本地 API 延迟 smoke |
 
 详见 [QA](QA.md)。
