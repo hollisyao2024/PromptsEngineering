@@ -39,6 +39,8 @@ architecture/
 
 在目标项目中查看选择并规划：
 
+初始化把技术选型摘要写入 `docs/architecture-selection.md`，不凭空建立功能治理模块；功能目录必须与已确认的 PRD/TASK/QA 清单对应。既有架构总纲和模块清单按 `init-if-missing` 保留。旧版曾生成的 `docs/arch-modules/application/ARCH.md` 可能已有项目定制，升级不自动删除；由项目核实后将纯选型摘要移出功能目录，并修正项目自己的链接。
+
 ```bash
 pnpm agent -- architecture catalog
 pnpm agent -- architecture detect
