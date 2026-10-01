@@ -49,3 +49,5 @@ PRD/ARCH/TASK/QA 模块集合一致，使用上表报告及模块清单作为索
 ## 10. 追溯 & 附录
 
 [追溯矩阵](data/traceability-matrix.md)、[模块清单](qa-modules/module-list.md)、[变更历史](../CHANGELOG.md)。
+
+Drizzle 数据访问与常见数据库：[模块 QA](qa-modules/drizzle/QA.md)，覆盖原生迁移、身份权限、文件 CAS、队列事务、兼容与实际消费者。

@@ -22,7 +22,6 @@ function validateStorage(config,target){
   if(s.metadata!==undefined){
     if(!s.metadata||typeof s.metadata!=='object'||Array.isArray(s.metadata)||Object.keys(s.metadata).some(k=>k!=='datastore')||s.runtime!=='node'||config.schemaVersion!==2)throw new Error('ORM storage metadata requires Node workspace');
     const db=config.datastores.find(d=>d.id===s.metadata.datastore&&['prisma','drizzle'].includes(d.access));
-    if(db?.engine==='sqlserver')throw new Error('SQL Server file metadata requires explicit project integration');
     if(!db||s.consumers.some(id=>!db.consumers.includes(id)))throw new Error('Metadata datastore must be an ORM datastore consumed by every storage app');
   }
   if(s.uploadApplications===undefined)s.uploadApplications=[];

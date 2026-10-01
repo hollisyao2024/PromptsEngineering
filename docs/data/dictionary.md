@@ -90,9 +90,7 @@ v2 配置新增 `workspace.packageManager`（固定 pnpm 10 版本）、`bluepri
 
 | 组合 | 字符串 id/title/status | version | createdAt/updatedAt | 默认值来源 |
 | --- | --- | --- | --- | --- |
-| Prisma MySQL/MariaDB | VARCHAR(191) | INTEGER | DATETIME(3) | UUID/@updatedAt 由 Prisma，创建时间由数据库 |
-| Prisma SQL Server | NVARCHAR(255) | INT | DATETIME2 | UUID/@updatedAt 由 Prisma，数据库命名默认约束 |
-| Prisma CockroachDB | STRING | INT4 | TIMESTAMP(3) | UUID/@updatedAt 由 Prisma，创建时间由数据库 |
+| Prisma MySQL/MariaDB | id/status VARCHAR(191)，title VARCHAR(255) | INTEGER | DATETIME(3) | UUID/@updatedAt 由 Prisma，创建时间由数据库 |
 | Drizzle PostgreSQL | TEXT | INTEGER | TIMESTAMPTZ | UUID/日期由 ORM 回调，status/version 由 SQL |
 | Drizzle MySQL/MariaDB | VARCHAR(255) | INT | DATETIME(3) | UUID/日期由 ORM 回调，status/version 由 SQL |
 | Drizzle SQLite | TEXT | INTEGER | INTEGER（毫秒时间戳） | UUID/日期由 ORM 回调，status/version 由 SQL |

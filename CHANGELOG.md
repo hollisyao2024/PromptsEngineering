@@ -4,8 +4,6 @@
 
 ## [Unreleased]
 
-- 增加 Drizzle ORM/Kit 稳定组合，补齐任务 API、身份权限、文件 CAS、pg-boss 同库事务与原生迁移检查；Prisma 扩展 PostgreSQL、MySQL/MariaDB、SQLite、SQL Server、CockroachDB。Drizzle 的 SQL Server/CockroachDB 预发布组合明确阻断；独立 schema、历史和驱动禁止自动转换，保留项目定制与旧 SQL。
-
 - 测试范围默认按影响定向选择；全量仅在四类有证据的条件下升级。TDD 执行前记录结构化决策，QA 复核并复用有效结果；实际项目 `qa verify` 在签发 SHA 回执前校验证据与当前提交，纯文档任务可只提交静态/契约检查结果。
 
 - 移除 Codex 侧无效的 `SessionStart` `GH_TOKEN` 环境注入钩子。Codex 不提供 `CLAUDE_ENV_FILE`，且 Hook 输出不能修改父进程环境；模板迁移会显式删除旧 `.codex/hooks.json`，Windows/macOS/Linux 的远端 GitHub 操作统一使用跨平台 Node 鉴权入口读取 `.env.local`。
@@ -26,6 +24,11 @@
 - 新增只读 `pnpm agent -- task paths [--task <id>]`，列出主项目、任务状态与锁目录，明确路径解析不等于权限授权；更新容器可写范围与策略拒绝说明，记录不可用时继续获准的独立只读检查。
 - 任务 checkpoint 增加普通工具故障、策略拒绝、未知结果的结构化证据和只追加恢复历史；未知执行结果先核验，恢复必须提供依据，不自动重试或修改平台权限。
 - 明确任务记录自身不可用时的最小证据协议、生命周期操作拆分和恢复边界，纠正 Codex never 等于所有命令放行的说明。
+
+## [v3.7.0] - 2026-10-01
+
+- 增加 Drizzle ORM/Kit 稳定组合，补齐任务 API、身份权限、文件 CAS、pg-boss 同库事务与原生迁移检查；Prisma 扩展 PostgreSQL、MySQL/MariaDB、SQLite。独立 schema、历史和驱动禁止自动转换，保留项目定制与旧 SQL。
+- 官方源交付同步自动递增整体/独立架构版本，保留更高显式版本且重复同步幂等；整体模板与 Agent 发布清单同步为 `3.7.0`，独立架构能力包为 `3.5.0`；数据库差异、目录、原生迁移与验证限制见架构文档。
 
 ## [v3.6.0] - 2026-09-24
 

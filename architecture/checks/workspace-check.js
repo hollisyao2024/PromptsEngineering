@@ -75,7 +75,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
       if(spec&&ts.isStringLiteral(spec)) {
         const name=spec.text;
         if(context.browser&&(/^(?:better-auth\/(?:node|plugins)|@project\/(?:auth$|authorization(?:\/|$)|jobs(?:\/|$)|logging(?:\/|$)|telemetry(?:\/|$)|storage(?!\/client$)|api-mocks\/node)|@aws-sdk\/|ali-oss$|cos-nodejs-sdk-v5$|pg-boss$|bullmq$|pino$|msw\/node$)/.test(name)))fail(relative,'Server SDK/module is forbidden in browser code: '+name);
-        if(context.browser&&/^(?:@prisma\/|drizzle-orm(?:\/|$)|drizzle-kit(?:\/|$)|pg(?:\/|$)|mysql2(?:\/|$)|mssql(?:\/|$)|@libsql\/|better-sqlite3(?:\/|$)|@project\/(?:database-|db-|config$|observability$)|node:|fs$|child_process$)/.test(name))fail(relative,'Server/database dependency is forbidden in browser/shared code: '+name);
+        if(context.browser&&/^(?:@prisma\/|drizzle-orm(?:\/|$)|drizzle-kit(?:\/|$)|pg(?:\/|$)|mysql2(?:\/|$)|@libsql\/|better-sqlite3(?:\/|$)|@project\/(?:database-|db-|config$|observability$)|node:|fs$|child_process$)/.test(name))fail(relative,'Server/database dependency is forbidden in browser/shared code: '+name);
         if(context.browser&&!primitive&&!table&&/(?:^|\/)ui\/table$/.test(name))fail(relative,'Business tables must use the common DataTable');
         const resolved=ts.resolveModuleName(name,file,options.get(cfg)||{moduleResolution:ts.ModuleResolutionKind.Bundler},ts.sys).resolvedModule?.resolvedFileName;
         if(resolved) {

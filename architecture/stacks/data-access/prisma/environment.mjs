@@ -10,7 +10,7 @@ export function loadEnvironment() {
   if(process.env['SHADOW_{{storeEnv}}'])process.env.SHADOW_DATABASE_URL=process.env['SHADOW_{{storeEnv}}'];
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)) {
-  const database='{{engine}}'==='sqlite'?'file:./dev-'+isolationId+'.sqlite':['mysql','mariadb'].includes('{{engine}}')?'mysql://USER:PASSWORD@127.0.0.1:3306/'+isolationId:'{{engine}}'==='sqlserver'?'sqlserver://127.0.0.1:1433;database='+isolationId+';user=USER;password=PASSWORD;encrypt=true':'{{access}}'==='drizzle'?'postgresql://USER:PASSWORD@127.0.0.1:5432/'+isolationId:'postgresql://USER:PASSWORD@127.0.0.1:5432/app?schema='+isolationId;
+  const database='{{engine}}'==='sqlite'?'file:./dev-'+isolationId+'.sqlite':['mysql','mariadb'].includes('{{engine}}')?'mysql://USER:PASSWORD@127.0.0.1:3306/'+isolationId:'{{access}}'==='drizzle'?'postgresql://USER:PASSWORD@127.0.0.1:5432/'+isolationId:'postgresql://USER:PASSWORD@127.0.0.1:5432/app?schema='+isolationId;
   const example='# Fill credentials and create the target before explicit deployment.\nDATABASE_URL='+database+'\nTEST_DATABASE_URL='+database.replace(isolationId,isolationId+'_test')+'\n'+('{{engine}}'==='sqlite'?'':'SHADOW_DATABASE_URL='+database.replace(isolationId,isolationId+'_shadow')+'\n');
   writeFileSync(new URL('.env',import.meta.url),example,{flag:'wx',mode:0o600});
   console.log('Created private .env; existing files are never replaced. ISOLATION_ID='+isolationId);

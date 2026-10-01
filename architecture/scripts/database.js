@@ -1,5 +1,5 @@
 const {json}=require('../../tooling/xirang/engine');
-const specs={postgres:{provider:'postgresql',dialect:'postgresql',adapter:'pg'},mysql:{provider:'mysql',dialect:'mysql',adapter:'mariadb'},mariadb:{provider:'mysql',dialect:'mysql',adapter:'mariadb'},sqlite:{provider:'sqlite',dialect:'sqlite',adapter:'better-sqlite3'},sqlserver:{provider:'sqlserver',adapter:'mssql'},cockroachdb:{provider:'cockroachdb',adapter:'pg'}};
+const specs={postgres:{provider:'postgresql',dialect:'postgresql',adapter:'pg'},mysql:{provider:'mysql',dialect:'mysql',adapter:'mariadb'},mariadb:{provider:'mysql',dialect:'mysql',adapter:'mariadb'},sqlite:{provider:'sqlite',dialect:'sqlite',adapter:'better-sqlite3'}};
 function databaseChoice(store,cat){
  const spec=specs[store.engine];if(!spec)throw Error('Unsupported database: '+store.engine);
  if(!store.access){if(!['postgres','sqlite'].includes(store.engine))throw Error('Database requires an explicit ORM access: '+store.engine);return spec;}
@@ -63,8 +63,6 @@ module.exports={prismaModuleSchema,buildPrismaStore,prismaModuleSQL,specs,databa
 
 function prismaModuleSQL(engine,kind,readSource){
  if(['postgres','sqlite'].includes(engine))return readSource('architecture/modules/'+(kind==='auth'?'open-source/auth-schema':'storage/prisma')+'/'+engine+'.sql');
- if(engine==='cockroachdb')return readSource('architecture/modules/'+(kind==='auth'?'open-source/auth-schema':'storage/prisma')+'/postgres.sql').replace('CREATE SCHEMA IF NOT EXISTS "public";','');
- if(engine==='sqlserver')throw Error('SQL Server optional auth/file schema requires explicit project integration');
  const text=readSource('architecture/modules/'+(kind==='auth'?'open-source/auth-schema':'storage/prisma')+'/postgres.sql');
  return text.replace(/CREATE SCHEMA IF NOT EXISTS "public";/g,'').replaceAll('"','`').replaceAll('TIMESTAMP(3)','DATETIME(3)').replaceAll('TEXT','VARCHAR(191)').replace(/`record` VARCHAR\(191\)/g,'`record` LONGTEXT').replace(/`(?:accessToken|refreshToken|idToken|password|scope|image|logo|metadata|value)` VARCHAR\(191\)/g,m=>m.replace('VARCHAR(191)','LONGTEXT'));
 }
@@ -77,27 +75,20 @@ function prismaModuleSchema(engine,kind,readSource){
 }
 function buildPrismaStore({store,owner,add,copy,deps,readSource}){
  const d=deps.prisma,spec=specs[store.engine],storeEnv='DATABASE_'+store.id.replaceAll('-','_').toUpperCase()+'_URL';
- copy('architecture/stacks/data-access/prisma',store.path,owner,{provider:spec.provider,engine:store.engine,storeId:store.id,storeEnv,adapter:spec.adapter,access:'prisma',stringNative:store.engine==='sqlserver'?' @db.NVarChar(255)':''},p=>p==='prisma/schema.prisma'||p==='.env.example'?'init-if-missing':p.startsWith('prisma/migrations/')?'append':'update');
+ copy('architecture/stacks/data-access/prisma',store.path,owner,{provider:spec.provider,engine:store.engine,storeId:store.id,storeEnv,adapter:spec.adapter,access:'prisma',titleNative:spec.provider==='mysql'?' @db.VarChar(255)':''},p=>p==='prisma/schema.prisma'||p==='.env.example'?'init-if-missing':p.startsWith('prisma/migrations/')?'append':'update');
  if(['postgres','sqlite'].includes(store.engine))copy('architecture/stacks/data-access/prisma-'+store.engine,store.path,owner,{storeEnv},p=>p.startsWith('prisma/migrations/')?'append':'update');
  else{
   const {clientSource,sql}=prismaAdditional(store,spec,storeEnv,readSource);
   add(store.path+'/src/client.ts',clientSource,'update',owner);
   add(store.path+'/prisma/migrations/migration_lock.toml','provider = "'+spec.provider+'"\n','append',owner);
   add(store.path+'/prisma/migrations/20260909000000_init/migration.sql',sql,'append',owner);
-  if(store.engine==='sqlserver')add(store.path+'/src/mssql-config.ts',readSource('architecture/stacks/data-access/prisma-sqlserver/mssql-config.ts'),'update',owner);
  }
- const driver=spec.adapter==='mariadb'?'mysql2':spec.adapter==='mssql'?'mssql':spec.adapter==='pg'?'pg':'better-sqlite3';
- add(store.path+'/package.json',json({name:'@project/database-'+store.id,private:true,type:'module',engines:deps.engines,exports:{'.':{types:'./dist/index.d.ts',default:'./dist/index.js'}},scripts:{generate:'prisma generate','type-check':'tsc --noEmit',build:'tsc','db:status':'node migrate.mjs status','db:deploy':'node migrate.mjs deploy','db:dev':'node migrate.mjs dev','db:pull':'prisma db pull','db:prepare':'node environment.mjs'},dependencies:{'@prisma/client':d.prisma,['@prisma/adapter-'+spec.adapter]:d.prisma,[driver]:d[driver]},devDependencies:{prisma:d.prisma,typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node'],...(spec.adapter==='mssql'?{'@types/mssql':'12.3.0'}:{})}}),'merge-json',owner);
+ const driver=spec.adapter==='mariadb'?'mysql2':spec.adapter==='pg'?'pg':'better-sqlite3';
+ add(store.path+'/package.json',json({name:'@project/database-'+store.id,private:true,type:'module',engines:deps.engines,exports:{'.':{types:'./dist/index.d.ts',default:'./dist/index.js'}},scripts:{generate:'prisma generate','type-check':'tsc --noEmit',build:'tsc','db:status':'node migrate.mjs status','db:deploy':'node migrate.mjs deploy','db:dev':'node migrate.mjs dev','db:pull':'prisma db pull','db:prepare':'node environment.mjs'},dependencies:{'@prisma/client':d.prisma,['@prisma/adapter-'+spec.adapter]:d.prisma,[driver]:d[driver]},devDependencies:{prisma:d.prisma,typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node']}}),'merge-json',owner);
  add(store.path+'/tsconfig.json',json(require('./monorepo').tsconfig()),'merge-json',owner);
 }
-function prismaAdditional(store,spec,storeEnv,readSource){
- const mysql=spec.provider==='mysql',pg=spec.adapter==='pg';
- const sql=store.engine==='cockroachdb'||store.engine==='sqlserver'?readSource('architecture/stacks/data-access/prisma-'+store.engine+'/prisma/migrations/20260909000000_init/migration.sql'):"CREATE TABLE `Task` (`id` VARCHAR(191) NOT NULL PRIMARY KEY,`title` VARCHAR(191) NOT NULL,`status` VARCHAR(191) NOT NULL DEFAULT 'todo',`version` INTEGER NOT NULL DEFAULT 1,`createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),`updatedAt` DATETIME(3) NOT NULL);\nCREATE INDEX `Task_createdAt_id_idx` ON `Task`(`createdAt`,`id`);\nCREATE INDEX `Task_status_idx` ON `Task`(`status`);\n";
- let clientSource;
- if(pg)clientSource=readSource('architecture/stacks/data-access/prisma-postgres/src/client.ts').replaceAll('{{storeEnv}}',storeEnv);
- else{
- const adapter=mysql?'PrismaMariaDb':'PrismaMssql';
- clientSource=`import {PrismaClient} from './generated/client.ts';\nimport {${adapter}} from '@prisma/adapter-${spec.adapter}';\nimport {existsSync,readFileSync} from 'node:fs';\nimport {parseEnv} from 'node:util';\n${mysql?'':"import {mssqlConfig} from './mssql-config.ts';\n"}export function createDatabase(url?:string){const file=new URL('../.env',import.meta.url),env=existsSync(file)?parseEnv(readFileSync(file,'utf8')):{};url ||=process.env['${storeEnv}']||process.env.DATABASE_URL||env['${storeEnv}']||env.DATABASE_URL;if(!url)throw Error('Explicit database URL required');${mysql?"const u=new URL(url);if(u.protocol!=='mysql:')throw Error('MySQL URL required');if(u.search)throw Error('MySQL URL query options require explicit project adapter integration');return new PrismaClient({adapter:new PrismaMariaDb({host:u.hostname,port:Number(u.port)||3306,user:decodeURIComponent(u.username),password:decodeURIComponent(u.password),database:decodeURIComponent(u.pathname.slice(1)),connectionLimit:10})});":"return new PrismaClient({adapter:new PrismaMssql(mssqlConfig(url))});"}}\nlet instance:PrismaClient|undefined;export const getDatabase=()=>instance ||=createDatabase();export async function disconnectDatabase(){if(instance)await instance.$disconnect();instance=undefined;}\n`;
- }
+function prismaAdditional(store,spec,storeEnv){
+ const sql="CREATE TABLE `Task` (`id` VARCHAR(191) NOT NULL PRIMARY KEY,`title` VARCHAR(255) NOT NULL,`status` VARCHAR(191) NOT NULL DEFAULT 'todo',`version` INTEGER NOT NULL DEFAULT 1,`createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),`updatedAt` DATETIME(3) NOT NULL);\nCREATE INDEX `Task_createdAt_id_idx` ON `Task`(`createdAt`,`id`);\nCREATE INDEX `Task_status_idx` ON `Task`(`status`);\n";
+ const clientSource=`import {PrismaClient} from './generated/client.ts';\nimport {PrismaMariaDb} from '@prisma/adapter-mariadb';\nimport {existsSync,readFileSync} from 'node:fs';\nimport {parseEnv} from 'node:util';\nexport function createDatabase(url?:string){const file=new URL('../.env',import.meta.url),env=existsSync(file)?parseEnv(readFileSync(file,'utf8')):{};url ||=process.env['${storeEnv}']||process.env.DATABASE_URL||env['${storeEnv}']||env.DATABASE_URL;if(!url)throw Error('Explicit database URL required');const u=new URL(url);if(u.protocol!=='mysql:')throw Error('MySQL URL required');if(u.search)throw Error('MySQL URL query options require explicit project adapter integration');return new PrismaClient({adapter:new PrismaMariaDb({host:u.hostname,port:Number(u.port)||3306,user:decodeURIComponent(u.username),password:decodeURIComponent(u.password),database:decodeURIComponent(u.pathname.slice(1)),connectionLimit:10})});}\nlet instance:PrismaClient|undefined;export const getDatabase=()=>instance ||=createDatabase();export async function disconnectDatabase(){if(instance)await instance.$disconnect();instance=undefined;}\n`;
  return {sql,clientSource};
 }

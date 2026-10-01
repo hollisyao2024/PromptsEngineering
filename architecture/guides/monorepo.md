@@ -25,7 +25,7 @@ pnpm type-check
 | web-desktop | apps/web + apps/desktop + apps/api | PostgreSQL，桌面默认在线 API |
 | local-private | apps/admin + apps/api + infra/private | SQLite |
 
---database 支持 postgres、mysql、mariadb、sqlite、sqlserver、cockroachdb；--orm prisma|drizzle 仅与首次 --blueprint 一起使用，默认 Prisma。Drizzle 稳定版本只允许前四种。蓝图展开后保存为 schemaVersion: 2 的 architecture.config.json，并记录蓝图版本；后续以这份项目文件为准。已有配置时禁止重新展开蓝图。Worker、其他前端、Go、其他数据库和移动框架应按项目需求选择；本次蓝图不包含特定队列、身份供应商、租户或离线同步实现。
+--database 支持 postgres、mysql、mariadb、sqlite；--orm prisma|drizzle 仅与首次 --blueprint 一起使用，默认 Prisma。两套稳定 ORM 均支持这四种 engine。蓝图展开后保存为 schemaVersion: 2 的 architecture.config.json，并记录蓝图版本；后续以这份项目文件为准。已有配置时禁止重新展开蓝图。Worker、其他前端、Go、其他数据库和移动框架应按项目需求选择；本次蓝图不包含特定队列、身份供应商、租户或离线同步实现。
 
 ## 工作区与目录
 
@@ -132,7 +132,6 @@ pnpm --filter @project/database-main db:deploy
 
 Drizzle 包没有 src/generated，也没有 Prisma db:dev 的 shadow 流程。生产只运行 db:deploy；不自动执行 drizzle-kit push。db:pull 是项目反向建模工具，须自行提供连接配置并审查差异，不作为模板升级的一部分。CASL Drizzle 适配只接受显式支持的标量比较、集合及逻辑条件，未知字段/操作符直接报错。文件 CAS 在 SQL 中同时限制 id、owner、store、version。PostgreSQL 的 pg-boss 可加入 Drizzle 事务；跨库投递仍需要 Outbox。
 
-SQL Server/CockroachDB 的 Drizzle 原生支持当前属于 v1 预发布，模板不安装 RC，不用 PostgreSQL dialect 冒充 CockroachDB。Prisma 支持全部六种；SQL Server 可选身份/文件 schema 暂需独立项目集成。具体连接、安全边界见 [数据标准](../standards/data.md)。依据：[Prisma 7 数据库矩阵](https://docs.prisma.io/docs/orm/v7/reference/supported-databases)、[Drizzle v1 预发布 dialect](https://orm.drizzle.team/docs/latest-releases/drizzle-orm-v1beta2)。
 
 PostgreSQL 隔离 PoC：稳定 Kit 为 pgTable 外键输出显式 public 引用，不能仅靠 search_path 迁移到其他 schema。Drizzle 默认采用 worktree 独立数据库，连接中的非 public schema 在生成包装入口明确阻断；自定义 pgSchema 必须由项目独立集成并验证。Prisma 的 schema 隔离不变。SQLite Drizzle 另以实际数据库路径的排他锁协调跨 worktree 迁移；失败后同时保留包内 .migration-running.json 与数据库旁的 -xirang-migration-lock.json，先核对状态再解除。status 对不存在的 SQLite 文件仅报告 pending，不创建数据库；迁移拒绝内存数据库。
 

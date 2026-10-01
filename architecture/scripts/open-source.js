@@ -10,7 +10,6 @@ function validateModules(config){
   if(['auth','authorization'].includes(m.id)){
    const db=config.datastores.find(d=>d.id===m.options?.datastore&&['prisma','drizzle'].includes(d.access));
    if(!db)throw new Error(m.id+' requires an ORM datastore');
-   if(db.engine==='sqlserver'&&m.id==='auth')throw new Error('SQL Server auth requires explicit project integration');
    if(config.applications.some(a=>a.modules?.includes(m.id)&&!db.consumers.includes(a.id)))throw new Error(m.id+' server must consume the selected datastore');
   }
   if(m.id==='jobs'&&!((m.options?.provider==='pg-boss'&&m.options.backend==='postgres')||(m.options?.provider==='bullmq'&&['redis','postgres'].includes(m.options.backend))))throw new Error('Unsupported jobs provider/backend');

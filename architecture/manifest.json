@@ -73,12 +73,6 @@
     },
     "mariadb": {
       "requiresAccess": true
-    },
-    "sqlserver": {
-      "requiresAccess": true
-    },
-    "cockroachdb": {
-      "requiresAccess": true
     }
   },
   "modules": {
@@ -208,9 +202,7 @@
         "postgres",
         "mysql",
         "mariadb",
-        "sqlite",
-        "sqlserver",
-        "cockroachdb"
+        "sqlite"
       ]
     },
     "drizzle": {
@@ -219,11 +211,7 @@
         "mysql",
         "mariadb",
         "sqlite"
-      ],
-      "blocked": {
-        "sqlserver": "Native Drizzle MSSQL requires pre-release ORM/Kit; RC not adopted",
-        "cockroachdb": "Native Drizzle CockroachDB requires pre-release ORM/Kit; RC not adopted"
-      }
+      ]
     }
   }
 }

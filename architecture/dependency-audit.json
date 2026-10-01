@@ -745,20 +745,6 @@
       "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
     },
     {
-      "name": "mssql",
-      "selected": "12.7.2",
-      "registry": "https://registry.npmjs.org/mssql",
-      "checkedAt": "2026-10-01",
-      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
-    },
-    {
-      "name": "@types/mssql",
-      "selected": "12.3.0",
-      "registry": "https://registry.npmjs.org/%40types%2Fmssql",
-      "checkedAt": "2026-10-01",
-      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
-    },
-    {
       "name": "@better-auth/drizzle-adapter",
       "selected": "1.7.3",
       "registry": "https://registry.npmjs.org/%40better-auth%2Fdrizzle-adapter",
@@ -799,5 +785,5 @@
     "cloud": "Local signing and Node SDK HTTP fixtures tested; real cloud service integration remains opt-in."
   },
   "ormCheckedAt": "2026-10-01",
-  "ormSupportPolicy": "Prisma 7.10.0 remains stable across six database engines. Drizzle stable 0.45.3 / Kit 0.31.11 supports PostgreSQL, MySQL/MariaDB and SQLite; MSSQL/Cockroach dialects require v1 prerelease and are rejected."
+  "ormSupportPolicy": "Stable Prisma 7.10.0 and Drizzle ORM 0.45.3 / Kit 0.31.11 support PostgreSQL, MySQL/MariaDB and SQLite in this template."
 }

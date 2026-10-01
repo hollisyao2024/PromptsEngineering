@@ -34,7 +34,7 @@ function main(argv = process.argv.slice(2), { runtimeRoot = path.resolve(__dirna
   const args = parseArgs(argv), target = path.resolve(args.target || process.cwd());
   const actions = ['catalog', 'detect', 'validate', 'plan', 'init', 'update', 'adopt', 'apply', 'resume', 'check', 'install-deps'];
   if (args.action === 'help') {
-    console.log('Usage: pnpm agent -- architecture <' + actions.join('|') + '> [--config file] [--blueprint id --database postgres|mysql|mariadb|sqlite|sqlserver|cockroachdb --orm prisma|drizzle] [--dry-run] [--no-install]');
+    console.log('Usage: pnpm agent -- architecture <' + actions.join('|') + '> [--config file] [--blueprint id --database postgres|mysql|mariadb|sqlite --orm prisma|drizzle] [--dry-run] [--no-install]');
     return;
   }
   if (!actions.includes(args.action)) throw new Error('Unknown architecture action: ' + args.action);

@@ -5,9 +5,8 @@ function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'xirang-driz
 const read=(f,p)=>fs.readFileSync(path.join(f.target,p),'utf8');
 const plan=(f,config)=>project.createArchitecturePlan({source,target:f.target,config,includeRuntime:false});
 test('TC-DRIZZLE-001 stable ORM/database combinations generate and converge',t=>{
- for(const access of ['prisma','drizzle'])for(const engine of ['postgres','mysql','mariadb','sqlite','sqlserver','cockroachdb']){
+ for(const access of ['prisma','drizzle'])for(const engine of ['postgres','mysql','mariadb','sqlite']){
   const f=fixture(t);
-  if(access==='drizzle'&&['sqlserver','cockroachdb'].includes(engine)){assert.throws(()=>project.expandBlueprint('admin-api',{source,database:engine,orm:access}),/pre-release|RC/);continue;}
   const config=project.expandBlueprint('admin-api',{source,database:engine,orm:access});assert.equal(config.datastores[0].access,access);
   config.applications=config.applications.filter(a=>a.stack==='node-ts').map(({modules,...a})=>a);config.modules=[];delete config.example;
   const p=plan(f,config);assert.deepEqual(p.conflicts,[]);applyPlan(p,{runRoot:f.runRoot});

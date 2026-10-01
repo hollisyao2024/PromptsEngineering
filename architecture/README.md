@@ -167,4 +167,4 @@ pnpm agent -- architecture resume
 
 文件锁只协调本机写入器，Git worktree/分支仍是最终审查和历史边界。普通初始化/更新不执行数据库迁移或部署。若遗留 writer-recovery.lock，先确认相关进程和日志状态，再恢复精确锁文件；不自动清理不明恢复状态。
 
-ORM 由 `--orm prisma|drizzle` 与首次 `--blueprint` 一起选择；数据库选项为 postgres、mysql、mariadb、sqlite、sqlserver、cockroachdb。默认 Prisma；Drizzle 的 SQL Server/CockroachDB 预发布 dialect 被明确阻断。支持矩阵和迁移差异见 [数据标准](standards/data.md)。
+ORM 由 `--orm prisma|drizzle` 与首次 `--blueprint` 一起选择；数据库选项为 postgres、mysql、mariadb、sqlite。默认 Prisma；两套稳定 ORM 均覆盖这些数据库。支持矩阵和迁移差异见 [数据标准](standards/data.md)。

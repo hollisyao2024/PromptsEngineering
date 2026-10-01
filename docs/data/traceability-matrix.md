@@ -157,7 +157,8 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 
 | Story ID | AC ID | Test Case ID | 状态 | 证据 |
 | --- | --- | --- | --- | --- |
-| US-DRIZZLE-001 | AC-DRIZZLE-001 | TC-DRIZZLE-001 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
-| US-DRIZZLE-002 | AC-DRIZZLE-002 | TC-DRIZZLE-002 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
-| US-DRIZZLE-003 | AC-DRIZZLE-003 | TC-DRIZZLE-003 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
-| US-DRIZZLE-004 | AC-DRIZZLE-004 | TC-DRIZZLE-004 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |
+| US-DRIZZLE-001 | AC-DRIZZLE-001 | TC-DRIZZLE-001 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
+| US-DRIZZLE-002 | AC-DRIZZLE-002 | TC-DRIZZLE-002 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
+| US-DRIZZLE-003 | AC-DRIZZLE-003 | TC-DRIZZLE-003 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
+| US-DRIZZLE-004 | AC-DRIZZLE-004 | TC-DRIZZLE-004 | 已验证 | [QA](../qa-modules/drizzle/QA.md) |
+| US-DRIZZLE-005 | AC-DRIZZLE-005 | TC-DRIZZLE-006 | 待验证 | [PRD](../prd-modules/drizzle/PRD.md) |

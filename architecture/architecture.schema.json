@@ -131,9 +131,7 @@
               "postgres",
               "mysql",
               "mariadb",
-              "sqlite",
-              "sqlserver",
-              "cockroachdb"
+              "sqlite"
             ]
           },
           "consumers": {

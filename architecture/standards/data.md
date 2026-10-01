@@ -16,11 +16,11 @@ pg-boss 或 BullMQ 的 PostgreSQL schema 需要显式 db:prepare；普通 init/s
 
 ## ORM 支持矩阵
 
-Prisma 7.10.0 支持 postgres、mysql、mariadb、sqlite、sqlserver、cockroachdb。Drizzle ORM 0.45.3 / Kit 0.31.11 支持 postgres、mysql、mariadb、sqlite。SQL Server 与 CockroachDB 的 Drizzle 原生 dialect 属于 v1 预发布；稳定模板明确拒绝这两个组合。旧 SQL 栈继续只支持 PostgreSQL/SQLite。
+Prisma 7.10.0 与 Drizzle ORM 0.45.3 / Kit 0.31.11 均支持 postgres、mysql、mariadb、sqlite；模板只维护这四种 engine。旧 SQL 栈继续只支持 PostgreSQL/SQLite。
 
 Drizzle 的项目 schema 位于 src/schema/*.ts，审查后的 SQL 位于 drizzle/*.sql，Kit 的快照与顺序位于 drizzle/meta/；数据库执行历史只用 __drizzle_migrations。db:generate --name NAME 离线生成，db:status 预检，db:deploy 显式应用。禁止绕过执行器使用 push 自动改库。执行器校验 journal、快照、SQL hash 和已应用前缀，失败保留 .migration-running.json，确认数据库状态后才能人工解除。PostgreSQL 使用独立数据库的 public schema 与 advisory lock；MySQL/MariaDB 使用命名锁，其 DDL 不保证事务回滚，因此尤其需要故障补偿。
 
-Prisma 使用 provider 专属 Schema/driver adapter。MySQL 与 MariaDB 共用 mysql provider；CockroachDB 使用原生 cockroachdb provider；SQL Server 使用 mssql adapter 和 sqlserver:// 分号参数 URL，仅支持 dbo。MySQL adapter 当前只接受无查询参数的连接 URL，TLS 等自定义选项须项目显式实现。SQL Server 的可选 Better Auth 与文件元数据组合暂不自动初始化，要求独立项目集成；基本数据库包与任务 CRUD 可用。pg-boss 仍只用于 PostgreSQL。
+Prisma 使用 provider 专属 Schema/driver adapter。MySQL 与 MariaDB 共用 mysql provider。MySQL adapter 当前只接受无查询参数的连接 URL，TLS 等自定义选项须项目显式实现。pg-boss 仍只用于 PostgreSQL。
 
 Prisma/Drizzle 的迁移目录、锁、快照与历史表不能混用。所有 ORM 的 schema 和业务代码由项目持有，模板升级不替换；切换 engine/access 必须独立迁移并明确接管旧历史。浏览器禁止导入任意 ORM 或驱动。详见 [Monorepo 指南](../guides/monorepo.md)。
 

@@ -101,7 +101,7 @@ test('TC-MONOPLAT-001/006/007 source boundaries, generation freshness and host d
   const require=createRequire(import.meta.url),{checkProject}=require('../checks/project-check.js');
   assert.equal(checkProject(target,config).status,'OK',JSON.stringify(checkProject(target,config).failures));
   const publicFile=path.join(target,'packages/api-client/src/forbidden.ts');
-  try {for(const specifier of ['drizzle-orm','drizzle-kit/api','mssql/msnodesqlv8']){writeFileSync(publicFile,`import type {SQL} from '${specifier}';\nexport type Leak=SQL;\n`);assert.equal(checkProject(target,config).status,'BLOCKED');}}
+  try {for(const specifier of ['drizzle-orm','drizzle-kit/api','mysql2/promise']){writeFileSync(publicFile,`import type {SQL} from '${specifier}';\nexport type Leak=SQL;\n`);assert.equal(checkProject(target,config).status,'BLOCKED');}}
   finally {const {unlinkSync}=await import('node:fs');if(existsSync(publicFile))unlinkSync(publicFile);}
   const contractFile=path.join(target,'packages/contracts/openapi.json'),contract=readFileSync(contractFile,'utf8');
   try {const spec=JSON.parse(contract);spec.components.schemas.Task.properties.projectField={type:'string'};writeFileSync(contractFile,JSON.stringify(spec));const r=spawnSync(process.execPath,['generate.mjs','--check'],{cwd:path.dirname(contractFile),encoding:'utf8'});assert.notEqual(r.status,0);}

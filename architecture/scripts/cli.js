@@ -41,7 +41,7 @@ function printPlan(plan) {
 }
 function main(argv=process.argv.slice(2)) {
   const cli=args(argv),target=path.resolve(cli.target||process.cwd()),source=path.resolve(cli.source||path.join(__dirname,'../..'));
-  if(cli.action==='help') {console.log('Usage: pnpm agent -- architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps> [--target path] [--config file] [--scope owner] [--out file] [--plan file] [--dry-run] [--no-install] [--blueprint id --database postgres|mysql|mariadb|sqlite|sqlserver|cockroachdb --orm prisma|drizzle]\nStandalone: node architecture/scripts/cli.js <action>');return;}
+  if(cli.action==='help') {console.log('Usage: pnpm agent -- architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps> [--target path] [--config file] [--scope owner] [--out file] [--plan file] [--dry-run] [--no-install] [--blueprint id --database postgres|mysql|mariadb|sqlite --orm prisma|drizzle]\nStandalone: node architecture/scripts/cli.js <action>');return;}
   if(cli.action==='catalog'){console.log(json(catalog(source)));return;}
   if(cli.action==='detect'){console.log(json(detectProject(target)));return;}
   if(!fs.existsSync(target))throw new Error('Target directory must exist');
