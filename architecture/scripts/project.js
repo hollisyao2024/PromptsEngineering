@@ -204,9 +204,10 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   const registration = (owner, selection) => { packages[owner] = { version: cat.version, source: sourceIdentity(source), selection, parametersHash: hash(json(selection)) }; };
   add(CONFIG, json(config), 'init-if-missing', 'architecture:config');
   if (!scope || scope === 'architecture') {
-    add('docs/ARCH.md', '# 项目架构\n\n模块索引：[应用架构](arch-modules/application/ARCH.md)。项目负责维护真实技术决策与 ADR。\n', 'init-if-missing', 'architecture:docs');
-    add('docs/arch-modules/module-list.md', '# 架构模块\n\n| 模块 | 文档 |\n| --- | --- |\n| 应用架构 | [ARCH.md](application/ARCH.md) |\n', 'init-if-missing', 'architecture:docs');
-    add('docs/arch-modules/application/ARCH.md', `# 应用架构选型\n\n配置事实源：architecture.config.json。\n\n${config.applications.map(a => `- ${a.id}：${a.stack}，目录 ${a.path}，目标 ${a.targets.join(', ')}。`).join('\n')}\n\n${config.datastores.map(d => `- ${d.id}：${d.engine}，目录 ${d.path}，消费者 ${d.consumers.join(', ')}。`).join('\n')}\n\n初始化说明请见 architecture/README.md；目录和技术约束请见 docs/standards/。\n`, 'init-if-missing', 'architecture:docs');
+    // Technology selection is a cross-cutting summary, not a functional PRD/ARCH/TASK module.
+    add('docs/ARCH.md', '# 项目架构\n\n[应用架构选型](architecture-selection.md) · [功能模块索引](arch-modules/module-list.md)。项目负责维护真实技术决策与 ADR。\n', 'init-if-missing', 'architecture:docs');
+    add('docs/arch-modules/module-list.md', '# 架构模块\n\n按已确认的 PRD 功能域登记，并与 PRD/TASK/QA 模块清单保持一致。技术选型见 [选型摘要](../architecture-selection.md)。\n\n| 模块 | 文档 |\n| --- | --- |\n', 'init-if-missing', 'architecture:docs');
+    add('docs/architecture-selection.md', `# 应用架构选型\n\n配置事实源：architecture.config.json。\n\n${config.applications.map(a => `- ${a.id}：${a.stack}，目录 ${a.path}，目标 ${a.targets.join(', ')}。`).join('\n')}\n\n${config.datastores.map(d => `- ${d.id}：${d.engine}，目录 ${d.path}，消费者 ${d.consumers.join(', ')}。`).join('\n')}\n\n初始化说明请见 architecture/README.md；目录和技术约束请见 docs/standards/。\n`, 'init-if-missing', 'architecture:docs');
     const standardNames = cat.standards.filter(name => name !== 'ui' || config.applications.some(a => cat.stacks[a.stack].ui));
     for (const name of standardNames) add(`docs/standards/${name}.md`, readSource(`architecture/standards/${name}.md`), 'update', 'architecture:standards');
     registration('architecture:standards', { standards: standardNames });
