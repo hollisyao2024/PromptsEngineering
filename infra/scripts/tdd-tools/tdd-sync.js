@@ -166,6 +166,13 @@ function main() {
     process.exit(1);
   }
 
+  try {
+    const result = require('./source-version-sync').syncSourceVersions({ repoRoot, config });
+    if (result.status === 'OK') console.log('SOURCE_VERSION_SYNC=' + JSON.stringify(result));
+  } catch (error) {
+    console.error('STATUS=BLOCKED\nREASON=' + error.message); process.exit(1);
+  }
+
   // Step 1.7：Schema-Doc Sync Gate（强制硬门禁，TDD-EXPERT.md §B.10）
   const schemaDocOk = runSchemaDocSyncCheck(argv);
   if (!schemaDocOk) {

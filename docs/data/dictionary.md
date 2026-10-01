@@ -27,7 +27,7 @@
 | --- | --- | --- |
 | architecture.config.json | schemaVersion、applications、datastores、modules、profiles | 项目所有；JSON Schema 和语义校验共同约束 |
 | applications[] | id、stack、path、sourceDir、targets、components、modules | 栈、目标与组件目录逐应用选择 |
-| datastores[] | id、engine、path、consumers | 每种职责可选 PostgreSQL/SQLite；consumer 必须存在 |
+| datastores[] | id、engine、access、path、consumers | 依稳定 ORM/数据库矩阵选择；consumer 必须存在 |
 | xirang.lock.json | schemaVersion、files、packages | 模板更新器管理，项目随代码提交 |
 | files[path] | owner、version、strategy、base | 路径唯一归属，base 为受管源内容摘要；自有字段不包含业务密钥 |
 | packages[id] | version、source、selection、parametersHash | 已安装包/模块来源与生成参数摘要；按包类型保存适用字段 |
@@ -83,3 +83,18 @@ v2 配置新增 `workspace.packageManager`（固定 pnpm 10 版本）、`bluepri
 `fileStorage` 配置保存 runtime、path、consumers、stores(id/provider/envPrefix)、defaultStore、metadata.datastore 和 uploadApplications；禁止保存凭据。`modules[].options` 只接受所选模块需要的数据库或队列选项。
 
 队列内部表由固定 pg-boss/BullMQ 版本的显式迁移维护，不复制为第二套 Prisma schema。项目若采用 Outbox，应自行定义业务实体、幂等键、投递状态及迁移；模板不虚构通用业务 Outbox 表。
+
+## Task 的新增方言与 Drizzle 映射
+
+以下仍为模板可选示例，不定义项目业务 schema。主键、非空约束、status=todo、version=1 及上述两个索引在所有组合保持一致。
+
+| 组合 | 字符串 id/title/status | version | createdAt/updatedAt | 默认值来源 |
+| --- | --- | --- | --- | --- |
+| Prisma MySQL/MariaDB | id/status VARCHAR(191)，title VARCHAR(255) | INTEGER | DATETIME(3) | UUID/@updatedAt 由 Prisma，创建时间由数据库 |
+| Drizzle PostgreSQL | TEXT | INTEGER | TIMESTAMPTZ | UUID/日期由 ORM 回调，status/version 由 SQL |
+| Drizzle MySQL/MariaDB | VARCHAR(255) | INT | DATETIME(3) | UUID/日期由 ORM 回调，status/version 由 SQL |
+| Drizzle SQLite | TEXT | INTEGER | INTEGER（毫秒时间戳） | UUID/日期由 ORM 回调，status/version 由 SQL |
+
+Drizzle 身份模型字段与上表身份协议一致；MySQL 长令牌/JSON 使用 LONGTEXT，文件 objectKey 为 VARCHAR(512)，record 为 LONGTEXT。其他方言使用文本类型，日期按各自原生 schema 表达。FileObject 使用同一 owner/store/version CAS 协议。
+
+Drizzle 原生历史读取 id、hash（SQL SHA-256）、created_at（Kit journal 时间），校验为磁盘有序连续前缀；libSQL 使用 rowid 排序以适配原生 SERIAL 历史列。Kit meta/_journal.json、每次 snapshot 和 SQL 须一并提交，缺失/方言不符/顺序错误/已执行 SQL 篡改均阻断。快照链检查不能替代 Git 对已提交 snapshot 的不可变约束，数据库原生历史不保存 snapshot 摘要。

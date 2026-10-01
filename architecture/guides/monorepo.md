@@ -1,4 +1,4 @@
-# 多端 Monorepo 与 Prisma 使用指南
+# 多端 Monorepo 与 Prisma/Drizzle 使用指南
 
 息壤源码保存模板、维护的 shadcn/组合组件源码、版本清单和必要的更新器工具。它不安装全部应用依赖。实际项目选定蓝图或显式架构配置后，初始化器才在消费者根安装 workspace；Go/Rust 工具链仍由使用者准备。验证所需依赖在隔离消费者建立，不把 node_modules、数据库、Prisma Client 或构建产物提交到模板源。
 
@@ -25,7 +25,7 @@ pnpm type-check
 | web-desktop | apps/web + apps/desktop + apps/api | PostgreSQL，桌面默认在线 API |
 | local-private | apps/admin + apps/api + infra/private | SQLite |
 
---database 支持 postgres 或 sqlite，仅与首次 --blueprint 一起使用。蓝图展开后保存为 schemaVersion: 2 的 architecture.config.json，并记录蓝图版本；后续以这份项目文件为准。已有配置时禁止重新展开蓝图。Worker、其他前端、Go、其他数据库和移动框架应按项目需求选择；本次蓝图不包含特定队列、身份供应商、租户或离线同步实现。
+--database 支持 postgres、mysql、mariadb、sqlite；--orm prisma|drizzle 仅与首次 --blueprint 一起使用，默认 Prisma。两套稳定 ORM 均支持这四种 engine。蓝图展开后保存为 schemaVersion: 2 的 architecture.config.json，并记录蓝图版本；后续以这份项目文件为准。已有配置时禁止重新展开蓝图。Worker、其他前端、Go、其他数据库和移动框架应按项目需求选择；本次蓝图不包含特定队列、身份供应商、租户或离线同步实现。
 
 ## 工作区与目录
 
@@ -37,7 +37,7 @@ v2 使用 pnpm@10 固定补丁版本，单一根 pnpm-workspace.yaml 与 pnpm-lo
 - packages/contracts：OpenAPI 3.1、公开生成类型及运行时验证。
 - packages/api-client：无 React 的类型化 HTTP 客户端，取消、超时和统一错误。
 - packages/query：React Query、查询键、写入失效及冲突后的刷新。
-- packages/database/<store>：独立 Prisma 包。
+- packages/database/<store>：独立 ORM 包。
 - packages/platform：浏览器端口；选中 Tauri 时追加宿主适配与插件依赖。
 - packages/config、packages/observability：服务端环境、请求 ID、错误和脱敏日志。
 
@@ -74,7 +74,7 @@ pnpm --filter @project/database-main generate
 pnpm build
 ~~~
 
-开发改 Schema 后使用 db:dev --name <名称>，PostgreSQL 要求独立 SHADOW_DATABASE_URL；显式生成客户端，不假定 Prisma 7 自动 generate。生产仅使用已审查的 db:deploy。迁移前备份、扩展/收缩和补偿由项目管理，模板不会自动 reset。
+开发改 Schema 后使用 db:dev --name <名称>，所有非 SQLite 数据库要求独立 SHADOW_DATABASE_URL；显式生成客户端，不假定 Prisma 7 自动 generate。生产仅使用已审查的 db:deploy。迁移前备份、扩展/收缩和补偿由项目管理，模板不会自动 reset。
 
 Prisma Migrate 是唯一迁移执行历史；migrate.mjs 比对磁盘与 _prisma_migrations，已应用 SQL 被修改/缺失、失败或重复历史都会非零退出。新迁移可 pending。旧 v1 SQL 执行器及 migrations.json 保持不变，不能为同一库同时运行两套迁移器。既有 SQL 项目采用 Prisma 的反向建模/历史接管应作为单独迁移；模板禁止通过修改 engine/access 自动切换数据库。
 
@@ -115,4 +115,24 @@ architecture check 验证 workspace 成员、包名、单根锁、UI 依赖、Pr
 
 ## 依赖审计与复验
 
-所选消费者根 package.json 的 pnpm.overrides 固定 Prisma/OpenAPI 工具链的安全修复依赖（deepmerge-ts 8.0.2、mysql2 3.24.4、js-yaml 4.3.2），仅在对应模块被选择时生成。升级这些覆盖项必须重跑 generate、迁移及契约测试；不把工具链内部 MySQL 驱动视为新增 MySQL 架构支持。Query 缓存按客户端身份隔离；认证上下文改变时重新创建客户端，凭据不进入缓存键。OpenAPI 3.1 的运行时校验使用 Ajv 2020-12 与格式校验。
+所选消费者根 package.json 的 pnpm.overrides 固定 Prisma/OpenAPI 工具链的安全修复依赖（deepmerge-ts 8.0.2、mysql2 3.24.4、js-yaml 4.3.2），仅在对应模块被选择时生成。升级这些覆盖项必须重跑 generate、迁移及契约测试；MySQL/MariaDB 已通过独立数据库包选择，内部工具链覆盖项仍单独维护。Query 缓存按客户端身份隔离；认证上下文改变时重新创建客户端，凭据不进入缓存键。OpenAPI 3.1 的运行时校验使用 Ajv 2020-12 与格式校验。
+
+## Drizzle ORM 与 Kit
+
+```bash
+pnpm agent -- architecture plan --blueprint admin-api --database mysql --orm drizzle
+pnpm agent -- architecture init --blueprint admin-api --database mysql --orm drizzle
+pnpm --filter @project/database-main db:prepare
+pnpm --filter @project/database-main db:generate --name init
+pnpm --filter @project/database-main db:status
+pnpm --filter @project/database-main db:deploy
+```
+
+生成 schema/SQL 不连接数据库；status/deploy 需要显式 URL。任务、Better Auth 与文件 metadata 的原生 TypeScript schema 位于 packages/database/main/src/schema；修改后追加生成并审查迁移。Kit 的 drizzle/meta/_journal.json 和 snapshot 与 SQL 一起提交，历史以 __drizzle_migrations 为准，不再创建 migrations.json 或 Prisma 历史。业务查询直接使用 Drizzle builder；Prisma 是生成 Client 后的 model API。两者暴露相同公开 DTO，服务端实现不同。
+
+Drizzle 包没有 src/generated，也没有 Prisma db:dev 的 shadow 流程。生产只运行 db:deploy；不自动执行 drizzle-kit push。db:pull 是项目反向建模工具，须自行提供连接配置并审查差异，不作为模板升级的一部分。CASL Drizzle 适配只接受显式支持的标量比较、集合及逻辑条件，未知字段/操作符直接报错。文件 CAS 在 SQL 中同时限制 id、owner、store、version。PostgreSQL 的 pg-boss 可加入 Drizzle 事务；跨库投递仍需要 Outbox。
+
+
+PostgreSQL 隔离 PoC：稳定 Kit 为 pgTable 外键输出显式 public 引用，不能仅靠 search_path 迁移到其他 schema。Drizzle 默认采用 worktree 独立数据库，连接中的非 public schema 在生成包装入口明确阻断；自定义 pgSchema 必须由项目独立集成并验证。Prisma 的 schema 隔离不变。SQLite Drizzle 另以实际数据库路径的排他锁协调跨 worktree 迁移；失败后同时保留包内 .migration-running.json 与数据库旁的 -xirang-migration-lock.json，先核对状态再解除。status 对不存在的 SQLite 文件仅报告 pending，不创建数据库；迁移拒绝内存数据库。
+
+Drizzle 授权条件使用数据库原生 SQL 比较语义（包括 collation 与 NULL），只支持明确的标量条件子集；它不承诺完整 Mongo 条件语义。复杂字段授权或自定义类型须项目单独实现，畸形逻辑条件和非标量参数会阻断。

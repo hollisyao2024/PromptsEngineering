@@ -430,10 +430,11 @@
     },
     {
       "name": "mysql2",
-      "selected": "3.24.4",
+      "selected": "3.24.5",
       "latest": "3.24.4",
-      "reason": "Scoped Prisma CLI transitive override; fixes auth downgrade and compressed protocol issues; this blueprint uses PostgreSQL/SQLite.",
-      "registry": "https://registry.npmjs.org/mysql2"
+      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification.",
+      "registry": "https://registry.npmjs.org/mysql2",
+      "checkedAt": "2026-10-01"
     },
     {
       "name": "js-yaml",
@@ -721,6 +722,34 @@
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40tanstack%2Freact-virtual",
       "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+    },
+    {
+      "name": "drizzle-orm",
+      "selected": "0.45.3",
+      "registry": "https://registry.npmjs.org/drizzle-orm",
+      "checkedAt": "2026-10-01",
+      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
+    },
+    {
+      "name": "drizzle-kit",
+      "selected": "0.31.11",
+      "registry": "https://registry.npmjs.org/drizzle-kit",
+      "checkedAt": "2026-10-01",
+      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
+    },
+    {
+      "name": "@libsql/client",
+      "selected": "0.18.0",
+      "registry": "https://registry.npmjs.org/%40libsql%2Fclient",
+      "checkedAt": "2026-10-01",
+      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
+    },
+    {
+      "name": "@better-auth/drizzle-adapter",
+      "selected": "1.7.3",
+      "registry": "https://registry.npmjs.org/%40better-auth%2Fdrizzle-adapter",
+      "checkedAt": "2026-10-01",
+      "reason": "Pinned compatible stable release for native ORM database generation; strict isolated consumer install and targeted type/runtime verification."
     }
   ],
   "platformCheckedAt": "2026-09-09T11:32:48.345168+00:00",
@@ -754,5 +783,7 @@
       "Keep existing TypeScript 6 and TanStack Table 8 consumer contracts."
     ],
     "cloud": "Local signing and Node SDK HTTP fixtures tested; real cloud service integration remains opt-in."
-  }
+  },
+  "ormCheckedAt": "2026-10-01",
+  "ormSupportPolicy": "Stable Prisma 7.10.0 and Drizzle ORM 0.45.3 / Kit 0.31.11 support PostgreSQL, MySQL/MariaDB and SQLite in this template."
 }

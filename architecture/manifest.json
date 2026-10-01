@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.4.3",
+  "version": "3.5.0",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
@@ -67,6 +67,12 @@
     },
     "sqlite": {
       "template": "stacks/database/sqlite"
+    },
+    "mysql": {
+      "requiresAccess": true
+    },
+    "mariadb": {
+      "requiresAccess": true
     }
   },
   "modules": {
@@ -189,5 +195,23 @@
     "defaultPath": "packages/storage",
     "configuration": "fileStorage"
   },
-  "openSourceCatalog": "open-source-catalog.json"
+  "openSourceCatalog": "open-source-catalog.json",
+  "dataAccess": {
+    "prisma": {
+      "engines": [
+        "postgres",
+        "mysql",
+        "mariadb",
+        "sqlite"
+      ]
+    },
+    "drizzle": {
+      "engines": [
+        "postgres",
+        "mysql",
+        "mariadb",
+        "sqlite"
+      ]
+    }
+  }
 }

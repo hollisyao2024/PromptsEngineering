@@ -10,7 +10,7 @@ datasource db {
 // Project-owned example. Change the schema here, then create a new migration.
 model Task {
   id        String   @id @default(uuid())
-  title     String
+  title     String{{titleNative}}
   status    String   @default("todo")
   version   Int      @default(1)
   createdAt DateTime @default(now())

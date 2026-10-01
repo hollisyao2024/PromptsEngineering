@@ -9,3 +9,4 @@
 | 环境文件初始化 | [environment-file-initialization/TASK.md](environment-file-initialization/TASK.md) | @template-maintainers | [PRD](../prd-modules/environment-file-initialization/PRD.md) | [ARCH](../arch-modules/environment-file-initialization/ARCH.md) | 兼容回归通过 / Go | 2026-09-11 |
 | 双能力包与架构落地 | [architecture-platform/TASK.md](architecture-platform/TASK.md) | @template-maintainers | [PRD](../prd-modules/architecture-platform/PRD.md) | [ARCH](../arch-modules/architecture-platform/ARCH.md) | 公共 UI 3.1 QA 通过 / Go | 2026-09-09 |
 | 多端 Monorepo 与 Prisma | [monorepo-platform/TASK.md](monorepo-platform/TASK.md) | @template-maintainers | [PRD](../prd-modules/monorepo-platform/PRD.md) | [ARCH](../arch-modules/monorepo-platform/ARCH.md) | 3.2 验收通过 / Go | 2026-09-09 |
+| Drizzle 数据访问 | [drizzle/TASK.md](drizzle/TASK.md) | @template-maintainers | [PRD](../prd-modules/drizzle/PRD.md) | [ARCH](../arch-modules/drizzle/ARCH.md) | 已规划 | 2026-10-01 |

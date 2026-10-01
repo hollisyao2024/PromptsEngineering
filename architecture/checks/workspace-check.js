@@ -30,7 +30,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
     if(pkg?.dependencies?.['@project/ui']!=='workspace:*')fail(app.path,'UI consumer must use workspace:*');
   }
   for(const store of config.datastores.filter(d=>d.access==='prisma')) {
-    const provider=store.engine==='postgres'?'postgresql':'sqlite';
+    const provider=require('../scripts/database').specs[store.engine].provider;
     const schema=read(target,store.path+'/prisma/schema.prisma');
     if(!schema||!new RegExp('datasource\\s+\\w+\\s*\\{[^}]*provider\\s*=\\s*"'+provider+'"').test(schema))fail(store.path,'Prisma datasource provider conflicts with architecture choice');
     for(const id of store.consumers)if(packages.get('@project/'+id)?.pkg.dependencies?.['@project/database-'+store.id]!=='workspace:*')fail(id,'Datastore consumer must use workspace:*');
@@ -42,8 +42,16 @@ function checkWorkspace(target,config,{syntax=true}={}) {
     }
     checks.push('datastore:'+store.id);
   }
+  for(const store of config.datastores.filter(d=>d.access==='drizzle')){
+    const spec=require('../scripts/database').specs[store.engine],text=read(target,store.path+'/drizzle.config.ts');
+    if(!text||!new RegExp("dialect:\\s*['\"]"+spec.dialect).test(text))fail(store.path,'Drizzle dialect conflicts with architecture choice');
+    try{require('../stacks/data-access/drizzle/migration-history.mjs').diskMigrations(safePath(target,store.path+'/drizzle'),spec.dialect);}catch(e){fail(store.path,e.message);}
+    for(const id of store.consumers)if(packages.get('@project/'+id)?.pkg.dependencies?.['@project/database-'+store.id]!=='workspace:*')fail(id,'Datastore consumer must use workspace:*');
+    if(read(target,store.path+'/prisma/schema.prisma')!==null||read(target,store.path+'/migrations.json')!==null)fail(store.path,'Mixed migration systems require explicit adoption');
+    checks.push('datastore:'+store.id);
+  }
   const lock=readLock(target);
-  for(const [file,record] of Object.entries(lock.files))if(config.datastores.some(d=>d.access==='prisma'&&file.startsWith(d.path+'/prisma/migrations/'))&&hash(read(target,file))!==record.base)fail(file,'Published migration changed or removed');
+  for(const [file,record] of Object.entries(lock.files))if(config.datastores.some(d=>d.access&&file.startsWith(d.path+(d.access==='drizzle'?'/drizzle/':'/prisma/migrations/')))&&hash(read(target,file))!==record.base)fail(file,'Published migration changed or removed');
   if(!syntax)return {checks,failures};
   let ts;
   try{ts=createRequire(path.join(target,'package.json'))('typescript');}catch{fail('workspace','TypeScript dependency missing');return {checks,failures};}
@@ -67,7 +75,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
       if(spec&&ts.isStringLiteral(spec)) {
         const name=spec.text;
         if(context.browser&&(/^(?:better-auth\/(?:node|plugins)|@project\/(?:auth$|authorization(?:\/|$)|jobs(?:\/|$)|logging(?:\/|$)|telemetry(?:\/|$)|storage(?!\/client$)|api-mocks\/node)|@aws-sdk\/|ali-oss$|cos-nodejs-sdk-v5$|pg-boss$|bullmq$|pino$|msw\/node$)/.test(name)))fail(relative,'Server SDK/module is forbidden in browser code: '+name);
-        if(context.browser&&/^(?:@prisma\/|@project\/(?:database-|db-|config$|observability$)|node:|fs$|child_process$)/.test(name))fail(relative,'Server/database dependency is forbidden in browser/shared code: '+name);
+        if(context.browser&&/^(?:@prisma\/|drizzle-orm(?:\/|$)|drizzle-kit(?:\/|$)|pg(?:\/|$)|mysql2(?:\/|$)|@libsql\/|better-sqlite3(?:\/|$)|@project\/(?:database-|db-|config$|observability$)|node:|fs$|child_process$)/.test(name))fail(relative,'Server/database dependency is forbidden in browser/shared code: '+name);
         if(context.browser&&!primitive&&!table&&/(?:^|\/)ui\/table$/.test(name))fail(relative,'Business tables must use the common DataTable');
         const resolved=ts.resolveModuleName(name,file,options.get(cfg)||{moduleResolution:ts.ModuleResolutionKind.Bundler},ts.sys).resolvedModule?.resolvedFileName;
         if(resolved) {

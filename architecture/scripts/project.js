@@ -59,6 +59,8 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
   for (const store of config.datastores) {
     register(store, 'datastore');
     if (!cat.databases[store.engine]) throw new Error(`unknown database engine: ${store.engine}`);
+    require('./database').databaseChoice(store,cat);
+    if(store.access&&config.schemaVersion!==2)throw new Error('ORM access requires schemaVersion 2 workspace');
     if (!Array.isArray(store.consumers) || !store.consumers.length || store.consumers.some(id => !config.applications.some(app => app.id === id))) throw new Error(`unknown/missing datastore consumer: ${store.id}`);
     if (store.consumers.some(id => cat.stacks[config.applications.find(a => a.id === id).stack].kind === 'web')) throw new Error('browser applications must access a datastore through an API/host port');
   }
@@ -298,6 +300,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   }
   for (const store of config.datastores) {
     const owner = `architecture:store:${store.id}`; if (!selected(owner)) continue; registration(owner, store);
+    if (store.access === 'drizzle') { require('./database').buildDrizzleStore({store,owner,add,copy,readSource,deps,config}); continue; }
     if (store.access === 'prisma') { require('./monorepo').buildPrismaStore({store,owner,add,copy,readSource,deps}); continue; }
     add(`${store.path}/.gitignore`, 'node_modules/\n*.sqlite\n*.sqlite-*\n.env\n', 'init-if-missing', owner);
     copy(`architecture/${cat.databases[store.engine].template}`, store.path, owner, {}, p => p.startsWith('migrations/') ? 'append' : 'init-if-missing');

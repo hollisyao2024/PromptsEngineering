@@ -11,7 +11,7 @@ function validateWorkspaceConfig(config,cat) {
   if(!config.workspace || Object.keys(config.workspace).some(k=>k!=='packageManager') || !/^pnpm@10\.\d+\.\d+$/.test(config.workspace.packageManager))throw new Error('v2 workspace requires pinned pnpm@10.x.y');
   if(config.blueprint && (Object.keys(config.blueprint).some(k=>!['id','version'].includes(k)) || !cat.blueprints[config.blueprint.id] || typeof config.blueprint.version!=='string'))throw new Error('Invalid blueprint metadata');
   const names=new Set();
-  for(const item of [...config.applications.filter(a=>a.stack!=='go'),...config.modules.filter(m=>workspaceModules.includes(m.id)),...config.datastores.map(d=>({id:d.access==='prisma'?'database-'+d.id:'db-'+d.id}))]) {
+  for(const item of [...config.applications.filter(a=>a.stack!=='go'),...config.modules.filter(m=>workspaceModules.includes(m.id)),...config.datastores.map(d=>({id:d.access?'database-'+d.id:'db-'+d.id}))]) {
     if(names.has(item.id)||item.id==='ui'||(config.fileStorage?.runtime==='node'&&item.id==='storage'))throw new Error('Duplicate/reserved workspace package name: '+item.id);names.add(item.id);
   }
   const uis=config.applications.filter(a=>cat.stacks[a.stack].ui);
@@ -19,12 +19,12 @@ function validateWorkspaceConfig(config,cat) {
   if(roots.size>1 || [...roots].some(p=>!p.startsWith('packages/')))throw new Error('v2 UI components require one shared package root');
   for(const m of config.modules)for(const dep of dependencies[m.id]||[])if(!config.modules.some(x=>x.id===dep))throw new Error(m.id+' requires workspace module '+dep);
   for(const store of config.datastores) {
-    if(store.access!==undefined && store.access!=='prisma')throw new Error('Unsupported datastore access');
-    if(store.access==='prisma' && store.consumers.some(id=>config.applications.find(a=>a.id===id).stack!=='node-ts'))throw new Error('Prisma requires a Node TypeScript server consumer; native/browser use an API or host port');
+    require('./database').databaseChoice(store,cat);
+    if(store.access && store.consumers.some(id=>config.applications.find(a=>a.id===id).stack!=='node-ts'))throw new Error('ORM requires a Node TypeScript server consumer; native/browser use an API or host port');
   }
   if(config.example) {
     const e=config.example;
-    if(Object.keys(e).some(k=>!['kind','api','datastore'].includes(k)) || e.kind!=='tasks' || !config.applications.some(a=>a.id===e.api&&a.stack==='node-ts') || !config.datastores.some(d=>d.id===e.datastore&&d.access==='prisma'&&d.consumers.includes(e.api)))throw new Error('Invalid tasks example API/datastore');
+    if(Object.keys(e).some(k=>!['kind','api','datastore'].includes(k)) || e.kind!=='tasks' || !config.applications.some(a=>a.id===e.api&&a.stack==='node-ts') || !config.datastores.some(d=>d.id===e.datastore&&d.access&&d.consumers.includes(e.api)))throw new Error('Invalid tasks example API/datastore');
     for(const m of workspaceModules.filter(id=>!require('./open-source').moduleIds.includes(id)))if(!config.modules.some(x=>x.id===m))throw new Error('Tasks example requires '+m);
     if(uis.some(a=>!['data-table','forms'].every(s=>a.componentSets.includes(s))))throw new Error('Tasks example requires DataTable and forms');
   }
@@ -32,13 +32,7 @@ function validateWorkspaceConfig(config,cat) {
 function tsconfig(browser=false) {
   return {compilerOptions:{target:'ES2022',module:browser?'ESNext':'NodeNext',moduleResolution:browser?'Bundler':'NodeNext',lib:browser?['ES2022','DOM','DOM.Iterable']:['ES2022'],jsx:'react-jsx',strict:true,skipLibCheck:true,esModuleInterop:true,resolveJsonModule:true,declaration:true,outDir:'dist',rootDir:'src',types:browser?[]:['node'],rewriteRelativeImportExtensions:true,...(browser?{noEmit:true,declaration:false,rootDir:'.'}: {})},include:['src']};
 }
-function buildPrismaStore({store,owner,add,copy,deps}) {
-  const d=deps.prisma,storeEnv='DATABASE_'+store.id.replaceAll('-','_').toUpperCase()+'_URL';
-  copy('architecture/stacks/data-access/prisma',store.path,owner,{provider:store.engine==='postgres'?'postgresql':'sqlite',engine:store.engine,storeId:store.id,storeEnv,adapter:store.engine==='postgres'?'pg':'better-sqlite3'},p=>p==='prisma/schema.prisma'||p==='.env.example'?'init-if-missing':p.startsWith('prisma/migrations/')?'append':'update');
-  copy('architecture/stacks/data-access/prisma-'+store.engine,store.path,owner,{storeEnv},p=>p.startsWith('prisma/migrations/')?'append':'update');
-  add(store.path+'/package.json',json({name:'@project/database-'+store.id,private:true,type:'module',engines:deps.engines,exports:{'.':{types:'./dist/index.d.ts',default:'./dist/index.js'}},scripts:{generate:'prisma generate','type-check':'tsc --noEmit',build:'tsc','db:status':'node migrate.mjs status','db:deploy':'node migrate.mjs deploy','db:dev':'node migrate.mjs dev','db:pull':'prisma db pull','db:prepare':'node environment.mjs'},dependencies:{'@prisma/client':d.prisma,['@prisma/adapter-'+(store.engine==='postgres'?'pg':'better-sqlite3')]:d.prisma,[store.engine==='postgres'?'pg':'better-sqlite3']:d[store.engine==='postgres'?'pg':'better-sqlite3']},devDependencies:{prisma:d.prisma,typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node']}}),'merge-json',owner);
-  add(store.path+'/tsconfig.json',json(tsconfig()),'merge-json',owner);
-}
+const {buildPrismaStore}=require('./database');
 function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,registration,selected,target}) {
   const change=(p,fn)=>{const item=owned.get(p);if(item)item.content=fn(item.content);};
   const pkg=(p,fn)=>change(p,c=>json(fn(parseJson(c,p))));
@@ -59,7 +53,7 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
     const owner='architecture:app:'+app.id;
     const map=Object.fromEntries((app.modules||[]).filter(m=>workspaceModules.includes(m)).map(m=>['@project/'+m,'workspace:*']));
     if(config.example && (cat.stacks[app.stack].ui||config.example.api===app.id))for(const id of cat.stacks[app.stack].ui?['api-client','query','platform']:['contracts','config','observability'])map['@project/'+id]='workspace:*';
-    for(const store of config.datastores.filter(d=>d.access==='prisma'&&d.consumers.includes(app.id)))map['@project/database-'+store.id]='workspace:*';
+    for(const store of config.datastores.filter(d=>d.access&&d.consumers.includes(app.id)))map['@project/database-'+store.id]='workspace:*';
     pkg(app.path+'/package.json',p=>({...p,dependencies:{...p.dependencies,...map,...(cat.stacks[app.stack].ui?{'@project/ui':'workspace:*'}:{})},...(app.stack==='node-ts'?{devDependencies:{...p.devDependencies,typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node'],tsx:deps.prisma.tsx},engines:deps.engines}:{})}));
     if(cat.stacks[app.stack].ui) {
       change(app.path+'/'+app.sourceDir+'/styles.css',text=>text+'@source '+JSON.stringify(path.posix.relative(app.path+'/'+app.sourceDir,uiRoot+'/src'))+';\n');
@@ -84,8 +78,8 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
       change(app.path+'/tsconfig.json',()=>json({...tsconfig(),include:[app.sourceDir],compilerOptions:{...tsconfig().compilerOptions,rootDir:app.sourceDir}}));
       if(config.example?.api===app.id) {
         const store=config.example.datastore;
-        change(app.path+'/'+app.sourceDir+'/server.ts',()=>readSource('architecture/examples/tasks/server.ts').replaceAll('@project/database-main','@project/database-'+store));
-        add(app.path+'/'+app.sourceDir+'/tasks.ts',readSource('architecture/examples/tasks/tasks.ts').replaceAll('@project/database-main','@project/database-'+store),'init-if-missing',owner);
+        change(app.path+'/'+app.sourceDir+'/server.ts',()=>readSource('architecture/examples/tasks/server.ts').replaceAll('@project/database-main','@project/database-'+store).replaceAll('PrismaClient',config.datastores.find(d=>d.id===store).access==='drizzle'?'Database':'PrismaClient'));
+        add(app.path+'/'+app.sourceDir+'/tasks.ts',readSource('architecture/examples/tasks/'+(config.datastores.find(d=>d.id===store).access==='drizzle'?'tasks-drizzle.ts':'tasks.ts')).replaceAll('@project/database-main','@project/database-'+store),'init-if-missing',owner);
         add(app.path+'/.env.example','PORT=3000\nHOST=127.0.0.1\n# Required to allow writes; use a random local secret, never commit it.\nAPI_WRITE_TOKEN=\nCORS_ORIGINS=http://127.0.0.1:5173,http://localhost:1420,tauri://localhost\n# DATABASE_URL is loaded in the database package or supplied by the environment.\n','init-if-missing',owner);
       }
     }
@@ -123,7 +117,7 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
   }
   const overrides=Object.fromEntries(Object.entries(deps.securityOverrides).filter(([key])=>key.startsWith('@redocly/')?config.modules.some(m=>m.id==='contracts'):config.datastores.some(d=>d.access==='prisma')));
   add('package.json',json({private:true,packageManager:config.workspace.packageManager,engines:deps.engines,scripts:{generate:'node tooling/workspace/run.mjs generate',build:'node tooling/workspace/run.mjs build','type-check':'node tooling/workspace/run.mjs type-check','test:workspace':'node tooling/workspace/run.mjs test'},devDependencies:{typescript:deps.frontendDev.typescript},...(Object.keys(overrides).length?{pnpm:{overrides}}:{})}),'merge-json',owner);
-  const buildDependencies=[...(config.datastores.some(d=>d.access==='prisma')?['@prisma/engines','prisma']:[]),...(config.datastores.some(d=>d.access==='prisma'&&d.engine==='sqlite')?['better-sqlite3']:[]),...(config.applications.some(a=>a.stack==='node-ts'||cat.stacks[a.stack].ui)?['esbuild']:[])];
+  const buildDependencies=[...(config.datastores.some(d=>d.access==='prisma')?['@prisma/engines','prisma']:[]),...(config.datastores.some(d=>d.access&&d.engine==='sqlite'&&d.access==='prisma')?['better-sqlite3']:[]),...(config.applications.some(a=>a.stack==='node-ts'||cat.stacks[a.stack].ui)?['esbuild']:[])];
   const yamlList=(key,values)=>key+':'+(values.length?'\n'+values.map(p=>'  - '+JSON.stringify(p)).join('\n'):' []')+'\n';
   add('pnpm-workspace.yaml',yamlList('packages',packagePaths)+yamlList('onlyBuiltDependencies',buildDependencies),'merge-yaml',owner);
   add('.gitignore','node_modules/\ndist/\n.env\n.env.local\n.env.*.local\n*.sqlite\n*.sqlite-*\n','append-lines',owner);

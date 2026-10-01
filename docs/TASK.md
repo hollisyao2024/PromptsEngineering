@@ -108,3 +108,5 @@ flowchart LR
 [模块任务与依赖](task-modules/architecture-platform/TASK.md)：TASK-ARCHPLAT-001~006，覆盖 US-ARCHPLAT-001~009。
 
 公共 UI 3.1：TASK-ARCHPLAT-007～010 已通过 QA，覆盖 US-ARCHPLAT-010～014；组件闭包、公共交互和消费者升级证据见 [架构平台 QA](qa-modules/architecture-platform/QA.md)，详细任务由模块 TASK §4 维护。
+
+Drizzle 数据访问：[模块 TASK](task-modules/drizzle/TASK.md)，依赖 Monorepo、身份权限、文件存储和队列。

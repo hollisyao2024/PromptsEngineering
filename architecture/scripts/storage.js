@@ -20,9 +20,9 @@ function validateStorage(config,target){
   }
   if(!ids.has(s.defaultStore))throw new Error('Unknown default storage profile');
   if(s.metadata!==undefined){
-    if(!s.metadata||typeof s.metadata!=='object'||Array.isArray(s.metadata)||Object.keys(s.metadata).some(k=>k!=='datastore')||s.runtime!=='node'||config.schemaVersion!==2)throw new Error('Prisma storage metadata requires Node workspace');
-    const db=config.datastores.find(d=>d.id===s.metadata.datastore&&d.access==='prisma');
-    if(!db||s.consumers.some(id=>!db.consumers.includes(id)))throw new Error('Metadata datastore must be a Prisma datastore consumed by every storage app');
+    if(!s.metadata||typeof s.metadata!=='object'||Array.isArray(s.metadata)||Object.keys(s.metadata).some(k=>k!=='datastore')||s.runtime!=='node'||config.schemaVersion!==2)throw new Error('ORM storage metadata requires Node workspace');
+    const db=config.datastores.find(d=>d.id===s.metadata.datastore&&['prisma','drizzle'].includes(d.access));
+    if(!db||s.consumers.some(id=>!db.consumers.includes(id)))throw new Error('Metadata datastore must be an ORM datastore consumed by every storage app');
   }
   if(s.uploadApplications===undefined)s.uploadApplications=[];
   if(!Array.isArray(s.uploadApplications)||new Set(s.uploadApplications).size!==s.uploadApplications.length||s.uploadApplications.some(id=>!config.applications.some(a=>a.id===id&&a.components&&['uploads','data-table'].every(set=>a.componentSets.includes(set)))))throw new Error('Upload applications must select shadcn UI');
@@ -41,10 +41,13 @@ function buildStorage({config,source,target,add,owned,copy,readSource,deps,regis
     const {walk}=require('./project');
     for(const rel of walk(path.join(source,'architecture/modules/storage/node/src'))){
       const provider=rel.startsWith('providers/')?rel.slice(10,-3):null;
+      if(rel==='drizzle-repository.ts'&&config.datastores.find(d=>d.id===s.metadata?.datastore)?.access!=='drizzle')continue;
       if(provider&&provider!=='local'&&!selectedProviders.includes(provider))continue;
-      add(s.path+'/src/'+rel,readSource('architecture/modules/storage/node/src/'+rel),'update',owner);
+      add(s.path+'/src/'+rel,readSource('architecture/modules/storage/node/src/'+rel).replaceAll('{{datastore}}',s.metadata?.datastore||''),'update',owner);
     }
     const runtimeDeps={};
+    const metadata=config.datastores.find(d=>d.id===s.metadata?.datastore);
+    if(metadata?.access==='drizzle'){runtimeDeps['@project/database-'+metadata.id]='workspace:*';runtimeDeps['drizzle-orm']=deps.drizzle['drizzle-orm'];change(s.path+'/src/index.ts',s=>s+"export * from './drizzle-repository.ts';\n");}
     for(const p of selectedProviders)Object.assign(runtimeDeps,deps.storage.node[p]);
     const exports={'.':{types:'./dist/index.d.ts',default:'./dist/index.js'},'./client':{types:'./dist/client.d.ts',default:'./dist/client.js'},'./configured':{types:'./dist/configured.d.ts',default:'./dist/configured.js'}};
     for(const p of selectedProviders)exports['./providers/'+p]={types:'./dist/providers/'+p+'.d.ts',default:'./dist/providers/'+p+'.js'};
@@ -61,7 +64,7 @@ function buildStorage({config,source,target,add,owned,copy,readSource,deps,regis
     require('./storage-go').buildGoStorage({config,s,owner,selectedProviders,add,copy,readSource,deps,owned});
   }
   for(const app of config.applications.filter(a=>s.consumers.includes(a.id))){
-    if(s.runtime==='node')add(app.path+'/'+app.sourceDir+'/file-storage.ts',readSource('architecture/modules/storage/node/'+(s.metadata?'example-prisma.ts':'example.ts')).replaceAll('{{datastore}}',s.metadata?.datastore||''),'init-if-missing','architecture:app:'+app.id);
+    if(s.runtime==='node')add(app.path+'/'+app.sourceDir+'/file-storage.ts',readSource('architecture/modules/storage/node/'+(s.metadata?(config.datastores.find(d=>d.id===s.metadata.datastore).access==='drizzle'?'example-drizzle.ts':'example-prisma.ts'):'example.ts')).replaceAll('{{datastore}}',s.metadata?.datastore||''),'init-if-missing','architecture:app:'+app.id);
     const ignore=owned.get(app.path+'/.gitignore');if(ignore){ignore.content+='\n.data/\n';ignore.strategy='append-lines';}
   }
   for(const app of config.applications.filter(a=>s.uploadApplications.includes(a.id))){
@@ -70,8 +73,9 @@ function buildStorage({config,source,target,add,owned,copy,readSource,deps,regis
   }
   if(s.metadata){
     const db=config.datastores.find(d=>d.id===s.metadata.datastore);
-    add(db.path+'/prisma/file-storage.prisma',readSource('architecture/modules/storage/prisma/file-storage.prisma'),'init-if-missing',owner);
-    add(db.path+'/prisma/migrations/20260909010000_file_storage/migration.sql',readSource('architecture/modules/storage/prisma/'+db.engine+'.sql'),'append',owner);
+    if(db.access==='drizzle'){add(db.path+'/src/schema/file-storage.ts',require('./database').drizzleSchema(db.engine,'files'),'init-if-missing',owner);return;}
+    add(db.path+'/prisma/file-storage.prisma',require('./database').prismaModuleSchema(db.engine,'files',readSource),'init-if-missing',owner);
+    add(db.path+'/prisma/migrations/20260909010000_file_storage/migration.sql',require('./database').prismaModuleSQL(db.engine,'files',readSource),'append',owner);
     change(db.path+'/prisma.config.ts',text=>text.replace("schema:'prisma/schema.prisma'","schema:'prisma'"));
   }
 }

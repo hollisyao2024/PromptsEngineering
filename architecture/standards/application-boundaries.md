@@ -6,4 +6,4 @@ apps 是独立运行/发布单元；apps 之间通过 API、事件或公共 pack
 
 规则的执行入口是 `pnpm agent -- architecture check`。它检查已配置目录的应用导入边界、UI 使用和存储迁移资产；native/toolchain 与业务约束继续使用项目 checks。
 
-v2 的共享包通过 workspace:* 和 exports 连接。数据库、服务端 config/observability 不得进入 Web 或公共浏览器包，Prisma 类型也不属于公开契约；API client 无 React，React 依赖只放 query/UI 层。Tauri 的默认蓝图通过 API 读写业务数据，本地文件和平台操作走宿主端口。
+v2 的共享包通过 workspace:* 和 exports 连接。数据库、服务端 config/observability 不得进入 Web 或公共浏览器包，Prisma/Drizzle 模型和驱动类型也不属于公开契约；API client 无 React，React 依赖只放 query/UI 层。Tauri 的默认蓝图通过 API 读写业务数据，本地文件和平台操作走宿主端口。

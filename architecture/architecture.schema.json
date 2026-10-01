@@ -129,6 +129,8 @@
           "engine": {
             "enum": [
               "postgres",
+              "mysql",
+              "mariadb",
               "sqlite"
             ]
           },
@@ -140,7 +142,10 @@
             }
           },
           "access": {
-            "const": "prisma"
+            "enum": [
+              "prisma",
+              "drizzle"
+            ]
           }
         },
         "required": [

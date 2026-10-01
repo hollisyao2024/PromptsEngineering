@@ -77,3 +77,9 @@ flowchart LR
   E2 --> E3[TASK-ENVINIT-003]
   E3 --> E4[TASK-ENVINIT-004]
 ```
+
+## Drizzle
+
+TASK-DRIZZLE-001 → TASK-DRIZZLE-002 → TASK-DRIZZLE-003 → TASK-DRIZZLE-004；依赖 Monorepo、身份权限与文件存储既有模块。
+
+Drizzle 最新收敛：TASK-DRIZZLE-001 → 002 → 003 → 005（自动源版本）→ 004（QA）；数据库限 PG/MySQL/MariaDB/SQLite。
