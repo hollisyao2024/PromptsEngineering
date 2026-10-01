@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-01：[ADR 002](002-arch-environment-file-init-if-missing.md) 补充 linked worktree 更新时主 repo 六文件补齐、主 repo example 优先及本地 ignore 边界。
+
 - 2026-09-28：[ADR 032](032-arch-test-scope-evidence-gate.md)，全量测试高门槛、task evidence 决策与 QA 回执前结构校验。
 
 - 2026-09-10：[ADR 031](031-arch-on-demand-runtime.md)，轻量架构入口、固定来源缓存及旧包安全缩减。

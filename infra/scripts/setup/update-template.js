@@ -187,6 +187,74 @@ function reportEnvironmentFiles(results) {
   }
 }
 
+// Environment files belong to the project's main checkout. Template-owned
+// tracked files still go through the normal development-worktree apply plan.
+function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
+  const gitTarget = isGitWorktree(targetRoot);
+  if (!gitTarget && lstatIfPresent(path.join(targetRoot, '.git'))) {
+    throw new Error('Cannot resolve environment project Git root');
+  }
+  const root = gitTarget ? getMainRepoRoot(targetRoot) : path.resolve(targetRoot);
+  if (gitTarget) {
+    const verified = run('git', ['rev-parse', '--show-toplevel'], { cwd: root });
+    if (verified.status !== 0 || path.resolve(verified.stdout.trim()) !== path.resolve(root)) {
+      throw new Error('Cannot verify environment main repo root');
+    }
+  }
+
+  // Read all required inputs before creating any environment files. Existing
+  // runtime files are never read, and existing examples always take priority.
+  const examples = ENVIRONMENT_FILE_PAIRS.map(({ example, runtime }) => {
+    const destination = path.join(root, example);
+    const exists = Boolean(lstatIfPresent(destination));
+    let content;
+    if (!exists) {
+      const source = path.join(sourceRoot, example);
+      if (!fs.existsSync(source)) throw new Error(`environment example source missing: ${example}`);
+      content = fs.readFileSync(source);
+    } else if (!lstatIfPresent(path.join(root, runtime))) {
+      fs.readFileSync(destination); // Preflight readability before any writes.
+    }
+    return { example, destination, exists, content };
+  });
+
+  if (write && gitTarget) {
+    // Protect local runtime files even before the tracked gitignore update is
+    // merged. These root-anchored rules do not ignore the example files.
+    const resolved = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd: root });
+    if (resolved.status !== 0 || !resolved.stdout.trim()) throw new Error('Cannot resolve environment Git exclude');
+    const exclude = resolved.stdout.trim();
+    const stat = lstatIfPresent(exclude);
+    if (stat && (!stat.isFile() || stat.isSymbolicLink())) throw new Error('Invalid environment Git exclude file');
+    const content = stat ? fs.readFileSync(exclude, 'utf8') : '';
+    const lines = new Set(content.split(/\r?\n/u));
+    const missing = ENVIRONMENT_FILE_PAIRS.map(({ runtime }) => `/${runtime}`).filter(line => !lines.has(line));
+    if (missing.length) {
+      fs.mkdirSync(path.dirname(exclude), { recursive: true });
+      fs.appendFileSync(exclude, `${content && !content.endsWith('\n') ? '\n' : ''}${missing.join('\n')}\n`);
+    }
+  }
+
+  const files = examples.map(({ example, destination, exists, content }) => {
+    if (exists) return { status: 'unchanged', path: example, reason: 'target exists' };
+    if (write) {
+      try { fs.writeFileSync(destination, content, { flag: 'wx', mode: 0o644 }); }
+      catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        return { status: 'unchanged', path: example, reason: 'target exists' };
+      }
+    }
+    return { status: 'created', path: example, reason: 'initialized from template example' };
+  });
+  files.push(...initializeEnvironmentFiles(root, write));
+  return { root, files };
+}
+
+function reportProjectEnvironmentFiles(result) {
+  console.log(`ENVIRONMENT_ROOT=${result.root}`);
+  reportEnvironmentFiles(result.files);
+}
+
 const CODEX_CONFIG_RELATIVE = '.codex/config.toml';
 const CODEX_COMPACTION_DEFAULTS = Object.freeze({
   model_auto_compact_token_limit: '180000',
@@ -430,7 +498,7 @@ function main() {
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
-  reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, false));
+  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false));
   reportCodexConfig(codexConfigPlan);
 
   if (dryRun.status !== 0) {
@@ -468,7 +536,7 @@ function main() {
   if (writeRun.status !== 0) {
     block('write failed', { write_log: writeLogPath });
   }
-  reportEnvironmentFiles(initializeEnvironmentFiles(targetRoot, true));
+  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, true));
   reportCodexConfig(initializeCodexConfig(targetRoot, true));
 
   validateJsonFiles(targetRoot, [
@@ -527,6 +595,10 @@ function main() {
     block('Codex config did not converge', { config: CODEX_CONFIG_RELATIVE });
   }
   console.log('CODEX_CONFIG_CONVERGENCE_STATUS=OK');
+  if (initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false).files.some(file => file.status !== 'unchanged')) {
+    block('Environment files did not converge');
+  }
+  console.log('ENVIRONMENT_CONVERGENCE_STATUS=OK');
   console.log('CONVERGENCE_STATUS=OK');
 
   console.log('STATUS=UPDATED');
@@ -552,6 +624,7 @@ module.exports = {
   hasConvergenceDrift,
   initializeCodexConfig,
   initializeEnvironmentFiles,
+  initializeProjectEnvironmentFiles,
   parseApplyCounts,
   parseArgs,
 };

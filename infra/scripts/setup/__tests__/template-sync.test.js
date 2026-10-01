@@ -147,6 +147,7 @@ function createTarget(testRoot, options = {}) {
     '.env.staging',
     '.env.production',
   ]) {
+    if (options.omitEnvironmentFiles) continue;
     write(mainRoot, file, `${file}=PROJECT_SENTINEL\n`);
   }
   if (options.role) {
@@ -169,6 +170,41 @@ function runSync(cwd, args) {
 function combinedOutput(result) {
   return `${result.stdout || ''}${result.stderr || ''}`;
 }
+
+test('sync from linked worktree fills environment files in the target main repo', t => {
+  const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-main-env-'));
+  t.after(() => fs.rmSync(testRoot, { recursive: true, force: true }));
+  const { upstream } = createUpstream(testRoot);
+  for (const example of ['.env.example', '.env.staging.example', '.env.production.example']) {
+    write(upstream, example, `SOURCE=${example}\n`);
+  }
+  commitAll(upstream, 'environment examples');
+  const { mainRoot, linkedRoot } = createTarget(testRoot, { omitEnvironmentFiles: true });
+  write(mainRoot, '.env.example', 'MAIN_EXAMPLE=preserved\n');
+  const args = [`--source-repo=${upstream}`, '--source-branch=main'];
+  const dry = runSync(linkedRoot, [...args, '--dry-run']);
+  assert.equal(dry.status, 0, combinedOutput(dry));
+  assert.equal(fs.existsSync(path.join(mainRoot, '.env.local')), false);
+  assert.equal(fs.existsSync(path.join(mainRoot, '.env.staging.example')), false);
+  const apply = runSync(linkedRoot, args);
+  assert.equal(apply.status, 0, combinedOutput(apply));
+  assert.match(combinedOutput(apply), /ENVIRONMENT_ROOT=/);
+  assert.match(combinedOutput(apply), /ENVIRONMENT_CONVERGENCE_STATUS=OK/);
+  for (const [example, runtime] of [
+    ['.env.example', '.env.local'],
+    ['.env.staging.example', '.env.staging'],
+    ['.env.production.example', '.env.production'],
+  ]) {
+    assert.deepEqual(fs.readFileSync(path.join(mainRoot, runtime)), fs.readFileSync(path.join(mainRoot, example)));
+    assert.equal(fs.existsSync(path.join(linkedRoot, runtime)), false);
+    assert.equal(git(mainRoot, ['check-ignore', runtime]), runtime);
+  }
+  assert.equal(fs.readFileSync(path.join(mainRoot, '.env.example'), 'utf8'), 'MAIN_EXAMPLE=preserved\n');
+  commitAll(linkedRoot, 'applied template');
+  const second = runSync(linkedRoot, args);
+  assert.equal(second.status, 0, combinedOutput(second));
+  assert.match(combinedOutput(second), /ENV_FILE_ENV_LOCAL=unchanged/);
+});
 
 test('sync forwards explicit legacy migration through the fetched updater and converges', t => {
   const testRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-legacy-')));

@@ -19,6 +19,7 @@
 - example 文件包含用途说明、变量占位与安全默认值；实际文件首次创建时取对应 example 的内容。
 - `.gitignore` 默认忽略三个实际文件，不忽略三个 example 文件。
 - 六个文件均采用 init-if-missing：已有文件不得追加、覆盖或重写。
+- 从 linked worktree 更新时，六文件存在性检查和补建以目标实际项目的 Git 主 worktree（`repo`）根目录为准；实际环境文件不得初始化到开发 worktree。example 在开发 worktree 中的模板所有权应用仍按既有交付流程维护。
 
 ### Out of Scope
 
@@ -35,6 +36,8 @@
 | US-ENVINIT-001 | **AC-ENVINIT-001-02** Given 初始化已完成，When 检查 Git 状态，Then example 文件不被忽略且实际文件全部被忽略 | TASK-ENVINIT-002 | TC-ENVINIT-002 | @qa |
 | US-ENVINIT-002 | **AC-ENVINIT-002-01** Given 六个文件中任一文件已有内容，When 再次应用模板，Then 已有文件内容逐字节保持不变 | TASK-ENVINIT-003 | TC-ENVINIT-003 | @qa |
 | US-ENVINIT-003 | **AC-ENVINIT-003-01** Given 执行模板 dry-run，When 文件缺失或已存在，Then 只报告将创建的缺失文件且不产生写入 | TASK-ENVINIT-004 | TC-ENVINIT-004 | @qa |
+| US-ENVINIT-004 | **AC-ENVINIT-004-01** Given 从目标项目 linked worktree 更新且主 repo 缺少环境文件，When apply 成功，Then 主 repo 六文件补齐、主 repo 已有文件逐字节保留、实际文件从主 repo 对应 example 初始化且不在开发 worktree 新建 | TASK-ENVINIT-005 | TC-ENVINIT-005 | @qa |
+| US-ENVINIT-004 | **AC-ENVINIT-004-02** Given 主 repo 与开发 worktree 的 example 内容不同，When dry-run 或重复 apply，Then 以主 repo 文件为准、dry-run 不写入、重复 apply 无变化 | TASK-ENVINIT-005 | TC-ENVINIT-006 | @qa |
 
 ## 4. 非功能需求
 
@@ -76,6 +79,7 @@
 ## 10. 变更记录
 
 - v1.0（2026-08-24）：确认六文件首次初始化、Git 所有权和不覆盖约束。
+- v1.1（2026-10-01）：用户确认六文件补齐到目标实际项目主 repo 根目录；保留 example 的 tracked 模板交付、已有内容保护和 dry-run 约束。
 
 ## 11. 自检清单
 

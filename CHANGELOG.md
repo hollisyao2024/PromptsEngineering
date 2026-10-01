@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 模板从 linked worktree 更新实际项目时，六个环境文件检查与缺失补建以目标项目主 `repo` 根目录为准；已有内容保持不变，实际文件从主 repo 对应 example 初始化，dry-run 不写入并报告目标路径。
+
 - 测试范围默认按影响定向选择；全量仅在四类有证据的条件下升级。TDD 执行前记录结构化决策，QA 复核并复用有效结果；实际项目 `qa verify` 在签发 SHA 回执前校验证据与当前提交，纯文档任务可只提交静态/契约检查结果。
 
 - 移除 Codex 侧无效的 `SessionStart` `GH_TOKEN` 环境注入钩子。Codex 不提供 `CLAUDE_ENV_FILE`，且 Hook 输出不能修改父进程环境；模板迁移会显式删除旧 `.codex/hooks.json`，Windows/macOS/Linux 的远端 GitHub 操作统一使用跨平台 Node 鉴权入口读取 `.env.local`。
