@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { StringDecoder } = require('string_decoder');
 const { spawnSync } = require('child_process');
 const { assertTestCommandScope } = require('./test-command-scope');
+const { orderedStepEvidence, appendStepEvidence } = require('../shared/task-evidence');
 const {
   getMainRepoRoot,
   getWorktreeRoot,
@@ -230,6 +231,7 @@ function validateState(inputState, expectedTaskId) {
       recovered.add(recovery.failure_index);
     }
   }
+  orderedStepEvidence(state);
   for (const entry of state.phase_history) {
     if (entry.deferred_cleanup === undefined) continue;
     const deferred = entry.deferred_cleanup;
@@ -421,6 +423,7 @@ function createTask(options) {
       current_step: steps[0].id,
       next_action: steps[0].title,
       last_error: null,
+      evidence_order: [],
       steps,
       created_at: timestamp,
       updated_at: timestamp,
@@ -650,7 +653,7 @@ function checkpointTask(options) {
       if (recoveryEvidence) {
         if (!unresolvedFailure) throw new Error('no unresolved structured failure to recover');
         step.recoveries = [...recoveries, { failure_index: failureIndex, evidence: recoveryEvidence, at: timestamp }];
-        step.evidence = [...step.evidence, recoveryEvidence];
+        appendStepEvidence(state, step, [recoveryEvidence]);
       }
       if (failureKind) {
         step.failures = [...failures, {
@@ -664,7 +667,7 @@ function checkpointTask(options) {
       }
       if (options.replay) step.replay = options.replay;
       step.status = requestedStatus;
-      step.evidence = [...step.evidence, ...evidence];
+      appendStepEvidence(state, step, evidence);
       step.next_action = String(options.nextAction || step.next_action || step.title);
       if (requestedStatus === 'running') step.started_at = timestamp;
       if (requestedStatus === 'done') step.completed_at = timestamp;

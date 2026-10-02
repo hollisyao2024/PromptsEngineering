@@ -52,3 +52,22 @@ test('task exec permits an intentionally full command only with matching recorde
   assert.doesNotThrow(() => assertTestCommandScope(['pnpm', 'test:all'], fullDecision('pnpm test:all')));
   assert.throws(() => assertTestCommandScope(['pnpm', 'test'], fullDecision('pnpm test:all')), /TEST_SCOPE_DECISION/u);
 });
+
+function crossStepApproval(latestFull) {
+  const full = fullDecision('pnpm test').steps[0].evidence[0];
+  const targeted = `TEST_SCOPE_DECISION=${JSON.stringify({version: 1, mode: 'targeted', commands: ['node --test one.test.js']})}`;
+  return { steps: [{ id: 'S5', evidence: [targeted] }, { id: 'S9', evidence: [full] }],
+    evidence_order: latestFull
+      ? [{ step_id: 'S5', index: 0 }, { step_id: 'S9', index: 0 }]
+      : [{ step_id: 'S9', index: 0 }, { step_id: 'S5', index: 0 }] };
+}
+
+test('a newer targeted checkpoint revokes old full approval across steps', () => {
+  assert.throws(() => assertTestCommandScope(['pnpm', 'test'], crossStepApproval(false)), /TEST_SCOPE_DECISION/);
+  assert.doesNotThrow(() => assertTestCommandScope(['pnpm', 'test'], crossStepApproval(true)));
+});
+
+test('corrupt evidence order cannot authorize aggregate commands', () => {
+  const state = crossStepApproval(true); state.evidence_order.pop();
+  assert.throws(() => assertTestCommandScope(['pnpm', 'test'], state), /evidence_order/);
+});

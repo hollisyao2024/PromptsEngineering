@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const { orderedStepEvidence } = require('../shared/task-evidence');
 
 const MODES = new Set(['targeted', 'full', 'static']);
 const FULL_TRIGGERS = new Set([
@@ -94,7 +95,7 @@ function verifyTestScopeEvidence({ states, context, headSha, templateSource = fa
 
   const task = matches[0];
   if (task.task_type !== 'mutation') return { skipped: true };
-  const records = (task.steps || []).flatMap((step) => Array.isArray(step.evidence) ? step.evidence : []);
+  const records = orderedStepEvidence(task);
   const decisionIndex = records.findLastIndex((item) => typeof item === 'string' && item.startsWith('TEST_SCOPE_DECISION='));
   if (decisionIndex < 0) throw new Error('TEST_SCOPE_DECISION is missing from the current task');
   const decision = validateDecision(parseRecord(records[decisionIndex], 'TEST_SCOPE_DECISION='));

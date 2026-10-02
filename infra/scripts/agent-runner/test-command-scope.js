@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const { orderedStepEvidence } = require('../shared/task-evidence');
 
 const FULL_TRIGGERS = new Set([
   'explicit_requirement', 'whole_scope_impact', 'unbounded_after_investigation', 'cross_domain_failure',
@@ -46,7 +47,7 @@ function commandRisk(command) {
 }
 
 function hasFullApproval(command, state) {
-  const records = (state.steps || []).flatMap((step) => Array.isArray(step.evidence) ? step.evidence : []);
+  const records = orderedStepEvidence(state);
   const raw = records.findLast((item) => typeof item === 'string' && item.startsWith('TEST_SCOPE_DECISION='));
   if (!raw) return false;
   let decision;

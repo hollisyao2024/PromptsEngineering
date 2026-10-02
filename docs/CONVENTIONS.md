@@ -127,7 +127,6 @@ pnpm agent -- worktree list
 状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
 记录前可选用 `pnpm agent -- task paths [--task <id>]` 只读解析状态和锁目录；不创建目录、不联网，`PERMISSION_STATUS=NOT_EVALUATED` 不表示权限已通过。容器 tmp 通常位于 repo 外，必须与实际会话可写范围核对，禁止模板自动扩大权限；检查不是普通查询的新门禁。记录不可用时按失败恢复协议对话留痕，继续获准且独立的只读工作。
 ### 命令
-
 任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。
 
 ```bash
@@ -147,6 +146,7 @@ pnpm agent -- task cancel --task <id> --force
 - `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
 - 同一次 checkpoint 可更新步骤和验收项，减少机械写盘。
 - 新任务安全默认 `type=mutation`；确认不会修改 tracked 文件时才显式选择只读类型。schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
+- 新任务以 `evidence_order` 追加引用 `{step_id,index}`，与步骤证据同一原子写入；QA 与测试命令入口共用该顺序，回流到较早步骤仍按实际 checkpoint 追加顺序判断。索引必须完整、无重复且保持每步内部追加顺序，损坏时 fail-closed。旧 v1/v2 文件缺少索引时保留既有步骤顺序；首次步骤 checkpoint 先按该旧顺序建立历史引用，再追加新证据，不按步骤更新时间猜测旧证据时序。旧历史无法复原真实先后时须补录当前决策和结果。
 - `extend` 只允许追加步骤和验收项并递增 `plan_revision`；不允许删除、重排或重写已完成历史。
 - `transition` 要求证据且校验相邻前进或显式回流路径；默认存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
 - 独立收尾清理可以在进入 QA/DEVOPS 时显式延后：`transition ... --defer-cleanup-step S5 --cleanup-evidence "清理对象不在验证提交中；独立干净主干执行合并；原目录保留"`。仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由。不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用。其他阻塞仍有效；失败状态和恢复要求不变，阶段历史追加所引用失败及证据，`task finish` 仍要求清理完成。此参数不授权执行被拒绝的动作。

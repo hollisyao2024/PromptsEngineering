@@ -22,6 +22,14 @@ test('installed template contracts accept the consumer package identity and vers
   const installed = JSON.parse(fs.readFileSync(path.join(target, 'package.json')));
   assert.equal(installed.name, pkg.name);
   assert.equal(installed.version, pkg.version);
+  const { orderedStepEvidence } = require(path.join(target, 'infra/scripts/shared/task-evidence.js'));
+  const { assertTestCommandScope } = require(path.join(target, 'infra/scripts/agent-runner/test-command-scope.js'));
+  const full = `TEST_SCOPE_DECISION=${JSON.stringify({ version: 1, mode: 'full', full_trigger: 'explicit_requirement', trigger_evidence: 'earlier approval', commands: ['pnpm test'] })}`;
+  const targeted = 'TEST_SCOPE_DECISION={"version":1,"mode":"targeted"}';
+  const task = { steps: [{ id: 'S5', evidence: [targeted] }, { id: 'S9', evidence: [full] }],
+    evidence_order: [{ step_id: 'S9', index: 0 }, { step_id: 'S5', index: 0 }] };
+  assert.deepEqual(orderedStepEvidence(task), [full, targeted]);
+  assert.throws(() => assertTestCommandScope(['pnpm', 'test'], task), /TEST_SCOPE_DECISION/);
   const childEnv = { ...process.env };
   delete childEnv.NODE_TEST_CONTEXT;
   const check = spawnSync(process.execPath, [
