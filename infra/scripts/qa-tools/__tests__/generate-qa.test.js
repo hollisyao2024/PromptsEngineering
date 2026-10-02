@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const {
+  generateModuleQA,
   generateModuleList,
   generateProjectOverview,
   getQaPlanSessionStatePath,
@@ -12,6 +13,28 @@ const {
   validateModuleEntriesForGeneration,
   validateUpstreamModuleAlignment,
 } = require('../generate-qa');
+
+test('module QA links resolve from the generated file to their actual documents', () => {
+  for (const qaPath of ['docs/qa-modules/auth/QA.md', 'reports/quality/nested/auth/QA.md']) {
+    const entry = {
+      moduleDir: 'auth', moduleName: 'Auth', qaPath,
+      prdPath: 'docs/prd-modules/auth/PRD.md',
+      stories: [{ id: 'US-AUTH-001', domain: 'AUTH' }],
+    };
+    const markdown = generateModuleQA(entry);
+    for (const [label, target] of [
+      ['所属主 QA', 'docs/QA.md'],
+      ['模块 PRD', entry.prdPath],
+      ['模块 ARCH', 'docs/arch-modules/auth/ARCH.md'],
+      ['模块 TASK', 'docs/task-modules/auth/TASK.md'],
+    ]) {
+      const line = markdown.split('\n').find((value) => value.includes(label));
+      const href = line.match(/\]\(([^)]+)\)/)[1];
+      assert.equal(path.posix.normalize(path.posix.join(path.posix.dirname(qaPath), href)), target, label);
+      assert.equal(href.includes('\\'), false);
+    }
+  }
+});
 
 const modules = [
   {

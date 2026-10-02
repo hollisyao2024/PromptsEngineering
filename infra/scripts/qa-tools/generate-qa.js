@@ -436,12 +436,17 @@ function generateModuleQA(moduleEntry) {
   const today = new Date().toISOString().split('T')[0];
   const moduleTag = toTestCaseDomainTag(moduleEntry);
   const storyCount = moduleEntry.stories.length;
+  const qaPath = moduleEntry.qaPath || path.posix.join(CONFIG.paths.qaModulesDir, moduleEntry.moduleDir, 'QA.md');
+  const linkTo = (target) => path.posix.relative(path.posix.dirname(normalizePath(qaPath)), normalizePath(target));
+  const prdLink = linkTo(moduleEntry.prdPath);
+  const archLink = linkTo(path.posix.join(CONFIG.paths.archModulesDir, moduleEntry.moduleDir, 'ARCH.md'));
+  const taskLink = linkTo(path.posix.join(CONFIG.paths.taskModulesDir, moduleEntry.moduleDir, 'TASK.md'));
 
   return `# ${moduleEntry.moduleName} - 测试计划
 
 <!-- QA-GENERATED: generate-qa.js -->
 
-> **所属主 QA**: [QA.md](../../QA.md)
+> **所属主 QA**: [QA.md](${linkTo(CONFIG.paths.qa)})
 > **最后更新**: ${today}
 > **版本**: v0.1.0
 
@@ -457,9 +462,9 @@ function generateModuleQA(moduleEntry) {
 - 需求覆盖率目标：100%
 
 **关联文档**：
-- **模块 PRD**: [../../${moduleEntry.prdPath}](${path.posix.join('..', '..', moduleEntry.prdPath)})
-- **模块 ARCH**: [../../docs/arch-modules/${moduleEntry.moduleDir}/ARCH.md](../../docs/arch-modules/${moduleEntry.moduleDir}/ARCH.md)
-- **模块 TASK**: [../../docs/task-modules/${moduleEntry.moduleDir}/TASK.md](../../docs/task-modules/${moduleEntry.moduleDir}/TASK.md)
+- **模块 PRD**: [${prdLink}](${prdLink})
+- **模块 ARCH**: [${archLink}](${archLink})
+- **模块 TASK**: [${taskLink}](${taskLink})
 
 ---
 
@@ -858,6 +863,7 @@ module.exports = {
   parseTASK,
   parseTraceabilityMatrix,
   buildModuleEntries,
+  generateModuleQA,
   generateModuleList,
   generateProjectOverview,
   inferSessionModules,
