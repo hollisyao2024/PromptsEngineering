@@ -1057,3 +1057,46 @@ test('cancel requires force and rejects unsafe task identifiers', (t) => {
   assert.equal(result.status, 'CANCELLED');
   assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), false);
 });
+
+
+test('checkpoint persists cross-step ordering and recovery with evidence atomically', t => {
+  const input = startInput(fixture(t));
+  assert.deepEqual(createTask(input).evidence_order, []);
+  checkpointTask({ ...input, stepId: 'S2', status: 'running', evidence: ['decision'] });
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: ['result', 'review'] });
+  checkpointTask({ ...input, stepId: 'S2', status: 'blocked', failureKind: 'tool_error',
+    executionState: 'not_started', evidence: ['failure'], nextAction: 'Recover' });
+  const state = checkpointTask({ ...input, stepId: 'S2', status: 'done',
+    recoveryEvidence: 'verified recovery', evidence: ['success'] });
+  assert.deepEqual(state.evidence_order, [
+    { step_id: 'S2', index: 0 }, { step_id: 'S1', index: 0 }, { step_id: 'S1', index: 1 },
+    { step_id: 'S2', index: 1 }, { step_id: 'S2', index: 2 }, { step_id: 'S2', index: 3 },
+  ]);
+  assert.deepEqual(readTaskState(input), state);
+});
+
+test('legacy v1 and v2 histories seed established order without timestamp guesses', t => {
+  for (const version of [1, 2]) {
+    const input = startInput(fixture(t)); const initial = createTask(input);
+    delete initial.evidence_order; initial.schema_version = version;
+    if (version === 1) for (const key of ['current_phase', 'phase_history', 'plan_revision', 'plan_history']) delete initial[key];
+    initial.steps[0].evidence = ['old first']; initial.steps[0].updated_at = '2099-01-01T00:00:00Z';
+    initial.steps[1].evidence = ['old second'];
+    const file = path.join(input.runsRoot, input.taskId, 'state.json');
+    fs.writeFileSync(file, JSON.stringify(initial));
+    const state = checkpointTask({ ...input, stepId: 'S1', status: 'running', evidence: ['new checkpoint'] });
+    assert.equal(state.schema_version, 2);
+    assert.deepEqual(state.evidence_order, [{ step_id: 'S1', index: 0 }, { step_id: 'S2', index: 0 }, { step_id: 'S1', index: 1 }]);
+    assert.deepEqual(state.steps[0].evidence, ['old first', 'new checkpoint']);
+  }
+});
+
+test('corrupt ordering blocks state reads and checkpoints without rewriting history', t => {
+  const input = startInput(fixture(t)); const initial = createTask(input);
+  initial.steps[0].evidence = ['lost reference'];
+  const file = path.join(input.runsRoot, input.taskId, 'state.json');
+  const raw = JSON.stringify(initial); fs.writeFileSync(file, raw);
+  assert.throws(() => readTaskState(input), /evidence_order/);
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S1', status: 'running', evidence: ['new'] }), /evidence_order/);
+  assert.equal(fs.readFileSync(file, 'utf8'), raw);
+});

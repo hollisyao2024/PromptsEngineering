@@ -116,3 +116,32 @@ test('a result must follow the latest decision; template source keeps its existi
   assert.throws(() => verify([state(records)]), /TEST_SCOPE_RESULT/);
   assert.deepEqual(verifyTestScopeEvidence({ states: [], context, headSha: HEAD, templateSource: true }), { skipped: true });
 });
+
+function backflowState() {
+  return state([], {
+    steps: [
+      { id: 'S5', evidence: [`TEST_SCOPE_RESULT=${JSON.stringify(result())}`] },
+      { id: 'S9', evidence: [`TEST_SCOPE_DECISION=${JSON.stringify(decision())}`] },
+    ],
+    evidence_order: [{ step_id: 'S9', index: 0 }, { step_id: 'S5', index: 0 }],
+  });
+}
+
+test('QA accepts a later checkpoint result in an earlier step', () => {
+  assert.equal(verify([backflowState()]).mode, 'targeted');
+});
+
+test('QA rejects an old result before a new decision across steps', () => {
+  const task = backflowState();
+  task.evidence_order.reverse();
+  assert.throws(() => verify([task]), /missing after the latest decision/);
+});
+
+test('QA fails closed on missing, duplicate and invalid evidence references', () => {
+  for (const order of [null, [], [{ step_id: 'S9', index: 0 }],
+    [{ step_id: 'S9', index: 0 }, { step_id: 'S9', index: 0 }],
+    [{ step_id: 'S9', index: 0 }, { step_id: 'S5', index: 1 }]]) {
+    const task = backflowState(); task.evidence_order = order;
+    assert.throws(() => verify([task]), /evidence_order/);
+  }
+});

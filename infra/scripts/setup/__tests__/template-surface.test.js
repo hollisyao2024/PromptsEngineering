@@ -325,7 +325,9 @@ test('task CLI help distinguishes work type from state-writing commands', () => 
 
 test('template release advertises the phase-aware durable task contract', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
-  assert.equal(manifest.templateVersion, JSON.parse(read('package.json')).version);
+  if (JSON.parse(read('agent.config.json')).template?.role === 'source') {
+    assert.equal(manifest.templateVersion, JSON.parse(read('package.json')).version);
+  }
   assert.equal(manifest.templateVersion, JSON.parse(read('agent/manifest.json')).version);
   assert.match(manifest.description, /phase-aware durable tasks/u);
   assert.deepEqual(
