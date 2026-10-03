@@ -254,6 +254,8 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交（提
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 
+数据库 schema 变更必须同一交付包含 schema 源修改、离线生成并审查的新迁移，以及 `docs/data/ERD.md`、`docs/data/dictionary.md` 更新；数据库只经迁移执行器修改，已发布迁移和快照只追加。新表遵循语义约定：业务语言 snake_case、表与字段注释、六个审计字段、软删除优先（第三方/系统/短期表可豁免并注明）、状态不用无说明的魔法数字。`tdd sync` 对 `architecture.config.json` 登记的存储阻断缺文档、缺迁移、改写已发布迁移与字典未覆盖；语义检查按 `tdd.schemaGate.semantic`（`off|warn|required`，默认 `warn`）执行。细则见架构数据标准。
+
 使用显式运行时迁移注册表的项目，必须同时配置 `paths.migrationsDir` 和 `tdd.migrationRegistry.registryFile`；`tdd sync` 会按 `tdd.migrationRegistry.filePattern` 扫描迁移文件，阻断遗漏注册或注册顺序与文件名不一致。未配置注册表的项目不启用该检查。数据库持久化源的结构、约束、索引、查询、事务或数据变换发生变化时，项目规则还必须要求新增只追加迁移，并可通过 `tdd.projectChecks` 接入更深的项目专属一致性检查。
 
 审查高风险域：认证权限、数据写删、事务一致性、缓存一致性、并发、外部 API、数据库 schema、共享基础库、跨文件业务联动和 hotfix。未命中可跳过语义 review，但不可跳过适用的 lint、类型检查和测试；范围与不适用说明遵循上节。

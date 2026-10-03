@@ -47,6 +47,7 @@
 - 以 PRD "视图"组织方式为基础，呈现逻辑/物理/运行/开发/安全架构视图，配合 Mermaid/C4 图表。
 - 与 `/docs/data/ERD.md`、`/docs/data/dictionary.md` 联动（参考 `docs/data/templates/arch/ERD-TEMPLATE.md` 与 `docs/data/templates/arch/dictionary-TEMPLATE.md`）。
 - 所有图表注明所依据的 PRD Story/AC 及模块 PRD 条目。
+- 数据模型审查清单：表与字段为业务语言 snake_case 且全部有注释；状态值为字符串枚举或有字典表/取值注释；业务表含六个审计字段与软删除，豁免表注明原因与保留清理策略；唯一约束和提醒类索引排除已删除行；变更以新迁移落地并同步 ERD 与数据字典。细则见数据标准「数据语义约定」。
 
 ### 架构验证前置（Architecture Validation Gate）
 - 以追溯矩阵、goal-story-mapping、arch-prd-traceability 为输入，确认每个关键 Story/NFR 在 ARCH 中有对应实现路径，缺口列入风险章节并通知 PRD/TASK。

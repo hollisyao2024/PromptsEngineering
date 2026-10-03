@@ -1,0 +1,28 @@
+// Project-owned example. Change the schema here, then create a new migration.
+// 数据语义约定：表/列 snake_case（@map/@@map），六个审计字段，软删除；状态取值 CHECK 与列注释写在迁移 SQL。
+/// 任务：示例业务表，删除为软删除
+model Task {
+  /// 任务 ID（UUID）
+  id        String    @id @default(uuid())
+  /// 任务标题
+  title     String{{titleNative}}
+  /// 任务状态：todo=待处理 doing=进行中 done=已完成
+  status    String    @default("todo")
+  /// 乐观锁版本号，每次更新加 1
+  version   Int       @default(1)
+  /// 创建时间
+  createdAt DateTime  @default(now()) @map("created_at")
+  /// 最后修改时间
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  /// 创建人标识，无登录主体时为 system
+  createdBy String    @default("system") @map("created_by")
+  /// 最后修改人标识，无登录主体时为 system
+  updatedBy String    @default("system") @map("updated_by")
+  /// 软删除时间，为空表示未删除
+  deletedAt DateTime? @map("deleted_at")
+  /// 软删除操作人标识
+  deletedBy String?   @map("deleted_by")
+  @@index([createdAt, id])
+  @@index([status, updatedAt])
+  @@map("task")
+}

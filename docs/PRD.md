@@ -96,3 +96,5 @@
 详见 [traceability-matrix.md](data/traceability-matrix.md)。PRD Gate 要求所有 Story 具备 Given-When-Then AC 和目标测试 ID；发布 Gate 要求模板源合并、传播 dry-run 收敛且目标项目 `RULES.md` 未被覆盖。
 
 Drizzle 数据访问扩展：[模块 PRD](prd-modules/drizzle/PRD.md)，提供 PostgreSQL/SQLite 的 ORM、迁移治理和周边适配。
+
+数据语义约定与 Schema 变更治理：[模块 PRD](prd-modules/data-semantics/PRD.md)，规定业务命名、注释、审计字段、软删除，并以门禁保证 schema、迁移与数据文档同步。

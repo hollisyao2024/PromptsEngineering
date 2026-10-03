@@ -79,7 +79,8 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
       if(config.example?.api===app.id) {
         const store=config.example.datastore;
         change(app.path+'/'+app.sourceDir+'/server.ts',()=>readSource('architecture/examples/tasks/server.ts').replaceAll('@project/database-main','@project/database-'+store).replaceAll('PrismaClient',config.datastores.find(d=>d.id===store).access==='drizzle'?'Database':'PrismaClient'));
-        add(app.path+'/'+app.sourceDir+'/tasks.ts',readSource('architecture/examples/tasks/'+(config.datastores.find(d=>d.id===store).access==='drizzle'?'tasks-drizzle.ts':'tasks.ts')).replaceAll('@project/database-main','@project/database-'+store),'init-if-missing',owner);
+        const datastore=config.datastores.find(d=>d.id===store),legacy=require('./database').taskModelGeneration(target,datastore)==='legacy';
+        add(app.path+'/'+app.sourceDir+'/tasks.ts',readSource('architecture/examples/tasks/'+(legacy?'legacy/':'')+(datastore.access==='drizzle'?'tasks-drizzle.ts':'tasks.ts')).replaceAll('@project/database-main','@project/database-'+store),'init-if-missing',owner);
         add(app.path+'/.env.example','PORT=3000\nHOST=127.0.0.1\n# Required to allow writes; use a random local secret, never commit it.\nAPI_WRITE_TOKEN=\nCORS_ORIGINS=http://127.0.0.1:5173,http://localhost:1420,tauri://localhost\n# DATABASE_URL is loaded in the database package or supplied by the environment.\n','init-if-missing',owner);
       }
     }

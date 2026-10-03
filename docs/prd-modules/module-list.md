@@ -10,3 +10,4 @@
 | 双能力包与架构落地 | P0 | @template-maintainers | [PRD.md](architecture-platform/PRD.md) | 已确认 |
 | 多端 Monorepo 与 Prisma | P0 | @template-maintainers | [PRD.md](monorepo-platform/PRD.md) | 已确认并完成 3.2 验收 |
 | Drizzle 数据访问 | P0 | @template-maintainers | [PRD.md](drizzle/PRD.md) | 已确认 |
+| 数据语义约定 | P0 | @template-maintainers | [PRD.md](data-semantics/PRD.md) | 已确认 |

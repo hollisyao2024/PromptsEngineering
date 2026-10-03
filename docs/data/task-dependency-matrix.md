@@ -83,3 +83,7 @@ flowchart LR
 TASK-DRIZZLE-001 → TASK-DRIZZLE-002 → TASK-DRIZZLE-003 → TASK-DRIZZLE-004；依赖 Monorepo、身份权限与文件存储既有模块。
 
 Drizzle 最新收敛：TASK-DRIZZLE-001 → 002 → 003 → 005（自动源版本）→ 004（QA）；数据库限 PG/MySQL/MariaDB/SQLite。
+
+## 数据语义约定
+
+TASK-DATA-001 → TASK-DATA-002 → TASK-DATA-003 → TASK-DATA-005（QA）；TASK-DATA-004 依赖 001，与 002/003 并行。依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。

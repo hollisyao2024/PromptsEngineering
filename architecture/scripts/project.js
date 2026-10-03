@@ -302,7 +302,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   for (const store of config.datastores) {
     const owner = `architecture:store:${store.id}`; if (!selected(owner)) continue; registration(owner, store);
     if (store.access === 'drizzle') { require('./database').buildDrizzleStore({store,owner,add,copy,readSource,deps,config}); continue; }
-    if (store.access === 'prisma') { require('./monorepo').buildPrismaStore({store,owner,add,copy,readSource,deps}); continue; }
+    if (store.access === 'prisma') { require('./monorepo').buildPrismaStore({store,owner,add,copy,readSource,deps,target}); continue; }
     add(`${store.path}/.gitignore`, 'node_modules/\n*.sqlite\n*.sqlite-*\n.env\n', 'init-if-missing', owner);
     copy(`architecture/${cat.databases[store.engine].template}`, store.path, owner, {}, p => p.startsWith('migrations/') ? 'append' : 'init-if-missing');
     copy('architecture/modules/migrations', store.path, owner, { engine: store.engine });

@@ -8,6 +8,27 @@
 
 Node TypeScript 新蓝图默认 Prisma 7，也可显式选择 Drizzle ORM/Kit；各数据库分别生成独立 Schema、驱动和迁移。Prisma Migrate 是唯一执行历史，不再同时使用 migrations.json。db:status / db:deploy 对比磁盘 SQL 与 _prisma_migrations，缺失、变更和失败状态阻断；只有显式命令连接数据库。已发布 SQL 不修改，业务 schema 由项目持有，generated client 忽略并重建。DATABASE_<STORE>_URL 与 TEST/SHADOW 配置应按 worktree 分开。切换 provider/access 或接管旧 SQL 历史须独立项目迁移；不得直接让模板转换。
 
+## 数据语义约定
+
+schema 是模型与协作者的第一手数据字典。以下约定适用于项目自有业务表，新表必须遵守，历史表在下次变更时逐步补齐。
+
+- **命名**：表名与列名使用业务语言、小写 `snake_case`（如 `order_payment`、`paid_at`），避免 `data1`、`flag`、`tmp` 等无义名称。ORM 侧可保持驼峰，通过 Prisma `@map/@@map` 或 Drizzle 列名映射到数据库。
+- **注释**：每张表、每个字段都要有中文业务注释，写明含义、单位、取值和来源。PostgreSQL 用 `COMMENT ON TABLE/COLUMN`，MySQL/MariaDB 用内联 `COMMENT`，写入同一迁移；SQLite 无原生注释，以 `docs/data/dictionary.md` 为准。ORM 不生成注释时，在生成的迁移中追加注释语句后再提交。
+- **状态值**：优先使用可读字符串枚举（如 `pending_payment`、`shipped`）并加 CHECK 约束；确需整数编码时，建字典表或在注释写全取值（如 `1=待支付 2=已发货`），禁止无说明的魔法数字。
+- **审计字段**：每张业务表包含 `created_at`、`updated_at`、`created_by`、`updated_by`、`deleted_at`、`deleted_by`。时间使用带时区或 UTC 时间戳；`*_by` 存主体标识文本（用户 id 或 `system:<job>`），不加外键以便跨库与保留历史。`updated_at` 由写入路径统一维护，绕过 ORM 的原生 SQL 必须同时更新；PostgreSQL 可用触发器兜底。
+- **软删除优先**：删除写 `deleted_at/deleted_by`，默认查询、更新和唯一约束只针对未删除行（PostgreSQL/SQLite 用 `WHERE deleted_at IS NULL` 部分索引；MySQL/MariaDB 不支持部分索引，需生成列或业务校验）。提醒与分析场景常用索引如 `(status, updated_at)` 应排除已删除行。
+- **豁免**：第三方或模块自有表（Better Auth、pg-boss、文件元数据 `FileObject`、迁移历史表、`app_metadata`）结构由提供方维护；会话、验证码、日志等高频短期表可豁免软删除，须在字典注明保留与清理策略。隐私法规要求删除时提供匿名化或物理清除流程，并留存操作记录。
+
+## Schema 变更流程
+
+1. 修改 schema 源（Prisma `schema.prisma`、Drizzle `src/schema/*.ts`）。
+2. 离线生成新迁移（Prisma `db:dev --create-only` 或 `prisma migrate dev --create-only`，Drizzle `db:generate --name NAME`），人工审查 SQL，补充注释、约束与数据回填。
+3. 同一交付更新 `docs/data/ERD.md`、`docs/data/dictionary.md` 与模块 ARCH 数据视图。
+4. 只通过 `db:deploy` 等迁移执行器修改数据库；禁止 `push`、手工 DDL 或直接改表。数据修正也写成迁移（SQL 内声明 `-- xirang:data-migration`）或留痕脚本。
+5. 已发布迁移与 Drizzle 快照只追加，不修改、删除或重排；修正错误用新迁移。
+
+`tdd sync` 对 `architecture.config.json` 登记的数据存储执行门禁：文档同步、schema 与迁移配对、迁移只追加、字典覆盖新增表和字段均为阻断；语义检查（命名、注释、审计、软删除、整数状态说明）默认告警，`agent.config.json` 的 `tdd.schemaGate.semantic` 可设为 `off|warn|required`。`tdd.schemaGate.exemptTables` 或迁移内 `-- xirang:exempt <表名> <原因>` 可声明豁免。门禁离线运行，不证明 schema 与迁移逐项等价，也无法发现绕过迁移的手工 DDL。
+
 ## 可选身份、队列与文件元数据
 
 Better Auth 的 User/Session/Account/Verification/Organization/Member/Invitation 和文件 FileObject 在所选 ORM 的独立 schema 文件中初始化；业务 Schema 与策略归项目，已发布迁移仅追加。CASL 的默认策略拒绝，查询和条件写入都必须约束当前主体。
