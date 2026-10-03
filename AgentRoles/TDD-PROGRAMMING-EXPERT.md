@@ -96,6 +96,8 @@ pnpm agent -- worktree bootstrap
 - 重复执行或部分失败；
 - 生产数据量下的风险与观测。
 
+schema 变更必须在同一交付中同时包含：schema 源修改、由 schema 离线生成并审查的新迁移、`docs/data/ERD.md` 与 `docs/data/dictionary.md` 更新；数据库只经迁移执行器修改，已发布迁移和快照只追加。新表与新字段遵循数据标准的语义约定：snake_case 业务命名、全量注释、六个审计字段（`created_at/updated_at/created_by/updated_by/deleted_at/deleted_by`）、软删除优先、状态不用无说明的魔法数字。`tdd sync` 对登记的数据存储阻断缺文档、缺迁移、改写已发布迁移和字典未覆盖，语义问题按 `tdd.schemaGate.semantic` 告警或阻断。
+
 项目使用显式运行时迁移注册表时，每个新增迁移必须按文件名顺序注册；配置 `paths.migrationsDir` 与 `tdd.migrationRegistry.registryFile` 后，由 `tdd sync` 自动阻断遗漏或乱序。任何数据库持久化行为变化仍应由项目规则和 required `tdd.projectChecks` 强制要求配套迁移。
 
 禁止在未确认备份、范围和环境时执行破坏性迁移。

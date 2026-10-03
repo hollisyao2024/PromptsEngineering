@@ -172,3 +172,12 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-CMDSURF-014 | AC-CMDSURF-014-01 | TC-CMDSURF-038 | 待验证 | 首次应用/同步与 dry-run |
 | US-CMDSURF-014 | AC-CMDSURF-014-02 | TC-CMDSURF-039 | 待验证 | 既有规则字节保护 |
 | US-CMDSURF-014 | AC-CMDSURF-014-03 | TC-CMDSURF-040 | 待验证 | 收敛与预读契约 |
+
+## 数据语义约定
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-DATA-001 | AC-DATA-001 | TC-DATA-001 | TDD 通过 | 静态复核 `architecture/standards/data.md`、ADR-034、专家清单 |
+| US-DATA-002 | AC-DATA-002 | TC-DATA-002 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js` |
+| US-DATA-003 | AC-DATA-003 | TC-DATA-003 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js`（warn/required/off） |
+| US-DATA-004 | AC-DATA-004 | TC-DATA-004 | TDD 通过 | `architecture/__tests__/task-semantics.test.js`；真实数据库集成测试未运行 |

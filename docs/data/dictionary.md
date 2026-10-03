@@ -36,18 +36,30 @@
 
 计划和锁记录文件安装结果；依赖安装、项目检查、构建和生产部署有各自结果，不能相互替代。
 
-## v2 Prisma Task（仅选中 Prisma 消费者）
+## v2 任务示例 `task`（新数据包，Prisma / Drizzle）
 
-| 字段 | PostgreSQL / SQLite | 约束及生成方 |
+模板示例表，示范数据语义约定；不定义项目业务 schema。列为 snake_case，TS/Prisma 字段为驼峰并以 `@map`/列名映射。
+
+| 字段 | 类型（PG / MySQL / SQLite） | 约束、注释与生成方 |
 | --- | --- | --- |
-| id | TEXT / TEXT | 非空主键；Prisma 默认生成 UUID，API 校验 UUID 格式 |
-| title | TEXT / TEXT | 非空；API trim 后长度 1–200 |
-| status | TEXT / TEXT | 非空，默认 todo；API 允许 todo/doing/done |
-| version | INTEGER / INTEGER | 非空，默认 1；更新匹配传入版本并原子加一 |
-| createdAt | TIMESTAMP(3) / DATETIME | 非空，数据库默认 CURRENT_TIMESTAMP |
-| updatedAt | TIMESTAMP(3) / DATETIME | 非空，由 Prisma @updatedAt 写入 |
+| id | TEXT / VARCHAR(191) / TEXT | 主键：任务 ID；ORM 生成 UUID，API 校验 UUID 格式 |
+| title | TEXT / VARCHAR(255) / TEXT | 非空：任务标题；API trim 后长度 1–200 |
+| status | TEXT / VARCHAR(191) / TEXT | 非空，默认 `todo`；CHECK 取值 `todo`=待处理、`doing`=进行中、`done`=已完成 |
+| version | INTEGER / INT / INTEGER | 非空，默认 1：乐观锁版本，更新匹配传入版本并原子加一 |
+| created_at | TIMESTAMP(3) / DATETIME(3) / DATETIME | 非空：创建时间，数据库默认当前时间 |
+| updated_at | TIMESTAMP(3) / DATETIME(3) / DATETIME | 非空：最后修改时间，ORM 写入 |
+| created_by | TEXT / VARCHAR(191) / TEXT | 非空，默认 `system`：创建人主体标识 |
+| updated_by | TEXT / VARCHAR(191) / TEXT | 非空，默认 `system`：最后修改人主体标识 |
+| deleted_at | TIMESTAMP(3) / DATETIME(3) / DATETIME | 可空：软删除时间，NULL 表示未删除 |
+| deleted_by | TEXT / VARCHAR(191) / TEXT | 可空：软删除操作人 |
 
-额外索引 `Task_createdAt_id_idx(createdAt,id)` 和 `Task_status_idx(status)`；无外键。API 日期序列化为 ISO date-time；按最多三列的允许字段排序后追加 ID 保证次序稳定。批删 ID 最多 100，缺失项使整个事务回滚。
+上表为 Prisma 迁移类型；Drizzle 新数据包同名同约束，类型为 PostgreSQL TEXT/INTEGER/TIMESTAMPTZ、MySQL/MariaDB VARCHAR(191)（title 255）/INT/DATETIME(3)、SQLite TEXT/INTEGER/INTEGER（毫秒时间戳），id 与日期由 ORM 回调生成。
+
+索引 `task_created_at_id_idx(created_at,id)`、`task_status_updated_at_idx(status,updated_at)`；Drizzle PostgreSQL/SQLite 为 `WHERE deleted_at IS NULL` 部分索引，Prisma 与 MySQL/MariaDB 为普通索引。无外键。PostgreSQL 以 `COMMENT ON` 注释表和全部列，MySQL/MariaDB 使用列内与表 `COMMENT`，SQLite 以迁移头注释说明。删除为软删除：写入 `deleted_at/deleted_by/updated_by` 并递增版本；查询、更新与导出只作用于未删除行。API 合约与日期序列化（ISO date-time）不变；排序后追加 ID 保证次序稳定，批删 ID 最多 100，缺失项使整个事务回滚。
+
+### 已安装存储的 `Task`（legacy）
+
+已安装的存储保留原 `Task` 示例：列 id、title、status（默认 todo）、version（默认 1）、createdAt、updatedAt，索引 `Task_createdAt_id_idx(createdAt,id)` 与 `Task_status_idx(status)`，删除为物理删除。生成器检测到原 Task 初始迁移或 schema 时继续输出 `task-model/legacy` 的原字节与示例服务；迁移到语义模型需项目自行新增只追加迁移。
 
 `_prisma_migrations` 由 Prisma Migrate 创建维护，守卫只读 `migration_name`、`checksum`（SQL SHA-256）、`finished_at`、`rolled_back_at`。无完成且无回滚的记录视为失败；完成记录不允许磁盘文件缺失或摘要改变。完整账本字段遵循选定 Prisma 版本，不由模板重新定义。
 
@@ -84,9 +96,9 @@ v2 配置新增 `workspace.packageManager`（固定 pnpm 10 版本）、`bluepri
 
 队列内部表由固定 pg-boss/BullMQ 版本的显式迁移维护，不复制为第二套 Prisma schema。项目若采用 Outbox，应自行定义业务实体、幂等键、投递状态及迁移；模板不虚构通用业务 Outbox 表。
 
-## Task 的新增方言与 Drizzle 映射
+## legacy Task 的方言与 Drizzle 映射
 
-以下仍为模板可选示例，不定义项目业务 schema。主键、非空约束、status=todo、version=1 及上述两个索引在所有组合保持一致。
+以下仅描述已安装存储保留的 legacy `Task`；新数据包见上文 `task`。主键、非空约束、status=todo、version=1 及两个 legacy 索引在所有组合保持一致。
 
 | 组合 | 字符串 id/title/status | version | createdAt/updatedAt | 默认值来源 |
 | --- | --- | --- | --- | --- |

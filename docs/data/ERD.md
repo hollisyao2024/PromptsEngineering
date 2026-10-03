@@ -21,9 +21,9 @@ architecture.config.json 用稳定应用/存储/模块 ID 和消费者引用描�
 
 ## v2 Prisma 任务示例
 
-选择 Prisma 的存储独立建立 `Task` 和 Prisma 自有 `_prisma_migrations`，与旧 SQL 骨架不混用。`Task` 是无外键的任务聚合；版本号用于并发修改检查，批量删除在同一事务内校验全部 ID。各存储拥有独立 Schema、生成客户端和迁移历史；本示例不包含账户/租户实体。
+选择 Prisma 的新数据包独立建立 `task` 和 Prisma 自有 `_prisma_migrations`，与旧 SQL 骨架不混用。`task` 是无外键的任务聚合，带六个审计字段并采用软删除（`deleted_at`）；已安装存储保留 legacy `Task`（物理删除），不被模板改写。版本号用于并发修改检查，批量删除在同一事务内校验全部 ID。各存储拥有独立 Schema、生成客户端和迁移历史；本示例不包含账户/租户实体。
 
-`Task_createdAt_id_idx` 支撑日期及稳定 ID 排序，`Task_status_idx` 支撑状态筛选。标题搜索目前为有界分页下的 contains 查询，不承诺全文索引性能。数据库端不采用跨 provider 枚举；公开状态由 OpenAPI 约束，Schema 和业务服务在初始化后由项目维护。
+`task_created_at_id_idx` 支撑日期及稳定 ID 排序，`task_status_updated_at_idx` 支撑状态筛选与“超时未处理”类时间查询（legacy 为 `Task_createdAt_id_idx`、`Task_status_idx`）。标题搜索目前为有界分页下的 contains 查询，不承诺全文索引性能。数据库端不采用跨 provider 枚举，状态以字符串 CHECK 约束；公开状态由 OpenAPI 约束，Schema 和业务服务在初始化后由项目维护。
 
 模板生成与更新只落文件。`db:deploy/dev` 才显式调用 Prisma Migrate，守卫从 `_prisma_migrations` 读取已应用摘要、失败和回滚状态；不新建第二套执行账本。源仓库不运行业务数据库，所有真实验证均在隔离消费者。
 
@@ -37,8 +37,8 @@ architecture.config.json 用稳定应用/存储/模块 ID 和消费者引用描�
 
 ## 常见数据库与 Drizzle 任务示例
 
-Prisma 的同一 Task 聚合可选择 PostgreSQL、MySQL/MariaDB、SQLite，关系和并发协议不变。字段映射见数据字典。
+Prisma 的同一任务聚合可选择 PostgreSQL、MySQL/MariaDB、SQLite，关系和并发协议不变。字段映射见数据字典。
 
-Drizzle 稳定版支持 PostgreSQL、MySQL/MariaDB 与 SQLite，物理表仍名为 Task；独立的 TypeScript schema 与 Kit SQL/journal/snapshot 链归项目维护。身份表保留 user/session/account/verification/organization/member/invitation 的逻辑关系；FileObject 仍无身份外键。pg-boss 可通过同一 PostgreSQL 的 fromDrizzle 事务端口关联业务写入。
+Drizzle 稳定版支持 PostgreSQL、MySQL/MariaDB 与 SQLite，新数据包物理表为 `task`（已安装存储保留 `Task`）；独立的 TypeScript schema 与 Kit SQL/journal/snapshot 链归项目维护。身份表保留 user/session/account/verification/organization/member/invitation 的逻辑关系；FileObject 仍无身份外键。pg-boss 可通过同一 PostgreSQL 的 fromDrizzle 事务端口关联业务写入。
 
 Prisma 使用 _prisma_migrations；Drizzle 使用原生 __drizzle_migrations，禁止同库接管对方历史。Drizzle PostgreSQL 采用独立数据库/public schema；SQLite 迁移以数据库文件为单位持有恢复锁。模板只初始化文件，修改 schema 后须显式生成、审查并提交只追加迁移；已应用 SQL 不可改写。

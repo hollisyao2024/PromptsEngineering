@@ -12,12 +12,9 @@ export function queryFrom(params:URLSearchParams):Query {
   for(const key of ['page','pageSize'] as const)(q as Record<string,unknown>)[key]=Number(q[key]);
   assertContract('TaskQuery',q);return q as Query;
 }
-// Audit fields stay internal; the API contract exposes only business fields.
-const dto=(row:{id:string;title:string;status:string;version:number;createdAt:Date;updatedAt:Date}):Task=>({id:row.id,title:row.title,status:row.status as Task['status'],version:row.version,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString()});
-// Soft delete: default reads and writes only see rows that are not deleted.
-const live={deletedAt:null};
+const dto=(row:{id:string;title:string;status:string;version:number;createdAt:Date;updatedAt:Date}):Task=>({...row,status:row.status as Task['status'],createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString()});
 function where(q:Query):Prisma.TaskWhereInput {
-  return {AND:[live,...(q.search?[{title:{contains:q.search}}]:[]),...(q.title?[{title:{contains:q.title}}]:[]),...(q.status?[{status:q.status}]:[])]};
+  return {AND:[...(q.search?[{title:{contains:q.search}}]:[]),...(q.title?[{title:{contains:q.title}}]:[]),...(q.status?[{status:q.status}]:[])]};
 }
 function order(q:Query):Prisma.TaskOrderByWithRelationInput[] {
   const fields=q.sorts?q.sorts.split(',').map(item=>item.split(':')):[[q.sort||'createdAt',q.direction||'desc']];
@@ -25,7 +22,7 @@ function order(q:Query):Prisma.TaskOrderByWithRelationInput[] {
   return [...fields.map(([field,direction])=>({[field]:direction})),{id:'asc'}];
 }
 const csv=(value:string)=>'"'+(/^[\s\u0000-\u001f]*[=+\-@]/u.test(value)?"'"+value:value).replaceAll('"','""')+'"';
-export function taskService(db:PrismaClient,{actor='system'}:{actor?:string}={}) {
+export function taskService(db:PrismaClient) {
   return {
     async list(q:Query){
       const filter=where(q);
@@ -34,20 +31,20 @@ export function taskService(db:PrismaClient,{actor='system'}:{actor?:string}={})
     },
     async create(body:components['schemas']['CreateTask']){
       if(!body.title.trim())throw new ServiceError(400,'INVALID_INPUT','标题不能为空');
-      return dto(await db.task.create({data:{...body,title:body.title.trim(),createdBy:actor,updatedBy:actor}}));
+      return dto(await db.task.create({data:{...body,title:body.title.trim()}}));
     },
     async update(id:string,body:components['schemas']['UpdateTask']){
       if(!body.title.trim())throw new ServiceError(400,'INVALID_INPUT','标题不能为空');
       return db.$transaction(async tx=>{
-        const result=await tx.task.updateMany({where:{id,version:body.version,...live},data:{title:body.title.trim(),status:body.status,updatedBy:actor,version:{increment:1}}});
-        if(!result.count){if(!await tx.task.findFirst({where:{id,...live}}))throw new ServiceError(404,'NOT_FOUND','记录不存在');throw new ServiceError(409,'VERSION_CONFLICT','记录已被修改，请刷新后重试');}
-        return dto(await tx.task.findFirstOrThrow({where:{id,...live}}));
+        const result=await tx.task.updateMany({where:{id,version:body.version},data:{title:body.title.trim(),status:body.status,version:{increment:1}}});
+        if(!result.count){if(!await tx.task.findUnique({where:{id}}))throw new ServiceError(404,'NOT_FOUND','记录不存在');throw new ServiceError(409,'VERSION_CONFLICT','记录已被修改，请刷新后重试');}
+        return dto(await tx.task.findUniqueOrThrow({where:{id}}));
       });
     },
     async remove(ids:string[]){
-      // Soft delete keeps history for reminders and analysis. All IDs must be live; partial batches roll back.
+      // All IDs must exist; partial batches are rolled back rather than silently reported as complete.
       return db.$transaction(async tx=>{
-        const result=await tx.task.updateMany({where:{id:{in:ids},...live},data:{deletedAt:new Date(),deletedBy:actor,updatedBy:actor,version:{increment:1}}});
+        const result=await tx.task.deleteMany({where:{id:{in:ids}}});
         if(result.count!==ids.length)throw new ServiceError(409,'SELECTION_CHANGED','部分记录已变化，请刷新后重试');
         return result;
       });
@@ -55,7 +52,7 @@ export function taskService(db:PrismaClient,{actor='system'}:{actor?:string}={})
     async export(q:Query,scope:string,ids:string[]){
       if(!['page','filtered','selected'].includes(scope))throw new ServiceError(400,'INVALID_SCOPE','请选择导出范围');
       if(scope==='selected')assertContract('DeleteTasks',{ids});
-      const filter=scope==='selected'?{id:{in:ids},...live}:where(q),count=await db.task.count({where:filter});
+      const filter=scope==='selected'?{id:{in:ids}}:where(q),count=await db.task.count({where:filter});
       if(scope!=='page'&&count>1000)throw new ServiceError(400,'EXPORT_LIMIT','导出最多 1000 条，请缩小筛选范围');
       const rows=await db.task.findMany({where:filter,orderBy:order(q),take:scope==='page'?q.pageSize||10:1000,...(scope==='page'?{skip:(q.page||0)*(q.pageSize||10)}:{})});
       return {filename:'tasks.csv',count:rows.length,csv:['ID,标题,状态,版本,创建时间',...rows.map(r=>[r.id,r.title,r.status,String(r.version),r.createdAt.toISOString()].map(csv).join(','))].join('\r\n')};

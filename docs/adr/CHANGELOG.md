@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-03：[ADR 034](034-arch-data-semantic-conventions.md)，数据语义约定（命名、注释、审计字段、软删除、状态值）与 schema 变更阻断门禁。
+
 - 2026-10-01：[ADR 002](002-arch-environment-file-init-if-missing.md) 补充 linked worktree 更新时主 repo 六文件补齐、主 repo example 优先及本地 ignore 边界。
 
 - 2026-09-28：[ADR 032](032-arch-test-scope-evidence-gate.md)，全量测试高门槛、task evidence 决策与 QA 回执前结构校验。
@@ -29,3 +31,5 @@
 - [ADR 027](027-arch-ui-component-sets.md)：四组公共 UI、可选择组件集、依赖闭包和日历日期合约。
 
 - 2026-10-01 ADR-033：并列 ORM、常见数据库支持矩阵与稳定版迁移保护。
+
+- 2026-10-03 ADR-034：数据语义约定与 schema 变更门禁。
