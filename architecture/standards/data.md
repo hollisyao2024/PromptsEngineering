@@ -10,14 +10,14 @@ Node TypeScript 新蓝图默认 Prisma 7，也可显式选择 Drizzle ORM/Kit；
 
 ## 数据语义约定
 
-schema 是模型与协作者的第一手数据字典。以下约定适用于项目自有业务表，新表必须遵守，历史表在下次变更时逐步补齐。
+schema 是模型与协作者的第一手数据字典。以下约定适用于项目自有业务表与模板模块核心表，新表必须遵守，历史表在下次变更时逐步补齐。
 
 - **命名**：表名与列名使用业务语言、小写 `snake_case`（如 `order_payment`、`paid_at`），避免 `data1`、`flag`、`tmp` 等无义名称。ORM 侧可保持驼峰，通过 Prisma `@map/@@map` 或 Drizzle 列名映射到数据库。
 - **注释**：每张表、每个字段都要有中文业务注释，写明含义、单位、取值和来源。PostgreSQL 用 `COMMENT ON TABLE/COLUMN`，MySQL/MariaDB 用内联 `COMMENT`，写入同一迁移；SQLite 无原生注释，以 `docs/data/dictionary.md` 为准。ORM 不生成注释时，在生成的迁移中追加注释语句后再提交。
 - **状态值**：优先使用可读字符串枚举（如 `pending_payment`、`shipped`）并加 CHECK 约束；确需整数编码时，建字典表或在注释写全取值（如 `1=待支付 2=已发货`），禁止无说明的魔法数字。
 - **审计字段**：每张业务表包含 `created_at`、`updated_at`、`created_by`、`updated_by`、`deleted_at`、`deleted_by`。时间使用带时区或 UTC 时间戳；`*_by` 存主体标识文本（用户 id 或 `system:<job>`），不加外键以便跨库与保留历史。`updated_at` 由写入路径统一维护，绕过 ORM 的原生 SQL 必须同时更新；PostgreSQL 可用触发器兜底。
 - **软删除优先**：删除写 `deleted_at/deleted_by`，默认查询、更新和唯一约束只针对未删除行（PostgreSQL/SQLite 用 `WHERE deleted_at IS NULL` 部分索引；MySQL/MariaDB 不支持部分索引，需生成列或业务校验）。提醒与分析场景常用索引如 `(status, updated_at)` 应排除已删除行。
-- **豁免**：第三方或模块自有表（Better Auth、pg-boss、文件元数据 `FileObject`、迁移历史表、`app_metadata`）结构由提供方维护；会话、验证码、日志等高频短期表可豁免软删除，须在字典注明保留与清理策略。隐私法规要求删除时提供匿名化或物理清除流程，并留存操作记录。
+- **物理删除与豁免**：会话、令牌、验证码、只追加日志等高频短期表可物理删除，只免 `deleted_at/deleted_by`，须在迁移声明 `-- xirang:hard-delete <表名> <原因>` 并在字典注明保留与清理策略，命名、注释、创建/更新审计照常。迁移历史表、`app_metadata`、pg-boss 等系统表默认豁免；其他第三方表用 `-- xirang:exempt` 注明原因。隐私法规要求删除时提供匿名化或物理清除流程，并留存操作记录。
 
 ## Schema 变更流程
 
@@ -27,11 +27,11 @@ schema 是模型与协作者的第一手数据字典。以下约定适用于项�
 4. 只通过 `db:deploy` 等迁移执行器修改数据库；禁止 `push`、手工 DDL 或直接改表。数据修正也写成迁移（SQL 内声明 `-- xirang:data-migration`）或留痕脚本。
 5. 已发布迁移与 Drizzle 快照只追加，不修改、删除或重排；修正错误用新迁移。
 
-`tdd sync` 对 `architecture.config.json` 登记的数据存储执行门禁：文档同步、schema 与迁移配对、迁移只追加、字典覆盖新增表和字段均为阻断；语义检查（命名、注释、审计、软删除、整数状态说明）默认告警，`agent.config.json` 的 `tdd.schemaGate.semantic` 可设为 `off|warn|required`。`tdd.schemaGate.exemptTables` 或迁移内 `-- xirang:exempt <表名> <原因>` 可声明豁免。门禁离线运行，不证明 schema 与迁移逐项等价，也无法发现绕过迁移的手工 DDL。
+`tdd sync` 对 `architecture.config.json` 登记的数据存储执行门禁：文档同步、schema 与迁移配对、迁移只追加、字典覆盖新增表和字段均为阻断；语义检查（命名、注释、审计、软删除、整数状态说明、字典字段说明非空）默认阻断，只检查本次新增迁移，已发布迁移不重新检查；`agent.config.json` 的 `tdd.schemaGate.semantic` 可降为 `warn|off`。默认只豁免迁移与系统表；身份与文件模块表仅在存储已安装旧版模块时豁免。`tdd.schemaGate.exemptTables` 或迁移内 `-- xirang:exempt <表名> <原因>` 可声明完全豁免；`-- xirang:hard-delete <表名> <原因>` 只免除 `deleted_at/deleted_by`，用于会话、令牌、只追加日志等物理删除表。门禁离线运行，不证明 schema 与迁移逐项等价，也无法发现绕过迁移的手工 DDL。
 
 ## 可选身份、队列与文件元数据
 
-Better Auth 的 User/Session/Account/Verification/Organization/Member/Invitation 和文件 FileObject 在所选 ORM 的独立 schema 文件中初始化；业务 Schema 与策略归项目，已发布迁移仅追加。CASL 的默认策略拒绝，查询和条件写入都必须约束当前主体。
+Better Auth 的 `user`/`session`/`account`/`verification`/`organization`/`member`/`invitation` 与文件元数据 `file_object` 在所选 ORM 的独立 schema 文件中初始化，新安装即遵守数据语义约定（ADR-035）：表列 snake_case 并带注释；`user`、`organization`、`member`、`invitation`、`file_object` 含六个审计字段并软删除，`user.email` 与 `organization.slug` 只在未删除行唯一（PostgreSQL/SQLite 部分唯一索引，Prisma 需 `previewFeatures = ["partialIndexes"]`，已有 `schema.prisma` 未开启时退回普通唯一；MySQL/MariaDB 用 `email_active`/`slug_active` 存储生成列唯一）；`session`、`account`、`verification` 只含创建/更新审计并物理删除，每次删除写只追加的 `auth_audit_log`（只记录模型、id、用户与操作者，不含令牌或密码）。身份模块 `src/audit.ts` 的 `softDeleteAdapter` 包装 ORM 适配器、`xirangAudit()` 插件注册字段（须位于 `organization()` 之后）；操作者取当前会话用户，缺省 `system`。已安装旧版模块（驼峰列、`FileObject`）的存储继续获得原 schema、迁移与代码字节，不自动转换；迁移到新结构由项目单独规划。业务 Schema 与策略归项目，已发布迁移仅追加。CASL 的默认策略拒绝，查询和条件写入都必须约束当前主体。
 
 pg-boss 或 BullMQ 的 PostgreSQL schema 需要显式 db:prepare；普通 init/start 不自动迁移。SQLite 不用于队列后端。pg-boss 同库 fromPrisma / fromDrizzle 可参与业务事务；跨数据库或 Redis 投递需要项目 Outbox 与业务幂等。文件二进制与元数据为双写，使用版本 CAS、暂存/最终键隔离和恢复状态，不声称跨存储原子提交。
 

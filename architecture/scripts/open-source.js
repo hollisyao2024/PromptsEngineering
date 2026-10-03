@@ -26,7 +26,9 @@ function buildModules({config,source,target,add,copy,owned,readSource,deps,selec
   registration(owner,m);
   const db=config.datastores.find(d=>d.id===m.options?.datastore);
   const values={datastore:db?.id||'',provider:db?require('./database').specs[db.engine].provider:'sqlite',drizzleProvider:db?.engine==='postgres'?'pg':['mysql','mariadb'].includes(db?.engine)?'mysql':'sqlite',backend:m.options?.backend||''};
-  copy('architecture/modules/open-source/'+m.id,m.path,owner,values,p=>['src/policy.ts','src/resources.ts','src/handlers.ts'].includes(p)?'init-if-missing':'update');
+  // Installed legacy auth stores keep the original adapter wiring and receive no audit wrapper (ADR-035).
+  const authGeneration=m.id==='auth'&&db?require('./database').moduleGeneration(target,db,'auth'):null,legacyAuth=authGeneration?.generation==='legacy';
+  copy('architecture/modules/open-source/'+m.id,m.path,owner,values,p=>['src/policy.ts','src/resources.ts','src/handlers.ts'].includes(p)?'init-if-missing':'update',p=>legacyAuth&&p==='src/audit.ts');
   if(m.id==='jobs')copy('architecture/modules/open-source/jobs-'+m.options.provider,m.path,owner,values);
   if(m.id==='jobs'&&m.options.provider==='bullmq')add(m.path+'/src/migration-connection.ts',m.options.backend==='postgres'?"import {Pool} from 'pg';\nexport function poolForMigration(connectionString:string){return new Pool({connectionString});}\n":"export function poolForMigration(_connectionString:string):never{throw new Error('Redis has no SQL migration');}\n",'update',owner);
   if(m.id==='jobs'&&m.options.provider==='bullmq'&&m.options.backend==='redis')change(m.path+'/src/index.ts',text=>text.replace("import {poolForMigration} from './migration-connection.ts';\n",'').replace(/export async function prepareJobs\([\s\S]*?\n}/,"export async function prepareJobs(_connectionString:string,_schema?:string){throw new Error('Redis has no SQL migrations');}"));
@@ -37,6 +39,7 @@ function buildModules({config,source,target,add,copy,owned,readSource,deps,selec
    else delete runtime['@casl/prisma'];
    runtime['drizzle-orm']=deps.drizzle['drizzle-orm'];
   }
+  if(legacyAuth)change(m.path+'/src/index.ts',()=>readSource('architecture/modules/open-source/auth-legacy/'+db.access+'.ts').replaceAll('{{datastore}}',db.id).replaceAll('{{provider}}',values.provider).replaceAll('{{drizzleProvider}}',values.drizzleProvider));
   if(m.id==='jobs'&&m.options.provider==='pg-boss'&&config.datastores.some(d=>d.access==='drizzle'&&d.engine==='postgres')){
    runtime['drizzle-orm']=deps.drizzle['drizzle-orm'];
    change(m.path+'/src/index.ts',s=>s.replace('PgBoss,fromPrisma','PgBoss,fromPrisma,fromDrizzle').replace("import {validateJob","import {sql} from 'drizzle-orm';\nimport {validateJob").replace('  async work<T>',"  async enqueueInDrizzleTransaction<T>(transaction:Parameters<typeof fromDrizzle>[0],definition:JobDefinition<T>,payload:unknown,id:string){return boss.send(definition.name,validateJob(definition,payload) as object,{...sendOptions,id:pgJobID(id),db:fromDrizzle(transaction,sql)});},\n  async work<T>"));
@@ -54,11 +57,11 @@ function buildModules({config,source,target,add,copy,owned,readSource,deps,selec
   add(m.path+'/tsconfig.json',json(compiler),'merge-json',owner);
   add(m.path+'/.gitignore','node_modules/\ndist/\n.env\n.env.local\n','append-lines',owner);
   if(m.id==='auth'&&db.access==='drizzle'){
-   add(db.path+'/src/schema/auth.ts',require('./database').drizzleSchema(db.engine,'auth'),'init-if-missing',owner);
+   add(db.path+'/src/schema/auth.ts',require('./database').drizzleSchema(db.engine,'auth',authGeneration.generation),'init-if-missing',owner);
   }
   if(m.id==='auth'&&db.access==='prisma'){
-   add(db.path+'/prisma/auth.prisma',require('./database').prismaModuleSchema(db.engine,'auth',readSource),'init-if-missing',owner);
-   add(db.path+'/prisma/migrations/20260909020000_auth/migration.sql',require('./database').prismaModuleSQL(db.engine,'auth',readSource),'append',owner);
+   add(db.path+'/prisma/auth.prisma',require('./database').prismaModuleSchema(db.engine,'auth',readSource,authGeneration),'init-if-missing',owner);
+   add(db.path+'/prisma/migrations/20260909020000_auth/migration.sql',require('./database').prismaModuleSQL(db.engine,'auth',readSource,authGeneration),'append',owner);
    change(db.path+'/prisma.config.ts',text=>text.replace("schema:'prisma/schema.prisma'","schema:'prisma'"));
   }
  }

@@ -17,7 +17,8 @@ const authModels={
  member:{id:'id',organizationId:'organization',userId:'user',role:'string',createdAt:'date'},
  invitation:{id:'id',organizationId:'organization',email:'string',role:'optional',status:'string',expiresAt:'date',createdAt:'date',inviterId:'user'}
 };
-function drizzleSchema(engine,kind){
+function drizzleSchema(engine,kind,generation='legacy'){
+ if(generation==='semantic'&&['auth','files'].includes(kind))return require('./module-models').drizzleModuleSchema(kind,engine);
  const dialect=specs[engine].dialect,isPg=dialect==='postgresql',isMy=dialect==='mysql';
  const core=isPg?'pg':isMy?'mysql':'sqlite',table=isPg?'pgTable':isMy?'mysqlTable':'sqliteTable';
  const models=kind==='auth'?authModels:kind==='files'?{fileObject:{id:'id',ownerId:'string',storeId:'string',objectKey:'key',state:'string',version:'int',record:'long',createdAt:'date',updatedAt:'date'}}:null;
@@ -108,14 +109,31 @@ function buildDrizzleStore({store,owner,add,copy,deps,config,readSource}){
  add(store.path+'/tsconfig.json',json({...require('./monorepo').tsconfig(),compilerOptions:{...require('./monorepo').tsconfig().compilerOptions,allowJs:true},include:['src']}),'merge-json',owner);
  add(store.path+'/.gitignore','node_modules/\ndist/\n.env\n.env.local\n*.sqlite\n*.sqlite-*\n.migration-running.json\n','append-lines',owner);
 }
-module.exports={taskModelGeneration,drizzleTaskSchema,prismaModuleSchema,buildPrismaStore,prismaModuleSQL,specs,databaseChoice,drizzleSchema,buildDrizzleStore};
+module.exports={moduleGeneration,taskModelGeneration,drizzleTaskSchema,prismaModuleSchema,buildPrismaStore,prismaModuleSQL,specs,databaseChoice,drizzleSchema,buildDrizzleStore};
 
-function prismaModuleSQL(engine,kind,readSource){
+// Module tables (ADR-035): installed legacy auth/file stores keep their original bytes; fresh stores get the semantic tables.
+const MODULE_FILES={auth:{migration:'prisma/migrations/20260909020000_auth/migration.sql',legacySql:/"emailVerified"|`emailVerified`/,schema:'prisma/auth.prisma',map:'@@map("auth_audit_log")',drizzle:'src/schema/auth.ts',legacyDrizzle:/'emailVerified'/},
+ files:{migration:'prisma/migrations/20260909010000_file_storage/migration.sql',legacySql:/CREATE TABLE ["`]FileObject["`]/,schema:'prisma/file-storage.prisma',map:'@@map("file_object")',drizzle:'src/schema/file-storage.ts',legacyDrizzle:/'FileObject'/}};
+function moduleGeneration(target,store,kind){
+ if(!target)return {generation:'semantic',partial:true};
+ const f=MODULE_FILES[kind],read=rel=>{try{return fs.readFileSync(path.join(target,store.path,rel),'utf8');}catch(error){if(error.code==='ENOENT')return null;throw error;}};
+ if(store.access==='drizzle'){const schema=read(f.drizzle);return {generation:schema!==null&&f.legacyDrizzle.test(schema)?'legacy':'semantic',partial:true};}
+ const migration=read(f.migration);
+ if(migration!==null)return f.legacySql.test(migration)?{generation:'legacy'}:{generation:'semantic',partial:/WHERE \("deleted_at" IS NULL\)/.test(migration)};
+ const schema=read(f.schema);
+ if(schema!==null)return schema.includes(f.map)?{generation:'semantic',partial:/where: \{ deletedAt: null \}/.test(schema)}:{generation:'legacy'};
+ const main=read('prisma/schema.prisma');
+ return {generation:'semantic',partial:main===null||/partialIndexes/.test(main)};
+}
+
+function prismaModuleSQL(engine,kind,readSource,generation={generation:'legacy'}){
+ if(generation.generation==='semantic')return require('./module-models').moduleSQL(kind,engine,{partial:generation.partial});
  if(['postgres','sqlite'].includes(engine))return readSource('architecture/modules/'+(kind==='auth'?'open-source/auth-schema':'storage/prisma')+'/'+engine+'.sql');
  const text=readSource('architecture/modules/'+(kind==='auth'?'open-source/auth-schema':'storage/prisma')+'/postgres.sql');
  return text.replace(/CREATE SCHEMA IF NOT EXISTS "public";/g,'').replaceAll('"','`').replaceAll('TIMESTAMP(3)','DATETIME(3)').replaceAll('TEXT','VARCHAR(191)').replace(/`record` VARCHAR\(191\)/g,'`record` LONGTEXT').replace(/`(?:accessToken|refreshToken|idToken|password|scope|image|logo|metadata|value)` VARCHAR\(191\)/g,m=>m.replace('VARCHAR(191)','LONGTEXT'));
 }
-function prismaModuleSchema(engine,kind,readSource){
+function prismaModuleSchema(engine,kind,readSource,generation={generation:'legacy'}){
+ if(generation.generation==='semantic')return require('./module-models').prismaSchema(kind,engine,{partial:generation.partial});
  const file=kind==='auth'?'open-source/auth-schema/auth.prisma':'storage/prisma/file-storage.prisma';
  const source=readSource('architecture/modules/'+file);
  if(!['mysql','mariadb'].includes(engine))return source;

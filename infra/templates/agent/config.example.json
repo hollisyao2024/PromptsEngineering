@@ -33,7 +33,7 @@
       "filePattern": "^\\d{3}_[a-z0-9_]+\\.(?:[cm]?[jt]s)$"
     },
     "schemaGate": {
-      "semantic": "warn",
+      "semantic": "required",
       "exemptTables": []
     }
   },

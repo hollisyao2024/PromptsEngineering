@@ -162,10 +162,11 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
     const item = { path: p, content, strategy, owner, version: cat.version, ...extra }; assets.push(item); owned.set(p,item);
   };
   const render = (text, values) => text.replace(/\{\{([a-zA-Z][a-zA-Z0-9]*)\}\}/g, (_, key) => { if (values[key] === undefined) throw new Error(`unknown template parameter: ${key}`); return values[key]; });
-  const copy = (from, to, owner, values = {}, policy = () => 'update') => {
+  const copy = (from, to, owner, values = {}, policy = () => 'update', skip = () => false) => {
     if (!fs.existsSync(path.join(source, from))) throw new Error(`required template source missing: ${from}`);
     for (const rel of walk(path.join(source, from))) {
       const mapped = rel.replace(/\.tpl$/, '').replace(/^src\//, values.sourceDir ? `${values.sourceDir}/` : 'src/');
+      if (skip(mapped)) continue;
       add(`${to}/${mapped}`, render(readSource(`${from}/${rel}`), values), policy(mapped), owner);
     }
   };

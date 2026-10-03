@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-04：[ADR 035](035-arch-data-semantic-enforcement.md)，语义门禁默认阻断、按安装形态条件豁免、身份/文件模块核心表分层合规与适配器层软删除。
+
 - 2026-10-03：[ADR 034](034-arch-data-semantic-conventions.md)，数据语义约定（命名、注释、审计字段、软删除、状态值）与 schema 变更阻断门禁。
 
 - 2026-10-01：[ADR 002](002-arch-environment-file-init-if-missing.md) 补充 linked worktree 更新时主 repo 六文件补齐、主 repo example 优先及本地 ignore 边界。
@@ -33,3 +35,5 @@
 - 2026-10-01 ADR-033：并列 ORM、常见数据库支持矩阵与稳定版迁移保护。
 
 - 2026-10-03 ADR-034：数据语义约定与 schema 变更门禁。
+
+- 2026-10-04 ADR-035：语义门禁默认阻断与模块核心表合规。

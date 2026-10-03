@@ -39,11 +39,14 @@ function buildStorage({config,source,target,add,owned,copy,readSource,deps,regis
   registration(owner,s);
   if(s.runtime==='node'){
     const {walk}=require('./project');
+    // Installed legacy FileObject stores keep the original repository bytes (ADR-035).
+    const metadataStore=config.datastores.find(d=>d.id===s.metadata?.datastore),filesGeneration=metadataStore?require('./database').moduleGeneration(target,metadataStore,'files').generation:'semantic';
     for(const rel of walk(path.join(source,'architecture/modules/storage/node/src'))){
       const provider=rel.startsWith('providers/')?rel.slice(10,-3):null;
       if(rel==='drizzle-repository.ts'&&config.datastores.find(d=>d.id===s.metadata?.datastore)?.access!=='drizzle')continue;
       if(provider&&provider!=='local'&&!selectedProviders.includes(provider))continue;
-      add(s.path+'/src/'+rel,readSource('architecture/modules/storage/node/src/'+rel).replaceAll('{{datastore}}',s.metadata?.datastore||''),'update',owner);
+      const legacy=filesGeneration==='legacy'&&['prisma-repository.ts','drizzle-repository.ts'].includes(rel);
+      add(s.path+'/src/'+rel,readSource('architecture/modules/storage/node/'+(legacy?'legacy/':'src/')+rel).replaceAll('{{datastore}}',s.metadata?.datastore||''),'update',owner);
     }
     const runtimeDeps={};
     const metadata=config.datastores.find(d=>d.id===s.metadata?.datastore);
@@ -73,9 +76,10 @@ function buildStorage({config,source,target,add,owned,copy,readSource,deps,regis
   }
   if(s.metadata){
     const db=config.datastores.find(d=>d.id===s.metadata.datastore);
-    if(db.access==='drizzle'){add(db.path+'/src/schema/file-storage.ts',require('./database').drizzleSchema(db.engine,'files'),'init-if-missing',owner);return;}
-    add(db.path+'/prisma/file-storage.prisma',require('./database').prismaModuleSchema(db.engine,'files',readSource),'init-if-missing',owner);
-    add(db.path+'/prisma/migrations/20260909010000_file_storage/migration.sql',require('./database').prismaModuleSQL(db.engine,'files',readSource),'append',owner);
+    const generation=require('./database').moduleGeneration(target,db,'files');
+    if(db.access==='drizzle'){add(db.path+'/src/schema/file-storage.ts',require('./database').drizzleSchema(db.engine,'files',generation.generation),'init-if-missing',owner);return;}
+    add(db.path+'/prisma/file-storage.prisma',require('./database').prismaModuleSchema(db.engine,'files',readSource,generation),'init-if-missing',owner);
+    add(db.path+'/prisma/migrations/20260909010000_file_storage/migration.sql',require('./database').prismaModuleSQL(db.engine,'files',readSource,generation),'append',owner);
     change(db.path+'/prisma.config.ts',text=>text.replace("schema:'prisma/schema.prisma'","schema:'prisma'"));
   }
 }
