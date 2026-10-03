@@ -181,3 +181,9 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-DATA-002 | AC-DATA-002 | TC-DATA-002 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js` |
 | US-DATA-003 | AC-DATA-003 | TC-DATA-003 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js`（warn/required/off） |
 | US-DATA-004 | AC-DATA-004 | TC-DATA-004 | TDD 通过 | `architecture/__tests__/task-semantics.test.js`；真实数据库集成测试未运行 |
+| US-DATA-005 | AC-DATA-005 | TC-DATA-005 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js`（默认 required、warn 降级、仅新增迁移） |
+| US-DATA-006 | AC-DATA-006 | TC-DATA-006 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js`（按安装形态条件豁免、同名业务表照常检查、hard-delete） |
+| US-DATA-007 | AC-DATA-007 | TC-DATA-007 | TDD 通过 | `infra/scripts/tdd-tools/__tests__/schema-governance.test.js`；`architecture/__tests__/module-semantics.test.js`；drizzle-kit 0.31.11 真实生成三库迁移并注释（任务证据） |
+| US-DATA-008 | AC-DATA-008 | TC-DATA-008 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；Better Auth 1.7.3 真实运行（任务证据）；真实数据库集成未运行 |
+| US-DATA-009 | AC-DATA-009 | TC-DATA-009 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；`architecture/__tests__/storage.test.js`、`storage-core.test.js` |
+| US-DATA-010 | AC-DATA-010 | TC-DATA-010 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；`architecture/__tests__/upgrades.test.js` |

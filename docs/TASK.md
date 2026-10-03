@@ -111,4 +111,4 @@ flowchart LR
 
 Drizzle 数据访问：[模块 TASK](task-modules/drizzle/TASK.md)，依赖 Monorepo、身份权限、文件存储和队列。
 
-数据语义约定：[模块 TASK](task-modules/data-semantics/TASK.md)，TASK-DATA-001~005，依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。
+数据语义约定：[模块 TASK](task-modules/data-semantics/TASK.md)，TASK-DATA-001~010，依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。

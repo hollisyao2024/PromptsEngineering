@@ -10,14 +10,19 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const AUDIT_COLUMNS = ['created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_at', 'deleted_by'];
-const DEFAULT_EXEMPT_TABLES = [
-  'user', 'session', 'account', 'verification', 'organization', 'member', 'invitation',
-  'FileObject', 'file_object', '_prisma_migrations', '__drizzle_migrations', 'app_metadata', 'xirang_migrations', 'pgboss.*',
+const SOFT_DELETE_COLUMNS = ['deleted_at', 'deleted_by'];
+// 默认只豁免迁移/系统表；模块表按实际安装形态条件豁免（ADR-035）。
+const DEFAULT_EXEMPT_TABLES = ['_prisma_migrations', '__drizzle_migrations', 'app_metadata', 'xirang_migrations', 'pgboss.*'];
+const LEGACY_AUTH_TABLES = ['user', 'session', 'account', 'verification', 'organization', 'member', 'invitation'];
+const LEGACY_MODULES = [
+  { tables: LEGACY_AUTH_TABLES, prisma: ['prisma/migrations/20260909020000_auth/migration.sql', /["`]emailVerified["`]/], drizzle: ['src/schema/auth.ts', /'emailVerified'/] },
+  { tables: ['FileObject'], prisma: ['prisma/migrations/20260909010000_file_storage/migration.sql', /CREATE TABLE ["`]FileObject["`]/], drizzle: ['src/schema/file-storage.ts', /'FileObject'/] },
 ];
 const SEMANTIC_MODES = ['off', 'warn', 'required'];
 const DICTIONARY_DOC = 'docs/data/dictionary.md';
 const DATA_MIGRATION_MARKER = /--\s*xirang:data-migration\b/i;
 const EXEMPT_MARKER = /--\s*xirang:exempt\s+(\S+)\s+(\S.*)$/gim;
+const HARD_DELETE_MARKER = /--\s*xirang:hard-delete\s+(\S+)\s+(\S.*)$/gim;
 const STATUS_LIKE_COLUMN = /(?:^|_)(?:status|state|type|kind|level|stage)$/i;
 const INTEGER_TYPE = /^(?:tiny|small|medium|big)?int(?:eger)?\d*\b|^(?:small|big)?serial\b|^number\b/i;
 const SNAKE_CASE = /^[a-z][a-z0-9_]*$/;
@@ -29,7 +34,7 @@ function normalizePath(file) {
 
 function resolveGateConfig(config = {}) {
   const gate = config.tdd?.schemaGate || {};
-  const semantic = gate.semantic === undefined ? 'warn' : gate.semantic;
+  const semantic = gate.semantic === undefined ? 'required' : gate.semantic;
   if (!SEMANTIC_MODES.includes(semantic)) {
     throw new Error(`invalid tdd.schemaGate.semantic: ${JSON.stringify(semantic)} (expected off|warn|required)`);
   }
@@ -251,7 +256,10 @@ function parseMigrationSql(sql) {
   let exemptMatch;
   EXEMPT_MARKER.lastIndex = 0;
   while ((exemptMatch = EXEMPT_MARKER.exec(raw))) exempt.set(unquote(exemptMatch[1]).toLowerCase(), exemptMatch[2].trim());
-  return { tables, comments, exempt, dataMigration: DATA_MIGRATION_MARKER.test(raw) };
+  const hardDelete = new Map();
+  HARD_DELETE_MARKER.lastIndex = 0;
+  while ((exemptMatch = HARD_DELETE_MARKER.exec(raw))) hardDelete.set(unquote(exemptMatch[1]).toLowerCase(), exemptMatch[2].trim());
+  return { tables, comments, exempt, hardDelete, dataMigration: DATA_MIGRATION_MARKER.test(raw) };
 }
 
 function isExemptTable(table, exemptList, inlineExempt) {
@@ -264,7 +272,19 @@ function isExemptTable(table, exemptList, inlineExempt) {
   });
 }
 
-/** 字典索引：包含 `表名` 的章节及该章节字段表首列。 */
+/** 已安装旧版模块的表（按存储内模块文件判定），只对这些存储条件豁免。 */
+function legacyModuleTables(store, readFile) {
+  if (!store.access) return [];
+  const tables = [];
+  for (const module of LEGACY_MODULES) {
+    const [rel, pattern] = module[store.access];
+    const text = readFile(`${store.path}/${rel}`);
+    if (text && pattern.test(text)) tables.push(...module.tables);
+  }
+  return tables;
+}
+
+/** 字典索引：包含 `表名` 的章节 → 字段表首列 → 末列说明（单列行说明为空）。 */
 function parseDictionary(text) {
   const sections = [];
   let current = null;
@@ -281,23 +301,24 @@ function parseDictionary(text) {
     const all = [section.heading, ...section.lines].join('\n');
     const tableNames = [...all.matchAll(/`([^`\s]+)`/g)].map((m) => unquote(m[1]).toLowerCase());
     if (!tableNames.length) continue;
-    const columns = new Set();
+    const columns = new Map();
     for (const line of section.lines) {
       if (!line.trim().startsWith('|')) continue;
-      const first = line.trim().replace(/^\|/, '').split('|')[0].trim().replace(/`/g, '');
+      const cells = line.trim().replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map((cell) => cell.trim());
+      const first = cells[0].replace(/`/g, '');
       if (!first || /^:?-+:?$/.test(first)) continue;
-      columns.add(first.toLowerCase());
+      columns.set(first.toLowerCase(), cells.length > 1 ? cells[cells.length - 1] : '');
     }
     for (const name of tableNames) {
-      const existing = index.get(name) || new Set();
-      for (const column of columns) existing.add(column);
+      const existing = index.get(name) || new Map();
+      for (const [column, description] of columns) if (!existing.get(column)) existing.set(column, description);
       index.set(name, existing);
     }
   }
   return index;
 }
 
-function semanticFindings(table, parsed, store) {
+function semanticFindings(table, parsed, store, documented) {
   const issues = [];
   const label = table.qualified;
   if (!SNAKE_CASE.test(table.name)) issues.push(`${label}: 表名应为业务语言 snake_case`);
@@ -306,8 +327,14 @@ function semanticFindings(table, parsed, store) {
   }
   if (table.created) {
     const present = new Set(table.columns.map((column) => column.name.toLowerCase()));
-    const missing = AUDIT_COLUMNS.filter((name) => !present.has(name));
-    if (missing.length) issues.push(`${label}: 缺少审计/软删除字段 ${missing.join(', ')}`);
+    const hardDelete = parsed.hardDelete.has(table.name.toLowerCase()) || parsed.hardDelete.has(table.qualified.toLowerCase());
+    const required = hardDelete ? AUDIT_COLUMNS.filter((name) => !SOFT_DELETE_COLUMNS.includes(name)) : AUDIT_COLUMNS;
+    const missing = required.filter((name) => !present.has(name));
+    if (missing.length) issues.push(`${label}: 缺少审计/软删除字段 ${missing.join(', ')}${hardDelete ? '' : '（物理删除表可声明 -- xirang:hard-delete <表名> <原因>）'}`);
+  }
+  if (documented) {
+    const blank = table.columns.map((column) => column.name).filter((name) => documented.has(name.toLowerCase()) && !documented.get(name.toLowerCase()));
+    if (blank.length) issues.push(`${label}: ${DICTIONARY_DOC} 字段说明为空 ${blank.join(', ')}`);
   }
   const engine = store.engine;
   const columnComment = (column) => column.comment
@@ -374,15 +401,17 @@ function evaluateSchemaGate({ stores, gateConfig, changes, readFile, fileDiff })
       }
     }
 
-    const merged = { comments: { tables: new Set(), columns: new Map() }, exempt: new Map() };
+    const merged = { comments: { tables: new Set(), columns: new Map() }, exempt: new Map(), hardDelete: new Map() };
+    const exemptTables = [...gateConfig.exemptTables, ...legacyModuleTables(store, readFile)];
     for (const { parsed } of migrations) {
+      parsed.hardDelete.forEach((value, key) => merged.hardDelete.set(key, value));
       parsed.comments.tables.forEach((name) => merged.comments.tables.add(name));
       parsed.comments.columns.forEach((value, key) => merged.comments.columns.set(key, value));
       parsed.exempt.forEach((value, key) => merged.exempt.set(key, value));
     }
     for (const { file, parsed } of migrations) {
       for (const table of parsed.tables) {
-        if (isExemptTable(table, gateConfig.exemptTables, merged.exempt)) {
+        if (isExemptTable(table, exemptTables, merged.exempt)) {
           notes.push(`豁免：${table.qualified}（${file}）`);
           continue;
         }
@@ -395,7 +424,7 @@ function evaluateSchemaGate({ stores, gateConfig, changes, readFile, fileDiff })
         }
         if (gateConfig.semantic === 'off') continue;
         const target = gateConfig.semantic === 'required' ? errors : warnings;
-        for (const issue of semanticFindings(table, merged, store)) target.push(`语义：${issue}（${file}）`);
+        for (const issue of semanticFindings(table, merged, store, documented)) target.push(`语义：${issue}（${file}）`);
       }
     }
   }
@@ -464,6 +493,8 @@ function collectChanges(base, repoRoot) {
 module.exports = {
   AUDIT_COLUMNS,
   DEFAULT_EXEMPT_TABLES,
+  LEGACY_AUTH_TABLES,
+  legacyModuleTables,
   classifyFile,
   collectChanges,
   evaluateSchemaGate,

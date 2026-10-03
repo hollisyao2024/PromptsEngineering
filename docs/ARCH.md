@@ -177,4 +177,4 @@ sequenceDiagram
 
 Drizzle 与常见数据库：[模块 ARCH](arch-modules/drizzle/ARCH.md)。
 
-数据语义约定与 Schema 变更门禁：[模块 ARCH](arch-modules/data-semantics/ARCH.md)，[ADR-034](adr/034-arch-data-semantic-conventions.md)。
+数据语义约定与 Schema 变更门禁：[模块 ARCH](arch-modules/data-semantics/ARCH.md)，[ADR-034](adr/034-arch-data-semantic-conventions.md)、[ADR-035](adr/035-arch-data-semantic-enforcement.md)。
