@@ -292,3 +292,15 @@ tdd push 新增显式 committed-only 参数，在自动提交和阶段文档回�
 复用 manifest 的 init-if-missing：目标 RULES.md 从 infra/templates/agent/RULES.example.md 初始化；不在模板源根目录创建 RULES.md。update 与 sync 共用冻结计划和 apply 引擎，已有目标（含空内容）返回原字节，项目定制不会与新骨架形成覆盖冲突。dry-run 只计划，apply 后沿用哈希与收敛校验。
 
 预读协议只豁免明确的首次接入/模板更新在缺失 RULES.md 时的初始化步骤；创建后须全文读取再开展其他项目副作用。已有空文件或读取失败仍阻断其他任务，不自动修复。AGENTS、CONVENTIONS、README 与任务胶囊保持同一语义。无新依赖、数据库或外部接口；路径安全继续由现有引擎保护。风险为误把初始化当覆盖，使用既有自定义/空文件回归与源根目录无 RULES 契约验证。
+
+## 固定提交证据与可移植夹具（US-CMDSURF-015/016）
+
+qa.mergeEvidence.mode 默认 strict，可显式选择 fixed-commit。project 范围仍调用严格发布检查；session 的 fixed-commit 使用已验证 QA 回执的 base_sha/head_sha。配置 qaModulesDir 与 nfrTrackingFile 默认现有文档路径，必须是规范的仓库内相对 Git 路径，拒绝绝对路径、反斜杠、父级与 Git pathspec 魔法。非法配置或快照读取失败 fail closed。
+
+新 merge-evidence 组件使用 git ls-tree/show 读取固定 Git blob，复用 check-defect-blockers 的解析和发布决策。记录以模块/缺陷 ID 或 NFR ID 标识，重复来源采用最差状态聚合；每个来源保存该条解析记录的语义哈希，不把整个文件哈希放入记录指纹。文件存在性、记录存在性和变化分别验证；新增/变化的阻塞与未明确闭环的删除阻断。输出 retained 历史限制和独立 globalDecision，集成通过不等于发布通过。无可解析 NFR 阻断。
+
+选择独立纯检查组件而非改写严格发布解析器，兼容既有 project 与默认消费者；不提供隐式豁免。无新运行服务、数据库、网络合约或权限；不修改 CI、回执签发和远端 SHA 复验。Git 读取有输出上限且 shell=false；回滚 revert 并将配置恢复 strict。Git 夹具在命令级固定 core.autocrlf=false，不触碰主机配置。Codex 只修正文档并验证既有兼容分支。
+
+验证映射：TC-CMDSURF-041 默认/非法配置；042 固定 SHA/严格判定分离；043 删除/缺失；044 逐记录指纹；045 换行环境；046 Codex 兼容。风险为门禁错误放宽，采用显式 opt-in、双 SHA 输入、重复来源最坏聚合和恶化/删除用例缓解。既有模块集合、索引、数据/部署视图及依赖不变；无未决架构缺口。
+
+决策见 [ADR-036](../../adr/036-arch-fixed-commit-merge-evidence.md)。匿名 fetched checkout 的夹具提交声明 LF；仅命令级 autocrlf 设置无法约束另一个 checkout。

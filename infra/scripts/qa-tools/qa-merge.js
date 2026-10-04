@@ -39,6 +39,7 @@ const {
   sealSupersededSessions,
 } = require('../worktree-tools/deferred-cleanup-state');
 const defectBlockerCheckers = require('./check-defect-blockers');
+const { checkMergeEvidence, resolveMergeEvidenceConfig } = require('./merge-evidence');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const {
   buildGitHubGitEnv,
@@ -421,7 +422,20 @@ async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
  * cold-start every merge. Behavior is preserved (P0 blockers + NFR check);
  * release report is intentionally not written here (CLI entry still does).
  */
-function runPreMergeChecks({ checkers = defectBlockerCheckers } = {}) {
+function runPreMergeChecks({ checkers = defectBlockerCheckers, scope = 'project', config = {}, cwd = repoRoot, baseSha, headSha } = {}) {
+  try {
+    const evidenceConfig = resolveMergeEvidenceConfig(config.qa?.mergeEvidence);
+    if (scope === 'session' && evidenceConfig.mode === 'fixed-commit') {
+      const result = checkMergeEvidence({ cwd, baseSha, headSha, config: evidenceConfig });
+      console.log(`MERGE_EVIDENCE_MODE=fixed-commit RETAINED_BLOCKERS=${result.retained.length} RELEASE_GATE_PASS=${result.globalDecision.gatePass}`);
+      for (const issue of result.globalDecision.blockingIssues) console.warn('历史/发布限制：' + issue);
+      for (const issue of result.blockers) console.error(issue);
+      return result.gatePass;
+    }
+  } catch (error) {
+    console.error('合并证据检查失败：' + error.message);
+    return false;
+  }
   console.log('\x1b[36m运行发布门禁检查（in-process）...\x1b[0m');
   const defects = checkers.parseDefects();
   const analysis = checkers.analyzeDefects(defects);
@@ -1689,7 +1703,7 @@ async function main() {
     if (resumedMerge) {
       console.log('\x1b[36m跳过发布门禁检查（PR 已合并，仅恢复本地收尾）\x1b[0m');
     } else if (!args.skipChecks && !skipBusinessQaChecks) {
-      const checksPassed = runPreMergeChecks();
+      const checksPassed = runPreMergeChecks({ config, scope: args.scope, cwd: repoRoot, baseSha: qaReceipt.base_sha, headSha: qaReceipt.head_sha });
       if (!checksPassed) {
         throw new Error(
           '发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n' +

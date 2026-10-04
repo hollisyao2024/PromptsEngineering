@@ -187,3 +187,14 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-DATA-008 | AC-DATA-008 | TC-DATA-008 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；Better Auth 1.7.3 真实运行（任务证据）；真实数据库集成未运行 |
 | US-DATA-009 | AC-DATA-009 | TC-DATA-009 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；`architecture/__tests__/storage.test.js`、`storage-core.test.js` |
 | US-DATA-010 | AC-DATA-010 | TC-DATA-010 | TDD 通过 | `architecture/__tests__/module-semantics.test.js`；`architecture/__tests__/upgrades.test.js` |
+
+## 固定提交证据增量（2026-10-04）
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-CMDSURF-015 | AC-CMDSURF-015-01 | TC-CMDSURF-041 | Planned | qa-merge 配置与严格模式 |
+| US-CMDSURF-015 | AC-CMDSURF-015-02 | TC-CMDSURF-042 | Planned | merge-evidence 固定快照 |
+| US-CMDSURF-015 | AC-CMDSURF-015-03 | TC-CMDSURF-043 | Planned | 删除、缺失与闭环 |
+| US-CMDSURF-015 | AC-CMDSURF-015-04 | TC-CMDSURF-044 | Planned | 逐记录语义指纹 |
+| US-CMDSURF-016 | AC-CMDSURF-016-01 | TC-CMDSURF-045 | Planned | update/template-sync 夹具 |
+| US-CMDSURF-016 | AC-CMDSURF-016-02 | TC-CMDSURF-046 | Planned | tdd-tick-codex.compat |

@@ -24,7 +24,12 @@
     "qaMerge": "pnpm run qa:merge"
   },
   "qa": {
-    "projectChecks": []
+    "projectChecks": [],
+    "mergeEvidence": {
+      "mode": "strict",
+      "qaModulesDir": "docs/qa-modules",
+      "nfrTrackingFile": "docs/data/nfr-tracking.md"
+    }
   },
   "tdd": {
     "projectChecks": [],

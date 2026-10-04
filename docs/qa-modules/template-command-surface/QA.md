@@ -55,3 +55,10 @@ TC-CMDSURF-CONSUMER：实际安装默认模板后运行已安装的 surface 与 
 | TC-CMDSURF-037 | QA 审查当前 HEAD、命令退出码、环境和依赖后复用有效 TDD 证据，只补新增或失效范围 |
 
 执行证据、实际结果、模板传播和合并 SHA 以本次 task state、QA 回执及目标项目任务为准；本模块不镜像运行态。适用范围为模板规则和本地 QA 门禁，业务 UI、数据库与部署验收不适用。Review-Class REQUIRED；Domain-Hit 共享 QA 基础门禁；Codex review skipped by policy。
+## 固定提交证据测试策略（US-CMDSURF-015/016）
+
+TC-CMDSURF-041~044 使用本地 Git 夹具验证严格默认、配置拒绝、固定 blob、历史限制与发布判定分离、新增/变化阻塞、明确闭环、文件/记录删除、缺失 NFR、重复来源和逐记录指纹。入口为 `infra/scripts/qa-tools/__tests__/merge-evidence.test.js`，并回归 qa-merge 的回执恢复、dirty worktree、清理与 GitHub API 消费者。
+
+TC-CMDSURF-045 使用 template-sync/update-template 的真实 Git 夹具，定向注入自动换行主机配置验证确定字节，不修改主机设置。TC-CMDSURF-046 复用 tdd-tick-codex.compat，检查允许维护分支同时仍拒绝不存在的显式 TASK。模板传播采用官方固定 SHA、dry-run/apply/收敛及实际项目消费者门禁；执行日志和 SHA 绑定结果在 task/session。
+
+没有业务 UI、数据库、认证或延迟敏感路径，不新增产品 E2E、负载或安全工具。风险集中于共享合并门禁，以负例和原消费者回归覆盖；无已知需求缺口。QA 验证有效受测提交及双 SHA 回执，不以历史限制的保留冒充发布通过。
