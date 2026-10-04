@@ -28,6 +28,7 @@ test('TC-STORAGE-001 Go storage uses native module and no Node dependencies',t=>
   const f=fixture(t),config=selection('aliyun-oss','go');const p=createArchitecturePlan({...f,config});assert.deepEqual(p.conflicts,[]);applyPlan(p,{runRoot:f.runRoot});
   assert.match(fs.readFileSync(path.join(f.target,'packages/storage/go.mod'),'utf8'),/alibabacloud-oss-go-sdk-v2/);
   assert.equal(fs.existsSync(path.join(f.target,'packages/storage/package.json')),false);
+  assert.equal(fs.existsSync(path.join(f.target,'packages/storage/aliyun_oss_versions.go')),true);
   assert.match(fs.readFileSync(path.join(f.target,'apps/api/go.mod'),'utf8'),/replace xirang.local\/storage/);
   assert.equal(createArchitecturePlan({...f,config}).changes.length,0);
 });
@@ -41,4 +42,11 @@ test('TC-STORAGE-008 template sync cannot silently adopt newly selected storage'
  const f=fixture(t),config=selection(),storage=config.fileStorage;delete config.fileStorage;applyPlan(createArchitecturePlan({...f,config}),{runRoot:f.runRoot});
  config.fileStorage=storage;fs.writeFileSync(path.join(f.target,'architecture.config.json'),JSON.stringify(config));
  assert.throws(()=>require('../../tooling/xirang/template').createTemplatePlan({source,target:f.target}),/New architecture choices/);
+});
+
+test('TC-STORAGE-009 local-only Go generation excludes OSS SDK and version adapter',t=>{
+ const f=fixture(t),config=selection('local','go'),p=createArchitecturePlan({...f,config});applyPlan(p,{runRoot:f.runRoot});
+ assert.equal(fs.existsSync(path.join(f.target,'packages/storage/aliyun_oss_versions.go')),false);
+ assert.doesNotMatch(fs.readFileSync(path.join(f.target,'packages/storage/go.mod'),'utf8'),/aliyun/);
+ assert.equal(createArchitecturePlan({...f,config}).changes.length,0);
 });

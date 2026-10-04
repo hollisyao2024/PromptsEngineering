@@ -32,3 +32,9 @@
 Review-Class: REQUIRED。Domain-Hit: 授权、文件写删、路径、并发/双写、SDK/公开协议、Schema/更新引擎。审查涵盖所有权、CORS、过期、重放、错误脱敏、崩溃恢复与只追加迁移。Codex review skipped by policy。
 
 无本轮功能阻断缺陷。真实云账户、生产路径/权限与凭据轮换、对象生命周期和容量必须由项目验收；交付状态仍由最终 PR/main/finish 门禁确认。缺陷、优先级与 NFR 见同目录文件。
+
+## OSS 版本兼容增量验收（TC-STORAGE-009）
+
+Node 原生 SDK HTTP 夹具覆盖缺少版本头、null 与真实版本固定读删、指定版本不存在不回退、从未开启/Enabled/Suspended 完整分页及删除标记、前缀游标隔离、模式变化和权限失败中止、缺少续页版本与未知状态拒绝。Go 原生 SDK 同协议验证并执行存储包竞态回归。既有 FileService 暂存重放不改变独立最终内容的回归保留；生成器检查 SDK 按需、Go 可选版本模块与重复计划收敛。
+
+未配置真实云凭据，账号权限、生产 Bucket 联调与清理仅为 opt-in，不将夹具结果宣称生产验证。Review-Class REQUIRED（共享合约、对象读删）；Codex review skipped by policy。业务配置、迁移和私钥未进入模板。最终执行证据及固定提交由 task state/QA receipt 记录。

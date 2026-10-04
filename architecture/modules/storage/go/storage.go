@@ -46,6 +46,7 @@ type ObjectInfo struct {
 	ContentType string `json:"contentType"`
 	ETag        string `json:"etag,omitempty"`
 	ModifiedAt  string `json:"modifiedAt,omitempty"`
+	VersionID   string `json:"versionId,omitempty"`
 }
 type Page struct {
 	Items  []ObjectInfo `json:"items"`
@@ -163,6 +164,35 @@ func (r *Router) Close() error {
 			if e := c.Close(); e != nil {
 				return e
 			}
+		}
+	}
+	return nil
+}
+
+// VersionedProvider is optional; a literal null version is an exact OSS version.
+type ObjectVersion struct {
+	ObjectInfo
+	DeleteMarker bool `json:"deleteMarker"`
+}
+type VersionPage struct {
+	Items  []ObjectVersion `json:"items"`
+	Cursor string          `json:"cursor,omitempty"`
+}
+type VersionedProvider interface {
+	Provider
+	GetVersion(context.Context, string, string) (Download, error)
+	HeadVersion(context.Context, string, string) (ObjectInfo, error)
+	DeleteVersion(context.Context, string, string) error
+	ListVersions(context.Context, ListInput) (VersionPage, error)
+}
+
+func validVersionID(v string) error {
+	if v == "" || len(v) > 1024 {
+		return fail("INVALID_INPUT")
+	}
+	for _, r := range v {
+		if r < 32 || r == 127 {
+			return fail("INVALID_INPUT")
 		}
 	}
 	return nil

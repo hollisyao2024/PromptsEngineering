@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.7.23] - 2026-10-04
+
+- Node/Go 通用 OSS 适配兼容未开启、开启及暂停版本控制：缺少版本头规范化为 null，新增可选固定版本读/核验/删及包含删除标记的完整分页，权限或状态异常中止；保留独立最终文件与暂存重放保护，不回灌项目配置或迁移。
+
 ## [v3.7.22] - 2026-10-04
 
 - `docs/CONVENTIONS.md` 删除与 `AGENTS.md`“上下文预算与阶段交接”重复的 §11（仅留一行指向）以及「失败分类与恢复」章节；失败分类（`tool_error|policy_denied|unknown_result`）、启动状态证据与恢复规则并入 `AGENTS.md`“长任务断点续跑”作为唯一来源，`.codex/README.md`、TDD playbook 引用同步改指 `AGENTS.md`，相关契约测试随之更新。

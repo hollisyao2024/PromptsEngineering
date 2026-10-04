@@ -7,7 +7,7 @@ export class StorageError extends Error {
   constructor(code: ErrorCode, message: string = code, retryable = false) { super(message); this.name='StorageError'; this.code=code; this.retryable=retryable; }
 }
 export type ProviderName = 'local'|'s3'|'aliyun-oss'|'tencent-cos';
-export interface ObjectInfo { key:string; size:number; contentType:string; etag?:string; modifiedAt?:string }
+export interface ObjectInfo { key:string; size:number; contentType:string; etag?:string; modifiedAt?:string; versionId?:string }
 export interface ListInput { prefix?:string; cursor?:string; limit?:number; signal?:AbortSignal }
 export interface Page<T> { items:T[]; cursor?:string }
 export interface PutInput { body:Readable|Uint8Array|string; size:number; contentType:string; signal?:AbortSignal }
@@ -49,3 +49,16 @@ export function sdkError(error:unknown):StorageError {
   return new StorageError('UNAVAILABLE','Storage request failed',status===429||status===undefined||status>=500);
 }
 export async function call<T>(fn:()=>Promise<T>):Promise<T>{try{return await fn();}catch(e){throw sdkError(e);}}
+
+/** Optional port for providers that expose exact historical versions. */
+export interface ObjectVersion extends ObjectInfo { versionId:string; deleteMarker:boolean }
+export interface VersionedStorageProvider extends StorageProvider {
+  getVersion(key:string,versionId:string):Promise<ObjectDownload>;
+  headVersion(key:string,versionId:string):Promise<ObjectInfo>;
+  deleteVersion(key:string,versionId:string):Promise<void>;
+  listVersions(input?:ListInput):Promise<Page<ObjectVersion>>;
+}
+export function validVersionId(value:string):string {
+  if(typeof value!=='string'||!value||Buffer.byteLength(value)>1024||/[\x00-\x1f\x7f]/.test(value))throw new StorageError('INVALID_INPUT','Invalid object version');return value;
+}
+export function ossVersionId(value:string|undefined|null):string {if(value==null)return 'null';try{return validVersionId(value);}catch{throw new StorageError('UNAVAILABLE','Invalid storage version');}}

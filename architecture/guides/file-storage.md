@@ -91,3 +91,13 @@ Node 生成包运行 pnpm build && pnpm test；Go 模块运行 go test -race ./.
 真实云需显式指定 XIRANG_LIVE_STORAGE_PROVIDER=s3|aliyun-oss|tencent-cos 与 LIVE_*，使用测试桶；Node 的 tests/live-cloud.test.mjs、Go 的 TestLive* 创建 xirang-integration/<uuid> 对象并清理。缺环境时输出 skipped/unverified。没有真实云测试结果时，不能宣称某个地区、账号策略、CORS、加密方式或分片协议已通过验收。
 
 上传签名绑定 Content-Type 和声明的 Content-Length；浏览器发送 Blob 时自动提供长度，不手动设置禁止的请求头。服务端完成阶段再次核对大小与类型。签名 URL 在到期前可重放暂存上传，但不能修改已转正文件。
+
+## 7. OSS 版本控制兼容
+
+私有 Bucket 可从未开启版本控制，亦可 Enabled/Suspended。OSS put/get/head 的 versionId 缺少响应头时返回字符串 `null`，不得替换为空值或 SQL NULL；其他适配器不新增该字段。模板 FileService 保持每次会话独立暂存 key 和每次转正独立最终 key，ready 后不可覆盖，暂存签名重放不会修改已引用的最终内容。
+
+OSS 适配器额外实现可选端口：Node `VersionedStorageProvider` 的 `getVersion/headVersion/deleteVersion/listVersions`；Go 用类型断言 `storage.VersionedProvider`，对应方法 `GetVersion/HeadVersion/DeleteVersion/ListVersions`。其他适配器不可假定支持。固定读删始终传入保存的版本标识，含字符串 null；不存在的指定版本直接报错，禁止回退当前内容。业务附件自行持久化 storeId、key、versionId、大小和摘要，核验下载摘要并执行租户授权；模板不复制任何项目专属 Schema 或迁移。
+
+完整清理先冻结该范围写入，使用非空租户前缀逐页 `listVersions({prefix,limit:100,cursor})` / `ListVersions`，将 key、versionId 和 deleteMarker 记入可恢复清单，再按精确版本逐项删除，最后重新枚举对账。普通 `list/delete` 仅操作当前对象，不能用来保证历史资料完全清除。游标是不透明状态，须原样续页并检测循环；Bucket 状态改变、查询失败、缺少续页标记都会中止，禁止降级为普通列表或报告完成。枚举与删除不是原子事务；项目负责冻结、重试与最终对账。
+
+RAM 授权须分别覆盖对象前缀的 PutObject/GetObject/GetObjectVersion/DeleteObject/DeleteObjectVersion 和 Bucket 的 GetBucketVersioning/ListObjects/ListObjectVersions；不能将对象动作授予仅 Bucket ARN。浏览器继续用后端签发的短期 URL 或授权下载流，内网 Endpoint 仅供同地域服务器，浏览器签名使用公网 Endpoint。阻止公共访问与私有权限保持开启。真实云联调是 opt-in，本地 SDK 协议夹具不能替代账号/权限验收。

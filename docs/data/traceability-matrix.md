@@ -110,6 +110,7 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-STORAGE-006 | AC-STORAGE-006-01 | TC-STORAGE-006 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
 | US-STORAGE-007 | AC-STORAGE-007-01 | TC-STORAGE-007 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
 | US-STORAGE-008 | AC-STORAGE-008-01 | TC-STORAGE-008 | Pass | [PRD](../prd-modules/file-storage/PRD.md) |
+| US-STORAGE-009 | AC-STORAGE-009-01 | TC-STORAGE-009 | 实现验收 | [TASK-STORAGE-008](../task-modules/file-storage/TASK.md) |
 
 ## 开源公共组件
 

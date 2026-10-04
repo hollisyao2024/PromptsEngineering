@@ -30,7 +30,7 @@ func NewAliyunOSS(o CloudOptions) (Provider, error) {
 		if e != nil {
 			return nil, c, e
 		}
-		cfg := oss.LoadDefaultConfig().WithRegion(o.Region).WithAdditionalHeaders([]string{"content-length"}).WithCredentialsProvider(credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, c.SessionToken))
+		cfg := oss.LoadDefaultConfig().WithRegion(o.Region).WithUsePathStyle(o.ForcePathStyle).WithConnectTimeout(10 * time.Second).WithReadWriteTimeout(time.Minute).WithAdditionalHeaders([]string{"content-length"}).WithCredentialsProvider(credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, c.SessionToken))
 		if ep := o.endpoint(public); ep != "" {
 			cfg = cfg.WithEndpoint(ep)
 		}
@@ -66,7 +66,11 @@ func NewAliyunOSS(o CloudOptions) (Provider, error) {
 		if e != nil {
 			return ObjectInfo{}, ossError(e)
 		}
-		return ObjectInfo{Key: key, Size: r.ContentLength, ContentType: oss.ToString(r.ContentType), ETag: oss.ToString(r.ETag)}, nil
+		v, err := ossVersionID(r.VersionId)
+		if err != nil || r.ContentLength < 0 {
+			return ObjectInfo{}, fail("UNAVAILABLE")
+		}
+		return ObjectInfo{Key: key, Size: r.ContentLength, ContentType: oss.ToString(r.ContentType), ETag: oss.ToString(r.ETag), VersionID: v}, nil
 	}
 	p.remove = func(ctx context.Context, key string) error {
 		sdk, _, e := client(ctx, false)
@@ -91,5 +95,5 @@ func NewAliyunOSS(o CloudOptions) (Provider, error) {
 		}
 		return p, nil
 	}
-	return p, nil
+	return &ossVersionProvider{Cloud: p, bucket: o.Bucket, client: client}, nil
 }

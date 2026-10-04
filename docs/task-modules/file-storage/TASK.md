@@ -21,3 +21,7 @@ Expand：新增 FileObject 模型和 PG/SQLite SQL；Migrate：仅隔离消费�
 环境与持久化说明随指南交付。真实云资源与生产部署不执行；GitHub workflows 保持项目所有权，本地执行门禁。语义审查覆盖授权、路径、签名、并发和升级冲突；Codex review skipped by policy。
 
 功能验证详见 [QA](../../qa-modules/file-storage/QA.md)。提交/合并/清理的唯一状态保存在本机 task/session，最终完成以 main 与 completion guard 为准。
+
+## OSS 版本兼容增量
+
+TASK-STORAGE-008（US-STORAGE-009，Owner 模板维护者，3 个验证单元）：先以本地 HTTP 原生 SDK 协议测试验证 null/固定版本/分页/失败中止；再实现 Node/Go 可选端口及使用指南；最后核对生成收敛、原有独立最终 key 重放保护、消费者构建和 QA 交付。依赖 TASK-STORAGE-002/005/006，无跨模块新依赖。数据库 Expand/Migrate/Contract/Backfill 均无；项目专属业务迁移和配置不回灌，真实云联调保持 opt-in。
