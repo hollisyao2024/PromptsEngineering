@@ -222,7 +222,7 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 
 ### 测试范围与证据复用
 
-测试遵循最小风险覆盖，先写失败的定向测试、实现、再回归，不得用全量失败掩盖定向结果。TDD 与 QA 共用以下口径：比较配置主干与本次交付的完整 diff（开发阶段包含拟提交改动），检查调用方、共享依赖、配置和测试映射，再选择最小充分范围。改动行数少不能单独证明低风险，进入 QA、创建 PR 或命中高风险标签也不能单独证明需要全量。
+测试遵循最小风险覆盖，先写失败的定向测试、实现、再回归，不得用全量失败掩盖定向结果。TDD 与 QA 共用以下口径：比较配置主干与本次交付的完整 diff（开发阶段包含拟提交改动），检查调用方、共享依赖、配置和测试映射，再选择最小充分范围。改动行数少不能单独证明低风险。
 
 | 变更影响 | 必需验证 |
 | --- | --- |
@@ -231,13 +231,13 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 | 局部逻辑、局部重构 | 定向单测及直接调用方回归；涉及模块协作时补集成，涉及用户路径时补相关 E2E |
 | 认证、写删、事务、缓存、并发、API、schema、共享基础库等高风险域 | 受影响模块及消费者的回归，加对应安全、契约、一致性、迁移或性能验证；先界定影响范围，再判断是否升级全量 |
 
-全量测试是例外，只有以下四类可触发：用户、项目规则或发布门禁明确要求；证据表明影响覆盖所选应用/工作区的整个测试范围或无法隔离；调查调用关系后仍无法可靠界定影响；定向结果暴露跨域问题且继续定向扩展不足。记录具体触发项、调查证据、需要全量的应用/工作区和测试类型。文件数量、全局样式或共享组件标签、高风险标签、进入 QA、创建 PR 均不能单独触发全量；某一应用的全量单测不自动扩大为所有应用、全量 E2E、安全与负载测试。遇到范围不明先调查，仍不明再升级，不猜测范围。
+全量测试是例外，只有以下四类可触发：用户、项目规则或发布门禁明确要求；证据表明影响覆盖所选应用/工作区的整个测试范围或无法隔离；调查调用关系后仍无法可靠界定影响（不猜测范围）；定向结果暴露跨域问题且继续定向扩展不足。记录具体触发项、调查证据、需要全量的应用/工作区和测试类型。文件数量、全局样式或共享组件标签、高风险标签、进入 QA、创建 PR 均不能单独触发全量；某一应用的全量单测不自动扩大为所有应用、全量 E2E、安全与负载测试。
 
-执行回归前在当前 mutation 任务的 step evidence 记录单行 `TEST_SCOPE_DECISION=<JSON>`：`version:1`、`mode:targeted|full|static`、非空 `impact_paths`、非空 `commands`、`not_run` 数组与非空 `reason`；影响路径中说明消费者与覆盖边界。full 还须记录 `full_trigger`（`explicit_requirement|whole_scope_impact|unbounded_after_investigation|cross_domain_failure`）及非空 `trigger_evidence`，对应上段四类触发。静态/文档任务使用 static，明确业务测试未运行的理由，并列出适用静态、链接或模板契约命令。执行后记录单行 `TEST_SCOPE_RESULT=<JSON>`：`version:1`、当前交付 `head_sha`、`environment`、`dependencies`，以及与决策命令逐项对应的 `checks`（`command`、`exit_code:0`、非空 `evidence` 引用）。提交前运行的测试须先确认受测内容与当前提交一致，再绑定 HEAD。大日志留在任务 evidence，`qa verify` 对实际项目在签发回执前校验这些字段与 HEAD；旧任务可在 QA 前补录，模板源走既有门禁。结构校验不代替 QA 对范围、日志与证据真实性的判断。
+执行回归前在当前 mutation 任务的 step evidence 记录单行 `TEST_SCOPE_DECISION=<JSON>`：`version:1`、`mode:targeted|full|static`、非空 `impact_paths`、非空 `commands`、`not_run` 数组与非空 `reason`；影响路径中说明消费者与覆盖边界。full 还须记录 `full_trigger`（`explicit_requirement|whole_scope_impact|unbounded_after_investigation|cross_domain_failure`）及非空 `trigger_evidence`，对应上段四类触发。静态/文档任务使用 static，明确业务测试未运行的理由，并列出适用静态、链接或模板契约命令。执行后记录单行 `TEST_SCOPE_RESULT=<JSON>`：`version:1`、当前交付 `head_sha`、`environment`、`dependencies`，以及与决策命令逐项对应的 `checks`（`command`、`exit_code:0`、非空 `evidence` 引用）。提交前运行的测试须先确认受测内容与当前提交一致（可用受测文件摘要核对），再绑定 HEAD。`qa verify` 对实际项目在签发回执前校验这些字段与 HEAD；旧任务可在 QA 前补录，模板源走既有门禁。结构校验不代替 QA 对范围、日志与证据真实性的判断。
 
-确认测试运行器支持所用过滤参数，不能把命令成功当作选中了目标用例。`commands.test` 默认 `pnpm agent -- test`，无目标会在启动运行器前失败；定向调用示例：`pnpm agent -- test --file tests/unit.test.js -- pnpm exec vitest run`。`task exec` 在启动前拦截常见聚合测试命令，只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行。项目自有 `pnpm test` 脚本和 `agent.config.json` 覆盖不会被模板同步改写，执行器不能把它们当作安全的定向入口；明确需要全量时按上段记录触发依据并使用项目显式全量入口。通用入口不表示每次交付都要执行；项目 `tdd.projectChecks` / `qa.projectChecks` 的适用硬门禁仍须完成，不得临时改成空命令或忽略失败来缩小范围。
+确认测试运行器支持所用过滤参数，不能把命令成功当作选中了目标用例。`commands.test` 默认 `pnpm agent -- test`，无目标会在启动运行器前失败；定向调用示例：`pnpm agent -- test --file tests/unit.test.js -- pnpm exec vitest run`。`task exec` 在启动前拦截常见聚合测试命令，只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行。项目自有 `pnpm test` 脚本和 `agent.config.json` 覆盖不会被模板同步改写，执行器不能把它们当作安全的定向入口；明确需要全量时使用项目显式全量入口。通用入口不表示每次交付都要执行；项目 `tdd.projectChecks` / `qa.projectChecks` 的适用硬门禁仍须完成，不得临时改成空命令或忽略失败来缩小范围。
 
-QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交（提交前运行可用受测文件摘要核对提交内容）、测试范围、命令、退出码、依赖/配置和环境。上述条件未变且证据完整时，不因阶段切换重复执行；有变更、失败、证据缺失或时效要求时，补跑受影响范围。新增 QA 测试仍须实际执行。测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验。
+QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测试范围、命令、退出码、依赖/配置和环境。上述条件未变且证据完整时，不因阶段切换重复执行；有变更、失败、证据缺失或时效要求时，补跑受影响范围。新增 QA 测试仍须实际执行。测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验。
 
 必需验证通过后，仅因新变更、失败或具体未解决风险扩大或重跑测试；时间压力不能豁免必需项。静态检查和构建按受影响技术栈及项目门禁执行，不适用项须记录理由，未运行项不得记为通过。
 
