@@ -118,3 +118,42 @@ test('existing PR without markers or without commits keeps its summary untouched
   await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend: b.backend, commits: [] });
   assert.match(b.calls[1].body.body, /- keep me/);
 });
+
+test('collectBranchCommits excludes merge commits that only sync the base branch', () => {
+  const calls = [];
+  collectBranchCommits('stable', {
+    runGit(args) {
+      calls.push(args);
+      return args[0] === 'rev-parse' ? 'ok\n' : '';
+    },
+  });
+  assert.ok(calls[1].includes('--no-merges'));
+});
+
+const autoCommit = {
+  sha: 'c'.repeat(40),
+  subject: 'feat: fix scan findings',
+  body: '- 修改 CHANGELOG.md\n- 删除 .github/workflows/tests.yml\n- 新增 infra/a.js\n- 重命名 infra/b.js\n- 另有 12 个文件改动',
+};
+const authored = {
+  sha: 'd'.repeat(40),
+  subject: 'fix(cli): guard help flags',
+  body: '- side-effecting entries print usage on --help\n\nCo-Authored-By: Bot <bot@example.com>',
+};
+
+test('PR summary drops auto-commit file lists when authored commits describe the change', () => {
+  const body = buildPrBody('feat: branch', reviewDecision, [autoCommit, authored]);
+  assert.match(body, /### 概要\n- side-effecting entries print usage on --help\n\n### 变更内容\n- ccccccc feat: fix scan findings\n- ddddddd fix\(cli\): guard help flags\n/);
+  assert.doesNotMatch(body, /修改 CHANGELOG\.md|另有 12 个文件改动/);
+});
+
+test('PR summary keeps auto-commit file lists when they are the only description', () => {
+  const body = buildPrBody('feat: branch', reviewDecision, [autoCommit]);
+  assert.match(body, /### 概要\n- 修改 CHANGELOG\.md\n- 删除 \.github\/workflows\/tests\.yml\n- 新增 infra\/a\.js\n- 重命名 infra\/b\.js\n- 另有 12 个文件改动\n/);
+});
+
+test('PR title ignores auto-commit file lists and uses the single authored conventional subject', () => {
+  assert.equal(resolvePrTitle('feature/x', [autoCommit, authored]), 'fix(cli): guard help flags');
+  assert.equal(resolvePrTitle('fix/branch-title', [autoCommit, authored, commits[0]]), 'fix: branch title');
+  assert.equal(resolvePrTitle('fix/branch-title', [autoCommit]), 'feat: fix scan findings');
+});
