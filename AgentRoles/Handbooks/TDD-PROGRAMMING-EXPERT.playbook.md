@@ -237,7 +237,7 @@ flowchart TD
     QA9 --> DEPLOY[交接 DevOps 部署]
 ```
 
-只读核查默认在对话交付；需要持久化时按 `AGENTS.md`“长任务断点续跑”判断，不默认创建报告、任务或锁。获准写入的产物通过 `resolveContainerPath()` 解析容器 tmp；记录失败按 `docs/CONVENTIONS.md`“失败分类与恢复”处理。
+只读核查默认在对话交付；需要持久化时按 `AGENTS.md`“长任务断点续跑”判断，不默认创建报告、任务或锁。获准写入的产物通过 `resolveContainerPath()` 解析容器 tmp；记录失败按 `AGENTS.md`“长任务断点续跑”的失败恢复规则处理。
 
 ---
 

@@ -162,8 +162,8 @@ test('rules define acknowledged handoff or inline continuation without removing 
   for (const pattern of [/接管确认/, /当前任务.*继续/, /不.*重复.*确认/, /真实阻塞/, /completion guard|完成门禁/, /task resume --task <id>/]) {
     assert.equal(pattern.test(agents), true, `AGENTS.md: missing ${pattern}`);
   }
-  assert.match(conventions, /AGENTS\.md.*上下文预算与阶段交接/u);
-  assert.match(conventions, /接管确认/u);
+  assert.doesNotMatch(conventions, /## 11\./u);
+  assert.doesNotMatch(conventions, /接管确认/u);
 });
 
 test('all six experts use the shared task recovery policy', () => {

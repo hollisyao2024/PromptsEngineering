@@ -109,7 +109,7 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 治理阶段转换使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。按输出的 `CONTEXT_COMMAND` 刷新胶囊，`AUTO_CONTINUE=true` 时依 `CONTINUATION_ACTION` 自动继续当前任务，或执行 completion guard；`RESOLVE_BLOCKER` 时先核实并解决真实阻塞，不能盲重放、忽略拒绝或自行批准。`CONTEXT_REFRESH_REQUIRED=true` 不代表必须更换执行器，旧脚本的 `CONTEXT_HANDOFF_REQUIRED=true` 也按上述接管确认协议处理，不能仅据此停止已授权工作。
 - 出错、等待用户或上下文即将压缩时必须写 `--next`。
 - 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
-- 失败先按可观察证据区分普通工具故障、策略拒绝和执行结果未知；已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕，恢复前提供 `--recovery-evidence`。具体协议见 docs/CONVENTIONS.md 的“失败分类与恢复”。
+- 失败先按可观察证据区分 `tool_error`（普通工具故障：修复并核实副作用后再决定是否重试）、`policy_denied`（工具明确拒绝：保留原始理由和调用编号，停止该操作，不改写命令、换入口或扩大权限）和 `unknown_result`（超时或断连：先核实真实状态，不盲目重放）。已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕：`not_started` 必须有明确未启动证据并配 `blocked`，`started|unknown` 配 `verify_required`，没有证据不推断未启动。恢复前先核实外部副作用并提供 `--recovery-evidence`；它不是权限许可，不能自我批准，resume 不执行重试，故障历史只追加。
 - 若 task start/checkpoint 本身不可执行，先在当前对话记录目标、验收、操作、时间、调用编号、启动状态和下一动作；仅有 `blocked by policy` 时说明“执行工具策略拒绝，具体规则未知”，不得擅自归因于 Auto-review、目录越界或 pnpm。继续获准且不依赖该操作的只读核查，不因记账失败停止整个查询；禁止改写命令、换工具或迁移记录以重试被拒绝动作。独立证据写入也需获准，不伪造 state.json；恢复后先核实副作用再补记，不跳过 mutation 的 worktree、QA 或安全门禁。
 - 仅在需要任务状态的新会话、异常恢复或继续执行时，第一项任务动作是 `resume`；普通单会话只读请求不调用此写入型恢复入口：
   `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
