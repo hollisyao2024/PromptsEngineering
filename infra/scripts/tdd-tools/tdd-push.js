@@ -255,15 +255,15 @@ function getReviewSection(reviewDecision) {
 
 function mergeReviewSectionIntoBody(body, reviewDecision) {
   const reviewSection = getReviewSection(reviewDecision);
-  const reviewSectionRegex = /### Review Gate[\s\S]*?(?=\n### |\s*$)/;
+  const reviewSectionRegex = /### Review Gate[\s\S]*?(?=\n+### |\s*$)/;
   if (reviewSectionRegex.test(body)) {
     return body.replace(reviewSectionRegex, reviewSection);
   }
   return `${body.trim()}\n\n${reviewSection}\n`;
 }
 
-async function updatePrReviewSection(pr, reviewDecision, { backend, runGh: _runGh = runGh }) {
-  const nextBody = mergeReviewSectionIntoBody(pr.body || '', reviewDecision);
+async function updatePrReviewSection(pr, reviewDecision, { backend, runGh: _runGh = runGh, refreshBody = (body) => body }) {
+  const nextBody = mergeReviewSectionIntoBody(refreshBody(pr.body || ''), reviewDecision);
   if (backend.mode === 'api') {
     await backend.apiRequest('PATCH', repoApiPath(backend, `/pulls/${pr.number}`), {
       token: backend.token,
@@ -379,16 +379,42 @@ function buildPrSummaryLines(title, commits) {
   return unique.length ? unique : [`- ${title}`];
 }
 
-function buildPrBody(title, reviewDecision, commits = []) {
+const AUTO_SUMMARY_START = '<!-- xirang:auto-summary:start -->';
+const AUTO_SUMMARY_END = '<!-- xirang:auto-summary:end -->';
+
+/**
+ * 自动生成的概要与变更内容放在标记内，后续 tdd push 只刷新标记内文本。
+ */
+function buildAutoSummaryBlock(title, commits = []) {
   const changes = commits.length
     ? commits.map((commit) => `- ${commit.sha.slice(0, 7)} ${commit.subject}`)
     : ['_见 commit 历史_'];
   return [
+    AUTO_SUMMARY_START,
     '### 概要',
     ...buildPrSummaryLines(title, commits),
     '',
     '### 变更内容',
     ...changes,
+    AUTO_SUMMARY_END,
+  ].join('\n');
+}
+
+/**
+ * 已有 PR 含完整标记且分支有提交时替换标记内文本；否则保持正文不变。
+ */
+function refreshAutoSummaryInBody(body, title, commits = []) {
+  const start = body.indexOf(AUTO_SUMMARY_START);
+  const end = body.indexOf(AUTO_SUMMARY_END);
+  if (!commits.length || start === -1 || end === -1 || end < start) return body;
+  return body.slice(0, start)
+    + buildAutoSummaryBlock(title, commits)
+    + body.slice(end + AUTO_SUMMARY_END.length);
+}
+
+function buildPrBody(title, reviewDecision, commits = []) {
+  return [
+    buildAutoSummaryBlock(title, commits),
     '',
     '### 文档回写',
     '- CHANGELOG: 见本次变更；发布行为以项目 release 配置为准',
@@ -404,7 +430,11 @@ function buildPrBody(title, reviewDecision, commits = []) {
 async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, commits = [], runGh: _runGh = runGh }) {
   const existing = await findOpenPullRequest(branch, { backend, runGh: _runGh });
   if (existing) {
-    await updatePrReviewSection(existing, reviewDecision, { backend, runGh: _runGh });
+    await updatePrReviewSection(existing, reviewDecision, {
+      backend,
+      runGh: _runGh,
+      refreshBody: (body) => refreshAutoSummaryInBody(body, resolvePrTitle(branch, commits), commits),
+    });
     return { status: 'existing', pr: { number: existing.number, url: existing.url } };
   }
 

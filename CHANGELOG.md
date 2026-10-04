@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `tdd push` 自动生成的「概要」「变更内容」包在 `xirang:auto-summary` 标记内，已有 PR 再次推送时按当前分支提交刷新标记内文本，标记外手写内容与无标记的旧 PR 保持不变；`qa merge` 解析概要时忽略 HTML 注释行。修复 Review Gate 替换后吞掉下一章节前空行的问题。
+
 - `tdd push` 新建 PR 时读取分支相对配置主干的提交：「概要」取提交正文中的 `-`/`*` 要点（无要点时取提交标题，无提交时回退为 PR 标题），「变更内容」列出短 SHA 与提交标题；分支只有一个 Conventional 提交时直接用其标题作 PR 标题。`qa merge` 以概要作为 squash 提交正文，合并记录不再只有一行。
 
 - `qa merge` 的远端 squash 合并（gh CLI 与 GitHub API）与本地降级使用同一提交格式：标题为 `PR 标题 (#编号)`，正文为 PR「概要」段，不再落入 GitHub 默认的逐提交列表。
