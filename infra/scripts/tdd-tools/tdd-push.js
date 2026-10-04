@@ -331,13 +331,64 @@ function buildPrCreateArgs({ title, body, branch, baseBranch }) {
   ];
 }
 
-function buildPrBody(title, reviewDecision) {
+const CONVENTIONAL_SUBJECT = /^[a-z]+(\([^)]+\))?!?: \S/;
+
+/**
+ * 读取分支相对配置主干的提交（旧到新）；优先比较 origin/<base>，缺失时退回本地 base。
+ */
+function collectBranchCommits(baseBranch, { runGit: _runGit = runGit } = {}) {
+  let baseRef = baseBranch;
+  try {
+    _runGit(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${baseBranch}`], { capture: true });
+    baseRef = `origin/${baseBranch}`;
+  } catch {
+    // 无远端跟踪引用时使用本地 base
+  }
+  const output = _runGit(['log', '--reverse', '--format=%H%x1f%s%x1f%b%x1e', `${baseRef}..HEAD`], { capture: true });
+  return String(output || '')
+    .split('\x1e')
+    .map((record) => record.replace(/^\n+/, ''))
+    .filter((record) => record.includes('\x1f'))
+    .map((record) => {
+      const [sha, subject, body = ''] = record.split('\x1f');
+      return { sha: sha.trim(), subject: subject.trim(), body: body.trim() };
+    });
+}
+
+/**
+ * 单个 Conventional 提交时直接作为 PR 标题，否则按分支名推导。
+ */
+function resolvePrTitle(branch, commits = []) {
+  if (commits.length === 1 && CONVENTIONAL_SUBJECT.test(commits[0].subject)) {
+    return commits[0].subject;
+  }
+  return buildPrTitle(branch);
+}
+
+function buildPrSummaryLines(title, commits) {
+  const lines = [];
+  for (const commit of commits) {
+    const bullets = commit.body
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^[-*]\s+\S/.test(line))
+      .map((line) => `- ${line.replace(/^[-*]\s+/, '')}`);
+    lines.push(...(bullets.length ? bullets : [`- ${commit.subject}`]));
+  }
+  const unique = [...new Set(lines)];
+  return unique.length ? unique : [`- ${title}`];
+}
+
+function buildPrBody(title, reviewDecision, commits = []) {
+  const changes = commits.length
+    ? commits.map((commit) => `- ${commit.sha.slice(0, 7)} ${commit.subject}`)
+    : ['_见 commit 历史_'];
   return [
     '### 概要',
-    `- ${title}`,
+    ...buildPrSummaryLines(title, commits),
     '',
     '### 变更内容',
-    '_见 commit 历史_',
+    ...changes,
     '',
     '### 文档回写',
     '- CHANGELOG: 见本次变更；发布行为以项目 release 配置为准',
@@ -350,15 +401,15 @@ function buildPrBody(title, reviewDecision) {
  * 确保当前分支存在指向配置主干的 open PR：已存在则同步 Review Gate，否则创建。
  * gh 不可用时使用 GH_TOKEN 走 GitHub API；任何失败都抛出，由调用方阻断。
  */
-async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, runGh: _runGh = runGh }) {
+async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, commits = [], runGh: _runGh = runGh }) {
   const existing = await findOpenPullRequest(branch, { backend, runGh: _runGh });
   if (existing) {
     await updatePrReviewSection(existing, reviewDecision, { backend, runGh: _runGh });
     return { status: 'existing', pr: { number: existing.number, url: existing.url } };
   }
 
-  const title = buildPrTitle(branch);
-  const body = buildPrBody(title, reviewDecision);
+  const title = resolvePrTitle(branch, commits);
+  const body = buildPrBody(title, reviewDecision, commits);
 
   if (backend.mode === 'api') {
     const created = await backend.apiRequest('POST', repoApiPath(backend, '/pulls'), {
@@ -427,7 +478,8 @@ async function main() {
 
     pushBranch();
 
-    const prResult = await ensurePullRequest({ branch, baseBranch, reviewDecision, backend });
+    const commits = collectBranchCommits(baseBranch);
+    const prResult = await ensurePullRequest({ branch, baseBranch, reviewDecision, backend, commits });
     console.log(`\u001b[32m✓ PR ${prResult.status === 'created' ? '已创建' : '已存在'}：${prResult.pr.url}\u001b[0m`);
     printReviewDecision(reviewDecision);
 
@@ -463,8 +515,11 @@ module.exports = {
   parseCliArgs,
   autoCommitWorkingTreeIfNeeded,
   buildAutoCommitMessage,
+  buildPrBody,
   buildPrCreateArgs,
   buildPrTitle,
+  collectBranchCommits,
   ensurePullRequest,
+  resolvePrTitle,
   main,
 };

@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `tdd push` 新建 PR 时读取分支相对配置主干的提交：「概要」取提交正文中的 `-`/`*` 要点（无要点时取提交标题，无提交时回退为 PR 标题），「变更内容」列出短 SHA 与提交标题；分支只有一个 Conventional 提交时直接用其标题作 PR 标题。`qa merge` 以概要作为 squash 提交正文，合并记录不再只有一行。
+
 - `qa merge` 的远端 squash 合并（gh CLI 与 GitHub API）与本地降级使用同一提交格式：标题为 `PR 标题 (#编号)`，正文为 PR「概要」段，不再落入 GitHub 默认的逐提交列表。
 
 - `qa merge` 摘要的「策略」按实际合并后端显示：gh CLI 为 `gh pr merge --squash`，GH_TOKEN 走 GitHub API 时为 `GitHub API squash merge`，降级时为 `本地 git merge --squash`；本地 squash 提交信息不再硬编码 `Co-Authored-By: Claude Opus 4.6`，模板对 Codex 与 Claude 等执行器保持中立。
