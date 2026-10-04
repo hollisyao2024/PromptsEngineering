@@ -817,30 +817,49 @@ function removeOwnedTask({ runsRoot, taskId, removeTree = safeRemoveTreeNoFollow
   if (fs.existsSync(taskDir)) throw new Error(`task directory still exists after removal: ${id}`);
 }
 
+function incompleteTaskResult(taskId, blockers) {
+  return {
+    status: 'BLOCKED',
+    taskId,
+    blockers,
+    nextAction: `Complete and verify: ${blockers.join(', ')}`,
+  };
+}
+
 function finishTask(options) {
   const taskId = safeTaskId(options.taskId);
+  // The completion guard subprocess rebinds lifecycle task locations, which takes
+  // this task's lock; run it unlocked and re-validate the state once locked.
+  const precheck = readTaskState({ runsRoot: options.runsRoot, taskId });
+  let guardPassed = false;
+  if (!['completed', 'cleanup_pending'].includes(precheck.status)) {
+    const blockers = completionBlockers(precheck);
+    if (blockers.length > 0) return incompleteTaskResult(taskId, blockers);
+    if (precheck.task_type === 'mutation') {
+      const guard = (options.completionGuard || runMutationCompletionGuard)(precheck);
+      if (!guard.ok) {
+        return {
+          status: 'BLOCKED',
+          taskId,
+          guardOutput: guard.output,
+          nextAction: 'Run the repository completion guard NEXT_COMMANDS, then retry finish.',
+        };
+      }
+      guardPassed = true;
+    }
+  }
   return withTaskLock({ lockDir: options.lockDir, taskId }, () => {
     let state = readTaskState({ runsRoot: options.runsRoot, taskId });
     if (!['completed', 'cleanup_pending'].includes(state.status)) {
       const blockers = completionBlockers(state);
-      if (blockers.length > 0) {
+      if (blockers.length > 0) return incompleteTaskResult(taskId, blockers);
+      if (state.task_type === 'mutation' && (!guardPassed
+        || !isSamePath(state.project_root, precheck.project_root))) {
         return {
           status: 'BLOCKED',
           taskId,
-          blockers,
-          nextAction: `Complete and verify: ${blockers.join(', ')}`,
+          nextAction: 'Task state changed while the completion guard ran; retry finish.',
         };
-      }
-      if (state.task_type === 'mutation') {
-        const guard = (options.completionGuard || runMutationCompletionGuard)(state);
-        if (!guard.ok) {
-          return {
-            status: 'BLOCKED',
-            taskId,
-            guardOutput: guard.output,
-            nextAction: 'Run the repository completion guard NEXT_COMMANDS, then retry finish.',
-          };
-        }
       }
       state.status = 'completed';
       state.current_step = '';

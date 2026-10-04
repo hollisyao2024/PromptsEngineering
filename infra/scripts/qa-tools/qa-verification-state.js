@@ -115,12 +115,33 @@ function validateQaVerificationReceipt(receipt, current = {}) {
   return receipt;
 }
 
+// Resume path for a PR that GitHub already merged: the base moved, so only the
+// receipt identity and the merged head SHA can still be compared.
+function validateMergedPrReceipt(receipt, pr, current = {}) {
+  if (!receipt) {
+    const error = new Error('QA verification receipt is missing; cannot resume qa merge for a merged PR.');
+    error.code = 'MISSING_QA_RECEIPT';
+    throw error;
+  }
+  const mismatches = [];
+  if (receipt.schema_version !== RECEIPT_SCHEMA_VERSION) mismatches.push('SCHEMA_VERSION');
+  if (receipt.verdict !== 'passed') mismatches.push('VERDICT');
+  if (receipt.base_branch !== current.baseBranch) mismatches.push('BASE_BRANCH');
+  if (receipt.branch !== current.branch) mismatches.push('BRANCH');
+  if (!pr || pr.baseRefName !== current.baseBranch) mismatches.push('PR_BASE_BRANCH');
+  if (!pr || pr.headRefName !== current.branch) mismatches.push('PR_HEAD_BRANCH');
+  if (!pr || String(pr.headRefOid || '').toLowerCase() !== receipt.head_sha) mismatches.push('PR_HEAD_SHA');
+  if (mismatches.length > 0) throw staleReceipt(mismatches);
+  return receipt;
+}
+
 module.exports = {
   RECEIPT_SCHEMA_VERSION,
   buildQaVerificationReceipt,
   getQaVerificationReceiptPath,
   readQaVerificationReceipt,
   removeQaVerificationReceipt,
+  validateMergedPrReceipt,
   validateQaVerificationReceipt,
   writeQaVerificationReceipt,
 };

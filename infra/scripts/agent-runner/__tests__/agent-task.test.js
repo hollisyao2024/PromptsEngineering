@@ -973,6 +973,69 @@ test('finish blocks incomplete evidence and invokes the mutation completion guar
   assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), true);
 });
 
+function completeDurableMutationTask(paths) {
+  createTask(startInput(paths, { taskType: 'mutation' }));
+  for (const stepId of ['S1', 'S2']) {
+    checkpointTask({ ...paths, taskId: 'durable-task', stepId, status: 'done', evidence: ['verified'] });
+  }
+  checkpointTask({ ...paths, taskId: 'durable-task', acceptanceId: 'AC1', status: 'done', evidence: ['accepted'] });
+}
+
+test('finish runs the completion guard without holding the task lock', (t) => {
+  const paths = fixture(t);
+  completeDurableMutationTask(paths);
+  const lockPath = path.join(paths.lockDir, 'agent-task-durable-task.lock');
+  let guardCalls = 0;
+
+  const result = finishTask({
+    ...paths,
+    taskId: 'durable-task',
+    completionGuard: (state) => {
+      guardCalls += 1;
+      assert.equal(state.task_id, 'durable-task');
+      assert.equal(fs.existsSync(lockPath), false, 'guard must not run under the task lock');
+      // The real guard rebinds lifecycle task locations, which takes the same task lock.
+      const bound = bindTaskLocation({
+        ...paths,
+        taskId: 'durable-task',
+        worktree: path.join(paths.root, 'rebound-worktree'),
+        branch: 'feature/rebound',
+      });
+      assert.equal(bound.status, 'BOUND');
+      return { ok: true, output: 'STATUS=OK' };
+    },
+  });
+
+  assert.equal(result.status, 'OK');
+  assert.equal(guardCalls, 1);
+  assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), false);
+  assert.equal(fs.existsSync(lockPath), false);
+});
+
+test('finish re-validates task state after an unlocked completion guard', (t) => {
+  const paths = fixture(t);
+  completeDurableMutationTask(paths);
+
+  const result = finishTask({
+    ...paths,
+    taskId: 'durable-task',
+    completionGuard: () => {
+      extendTask({
+        ...paths,
+        taskId: 'durable-task',
+        reason: 'scope grew while the guard ran',
+        steps: [{ title: 'late step', replay: 'safe' }],
+      });
+      return { ok: true, output: 'STATUS=OK' };
+    },
+  });
+
+  assert.equal(result.status, 'BLOCKED');
+  assert.match(result.nextAction, /S3/);
+  const retained = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(retained.status, 'running');
+});
+
 test('mutation completion guard scopes the subprocess to the finishing task', () => {
   let invocation;
   const result = runMutationCompletionGuard({

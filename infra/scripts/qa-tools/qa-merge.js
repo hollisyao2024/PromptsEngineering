@@ -48,6 +48,7 @@ const {
 const {
   readQaVerificationReceipt,
   removeQaVerificationReceipt,
+  validateMergedPrReceipt,
   validateQaVerificationReceipt,
 } = require('./qa-verification-state');
 
@@ -246,6 +247,7 @@ function normalizePullRequest(pr) {
     baseRefOid: pr.baseRefOid || (pr.base && pr.base.sha) || '',
     headRefName: pr.headRefName || (pr.head && pr.head.ref) || '',
     headRefOid: pr.headRefOid || (pr.head && pr.head.sha) || '',
+    mergeCommitSha: pr.merge_commit_sha || (pr.mergeCommit && pr.mergeCommit.oid) || '',
   };
 }
 
@@ -355,6 +357,41 @@ async function findOpenPR(branch, { backend = getGitHubBackend() } = {}) {
       `gh 返回了不可解析的 JSON：${error.message}`
     );
   }
+}
+
+// Finds the PR that GitHub already merged at the QA-verified head, so a merge
+// interrupted after the remote squash (e.g. local fetch failure) can resume.
+async function findMergedPullRequest(branch, { backend = getGitHubBackend(), headSha, baseBranch } = {}) {
+  const expectedHead = String(headSha || '').toLowerCase();
+  if (!expectedHead) return null;
+  let candidates;
+  if (backend.mode === 'api') {
+    const head = encodeURIComponent(`${backend.owner}:${branch}`);
+    const prs = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls?head=${head}&state=closed&per_page=20`),
+      { token: backend.token }
+    );
+    candidates = (Array.isArray(prs) ? prs : []).filter((pr) => pr && pr.merged_at);
+  } else {
+    const args = [
+      'pr', 'list',
+      '--head', branch,
+      '--json', 'number,title,body,url,baseRefName,baseRefOid,headRefName,headRefOid,mergeCommit',
+      '--state', 'merged',
+    ];
+    const result = runGh(args);
+    if (result.status !== 0) {
+      throw new Error(`查询当前分支已合并 PR 失败。\n${formatGhError(result, args)}`);
+    }
+    candidates = JSON.parse(result.stdout || '[]');
+  }
+  const match = candidates
+    .map(normalizePullRequest)
+    .find((pr) => String(pr.headRefOid).toLowerCase() === expectedHead
+      && pr.headRefName === branch
+      && (!baseBranch || pr.baseRefName === baseBranch));
+  return match || null;
 }
 
 async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
@@ -584,6 +621,34 @@ function fetchRemoteRefs(baseBranch, featureBranch, { cwd = process.cwd(), runGi
   };
 }
 
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// Fetch only updates local remote-tracking refs, so retrying is safe; it absorbs
+// transient races such as "cannot lock ref" from a concurrent local fetch.
+function fetchWithRetry(args, {
+  cwd = process.cwd(),
+  runGit: _runGit = runGit,
+  attempts = 3,
+  delayMs = 1000,
+  sleep = sleepSync,
+} = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return _runGit(args, { cwd, capture: true });
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        console.warn(`\x1b[33m  git fetch 失败，${delayMs * attempt}ms 后重试 (${attempt}/${attempts - 1})：${error.message}\x1b[0m`);
+        sleep(delayMs * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
 function syncLocalMain(mainWorkspacePath, baseBranch = 'main', expectedBaseSha = '') {
   // 始终基于 mainWorkspacePath 的当前分支判断，不依赖 process.cwd()。
   // 这样无论用户在仓库根目录、子目录还是其他 worktree 下运行，
@@ -599,7 +664,7 @@ function syncLocalMain(mainWorkspacePath, baseBranch = 'main', expectedBaseSha =
   }
 
   console.log(`\x1b[36m拉取最新 ${baseBranch} 代码...\x1b[0m`);
-  runGit([
+  fetchWithRetry([
     'fetch', '--prune', 'origin',
     `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
   ], { cwd: mainWorkspacePath });
@@ -1568,38 +1633,52 @@ async function main() {
       );
     }
 
-    // Step 6: 查找 open PR
+    // Step 6: 查找 open PR；没有时检查是否为“远端已合并、本地收尾中断”的可恢复状态。
     let pr = await findOpenPR(currentBranch);
+    let qaReceipt;
+    let resumedMerge = false;
     if (!pr) {
-      throw new Error(
-        `当前分支 (${currentBranch}) 没有 open PR。\n` +
-        '请先执行 /tdd push 创建 PR，或检查 PR 是否已被合并/关闭。'
-      );
-    }
-    console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
-    console.log(`  URL: ${pr.url}`);
+      qaReceipt = readQaVerificationReceipt(config, mainRepoRoot, repoRoot);
+      const mergedPr = qaReceipt
+        ? await findMergedPullRequest(currentBranch, { headSha: qaReceipt.head_sha, baseBranch })
+        : null;
+      if (!mergedPr) {
+        throw new Error(
+          `当前分支 (${currentBranch}) 没有 open PR。\n` +
+          '请先执行 /tdd push 创建 PR，或检查 PR 是否已被合并/关闭。'
+        );
+      }
+      validateMergedPrReceipt(qaReceipt, mergedPr, { baseBranch, branch: currentBranch });
+      pr = mergedPr;
+      resumedMerge = true;
+      console.log(`\x1b[33mPR #${pr.number} 已在 QA 回执 HEAD_SHA=${qaReceipt.head_sha} 合并，恢复本地收尾。\x1b[0m`);
+      console.log(`  URL: ${pr.url}`);
+    } else {
+      console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
+      console.log(`  URL: ${pr.url}`);
 
-    // Step 7-8: 刷新远端引用、重查 PR，并验证本地 QA 双 SHA 回执。
-    const remoteRefs = fetchRemoteRefs(baseBranch, currentBranch, { cwd: repoRoot });
-    const refreshedPr = await findOpenPR(currentBranch);
-    if (!refreshedPr || refreshedPr.number !== pr.number) {
-      throw new Error(`PR #${pr.number} changed or closed while refreshing remote refs; rerun qa verify.`);
+      // Step 7-8: 刷新远端引用、重查 PR，并验证本地 QA 双 SHA 回执。
+      const remoteRefs = fetchRemoteRefs(baseBranch, currentBranch, { cwd: repoRoot });
+      const refreshedPr = await findOpenPR(currentBranch);
+      if (!refreshedPr || refreshedPr.number !== pr.number) {
+        throw new Error(`PR #${pr.number} changed or closed while refreshing remote refs; rerun qa verify.`);
+      }
+      pr = refreshedPr;
+      qaReceipt = readQaVerificationReceipt(config, mainRepoRoot, repoRoot);
+      validateQaVerificationReceipt(qaReceipt, {
+        baseBranch,
+        branch: currentBranch,
+        baseSha: remoteRefs.baseSha,
+        headSha: remoteRefs.headSha,
+        prBaseRef: pr.baseRefName,
+        prBaseSha: pr.baseRefOid,
+        prHeadRef: pr.headRefName,
+        prHeadSha: pr.headRefOid,
+      });
+      console.log(`\x1b[32mQA 回执有效：BASE_SHA=${qaReceipt.base_sha} HEAD_SHA=${qaReceipt.head_sha}\x1b[0m`);
     }
-    pr = refreshedPr;
-    const qaReceipt = readQaVerificationReceipt(config, mainRepoRoot, repoRoot);
-    validateQaVerificationReceipt(qaReceipt, {
-      baseBranch,
-      branch: currentBranch,
-      baseSha: remoteRefs.baseSha,
-      headSha: remoteRefs.headSha,
-      prBaseRef: pr.baseRefName,
-      prBaseSha: pr.baseRefOid,
-      prHeadRef: pr.headRefName,
-      prHeadSha: pr.headRefOid,
-    });
-    console.log(`\x1b[32mQA 回执有效：BASE_SHA=${qaReceipt.base_sha} HEAD_SHA=${qaReceipt.head_sha}\x1b[0m`);
 
-    if (!args.dryRun && pr.mergeable === 'CONFLICTING') {
+    if (!args.dryRun && !resumedMerge && pr.mergeable === 'CONFLICTING') {
       throw new Error(
         `PR #${pr.number} 存在合并冲突。请同步 ${baseBranch}、解决冲突、重新 push 并再次执行 qa verify。`
       );
@@ -1607,7 +1686,9 @@ async function main() {
 
     // Step 9: 运行发布门禁检查
     const skipBusinessQaChecks = config.template && config.template.role === 'source';
-    if (!args.skipChecks && !skipBusinessQaChecks) {
+    if (resumedMerge) {
+      console.log('\x1b[36m跳过发布门禁检查（PR 已合并，仅恢复本地收尾）\x1b[0m');
+    } else if (!args.skipChecks && !skipBusinessQaChecks) {
       const checksPassed = runPreMergeChecks();
       if (!checksPassed) {
         throw new Error(
@@ -1653,7 +1734,8 @@ async function main() {
         console.warn(`\x1b[33m主仓库同步延后：${error.message}\x1b[0m`);
       }
     };
-    const ghMerged = await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha });
+    const ghMerged = resumedMerge
+      || await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha });
 
     if (ghMerged) {
       strategy = 'gh';
@@ -1694,7 +1776,7 @@ async function main() {
     if (mainSyncError) {
       throw new Error(
         `PR 已合并但本地 ${baseBranch} 同步失败：${mainSyncError.message}。` +
-        '请稍后在主仓库重试 github-auth-run git fetch --prune origin。'
+        '修复后在本 worktree 重新执行 pnpm agent -- qa merge，将按 QA 回执恢复收尾。'
       );
     }
 
@@ -1708,6 +1790,17 @@ async function main() {
     const versionFile = releaseConfig.versionFile || 'package.json';
     const changelogFile = releaseConfig.changelogFile || 'CHANGELOG.md';
     const tagPrefix = releaseConfig.tagPrefix || 'v';
+    if (resumedMerge && (shouldBumpVersion || shouldUpdateChangelog)) {
+      // A resumed merge may only run release steps when base still sits on the
+      // PR merge commit; otherwise an earlier attempt may already have released.
+      const baseHead = runGit(['rev-parse', 'HEAD'], { capture: true, cwd: mainWorkspacePath }).trim().toLowerCase();
+      if (!pr.mergeCommitSha || baseHead !== pr.mergeCommitSha.toLowerCase()) {
+        throw new Error(
+          `${baseBranch}=${baseHead} 不是 PR #${pr.number} 的合并提交 ${pr.mergeCommitSha || '(unknown)'}；` +
+          '无法确认 release 收尾是否已执行，请人工核对后再处理。'
+        );
+      }
+    }
     let newVersion = '';
 
     // Release note 从 PR 标题提取
@@ -1861,6 +1954,8 @@ module.exports = {
   buildGhMergeArgs,
   deleteRemoteFeatureBranch,
   fetchRemoteRefs,
+  fetchWithRetry,
+  findMergedPullRequest,
   findOpenPR,
   findWorktreePathByBranch,
   resolveMainWorkspacePath,
@@ -1889,4 +1984,5 @@ module.exports = {
   cleanupOrphanSessions,
   syncConfiguredVersionFiles,
   stageConfiguredVersionFiles,
+  validateMergedPrReceipt,
 };
