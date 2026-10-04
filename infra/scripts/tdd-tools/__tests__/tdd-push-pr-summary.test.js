@@ -71,10 +71,11 @@ test('ensurePullRequest builds title and body from branch commits', async () => 
 
 const START = '<!-- xirang:auto-summary:start -->';
 const END = '<!-- xirang:auto-summary:end -->';
+const START_WITH_DIGEST = '<!-- xirang:auto-summary:start digest=[0-9a-f]{12} -->';
 
 test('new PR body wraps generated summary and changes in auto-summary markers', () => {
   const body = buildPrBody('fix: t', reviewDecision, commits);
-  assert.ok(body.startsWith(`${START}\n### 概要\n`));
+  assert.match(body, new RegExp(`^${START_WITH_DIGEST}\\n### 概要\\n`));
   assert.match(body, new RegExp(`- bbbbbbb test: cover summary\\n${END}\\n\\n### 文档回写`));
 });
 
@@ -98,7 +99,7 @@ test('existing PR with markers gets summary refreshed from current commits; manu
   await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend, commits });
   const next = calls[1].body.body;
   assert.doesNotMatch(next, /stale|1111111|Gate-Result: old/);
-  assert.match(next, new RegExp(`${START}\\n### 概要\\n- remote merges pass commit title`));
+  assert.match(next, new RegExp(`${START_WITH_DIGEST}\\n### 概要\\n- remote merges pass commit title`));
   assert.match(next, /- bbbbbbb test: cover summary/);
   assert.match(next, /### 文档回写\n- keep/);
   assert.match(next, /### 语义审查\n- manual note/);
