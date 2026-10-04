@@ -303,4 +303,6 @@ qa.mergeEvidence.mode 默认 strict，可显式选择 fixed-commit。project 范
 
 验证映射：TC-CMDSURF-041 默认/非法配置；042 固定 SHA/严格判定分离；043 删除/缺失；044 逐记录指纹；045 换行环境；046 Codex 兼容。风险为门禁错误放宽，采用显式 opt-in、双 SHA 输入、重复来源最坏聚合和恶化/删除用例缓解。既有模块集合、索引、数据/部署视图及依赖不变；无未决架构缺口。
 
+补充修正：base 阻塞记录在 head 不再计为阻塞时，只有缺陷明确 Closed 且无待验收标注、NFR 为达标才视为闭环，降级严重度或改为条件通过均阻断；严格检查同样以 cwd 下配置的 qaModulesDir/nfrTrackingFile 读取证据；固定提交发布结论的 P1 按 Open/In Progress 分别统计，与严格模式一致。
+
 决策见 [ADR-036](../../adr/036-arch-fixed-commit-merge-evidence.md)。匿名 fetched checkout 的夹具提交声明 LF；仅命令级 autocrlf 设置无法约束另一个 checkout。

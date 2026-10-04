@@ -2,10 +2,12 @@
 
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { parseDefectContent, parseNFRCompliance, determineReleaseDecision } = require('./check-defect-blockers');
+const { moreBlockingStatus, parseDefectContent, parseNFRCompliance, determineReleaseDecision } = require('./check-defect-blockers');
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const rank = { compliant: 2, conditional: 1, nonCompliant: 0 };
 const digest = value => createHash('sha256').update(value).digest('hex');
+// Only an explicit closure resolves a blocker; a severity or classification downgrade does not.
+const isClosed = record => record.classification ? record.classification === 'compliant' : !record.open && !record.validationPending;
 
 function resolveMergeEvidenceConfig(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid qa.mergeEvidence configuration');
@@ -56,6 +58,7 @@ function readSnapshot(cwd, sha, options = {}) {
         defects.set(key, {
           key, bugId: item.bugId,
           severity: current && current.severity < item.severity ? current.severity : item.severity,
+          status: current ? moreBlockingStatus(current.status, item.status) : item.status,
           open: Boolean(current?.open || item.status !== 'Closed'),
           validationPending: Boolean(current?.validationPending || item.validationPending),
           sources: [...(current?.sources || []), source],
@@ -71,7 +74,9 @@ function readSnapshot(cwd, sha, options = {}) {
   const nonCompliantNFRs = allMetrics.filter(n => n.classification === 'nonCompliant');
   const conditionalNFRs = allMetrics.filter(n => n.classification === 'conditional');
   const globalDecision = determineReleaseDecision({
-    p0Defects, p0ValidationPending, p1Open: allDefects.filter(d => d.severity === 'P1' && d.open),
+    p0Defects, p0ValidationPending,
+    p1Open: allDefects.filter(d => d.severity === 'P1' && d.status === 'Open'),
+    p1InProgress: allDefects.filter(d => d.severity === 'P1' && d.status === 'In Progress'),
   }, { sourceAvailable: true, nonCompliantNFRs, conditionalNFRs });
   const records = new Map([...allDefects, ...allMetrics].map(item => [item.key, item]));
   const blockers = new Map([...p0Defects, ...p0ValidationPending, ...nonCompliantNFRs].map(item => [item.key, digest(JSON.stringify(item))]));
@@ -84,6 +89,7 @@ function checkMergeEvidence({ cwd, baseSha, headSha, config = {} }) {
   const blockers = base.files.filter(file => !head.files.includes(file)).map(file => 'Evidence removed: ' + file);
   for (const key of base.blockers.keys()) {
     if (!head.records.has(key)) blockers.push('Blocking record removed without closure: ' + key);
+    else if (!head.blockers.has(key) && !isClosed(head.records.get(key))) blockers.push('Blocking record downgraded without closure: ' + key);
   }
   const retained = [];
   for (const [key, fingerprint] of head.blockers) {

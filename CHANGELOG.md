@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 修复合并证据门禁：fixed-commit 下历史阻塞记录仅降级严重度或改为条件通过、未明确关闭/达标时阻断；严格模式（含 project）同样按 `qa.mergeEvidence.qaModulesDir`、`nfrTrackingFile` 读取证据；fixed-commit 发布结论的 P1 未修复/修复中统计与严格模式一致。
+
 - 合并证据保持默认严格，新增项目显式启用的 `qa.mergeEvidence.mode=fixed-commit`：从 QA 回执的固定 base/head Git 快照检查新增或变化的阻塞、证据删除与未闭环记录，并单独输出发布结论。逐记录语义指纹避免无关文档修改误阻断；证据路径可配置且非法输入 fail closed。模板同步/update 的 Git 测试夹具固定换行；既有 Codex 维护分支兼容只做回归，不增加或推荐新的分支命名。
 
 - 首次应用与后续更新息壤时自动补齐缺失的 `RULES.md`；已有文件（含空文件）保持原样，初始化后由项目维护。模板接入允许补齐缺失规则，创建后仍须完整预读再执行其他项目操作。

@@ -423,8 +423,9 @@ async function checkPrState(prNumber, { backend = getGitHubBackend() } = {}) {
  * release report is intentionally not written here (CLI entry still does).
  */
 function runPreMergeChecks({ checkers = defectBlockerCheckers, scope = 'project', config = {}, cwd = repoRoot, baseSha, headSha } = {}) {
+  let evidenceConfig;
   try {
-    const evidenceConfig = resolveMergeEvidenceConfig(config.qa?.mergeEvidence);
+    evidenceConfig = resolveMergeEvidenceConfig(config.qa?.mergeEvidence);
     if (scope === 'session' && evidenceConfig.mode === 'fixed-commit') {
       const result = checkMergeEvidence({ cwd, baseSha, headSha, config: evidenceConfig });
       console.log(`MERGE_EVIDENCE_MODE=fixed-commit RETAINED_BLOCKERS=${result.retained.length} RELEASE_GATE_PASS=${result.globalDecision.gatePass}`);
@@ -437,9 +438,12 @@ function runPreMergeChecks({ checkers = defectBlockerCheckers, scope = 'project'
     return false;
   }
   console.log('\x1b[36m运行发布门禁检查（in-process）...\x1b[0m');
-  const defects = checkers.parseDefects();
+  const defects = checkers.parseDefects({ qaModulesDir: path.join(cwd, evidenceConfig.qaModulesDir) });
   const analysis = checkers.analyzeDefects(defects);
-  const nfr = checkers.checkNFRCompliance();
+  const nfr = checkers.checkNFRCompliance({
+    qaModulesDir: path.join(cwd, evidenceConfig.qaModulesDir),
+    nfrTrackingPath: path.join(cwd, evidenceConfig.nfrTrackingFile),
+  });
 
   const decision = defectBlockerCheckers.determineReleaseDecision(analysis, nfr);
   for (const warning of decision.warningIssues) console.warn(warning);
