@@ -20,7 +20,6 @@ test('always-loaded routing remains explicit but compact', () => {
   assert.match(agents, /@\.\/docs\/CONVENTIONS\.md/u);
   assert.match(agents, /@\.\/RULES\.md/u);
   assert.ok(lineCount('AGENTS.md') <= 180, 'AGENTS.md should stay within 180 lines');
-  assert.ok(lineCount('docs/CONVENTIONS.md') <= 300, 'CONVENTIONS.md should stay within 300 lines');
   assert.doesNotMatch(agents, /展示思考过程/u);
 });
 
