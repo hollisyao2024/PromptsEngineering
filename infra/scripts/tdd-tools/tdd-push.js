@@ -13,6 +13,7 @@ const {
   loadProjectGitHubToken,
   sanitizeGitHubRemoteUrl,
 } = require('../shared/github-auth');
+const { createGitHubBackend, repoApiPath } = require('../shared/github-api');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -120,30 +121,65 @@ function isMainBranch(branch, baseBranch = 'main') {
   return branch === baseBranch;
 }
 
-function buildAutoCommitMessage(branch) {
-  const branchName = branch.trim();
-  const taskMatch = branchName.match(/^feature\/(TASK-[A-Z]+-\d+)(?:[-_](.+))?$/i);
+const BRANCH_TYPE_PREFIXES = {
+  feature: 'feat',
+  feat: 'feat',
+  fix: 'fix',
+  hotfix: 'fix',
+  bugfix: 'fix',
+  docs: 'docs',
+  doc: 'docs',
+  refactor: 'refactor',
+  test: 'test',
+  tests: 'test',
+  perf: 'perf',
+  build: 'build',
+  ci: 'ci',
+  style: 'style',
+  chore: 'chore',
+};
+
+function humanizeBranchPart(part) {
+  return part
+    .replace(/[-_]\d{8}$/, '')
+    .replace(/[-_/]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * 从分支名推导 Conventional Commits 主题：
+ * - feature/TASK-DOMAIN-NNN-desc → { type: feat, scope: domain, desc, taskId }
+ * - <prefix>/desc（feature/fix/docs/refactor/...）→ 对应类型，去掉末尾 8 位日期
+ * - 其他 → chore，描述取完整分支名
+ */
+function parseBranchSubject(branch) {
+  const branchName = String(branch || '').trim();
+  const taskMatch = branchName.match(/^feature\/(TASK-([A-Z]+)-\d+)(?:[-_](.+))?$/i);
   if (taskMatch) {
-    const taskId = taskMatch[1].toUpperCase();
-    const desc = taskMatch[2]
-      ? taskMatch[2].replace(/[-_]/g, ' ').trim()
-      : 'auto commit before /tdd push';
-    return `feat: ${desc} (${taskId})`;
+    return {
+      type: 'feat',
+      scope: taskMatch[2].toLowerCase(),
+      taskId: taskMatch[1].toUpperCase(),
+      desc: taskMatch[3] ? humanizeBranchPart(taskMatch[3]) : '',
+    };
   }
 
-  const featureMatch = branchName.match(/^feature\/(.+)$/);
-  if (featureMatch) {
-    const desc = featureMatch[1].replace(/[-_]/g, ' ').trim();
-    return `feat: ${desc}`;
+  const prefixMatch = branchName.match(/^([A-Za-z]+)\/(.+)$/);
+  const type = prefixMatch && BRANCH_TYPE_PREFIXES[prefixMatch[1].toLowerCase()];
+  if (type) {
+    return { type, scope: '', taskId: '', desc: humanizeBranchPart(prefixMatch[2]) };
   }
 
-  const fixMatch = branchName.match(/^fix\/(.+)$/);
-  if (fixMatch) {
-    const desc = fixMatch[1].replace(/[-_]/g, ' ').trim();
-    return `fix: ${desc}`;
-  }
+  return { type: 'chore', scope: '', taskId: '', desc: humanizeBranchPart(branchName) || 'detached head' };
+}
 
-  return `chore: auto-commit before /tdd push (${branchName || 'detached-head'})`;
+function buildAutoCommitMessage(branch) {
+  const subject = parseBranchSubject(branch);
+  if (subject.taskId) {
+    return `${subject.type}: ${subject.desc || subject.taskId} (${subject.taskId})`;
+  }
+  return `${subject.type}: ${subject.desc}`;
 }
 
 function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
@@ -185,17 +221,27 @@ function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
 }
 
 /**
- * 检查当前分支是否已有 PR
+ * 检查当前分支是否已有 open PR（gh 或 GitHub API）
  */
-function prAlreadyExists(branch) {
-  const result = runGh(['pr', 'list', '--head', branch, '--json', 'number,url']);
-  if (result.status !== 0) return null;
-  try {
-    const prs = JSON.parse(result.stdout);
-    return prs.length > 0 ? prs[0] : null;
-  } catch {
-    return null;
+async function findOpenPullRequest(branch, { backend, runGh: _runGh = runGh }) {
+  if (backend.mode === 'api') {
+    const head = encodeURIComponent(`${backend.owner}:${branch}`);
+    const prs = await backend.apiRequest(
+      'GET',
+      repoApiPath(backend, `/pulls?head=${head}&state=open&per_page=10`),
+      { token: backend.token }
+    );
+    if (!Array.isArray(prs) || prs.length === 0) return null;
+    return { number: prs[0].number, url: prs[0].html_url || prs[0].url || '', body: prs[0].body || '' };
   }
+
+  const args = ['pr', 'list', '--head', branch, '--state', 'open', '--json', 'number,url,body'];
+  const result = _runGh(args);
+  if (result.status !== 0) {
+    throw new Error(`查询当前分支 PR 失败：${(result.stderr || result.stdout || '').trim()}`);
+  }
+  const prs = JSON.parse(result.stdout || '[]');
+  return prs.length > 0 ? { number: prs[0].number, url: prs[0].url, body: prs[0].body || '' } : null;
 }
 
 function getReviewSection(reviewDecision) {
@@ -216,27 +262,19 @@ function mergeReviewSectionIntoBody(body, reviewDecision) {
   return `${body.trim()}\n\n${reviewSection}\n`;
 }
 
-function getPrBody(prNumber) {
-  const result = runGh(['pr', 'view', String(prNumber), '--json', 'body']);
+async function updatePrReviewSection(pr, reviewDecision, { backend, runGh: _runGh = runGh }) {
+  const nextBody = mergeReviewSectionIntoBody(pr.body || '', reviewDecision);
+  if (backend.mode === 'api') {
+    await backend.apiRequest('PATCH', repoApiPath(backend, `/pulls/${pr.number}`), {
+      token: backend.token,
+      body: { body: nextBody },
+    });
+    return;
+  }
+  const result = _runGh(['pr', 'edit', String(pr.number), '--body', nextBody]);
   if (result.status !== 0) {
-    return null;
+    throw new Error(`更新 PR #${pr.number} Review Gate 失败：${(result.stderr || '').trim()}`);
   }
-  try {
-    const parsed = JSON.parse(result.stdout);
-    return parsed.body || '';
-  } catch {
-    return null;
-  }
-}
-
-function updatePrReviewSection(prNumber, reviewDecision) {
-  const currentBody = getPrBody(prNumber);
-  if (currentBody == null) {
-    return false;
-  }
-  const nextBody = mergeReviewSectionIntoBody(currentBody, reviewDecision);
-  const result = runGh(['pr', 'edit', String(prNumber), '--body', nextBody]);
-  return result.status === 0;
 }
 
 function printReviewDecision(reviewDecision) {
@@ -260,40 +298,12 @@ function printReviewDecision(reviewDecision) {
 }
 
 /**
- * 从分支名生成 PR 标题
- * - feature/TASK-DOMAIN-NNN-desc → feat(domain): desc
- * - feature/TASK-DOMAIN-NNN      → feat(domain): TASK-DOMAIN-NNN
- * - feature/desc                  → feat: desc
- * - fix/desc                      → fix: desc
- * - fallback                      → chore: update from <branch>
+ * 从分支名生成 PR 标题；与自动提交共用 parseBranchSubject，任务分支带 scope。
  */
 function buildPrTitle(branch) {
-  // feature/TASK-DOMAIN-001 或 feature/TASK-DOMAIN-001-some-desc
-  const taskMatch = branch.match(/^feature\/(TASK-([A-Z]+)-\d+)(?:[-_](.+))?$/i);
-  if (taskMatch) {
-    const taskId = taskMatch[1];
-    const scope = taskMatch[2].toLowerCase();
-    const desc = taskMatch[3]
-      ? taskMatch[3].replace(/[-_]/g, ' ').trim()
-      : taskId;
-    return `feat(${scope}): ${desc}`;
-  }
-
-  // feature/some-desc
-  const featureMatch = branch.match(/^feature\/(.+)$/);
-  if (featureMatch) {
-    const desc = featureMatch[1].replace(/[-_]/g, ' ').trim();
-    return `feat: ${desc}`;
-  }
-
-  // fix/some-desc
-  const fixMatch = branch.match(/^fix\/(.+)$/);
-  if (fixMatch) {
-    const desc = fixMatch[1].replace(/[-_]/g, ' ').trim();
-    return `fix: ${desc}`;
-  }
-
-  return `chore: update from ${branch}`;
+  const subject = parseBranchSubject(branch);
+  const type = subject.scope ? `${subject.type}(${subject.scope})` : subject.type;
+  return `${type}: ${subject.desc || subject.taskId}`;
 }
 
 /**
@@ -321,42 +331,8 @@ function buildPrCreateArgs({ title, body, branch, baseBranch }) {
   ];
 }
 
-function createPullRequest(reviewDecision, baseBranch) {
-  const branch = getCurrentBranch();
-
-  // 主干分支不创建 PR
-  if (isMainBranch(branch, baseBranch)) {
-    console.log('\u001b[33m跳过 PR 创建：当前在主干分支。\u001b[0m');
-    return;
-  }
-
-  // 检查 gh CLI 是否可用
-  const ghCheck = spawnSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
-  if (ghCheck.status !== 0) {
-    const remoteUrl = getRemoteUrl();
-    if (remoteUrl) {
-      console.log(`\u001b[33m⚠ gh CLI 不可用，请手动创建 PR：${remoteUrl}/pull/new/${branch}\u001b[0m`);
-    }
-    return;
-  }
-
-  // 检查是否已有 PR
-  const existingPr = prAlreadyExists(branch);
-  if (existingPr) {
-    const reviewSectionUpdated = updatePrReviewSection(existingPr.number, reviewDecision);
-    console.log(`\u001b[32m✓ PR 已存在：${existingPr.url}\u001b[0m`);
-    if (!reviewSectionUpdated) {
-      console.log('\u001b[33m⚠ 未能更新现有 PR 的 Review Gate 记录，请手动同步以下信息到 PR 描述：\u001b[0m');
-      console.log(`\u001b[33m  Gate-Result: ${reviewDecision.gateResult}\u001b[0m`);
-      console.log(`\u001b[33m  Reason: ${reviewDecision.reason}\u001b[0m`);
-      console.log(`\u001b[33m  Base-Ref: ${reviewDecision.baseRef}\u001b[0m`);
-    }
-    return;
-  }
-
-  // 组装 PR 标题和正文
-  const title = buildPrTitle(branch);
-  const body = [
+function buildPrBody(title, reviewDecision) {
+  return [
     '### 概要',
     `- ${title}`,
     '',
@@ -368,32 +344,49 @@ function createPullRequest(reviewDecision, baseBranch) {
     '',
     getReviewSection(reviewDecision),
   ].join('\n');
+}
 
-  // 创建 PR（--head 显式指定分支，避免 upstream tracking 未设置时 gh 报错）
-  const result = runGh(buildPrCreateArgs({ title, body, branch, baseBranch }));
-
-  if (result.status === 0) {
-    const prUrl = (result.stdout || '').trim();
-    console.log(`\u001b[32m✓ PR 已创建：${prUrl}\u001b[0m`);
-  } else {
-    // 降级：输出手动创建链接
-    const remoteUrl = getRemoteUrl();
-    const errMsg = (result.stderr || '').trim();
-    console.log(`\u001b[33m⚠ PR 创建失败${errMsg ? `（${errMsg}）` : ''}。\u001b[0m`);
-    if (remoteUrl) {
-      console.log(`\u001b[33m  请手动创建：${remoteUrl}/pull/new/${branch}\u001b[0m`);
-    }
+/**
+ * 确保当前分支存在指向配置主干的 open PR：已存在则同步 Review Gate，否则创建。
+ * gh 不可用时使用 GH_TOKEN 走 GitHub API；任何失败都抛出，由调用方阻断。
+ */
+async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, runGh: _runGh = runGh }) {
+  const existing = await findOpenPullRequest(branch, { backend, runGh: _runGh });
+  if (existing) {
+    await updatePrReviewSection(existing, reviewDecision, { backend, runGh: _runGh });
+    return { status: 'existing', pr: { number: existing.number, url: existing.url } };
   }
+
+  const title = buildPrTitle(branch);
+  const body = buildPrBody(title, reviewDecision);
+
+  if (backend.mode === 'api') {
+    const created = await backend.apiRequest('POST', repoApiPath(backend, '/pulls'), {
+      token: backend.token,
+      body: { title, body, head: branch, base: baseBranch },
+    });
+    return { status: 'created', pr: { number: created.number, url: created.html_url || created.url || '' } };
+  }
+
+  // --head 显式指定分支，避免 upstream tracking 未设置时 gh 报错
+  const result = _runGh(buildPrCreateArgs({ title, body, branch, baseBranch }));
+  if (result.status !== 0) {
+    throw new Error(`gh pr create 失败：${(result.stderr || result.stdout || '').trim()}`);
+  }
+  const url = (result.stdout || '').trim().split('\n').pop();
+  const numberMatch = url.match(/\/pull\/(\d+)/);
+  return { status: 'created', pr: { number: numberMatch ? Number(numberMatch[1]) : null, url } };
 }
 
 // ==================== 主流程 ====================
 
-function main() {
+async function main() {
+  let branch = '';
   try {
     loadProjectGitHubToken({ repoRoot });
     const cliArgs = parseCliArgs(process.argv.slice(2));
     const scopeLabel = cliArgs.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
-    const branch = getCurrentBranch();
+    branch = getCurrentBranch();
     const mainRoot = getMainRepoRoot(repoRoot);
     const lifecycleConfig = loadConfig({ repoRoot: mainRoot });
     const baseBranch = lifecycleConfig.baseBranch || 'main';
@@ -426,30 +419,38 @@ function main() {
       return;
     }
 
+    // 推送前确定 GitHub 后端：gh 与 GH_TOKEN 都不可用时直接阻断，不留下无 PR 的推送
+    const backend = createGitHubBackend({ remoteUrl: getRemoteUrl() });
+    if (backend.mode === 'api') {
+      console.log('\x1b[33mgh CLI 不可用，已使用 .env.local 的 GH_TOKEN 走 GitHub API 创建/更新 PR\x1b[0m');
+    }
+
     pushBranch();
 
-    // 自动创建 PR（失败不阻断，push 已完成）
-    createPullRequest(reviewDecision, baseBranch);
+    const prResult = await ensurePullRequest({ branch, baseBranch, reviewDecision, backend });
+    console.log(`\u001b[32m✓ PR ${prResult.status === 'created' ? '已创建' : '已存在'}：${prResult.pr.url}\u001b[0m`);
     printReviewDecision(reviewDecision);
 
-    const currentPr = prAlreadyExists(branch);
-    if (currentPr) {
-      const mainRoot = getMainRepoRoot(repoRoot);
-      const config = loadConfig({ repoRoot: mainRoot });
-      writeSession(config, mainRoot, {
-        phase: 'tdd',
-        branch,
-        worktree: repoRoot,
-        status: 'in_progress',
-        step: 'pushed',
-        pr: `#${currentPr.number}`,
-        head: runGit(['rev-parse', 'HEAD'], { capture: true }).trim(),
-      });
-    }
+    writeSession(lifecycleConfig, mainRoot, {
+      phase: 'tdd',
+      branch,
+      worktree: repoRoot,
+      status: 'in_progress',
+      step: 'pushed',
+      pr: prResult.pr.number ? `#${prResult.pr.number}` : prResult.pr.url,
+      head: runGit(['rev-parse', 'HEAD'], { capture: true }).trim(),
+    });
 
     console.log(`\u001b[32m/tdd push 完成：代码已推送到远端。\u001b[0m`);
   } catch (error) {
     console.error(`\u001b[31m/tdd push 失败: ${error.message}\u001b[0m`);
+    const remoteUrl = getRemoteUrl();
+    console.log('STATUS=BLOCKED');
+    if (remoteUrl && branch) {
+      console.log(`NEXT_ACTION=修复上述原因后重新执行 pnpm agent -- tdd push（幂等），或手动创建 PR：${remoteUrl}/pull/new/${branch}`);
+    } else {
+      console.log('NEXT_ACTION=修复上述原因后重新执行 pnpm agent -- tdd push');
+    }
     process.exit(1);
   }
 }
@@ -461,6 +462,9 @@ if (require.main === module) {
 module.exports = {
   parseCliArgs,
   autoCommitWorkingTreeIfNeeded,
+  buildAutoCommitMessage,
   buildPrCreateArgs,
+  buildPrTitle,
+  ensurePullRequest,
   main,
 };
