@@ -38,22 +38,24 @@ test('team allowlist lets the stable agent lifecycle commands run without prompt
     'pnpm agent -- task finish --task demo',
     'pnpm agent -- task paths',
     'pnpm agent -- worktree new --phase=tdd --task demo',
-    'pnpm agent -- worktree bootstrap',
     'pnpm agent -- worktree list',
     'pnpm agent -- worktree resume --task demo',
     'pnpm agent -- tdd sync',
     'pnpm agent -- qa plan',
     'pnpm agent -- qa verify',
-    'pnpm agent -- finish',
   ]) {
     assert.ok(isAllowed(command), `should be allowed: ${command}`);
   }
 });
 
-test('team allowlist keeps remote, deploy, arbitrary-exec and destructive agent commands behind a prompt', () => {
+test('team allowlist keeps remote, merge-chaining, install, deploy, arbitrary-exec and destructive agent commands behind a prompt', () => {
   for (const command of [
     'pnpm agent -- tdd push',
     'pnpm agent -- qa merge',
+    // finish/tdd finish 按 guard 的 NEXT_COMMANDS 自动串联 push 与 merge；bootstrap 执行项目配置的依赖安装命令
+    'pnpm agent -- finish',
+    'pnpm agent -- tdd finish',
+    'pnpm agent -- worktree bootstrap',
     'pnpm agent -- task exec --task demo --name t -- git push origin main',
     'pnpm agent -- task cancel --task demo --force',
     'pnpm agent -- test --file a.test.js -- pnpm exec vitest run',
