@@ -4,53 +4,69 @@
 
 ## [Unreleased]
 
+## [v3.7.18] - 2026-10-04
+
+- 子进程被信号终止时 `pnpm agent`、`github-auth-run.js`、`tdd finish` 及 worktree/TDD 入口按 `128+信号号` 非零退出，不再把 `status=null` 当作成功；`pnpm agent` 只把 `--` 之前的 `-h`/`--help` 视为自身帮助，透传给下游运行器的参数不再被拦截。
+- 移除从未接入且依赖未分发钩子源的 `install-git-hooks.js` 与 `pre-commit`，模板迁移按基线删除未修改的旧安装器；需要提交前检查的项目改用 `agent.config.json` 的 `tdd.projectChecks` / `qa.projectChecks`，由 `tdd sync` 与 `qa verify` 强制执行，不受 `--no-verify` 绕过、无需逐机安装。
+- 删除源仓库残留的其他项目 GitHub workflow；根 `pnpm test` 纳入 `architecture/__tests__/*.test.mjs`，并以契约测试防止测试文件漏出聚合脚本；存储模块声明 ESM，消除 Node 模块类型重解析告警。
+- `docs/CONVENTIONS.md` 补全 `remove` 策略与 manifest 兼容写法说明；`[Unreleased]` 历史条目归档到实际发布版本，官方源 `tdd sync` 递增版本时同步把 `[Unreleased]` 条目移入对应版本标题。
+- `docs/data` 全局测试矩阵补齐 3.5–3.7 模块登记。
+
+## [v3.7.17] - 2026-10-04
+
 - `tdd push` 旧 PR 升级覆盖 3.7.14 生成的无标记正文（概要取提交要点、变更内容列 sha7）：与按分支提交重建的内容逐字一致时升级为带摘要标记的块，已修改或所列提交已不在分支上时保持原文。
+
+## [v3.7.16] - 2026-10-04
 
 - `tdd push` 自动概要起始标记记录内容摘要，人工修改过标记内文本时不再覆盖并给出提示；早期无标记但仍为自动格式（概要只有 PR 标题）的 PR 在再次推送时升级为带标记格式；工作区自动提交的正文逐条列出改动文件，概要不再只剩标题。修复 `git status --porcelain` 首行状态列被 trim 截断的问题。
 
+## [v3.7.15] - 2026-10-04
+
 - `tdd push` 自动生成的「概要」「变更内容」包在 `xirang:auto-summary` 标记内，已有 PR 再次推送时按当前分支提交刷新标记内文本，标记外手写内容与无标记的旧 PR 保持不变；`qa merge` 解析概要时忽略 HTML 注释行。修复 Review Gate 替换后吞掉下一章节前空行的问题。
+
+## [v3.7.14] - 2026-10-04
 
 - `tdd push` 新建 PR 时读取分支相对配置主干的提交：「概要」取提交正文中的 `-`/`*` 要点（无要点时取提交标题，无提交时回退为 PR 标题），「变更内容」列出短 SHA 与提交标题；分支只有一个 Conventional 提交时直接用其标题作 PR 标题。`qa merge` 以概要作为 squash 提交正文，合并记录不再只有一行。
 
+## [v3.7.13] - 2026-10-04
+
 - `qa merge` 的远端 squash 合并（gh CLI 与 GitHub API）与本地降级使用同一提交格式：标题为 `PR 标题 (#编号)`，正文为 PR「概要」段，不再落入 GitHub 默认的逐提交列表。
+
+## [v3.7.12] - 2026-10-04
 
 - `qa merge` 摘要的「策略」按实际合并后端显示：gh CLI 为 `gh pr merge --squash`，GH_TOKEN 走 GitHub API 时为 `GitHub API squash merge`，降级时为 `本地 git merge --squash`；本地 squash 提交信息不再硬编码 `Co-Authored-By: Claude Opus 4.6`，模板对 Codex 与 Claude 等执行器保持中立。
 
+## [v3.7.11] - 2026-10-04
+
 - `tdd push` 在本机缺少 gh CLI 时改用 `.env.local` 的 `GH_TOKEN` 走 GitHub API 创建 PR（base 为配置主干）或同步已有 PR 的 Review Gate，与 `qa merge` 共用 `infra/scripts/shared/github-api.js`；gh 与 GH_TOKEN 都不可用或 PR 创建失败时输出 `STATUS=BLOCKED` 并非零退出，不再只打印手动链接后静默成功。自动提交信息与 PR 标题按分支前缀（feature/fix/docs/refactor/test 等）生成 Conventional 类型并去掉末尾日期，不再出现 `chore: auto-commit before /tdd push`。
+
+## [v3.7.10] - 2026-10-04
 
 - 修复合并证据门禁：fixed-commit 下历史阻塞记录仅降级严重度或改为条件通过、未明确关闭/达标时阻断；严格模式（含 project）同样按 `qa.mergeEvidence.qaModulesDir`、`nfrTrackingFile` 读取证据；fixed-commit 发布结论的 P1 未修复/修复中统计与严格模式一致。
 
+## [v3.7.9] - 2026-10-04
+
 - 合并证据保持默认严格，新增项目显式启用的 `qa.mergeEvidence.mode=fixed-commit`：从 QA 回执的固定 base/head Git 快照检查新增或变化的阻塞、证据删除与未闭环记录，并单独输出发布结论。逐记录语义指纹避免无关文档修改误阻断；证据路径可配置且非法输入 fail closed。模板同步/update 的 Git 测试夹具固定换行；既有 Codex 维护分支兼容只做回归，不增加或推荐新的分支命名。
 
+## [v3.7.1] - 2026-10-01
+
 - 首次应用与后续更新息壤时自动补齐缺失的 `RULES.md`；已有文件（含空文件）保持原样，初始化后由项目维护。模板接入允许补齐缺失规则，创建后仍须完整预读再执行其他项目操作。
-
-- 模板从 linked worktree 更新实际项目时，六个环境文件检查与缺失补建以目标项目主 `repo` 根目录为准；已有内容保持不变，实际文件从主 repo 对应 example 初始化，dry-run 不写入并报告目标路径。
-
-- 测试范围默认按影响定向选择；全量仅在四类有证据的条件下升级。TDD 执行前记录结构化决策，QA 复核并复用有效结果；实际项目 `qa verify` 在签发 SHA 回执前校验证据与当前提交，纯文档任务可只提交静态/契约检查结果。
-
-- 移除 Codex 侧无效的 `SessionStart` `GH_TOKEN` 环境注入钩子。Codex 不提供 `CLAUDE_ENV_FILE`，且 Hook 输出不能修改父进程环境；模板迁移会显式删除旧 `.codex/hooks.json`，Windows/macOS/Linux 的远端 GitHub 操作统一使用跨平台 Node 鉴权入口读取 `.env.local`。
-
-- 修复阶段交接导致已授权任务停顿：PRD→ARCH→TASK→TDD→QA 默认刷新胶囊后连续推进，转换、恢复和胶囊统一输出自动续跑状态及精确 task ID 恢复命令。确需换执行器时先确认接管，宿主无交接能力且预算允许时在当前任务继续；保留未知副作用、真实阻塞、QA 和 completion guard，并增加跨进程完整阶段与中断恢复回归。
-
-- 修正 `3.6.0` 迁移清单遗漏，显式删除状态模板和 `agent-state-utils` 实现及旧测试，确保旧消费者同步后不会残留已废弃入口。
-
-- 缺少 lock 的旧消费者可显式指定 `--legacy-baseline <ref>`，按固定 Git 提交迁移未改动的模板 overwrite 文件；保留漂移阻断、项目所有权和已有 lock 优先。增加真实安装副本的模板边界回归，确认不依赖完整架构源码。
-
-- 修复 Windows 匿名 Git 环境使用 Node 扩展空设备路径导致配置读取失败；改用 Git 可识别的 `NUL`，保留凭据隔离、禁止认证重试与 HTTPS 限制，并增加真实 Git 配置回归。
-
-- 修正 TDD 手册仍默认落盘核查产物和任务帮助把工作类型称为只读类型的残留指引；通用约定直接提供跨执行器失败恢复协议，记录不可用时继续独立只读工作，保留修改与授权门禁。
-
-- 允许开发 worktree 保留本地未提交内容并合并已验证提交；增加 `tdd push --committed-only`，合并后保留未提交内容并单独报告清理状态。
-
-- 单会话只读核查不再因步骤数量强制创建或恢复任务记录；六阶段统一引用持久化触发规则，修改和需恢复的副作用仍保留任务门禁。
-- 新增只读 `pnpm agent -- task paths [--task <id>]`，列出主项目、任务状态与锁目录，明确路径解析不等于权限授权；更新容器可写范围与策略拒绝说明，记录不可用时继续获准的独立只读检查。
-- 任务 checkpoint 增加普通工具故障、策略拒绝、未知结果的结构化证据和只追加恢复历史；未知执行结果先核验，恢复必须提供依据，不自动重试或修改平台权限。
-- 明确任务记录自身不可用时的最小证据协议、生命周期操作拆分和恢复边界，纠正 Codex never 等于所有命令放行的说明。
 
 ## [v3.7.0] - 2026-10-01
 
 - 增加 Drizzle ORM/Kit 稳定组合，补齐任务 API、身份权限、文件 CAS、pg-boss 同库事务与原生迁移检查；Prisma 扩展 PostgreSQL、MySQL/MariaDB、SQLite。独立 schema、历史和驱动禁止自动转换，保留项目定制与旧 SQL。
 - 官方源交付同步自动递增整体/独立架构版本，保留更高显式版本且重复同步幂等；整体模板与 Agent 发布清单同步为 `3.7.0`，独立架构能力包为 `3.5.0`；数据库差异、目录、原生迁移与验证限制见架构文档。
+- 模板从 linked worktree 更新实际项目时，六个环境文件检查与缺失补建以目标项目主 `repo` 根目录为准；已有内容保持不变，实际文件从主 repo 对应 example 初始化，dry-run 不写入并报告目标路径。
+
+## [v3.6.2] - 2026-09-28
+
+- 测试范围默认按影响定向选择；全量仅在四类有证据的条件下升级。TDD 执行前记录结构化决策，QA 复核并复用有效结果；实际项目 `qa verify` 在签发 SHA 回执前校验证据与当前提交，纯文档任务可只提交静态/契约检查结果。
+- 移除 Codex 侧无效的 `SessionStart` `GH_TOKEN` 环境注入钩子。Codex 不提供 `CLAUDE_ENV_FILE`，且 Hook 输出不能修改父进程环境；模板迁移会显式删除旧 `.codex/hooks.json`，Windows/macOS/Linux 的远端 GitHub 操作统一使用跨平台 Node 鉴权入口读取 `.env.local`。
+- 修复阶段交接导致已授权任务停顿：PRD→ARCH→TASK→TDD→QA 默认刷新胶囊后连续推进，转换、恢复和胶囊统一输出自动续跑状态及精确 task ID 恢复命令。确需换执行器时先确认接管，宿主无交接能力且预算允许时在当前任务继续；保留未知副作用、真实阻塞、QA 和 completion guard，并增加跨进程完整阶段与中断恢复回归。
+
+## [v3.6.1] - 2026-09-24
+
+- 修正 `3.6.0` 迁移清单遗漏，显式删除状态模板和 `agent-state-utils` 实现及旧测试，确保旧消费者同步后不会残留已废弃入口。
 
 ## [v3.6.0] - 2026-09-24
 
@@ -70,6 +86,17 @@
 - `task transition` 增加 `CONTEXT_HANDOFF_REQUIRED` 与 `CONTEXT_COMMAND`，要求阶段边界在新执行上下文中继续。
 - AGENTS、CONVENTIONS、阶段专家和 Codex 配置示例增加 180k 工作阈值、70% 缓存门禁、默认 4k 工具输出和约 8KB 长命令摘要预算。
 - TDD/QA 改为使用任务胶囊和模块点读，不再要求全文加载 `docs/AGENT_STATE.md` 或大型阶段文档。
+
+### 任务记录与 worktree 交付
+
+- 缺少 lock 的旧消费者可显式指定 `--legacy-baseline <ref>`，按固定 Git 提交迁移未改动的模板 overwrite 文件；保留漂移阻断、项目所有权和已有 lock 优先。增加真实安装副本的模板边界回归，确认不依赖完整架构源码。
+- 修复 Windows 匿名 Git 环境使用 Node 扩展空设备路径导致配置读取失败；改用 Git 可识别的 `NUL`，保留凭据隔离、禁止认证重试与 HTTPS 限制，并增加真实 Git 配置回归。
+- 修正 TDD 手册仍默认落盘核查产物和任务帮助把工作类型称为只读类型的残留指引；通用约定直接提供跨执行器失败恢复协议，记录不可用时继续独立只读工作，保留修改与授权门禁。
+- 允许开发 worktree 保留本地未提交内容并合并已验证提交；增加 `tdd push --committed-only`，合并后保留未提交内容并单独报告清理状态。
+- 单会话只读核查不再因步骤数量强制创建或恢复任务记录；六阶段统一引用持久化触发规则，修改和需恢复的副作用仍保留任务门禁。
+- 新增只读 `pnpm agent -- task paths [--task <id>]`，列出主项目、任务状态与锁目录，明确路径解析不等于权限授权；更新容器可写范围与策略拒绝说明，记录不可用时继续获准的独立只读检查。
+- 任务 checkpoint 增加普通工具故障、策略拒绝、未知结果的结构化证据和只追加恢复历史；未知执行结果先核验，恢复必须提供依据，不自动重试或修改平台权限。
+- 明确任务记录自身不可用时的最小证据协议、生命周期操作拆分和恢复边界，纠正 Codex never 等于所有命令放行的说明。
 
 ## [v3.4.3] - 2026-09-11
 

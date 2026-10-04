@@ -10,6 +10,7 @@
 const { spawnSync } = require('child_process');
 const { resolveRepoRoot } = require('./config');
 const { buildGitHubShellEnv } = require('./github-auth');
+const { spawnExitCode } = require('./spawn-exit');
 
 function parseCommand(argv) {
   const separatorIndex = argv.indexOf('--');
@@ -37,7 +38,7 @@ function main() {
     console.error(`STATUS=BLOCKED\nREASON=${result.error.message}`);
     process.exit(1);
   }
-  process.exit(result.status || 0);
+  process.exit(spawnExitCode(result));
 }
 
 main();

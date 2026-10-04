@@ -28,3 +28,10 @@ test('TC-STORAGE-004/005/007 interrupted completion requires an expired lease, C
  assert.throws(()=>runStorageExtension(provider,'image.resize',{}),e=>e.code==='UNSUPPORTED');const extension={...provider,capabilities:{...provider.capabilities,extensions:['image.resize']},extension:async(name,input)=>({name,input})};assert.deepEqual(await runStorageExtension(extension,'image.resize',{width:10}),{name:'image.resize',input:{width:10}});assert.throws(()=>runStorageExtension(extension,'image.resize','x'.repeat(70000)),e=>e.code==='INVALID_INPUT');
  now+=1000000;const expired=await service.createUpload('alice',{name:'expiry',size:0,contentType:'text/plain'});now+=1000000;await assert.rejects(service.complete('alice',expired.file.id),e=>e.code==='EXPIRED');await service.cancel('alice',expired.file.id);
 });
+test('TC-STORAGE-002 storage source module loads as declared ESM without module-type reparsing',()=>{
+  const {spawnSync}=require('node:child_process'),path=require('node:path');
+  const entry=path.join(__dirname,'../modules/storage/node/src/index.ts');
+  const result=spawnSync(process.execPath,['--input-type=module','-e',`await import(${JSON.stringify('file://'+entry)})`],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(result.stderr,/MODULE_TYPELESS_PACKAGE_JSON/);
+});

@@ -55,3 +55,13 @@ test('shouldSwitchToMainAfter only triggers after qa merge', () => {
   assert.equal(shouldSwitchToMainAfter('node infra/scripts/qa-tools/qa-merge.js'), true);
   assert.equal(shouldSwitchToMainAfter('node infra/scripts/tdd-tools/tdd-push.js'), false);
 });
+
+test('runCommands stops when a finish step is killed by a signal', () => {
+  const { runCommands } = require('../tdd-finish');
+  const executed = [];
+  const code = runCommands(['node a.js', 'node b.js'], {
+    run: (command) => { executed.push(command); return { status: null, signal: 'SIGKILL' }; },
+  });
+  assert.notEqual(code, 0);
+  assert.deepEqual(executed, ['node a.js']);
+});

@@ -2,6 +2,7 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { spawnExitCode } = require('../shared/spawn-exit');
 
 const ROUTES = new Map([
   ['run', 'infra/scripts/agent-runner/agent-run.js'],
@@ -32,6 +33,18 @@ const DEVOPS_RUNNER = 'infra/scripts/devops-tools/devops-run.js';
 
 function normalizeArgv(argv) {
   return argv[0] === '--' ? argv.slice(1) : argv;
+}
+
+// Flags after the forwarded-command separator belong to the wrapped command, not this CLI.
+function isHelpRequest(args) {
+  if (args.length === 0) return true;
+  const separator = args.indexOf('--');
+  const own = separator === -1 ? args : args.slice(0, separator);
+  return own.includes('--help') || own.includes('-h');
+}
+
+function exitCodeFor(result) {
+  return spawnExitCode(result);
 }
 
 function appRoute(action, rest, target = '') {
@@ -125,7 +138,7 @@ Existing package aliases remain compatible for migrated projects.`);
 
 function main(argv = process.argv.slice(2)) {
   const args = normalizeArgv(argv);
-  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+  if (isHelpRequest(args)) {
     printHelp();
     return 0;
   }
@@ -136,7 +149,7 @@ function main(argv = process.argv.slice(2)) {
     stdio: 'inherit',
   });
   if (result.error) throw result.error;
-  return result.status || 0;
+  return exitCodeFor(result);
 }
 
 if (require.main === module) {
@@ -149,4 +162,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, resolveCommand };
+module.exports = { exitCodeFor, isHelpRequest, main, resolveCommand };

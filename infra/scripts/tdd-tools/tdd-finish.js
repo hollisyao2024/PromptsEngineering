@@ -3,6 +3,7 @@
 
 const { spawnSync } = require('child_process');
 const { getMainRepoRoot, resolveRepoRoot } = require('../shared/config');
+const { spawnExitCode } = require('../shared/spawn-exit');
 
 const KNOWN_COMMANDS = new Map([
   ['node infra/scripts/tdd-tools/tdd-sync.js', 'infra/scripts/tdd-tools/tdd-sync.js'],
@@ -130,13 +131,26 @@ function runGuard(cwd, options = {}) {
     if (stderr.trim()) process.stderr.write(stderr);
   }
   return {
-    exitCode: result.status || 0,
+    exitCode: spawnExitCode(result),
     ...parseGuardOutput(`${stdout}\n${stderr}`),
   };
 }
 
 function shouldSwitchToMainAfter(command) {
   return command === 'node infra/scripts/qa-tools/qa-merge.js';
+}
+
+function runCommands(commands, { run, onSuccess = () => {} }) {
+  for (const command of commands) {
+    console.log(`tdd:finish running: ${command}`);
+    const code = spawnExitCode(run(command));
+    if (code !== 0) {
+      console.error(`tdd:finish failed while running: ${command}`);
+      return code;
+    }
+    onSuccess(command);
+  }
+  return 0;
 }
 
 function finish({ repoRoot, mainRepoRoot, options }) {
@@ -162,18 +176,13 @@ function finish({ repoRoot, mainRepoRoot, options }) {
       return 0;
     }
 
-    for (const command of guard.nextCommands) {
-      const args = commandArgs(command, options);
-      console.log(`tdd:finish running: ${command}`);
-      const result = runNode(args, cwd);
-      if ((result.status || 0) !== 0) {
-        console.error(`tdd:finish failed while running: ${command}`);
-        return result.status || 1;
-      }
-      if (shouldSwitchToMainAfter(command)) {
-        cwd = mainRepoRoot;
-      }
-    }
+    const code = runCommands(guard.nextCommands, {
+      run: (command) => runNode(commandArgs(command, options), cwd),
+      onSuccess: (command) => {
+        if (shouldSwitchToMainAfter(command)) cwd = mainRepoRoot;
+      },
+    });
+    if (code !== 0) return code;
   }
 
   const guard = runGuard(cwd);
@@ -206,5 +215,6 @@ module.exports = {
   finish,
   parseArgs,
   parseGuardOutput,
+  runCommands,
   shouldSwitchToMainAfter,
 };
