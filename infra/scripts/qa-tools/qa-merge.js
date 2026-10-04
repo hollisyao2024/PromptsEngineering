@@ -4,8 +4,8 @@
  * /qa merge — 合并当前分支的 PR 到 main
  *
  * 双策略自动降级：
- *   策略 A: gh pr merge --squash --delete-branch（需 token 有 merge 权限）
- *   策略 B: 本地 git merge --squash + push + gh pr close（权限不足时自动降级）
+ *   策略 A: 远端 squash merge（有 gh 时用 gh pr merge，否则用 GH_TOKEN 调 GitHub API）
+ *   策略 B: 本地 git merge --squash + push + 关闭 PR（远端合并失败时自动降级）
  *
  * 用法：
  *   pnpm run qa:merge                  # 默认 session 模式（合并当前分支对应 PR）
@@ -427,9 +427,18 @@ function buildCommitMessage(pr) {
 
   const parts = [header];
   if (summary) parts.push('', summary);
-  parts.push('', 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>');
 
   return parts.join('\n');
+}
+
+function resolveRemoteMergeStrategy(backend) {
+  return backend && backend.mode === 'api' ? 'api' : 'gh';
+}
+
+function formatMergeStrategyLabel(strategy) {
+  if (strategy === 'gh') return 'gh pr merge --squash';
+  if (strategy === 'api') return 'GitHub API squash merge';
+  return '本地 git merge --squash';
 }
 
 function buildGhMergeArgs(prNumber, expectedHeadSha) {
@@ -1469,7 +1478,7 @@ function printSummary(
   }
 
   console.log(
-    `  策略:   ${strategy === 'gh' ? 'gh pr merge --squash' : '本地 git merge --squash'}`
+    `  策略:   ${formatMergeStrategyLabel(strategy)}`
   );
   console.log(`  提交:   ${commitHash}`);
   console.log('MERGE_STATUS=MERGED');
@@ -1656,14 +1665,14 @@ async function main() {
       || await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha });
 
     if (ghMerged) {
-      strategy = 'gh';
+      strategy = resolveRemoteMergeStrategy(getGitHubBackend());
       syncMainAfterMerge();
     } else {
       // 防竞态：gh 可能超时但实际已完成合并
       const prState = await checkPrState(pr.number);
       if (prState === 'MERGED') {
-        console.log('\x1b[32m  检测到 PR 已被合并（gh 超时但操作成功）\x1b[0m');
-        strategy = 'gh';
+        console.log('\x1b[32m  检测到 PR 已被合并（远端合并超时但操作成功）\x1b[0m');
+        strategy = resolveRemoteMergeStrategy(getGitHubBackend());
         syncMainAfterMerge();
       } else {
         const fallbackRefs = fetchRemoteRefs(baseBranch, currentBranch, { cwd: repoRoot });
@@ -1868,6 +1877,7 @@ if (require.main === module) {
 module.exports = {
   checkMergeWorktrees,
   buildBasePushArgs,
+  buildCommitMessage,
   buildFeatureDeleteArgs,
   buildGhMergeArgs,
   deleteRemoteFeatureBranch,
@@ -1881,6 +1891,7 @@ module.exports = {
   syncLocalMain,
   verifyRemoteBase,
   formatGhError,
+  formatMergeStrategyLabel,
   printSummary,
   // B1-B6 surface for unit tests:
   shouldSwitchVscodeWindow,
@@ -1896,6 +1907,7 @@ module.exports = {
   normalizePullRequest,
   parseGitHubRepoSlug,
   repoApiPath,
+  resolveRemoteMergeStrategy,
   tryGhMerge,
   cleanupWorktree,
   cleanupOrphanWorktreeDirs,
