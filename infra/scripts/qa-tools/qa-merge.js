@@ -40,6 +40,7 @@ const {
 const defectBlockerCheckers = require('./check-defect-blockers');
 const { checkMergeEvidence, resolveMergeEvidenceConfig } = require('./merge-evidence');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
+const { exitOnHelp } = require('../shared/cli-help');
 const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
@@ -1881,6 +1882,7 @@ async function main() {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- qa merge [--project | --scope <session|project>] [--skip-checks] [--dry-run]\n\nRe-verify the QA receipt and squash-merge the verified commit into the base branch.');
   main().catch((err) => {
     console.error(`\x1b[31m/qa merge 失败: ${err.message}\x1b[0m`);
     process.exit(1);

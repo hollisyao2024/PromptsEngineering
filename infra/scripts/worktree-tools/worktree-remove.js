@@ -12,6 +12,7 @@ const {
   resolveContainerPath,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 function main() {
   try {
@@ -54,4 +55,5 @@ function main() {
   }
 }
 
+exitOnHelp('Usage: pnpm agent -- worktree remove <branch|path>\n\nSafely remove a managed worktree after lifecycle checks.');
 main();

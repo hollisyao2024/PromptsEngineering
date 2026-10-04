@@ -109,6 +109,7 @@ function createUpstream(testRoot, options = {}) {
     for (const relativePath of [
       'infra/scripts/setup/template-apply-engine.js',
       'infra/scripts/setup/update-template.js',
+      'infra/scripts/shared/cli-help.js',
       'infra/scripts/shared/config.js',
       'tooling/xirang/target.js',
       'tooling/xirang/engine.js',

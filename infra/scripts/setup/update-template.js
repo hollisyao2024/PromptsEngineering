@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { exitOnHelp } = require('../shared/cli-help');
 const {
   getMainRepoRoot,
   loadConfig,
@@ -611,6 +612,7 @@ function main() {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- template update <target> [--plan | --write] [--legacy-baseline <ref>]\n\nApply this template to a target project (dry-run first).');
   try {
     main();
   } catch (error) {

@@ -7,6 +7,7 @@ const {
   runWorktreeBootstrap,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 function main() {
   try {
@@ -44,4 +45,5 @@ function main() {
   }
 }
 
+exitOnHelp('Usage: pnpm agent -- worktree bootstrap\n\nInstall dependencies for the current worktree.');
 main();

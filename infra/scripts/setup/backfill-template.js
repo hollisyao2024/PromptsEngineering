@@ -13,6 +13,7 @@ const {
   loadConfig,
   resolveRepoRoot,
 } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -426,6 +427,7 @@ function main() {
   console.log('VALIDATION_JSON=OK');
 }
 
+exitOnHelp('Usage: pnpm agent -- template backfill <source>\n\nBackfill template-owned changes from a project into this template source.');
 try {
   main();
 } catch (error) {

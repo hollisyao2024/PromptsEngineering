@@ -31,6 +31,7 @@ const {
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
 const { verifyTestScopeEvidence } = require('./qa-test-scope');
+const { exitOnHelp } = require('../shared/cli-help');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
@@ -652,6 +653,7 @@ function main() {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name>]\n\nRun QA verification and write the local base/head SHA receipt.');
   try {
     main();
   } catch (error) {

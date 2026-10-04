@@ -19,6 +19,7 @@ const {
   parseCliArgs,
 } = require('../shared/config');
 const { buildGitHubShellEnv } = require('../shared/github-auth');
+const { exitOnHelp } = require('../shared/cli-help');
 
 const ENV_ALIASES = {
   dev: 'dev',
@@ -390,7 +391,10 @@ function main() {
   console.log('STATUS=OK');
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- dev|app|build|ship|private ...\n\nRun a configured devops command (see docs/CONVENTIONS.md §7).');
+  main();
+}
 
 module.exports = {
   collectPositionals,

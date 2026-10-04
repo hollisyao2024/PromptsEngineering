@@ -4,13 +4,18 @@
 
 ## [Unreleased]
 
-## [v3.7.18] - 2026-10-04
+## [v3.7.19] - 2026-10-04
 
 - 子进程被信号终止时 `pnpm agent`、`github-auth-run.js`、`tdd finish` 及 worktree/TDD 入口按 `128+信号号` 非零退出，不再把 `status=null` 当作成功；`pnpm agent` 只把 `--` 之前的 `-h`/`--help` 视为自身帮助，透传给下游运行器的参数不再被拦截。
+- `tdd push`、`qa plan|verify|merge`、`worktree remove|cancel|resume|bootstrap`、`template sync|update|backfill`、devops 运行器等有副作用的入口被直接调用时，`--` 之前的 `-h`/`--help` 只打印用法并退出，不再被当作普通参数继续提交、推送、合并或改写文件。
 - 移除从未接入且依赖未分发钩子源的 `install-git-hooks.js` 与 `pre-commit`，模板迁移按基线删除未修改的旧安装器；需要提交前检查的项目改用 `agent.config.json` 的 `tdd.projectChecks` / `qa.projectChecks`，由 `tdd sync` 与 `qa verify` 强制执行，不受 `--no-verify` 绕过、无需逐机安装。
 - 删除源仓库残留的其他项目 GitHub workflow；根 `pnpm test` 纳入 `architecture/__tests__/*.test.mjs`，并以契约测试防止测试文件漏出聚合脚本；存储模块声明 ESM，消除 Node 模块类型重解析告警。
 - `docs/CONVENTIONS.md` 补全 `remove` 策略与 manifest 兼容写法说明；`[Unreleased]` 历史条目归档到实际发布版本，官方源 `tdd sync` 递增版本时同步把 `[Unreleased]` 条目移入对应版本标题。
 - `docs/data` 全局测试矩阵补齐 3.5–3.7 模块登记。
+
+## [v3.7.18] - 2026-10-04
+
+- PRD ↔ ARCH 追溯检查扫描 `docs/prd-modules/<domain>/` 下全部直接子级 Markdown 文档（含拆分规格），不再只读取模块 `PRD.md`；仅正式需求标题中的编号计为定义。
 
 ## [v3.7.17] - 2026-10-04
 

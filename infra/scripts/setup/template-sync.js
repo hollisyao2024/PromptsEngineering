@@ -20,6 +20,7 @@ const {
 } = require('../shared/config');
 const { buildGitHubGitEnv, sanitizeGitHubRemoteUrl } = require('../shared/github-auth');
 const { safeRemoveTreeNoFollow } = require('../worktree-tools/worktree-safe-remove');
+const { exitOnHelp } = require('../shared/cli-help');
 
 const EXPECTED_IDENTITY = Object.freeze({
   id: 'xirang',
@@ -498,6 +499,7 @@ function main(argv = process.argv.slice(2)) {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- template sync [--scope agent] [--include architecture] [--legacy-baseline <ref>]\n\nFetch the official Xirang source anonymously and apply it to this project worktree.');
   try {
     process.exitCode = main();
   } catch (error) {

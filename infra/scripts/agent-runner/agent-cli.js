@@ -2,6 +2,7 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { isHelpRequest: isOwnHelpRequest } = require('../shared/cli-help');
 const { spawnExitCode } = require('../shared/spawn-exit');
 
 const ROUTES = new Map([
@@ -37,10 +38,7 @@ function normalizeArgv(argv) {
 
 // Flags after the forwarded-command separator belong to the wrapped command, not this CLI.
 function isHelpRequest(args) {
-  if (args.length === 0) return true;
-  const separator = args.indexOf('--');
-  const own = separator === -1 ? args : args.slice(0, separator);
-  return own.includes('--help') || own.includes('-h');
+  return args.length === 0 || isOwnHelpRequest(args);
 }
 
 function exitCodeFor(result) {

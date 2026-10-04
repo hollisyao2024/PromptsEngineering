@@ -15,6 +15,7 @@ const {
   sanitizeGitHubRemoteUrl,
 } = require('../shared/github-auth');
 const { createGitHubBackend, repoApiPath } = require('../shared/github-api');
+const { exitOnHelp } = require('../shared/cli-help');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -636,6 +637,7 @@ async function main() {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- tdd push [--project | --scope <session|project>] [--committed-only]\n\nCommit pending changes (unless --committed-only), push the branch and create or update its PR.');
   main();
 }
 
