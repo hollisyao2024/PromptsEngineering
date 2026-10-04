@@ -305,6 +305,63 @@ test('failure recovery protocol lives in AGENTS.md and is not duplicated in conv
   assert.doesNotMatch(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
 });
 
+function conventionsSection(heading, nextHeading) {
+  const text = read('docs/CONVENTIONS.md');
+  const start = text.indexOf(`\n## ${heading}`);
+  const end = text.indexOf(`\n## ${nextHeading}`, start + 1);
+  assert.ok(start >= 0 && end > start, `conventions section ${heading}`);
+  return text.slice(start, end);
+}
+
+test('conventions test-scope section keeps the contract that experts reference by name', () => {
+  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  assert.match(section, /^### 测试范围与证据复用$/mu);
+  assert.match(section, /\| 变更影响 \| 必需验证 \|/u);
+  for (const trigger of ['explicit_requirement', 'whole_scope_impact', 'unbounded_after_investigation', 'cross_domain_failure']) {
+    assert.ok(section.includes(trigger), trigger);
+  }
+  for (const field of ['TEST_SCOPE_DECISION', 'TEST_SCOPE_RESULT', 'tdd.projectChecks']) {
+    assert.ok(section.includes(field), field);
+  }
+  for (const expert of ['AgentRoles/TDD-PROGRAMMING-EXPERT.md', 'AgentRoles/QA-TESTING-EXPERT.md']) {
+    assert.ok(read(expert).includes('测试范围与证据复用'), expert);
+  }
+});
+
+test('delivery pipeline, schema and review rules live with their owners instead of conventions section 8', () => {
+  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  for (const removed of [
+    /修改任务固定执行/u,
+    /数据库 schema 变更必须同一交付/u,
+    /使用显式运行时迁移注册表/u,
+    /审查高风险域/u,
+    /整体 `package\.json`/u,
+  ]) {
+    assert.doesNotMatch(section, removed);
+  }
+  assert.match(section, /官方息壤源.*`tdd sync`.*自动递增.*source-version-sync\.js/u);
+
+  const owners = {
+    'AGENTS.md': ['pnpm agent -- tdd sync', 'tdd push --committed-only', 'config.baseBranch', 'CLEANUP_STATUS=PRESERVED', '高风险改动包括'],
+    'AgentRoles/TDD-PROGRAMMING-EXPERT.md': ['tdd.schemaGate.semantic', 'tdd.migrationRegistry.registryFile', 'docs/data/dictionary.md', 'Review-Class: REQUIRED'],
+  };
+  // 架构源标准只在息壤源仓库存在，下游项目中该文件可能缺席。
+  if (fs.existsSync(path.join(ROOT, 'architecture/standards/data.md'))) {
+    owners['architecture/standards/data.md'] = ['-- xirang:hard-delete', 'tdd.schemaGate.semantic'];
+  }
+  for (const [file, needles] of Object.entries(owners)) {
+    const text = read(file);
+    for (const needle of needles) {
+      assert.ok(text.includes(needle), `${file} keeps ${needle}`);
+    }
+  }
+});
+
+test('qa receipt scope stays with the receipt definition in conventions section 5', () => {
+  const section = conventionsSection('5. Worktree 生命周期', '6. ');
+  assert.match(section, /回执不跨电脑共享.*重新执行 `qa verify`/u);
+});
+
 test('TDD read-only flow does not require writing diagnostic artifacts', () => {
   const handbook = read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md');
   assert.doesNotMatch(handbook, /只读排查[^\n]*产物写容器/u);
