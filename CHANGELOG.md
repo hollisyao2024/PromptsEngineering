@@ -6,6 +6,10 @@
 
 - Node/Go 通用 OSS 适配兼容未开启、开启及暂停版本控制：缺少版本头规范化为 null，新增可选固定版本读/核验/删及包含删除标记的完整分页，权限或状态异常中止；保留独立最终文件与暂存重放保护，不回灌项目配置或迁移。
 
+## [v3.7.21] - 2026-10-04
+
+- `.claude/settings.json` 团队 allowlist 放行稳定入口的本地生命周期命令（`pnpm agent -- task start|checkpoint|resume|context|extend|transition|finish|paths`、`worktree new|list|resume`、`tdd sync`、`qa plan`、`qa verify`）；`tdd push`、`qa merge`、`finish`/`tdd finish`（自动串联 push 与 merge）、`worktree bootstrap`（执行依赖安装）、`task exec`、`task cancel`、`test`、`build`、`ship`、`template` 等有远端、部署或任意命令执行副作用的入口仍需确认。新增 `claude-settings-allowlist.test.js` 契约测试，`.claude/README.md` 同步说明。
+
 ## [v3.7.20] - 2026-10-04
 
 - `tdd push` 生成 PR 概要、变更内容与标题时排除同步配置主干产生的 merge 提交；分支上还有其他提交时，工作区自动提交的文件清单不再写入概要、也不影响标题判定（仅剩一个人工 Conventional 提交时直接用其标题），只有自动提交时仍保留文件清单。
