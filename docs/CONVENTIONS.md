@@ -107,7 +107,7 @@ pnpm agent -- worktree list
 
 并行开发状态写入 `../tmp/worktree-sessions/`，锁写入 `../tmp/agent-locks/`。锁包含 PID；仅在确认 owner 不存活后回收 stale lock。这些状态只属于当前电脑，不构成跨电脑分布式锁或权限身份。
 
-`qa verify` 通过后在本机原子保存绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执。合并前重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；GitHub 合并必须携带期望 head SHA，本地 squash 兜底必须合并固定 head SHA，并只用普通非强制 push 更新配置主干。任何 SHA 漂移、冲突或非快进拒绝都必须停止并要求重新 QA，不得自动 rebase 已验证分支或覆盖远端历史。只有远端主干最终校验和功能分支精确 lease 清理均成功后才清理 worktree 与 session；远端功能分支已经不存在视为幂等成功，无法确认或发现新 head 时保留恢复状态。
+`qa verify` 通过后在本机原子保存绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执；回执不跨电脑共享，换电脑合并须在该电脑重新执行 `qa verify`。合并前重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；GitHub 合并必须携带期望 head SHA，本地 squash 兜底必须合并固定 head SHA，并只用普通非强制 push 更新配置主干。任何 SHA 漂移、冲突或非快进拒绝都必须停止并要求重新 QA，不得自动 rebase 已验证分支或覆盖远端历史。只有远端主干最终校验和功能分支精确 lease 清理均成功后才清理 worktree 与 session；远端功能分支已经不存在视为幂等成功，无法确认或发现新 head 时保留恢复状态。
 
 ## 6. 长任务状态文件
 
@@ -240,16 +240,10 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交（提交前运行可用受测文件摘要核对提交内容）、测试范围、命令、退出码、依赖/配置和环境。上述条件未变且证据完整时，不因阶段切换重复执行；有变更、失败、证据缺失或时效要求时，补跑受影响范围。新增 QA 测试仍须实际执行。测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验。
 
 必需验证通过后，仅因新变更、失败或具体未解决风险扩大或重跑测试；时间压力不能豁免必需项。静态检查和构建按受影响技术栈及项目门禁执行，不适用项须记录理由，未运行项不得记为通过。
-官方息壤源的 linked worktree 在 `tdd sync` 时自动递增发布版本：required fetch 官方配置主干并锁定基线 SHA，整体 `package.json`、`agent/manifest.json` 与应用清单版本同步；`architecture/` 发生变化时独立架构号同步递增；`CHANGELOG.md` 的 `[Unreleased]` 条目同时移入该版本标题。默认 patch，已显式选定更高 minor/major 时保留，同一基线重复同步幂等；非法/回退版本、fetch 失败阻断。实际项目不启用此源发布门禁，继续使用自身 `release` 配置；`template sync` 仍锁定官方 commit SHA 并在锁中记录版本。
-修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。开发 worktree 可保留 staged、unstaged、untracked 内容；`tdd push --committed-only` 不自动暂存、提交或回写 tracked 阶段文档。`qa merge` 只合并回执绑定的提交，目标主干须独立且干净；本地内容不参与合并、不被 stash 或删除。合并成功与清理完成分开报告，保留的 worktree 仍受 completion guard 保护。
+
+官方息壤源的 `tdd sync` 自动递增发布版本，并把 `CHANGELOG.md` 的 `[Unreleased]` 条目移入新版本标题；默认 patch，已显式选定更高 minor/major 时保留，实现见 `infra/scripts/tdd-tools/source-version-sync.js`。实际项目不启用此源发布门禁，继续使用自身 `release` 配置。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
-
-数据库 schema 变更必须同一交付包含 schema 源修改、离线生成并审查的新迁移，以及 `docs/data/ERD.md`、`docs/data/dictionary.md` 更新；数据库只经迁移执行器修改，已发布迁移和快照只追加。新表遵循语义约定：业务语言 snake_case、表与字段注释、六个审计字段、软删除优先（物理删除表以 `-- xirang:hard-delete` 注明，第三方/系统/短期表可豁免并注明）、状态不用无说明的魔法数字。`tdd sync` 对 `architecture.config.json` 登记的存储阻断缺文档、缺迁移、改写已发布迁移与字典未覆盖；语义检查按 `tdd.schemaGate.semantic`（`off|warn|required`，默认 `required`，只检查新增迁移）执行。细则见架构数据标准。
-
-使用显式运行时迁移注册表的项目，必须同时配置 `paths.migrationsDir` 和 `tdd.migrationRegistry.registryFile`；`tdd sync` 会按 `tdd.migrationRegistry.filePattern` 扫描迁移文件，阻断遗漏注册或注册顺序与文件名不一致。未配置注册表的项目不启用该检查。数据库持久化源的结构、约束、索引、查询、事务或数据变换发生变化时，项目规则还必须要求新增只追加迁移，并可通过 `tdd.projectChecks` 接入更深的项目专属一致性检查。
-
-审查高风险域：认证权限、数据写删、事务一致性、缓存一致性、并发、外部 API、数据库 schema、共享基础库、跨文件业务联动和 hotfix。未命中可跳过语义 review，但不可跳过适用的 lint、类型检查和测试；范围与不适用说明遵循上节。
 
 ## 9. GitHub、命名与安全
 
