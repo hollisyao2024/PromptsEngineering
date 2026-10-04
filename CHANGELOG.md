@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.7.22] - 2026-10-04
+
+- `docs/CONVENTIONS.md` 删除与 `AGENTS.md`“上下文预算与阶段交接”重复的 §11（仅留一行指向）以及「失败分类与恢复」章节；失败分类（`tool_error|policy_denied|unknown_result`）、启动状态证据与恢复规则并入 `AGENTS.md`“长任务断点续跑”作为唯一来源，`.codex/README.md`、TDD playbook 引用同步改指 `AGENTS.md`，相关契约测试随之更新。
+
 ## [v3.7.21] - 2026-10-04
 
 - `.claude/settings.json` 团队 allowlist 放行稳定入口的本地生命周期命令（`pnpm agent -- task start|checkpoint|resume|context|extend|transition|finish|paths`、`worktree new|list|resume`、`tdd sync`、`qa plan`、`qa verify`）；`tdd push`、`qa merge`、`finish`/`tdd finish`（自动串联 push 与 merge）、`worktree bootstrap`（执行依赖安装）、`task exec`、`task cancel`、`test`、`build`、`ship`、`template` 等有远端、部署或任意命令执行副作用的入口仍需确认。新增 `claude-settings-allowlist.test.js` 契约测试，`.claude/README.md` 同步说明。

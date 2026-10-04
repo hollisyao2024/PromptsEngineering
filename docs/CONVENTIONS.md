@@ -130,7 +130,7 @@ pnpm agent -- worktree list
 - 完成或清理状态。
 
 状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
-记录前可选用 `pnpm agent -- task paths [--task <id>]` 只读解析状态和锁目录；不创建目录、不联网，`PERMISSION_STATUS=NOT_EVALUATED` 不表示权限已通过。容器 tmp 通常位于 repo 外，必须与实际会话可写范围核对，禁止模板自动扩大权限；检查不是普通查询的新门禁。记录不可用时按失败恢复协议对话留痕，继续获准且独立的只读工作。
+记录前可选用 `pnpm agent -- task paths [--task <id>]` 只读解析状态和锁目录；不创建目录、不联网，`PERMISSION_STATUS=NOT_EVALUATED` 不表示权限已通过。容器 tmp 通常位于 repo 外，必须与实际会话可写范围核对，禁止模板自动扩大权限；检查不是普通查询的新门禁。记录不可用时按 `AGENTS.md`“长任务断点续跑”的失败恢复规则对话留痕，继续获准且独立的只读工作。
 ### 命令
 任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。
 
@@ -160,20 +160,6 @@ pnpm agent -- task cancel --task <id> --force
 `task finish --task <id>` 要求该任务所有必需步骤、验收项和证据完成。修改任务还必须通过任务级 completion guard：只把 `lifecycle.keys` 明确绑定到该 task id 的 `cleanup_pending|recovery_required` worktree 作为生命周期 blocker，同时仍要求主分支已合并、工作区干净且与远端一致。无 task scope 的仓库级 `pnpm agent -- finish` 保持全仓 fail-closed，任一受管理 worktree 未收敛都会阻断。任务门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
 
 容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
-
-### 失败分类与恢复
-
-本协议适用于所有执行器。仅有 `blocked by policy` 时报告“执行工具策略拒绝，具体规则未知”，不猜测审批组件、路径或 pnpm 原因。进程启动前的拒绝不能由仓库脚本捕获，须区分工具回执与脚本 `STATUS=BLOCKED / REASON`。
-
-| failure-kind | 判定与下一动作 |
-| --- | --- |
-| tool_error | 已知普通工具故障；修复原因并核实已发生的副作用后再决定是否重试。 |
-| policy_denied | 工具明确拒绝；保留原始理由和调用编号，停止该操作，不改写命令、换入口、搬迁记录或扩大权限绕过。 |
-| unknown_result | 超时或断连且结果不明；先核实真实状态，不盲目重放。 |
-
-已有任务且记录操作本身可执行时，用独立 checkpoint 填写 `--failure-kind`、`--execution-state`、`--call-id`、证据与 `--next`。`not_started` 必须有明确未启动证据并配 `blocked`；`started|unknown` 配 `verify_required`，`unknown_result` 配 `unknown`。没有证据时不推断未启动。
-记录或恢复入口本身不可执行时，在对话保留目标、验收、操作、时间、调用编号、启动状态和下一动作；未知字段明确写未知，不编造。继续获准且独立的只读工作，不反复调用记录入口、不伪造 state.json；独立证据文件的写入也需获准。修改任务仍受 worktree、测试、QA 和合并门禁约束。
-恢复先核实任务与外部副作用，通过 checkpoint 的 `--recovery-evidence` 追加恢复依据；该字段不是权限许可，策略拒绝须有实际授权恢复依据，不能自我批准。resume 不执行重试；恢复和故障历史只追加。
 
 ## 7. 命令面
 新项目只推荐统一入口：
@@ -291,16 +277,4 @@ skipped_count
 
 并满足 `matched_count = modified_count + skipped_count`。范围变化时创建新 manifest，不得静默缩小。
 
-## 11. 上下文预算与阶段交接
-
-预算水位、模型请求节流、`429` 退避和不可跳过的验证门禁以 `AGENTS.md`“上下文预算与阶段交接”为准。
-
-`task transition` 输出的 `CONTEXT_COMMAND` 用于刷新胶囊；`CONTEXT_REFRESH_REQUIRED=true` 要求刷新材料。胶囊包含任务/阶段/验收、worktree、当前步骤、证据索引与状态路径、未验证状态和下一动作；完整证据仍以 `STATE_PATH` 为准，需要核验提交时在任务 worktree 读取 HEAD。
-
-`CONTINUATION_ACTION` 指示下一动作，脚本不会自行启动后台模型或新会话；`RESOLVE_BLOCKER` 要求先核验真实阻塞与未知副作用。独立清理延后只允许继续 QA/DEVOPS，不豁免最终完成门禁。
-
-需要新执行器时，由宿主已授权能力传递精确任务 ID、WORKTREE 和胶囊，后继读取最新 state、完成恢复核查并给出接管确认后，原执行器才释放执行权；同一任务不能由两个执行器并发 mutation。分派成功或阶段字段变化不等于接管成功。宿主不支持自动交接且预算允许时，在当前任务中减少重复材料、按胶囊继续，不虚构新上下文，也不凭模板擅自创建用户可见任务或扩大权限。硬限制、真实阻塞或用户明确暂停才允许停下，并记录未完成工作和恢复入口。旧版本 `CONTEXT_HANDOFF_REQUIRED=true` 同样受此协议约束。
-
-三份基础规则的全文预读和普通输出限制以 `AGENTS.md` 为准，`task exec` 摘要不能代替规则正文。`task exec` 的完整日志写入容器 `tmp/agent-task-runs/<task-id>/evidence/`，摘要带路径和 SHA-256。
-
-`task context` 是只读状态投影，不创建目录、锁或状态；截断时输出 `TRUNCATED=true`，须重新读取完整 `STATE_PATH`、`NEXT_ACTION` 和证据，不将截断内容当作完整验收。
+上下文预算、阶段交接与失败恢复协议以 `AGENTS.md`“上下文预算与阶段交接”和“长任务断点续跑”为准。

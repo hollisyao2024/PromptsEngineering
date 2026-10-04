@@ -161,7 +161,7 @@ test('phase experts use bounded context handoffs instead of full document reload
   assert.match(agents, /pnpm agent -- task context/u);
   assert.match(agents, /pnpm agent -- task exec/u);
   assert.match(agents, /70%/u);
-  assert.match(conventions, /## 11\. 上下文预算与阶段交接/u);
+  assert.doesNotMatch(conventions, /## 11\. 上下文预算与阶段交接/u);
   assert.match(agents, /8KB\/80/u);
   assert.match(conventions, /AGENTS\.md.*上下文预算与阶段交接/u);
   assert.match(config, /model_auto_compact_token_limit = 180000/u);
@@ -291,16 +291,18 @@ test('always-loaded protocol forbids parent-relative patch paths for container w
   assert.match(agents, /错误写入.*空父目录/u);
 });
 
-test('shared recovery protocol is available without loading client-specific guidance', () => {
+test('failure recovery protocol lives in AGENTS.md and is not duplicated in conventions', () => {
+  const agents = read('AGENTS.md');
   const conventions = read('docs/CONVENTIONS.md');
-  assert.match(conventions, /### 失败分类与恢复/u);
+  assert.doesNotMatch(conventions, /### 失败分类与恢复/u);
   for (const kind of ['tool_error', 'policy_denied', 'unknown_result']) {
-    assert.ok(conventions.includes(kind), kind);
+    assert.ok(agents.includes(kind), kind);
   }
-  assert.match(conventions, /具体规则未知/u);
-  assert.match(conventions, /继续.*独立.*只读/u);
-  assert.match(conventions, /recovery-evidence.*不是.*许可/u);
-  assert.match(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
+  assert.match(agents, /具体规则未知/u);
+  assert.match(agents, /继续获准.*只读/u);
+  assert.match(agents, /recovery-evidence/u);
+  assert.doesNotMatch(agents, /CONVENTIONS\.md.*失败分类与恢复/u);
+  assert.doesNotMatch(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
 });
 
 test('TDD read-only flow does not require writing diagnostic artifacts', () => {
