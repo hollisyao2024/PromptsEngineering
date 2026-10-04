@@ -441,15 +441,36 @@ function buildAutoSummaryBlock(title, commits = []) {
   return [`${AUTO_SUMMARY_START_PREFIX} digest=${digestAutoSummary(inner)} -->`, inner, AUTO_SUMMARY_END].join('\n');
 }
 
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const LEGACY_CHANGE_LINE = /^- ([0-9a-f]{7}) /;
+
+/**
+ * 重建早期 tdd push 生成的无标记正文开头，用于判断旧正文是否仍是未被修改的自动内容：
+ * - 3.7.13 及更早：概要只有 PR 标题一行，变更内容为 `_见 commit 历史_`；
+ * - 3.7.14：概要取提交要点，变更内容列出 sha7 与提交标题（只认仍在当前分支上的提交）。
+ */
+function buildLegacyAutoSummaryCandidates(body, legacyTitles, commits) {
+  const titles = [...new Set(legacyTitles.filter(Boolean))];
+  const candidates = titles.map((title) => `### 概要\n- ${title}\n\n### 变更内容\n_见 commit 历史_`);
+
+  const changesMatch = /\n### 变更内容\n((?:- [0-9a-f]{7} [^\n]*(?:\n|$))+)/.exec(body);
+  if (changesMatch) {
+    const listed = changesMatch[1].split('\n').filter(Boolean).map((line) => LEGACY_CHANGE_LINE.exec(line)[1]);
+    const oldCommits = listed.map((sha7) => commits.find((commit) => commit.sha.startsWith(sha7)));
+    if (oldCommits.every(Boolean)) {
+      const changes = oldCommits.map((commit) => `- ${commit.sha.slice(0, 7)} ${commit.subject}`).join('\n');
+      for (const title of titles.length ? titles : ['']) {
+        candidates.push(`### 概要\n${buildPrSummaryLines(title, oldCommits).join('\n')}\n\n### 变更内容\n${changes}`);
+      }
+    }
+  }
+  return candidates;
 }
 
 /**
  * 刷新已有 PR 正文中的自动概要，返回 { status, body }：
  * - refreshed：标记内容未被修改（或旧版无摘要标记），已按当前提交重建；
  * - manual-edit：摘要不匹配，保留人工修改；
- * - upgraded：无标记但仍是旧版自动生成格式（概要仅一行 PR 标题），升级为带标记的块；
+ * - upgraded：无标记但与早期版本自动生成的内容逐字一致，升级为带标记的块；
  * - unmarked / no-commits：保持原文。
  */
 function refreshAutoSummaryInBody(body, title, commits = [], { legacyTitles = [] } = {}) {
@@ -470,12 +491,10 @@ function refreshAutoSummaryInBody(body, title, commits = [], { legacyTitles = []
   }
 
   const normalized = body.replace(/\r\n/g, '\n');
-  for (const legacyTitle of [...new Set(legacyTitles.filter(Boolean))]) {
-    const legacyRegex = new RegExp(
-      `^### 概要\\n- ${escapeRegExp(legacyTitle)}\\n\\n### 变更内容\\n_见 commit 历史_(?=\\n|$)`
-    );
-    if (legacyRegex.test(normalized)) {
-      return { status: 'upgraded', body: normalized.replace(legacyRegex, buildAutoSummaryBlock(title, commits)) };
+  for (const candidate of buildLegacyAutoSummaryCandidates(normalized, legacyTitles, commits)) {
+    const rest = normalized.slice(candidate.length);
+    if (normalized.startsWith(candidate) && (rest === '' || rest.startsWith('\n'))) {
+      return { status: 'upgraded', body: buildAutoSummaryBlock(title, commits) + rest };
     }
   }
   return { status: 'unmarked', body };
