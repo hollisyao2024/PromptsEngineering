@@ -420,7 +420,7 @@ function buildSquashCommitParts(pr) {
       const summaryLines = nextSection !== -1 ? rest.slice(0, nextSection) : rest.slice(0, 5);
       summary = summaryLines
         .map((l) => l.trim())
-        .filter(Boolean)
+        .filter((l) => l && !/^<!--.*-->$/.test(l))
         .join('\n');
     }
   }

@@ -54,3 +54,12 @@ test('remote squash merges reuse the local commit title and summary body', async
     'pr', 'merge', '7', '--squash', '--match-head-commit', head,
   ]);
 });
+
+test('squash commit summary ignores HTML comment marker lines', () => {
+  const message = buildCommitMessage({
+    number: 8,
+    title: 'fix: marked',
+    body: '<!-- xirang:auto-summary:start -->\n### 概要\n<!-- note -->\n- real point\n\n### 变更内容\n- abc\n<!-- xirang:auto-summary:end -->',
+  });
+  assert.equal(message, 'fix: marked (#8)\n\n- real point');
+});

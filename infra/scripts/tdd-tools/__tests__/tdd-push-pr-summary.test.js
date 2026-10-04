@@ -10,7 +10,7 @@ const {
   resolvePrTitle,
 } = require('../tdd-push');
 
-const reviewDecision = { shouldReview: false, reasons: [], baseRef: 'origin/stable' };
+const reviewDecision = { gateResult: 'skipped', reason: 'docs only', baseRef: 'origin/stable' };
 const commits = [
   {
     sha: 'a'.repeat(40),
@@ -67,4 +67,53 @@ test('ensurePullRequest builds title and body from branch commits', async () => 
   await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend, commits: [commits[0]] });
   assert.equal(calls[1].body.title, 'fix(qa): reuse PR summary');
   assert.match(calls[1].body.body, /### 概要\n- remote merges pass commit title/);
+});
+
+const START = '<!-- xirang:auto-summary:start -->';
+const END = '<!-- xirang:auto-summary:end -->';
+
+test('new PR body wraps generated summary and changes in auto-summary markers', () => {
+  const body = buildPrBody('fix: t', reviewDecision, commits);
+  assert.ok(body.startsWith(`${START}\n### 概要\n`));
+  assert.match(body, new RegExp(`- bbbbbbb test: cover summary\\n${END}\\n\\n### 文档回写`));
+});
+
+function existingPrBackend(body) {
+  const calls = [];
+  return {
+    calls,
+    backend: {
+      mode: 'api', token: 't', owner: 'owner', repo: 'repo',
+      apiRequest: async (method, apiPath, options) => {
+        calls.push({ method, body: options && options.body });
+        return method === 'GET' ? [{ number: 9, html_url: 'u', body }] : {};
+      },
+    },
+  };
+}
+
+test('existing PR with markers gets summary refreshed from current commits; manual sections kept', async () => {
+  const old = `${START}\n### 概要\n- stale\n\n### 变更内容\n- 1111111 old\n${END}\n\n### 文档回写\n- keep\n\n### Review Gate\n- Gate-Result: old\n\n### 语义审查\n- manual note\n`;
+  const { backend, calls } = existingPrBackend(old);
+  await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend, commits });
+  const next = calls[1].body.body;
+  assert.doesNotMatch(next, /stale|1111111|Gate-Result: old/);
+  assert.match(next, new RegExp(`${START}\\n### 概要\\n- remote merges pass commit title`));
+  assert.match(next, /- bbbbbbb test: cover summary/);
+  assert.match(next, /### 文档回写\n- keep/);
+  assert.match(next, /### 语义审查\n- manual note/);
+  assert.match(next, /- Base-Ref: origin\/stable\n\n### 语义审查/);
+  assert.match(next, /Gate-Result: skipped/);
+});
+
+test('existing PR without markers or without commits keeps its summary untouched', async () => {
+  const manual = '### 概要\n- hand written\n\n### Review Gate\n- Gate-Result: old\n';
+  const a = existingPrBackend(manual);
+  await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend: a.backend, commits });
+  assert.match(a.calls[1].body.body, /- hand written/);
+
+  const marked = `${START}\n### 概要\n- keep me\n${END}\n`;
+  const b = existingPrBackend(marked);
+  await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend: b.backend, commits: [] });
+  assert.match(b.calls[1].body.body, /- keep me/);
 });
