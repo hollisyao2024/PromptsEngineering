@@ -87,6 +87,8 @@ updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run�
 - `docs/{prd|arch|task|qa}-modules/<domain>/`：功能域详情。
 - `docs/data/traceability-matrix.md`：需求到测试的追踪关系。
 
+PRD ↔ ARCH 追溯检查默认读取 `docs/PRD.md` 和 `docs/prd-modules/<domain>/` 内全部直接子级 Markdown 文档（包括 `PRD.md` 与拆分规格），仅将正式需求标题中的编号计为定义，正文引用不计入。扫描在调用一致性检查命令时执行，不作为后台任务运行。
+
 阶段状态由容器层 `agent-task-runs/state.json`、worktree session、PR、QA 回执、部署记录和模块报告承担。仓库不再维护 tracked 的阶段状态 Markdown 文件，也不得把 branch、PR、重试、执行步骤或 QA 历史写回阶段总纲。
 
 ## 5. Worktree 生命周期
