@@ -3,6 +3,7 @@ const constructors={local:'NewLocal',s3:'NewS3','aliyun-oss':'NewAliyunOSS','ten
 const providerFile={'local':'local.go','s3':'s3.go','aliyun-oss':'aliyun_oss.go','tencent-cos':'tencent_cos.go'};
 function buildGoStorage({s,config,owner,selectedProviders,add,readSource,deps,owned}){
   const files=['storage.go','private.go','local.go','cloud.go','extensions.go','live_test.go','repository.go','service.go','http.go','storage_test.go',...selectedProviders.filter(p=>p!=='local').map(p=>providerFile[p])];
+  if(selectedProviders.includes('aliyun-oss'))files.push('aliyun_oss_versions.go');
   for(const file of files)add(s.path+'/'+file,readSource('architecture/modules/storage/go/'+file),'update',owner);
   for(const p of selectedProviders.filter(p=>p!=='local'))add(s.path+'/'+providerFile[p].replace('.go','_test.go'),readSource('architecture/modules/storage/go/'+providerFile[p].replace('.go','_test.go')),'update',owner);
   const selected=Object.entries(deps.storage.go).filter(([name])=>selectedProviders.includes('s3')&&name.startsWith('github.com/aws/')||selectedProviders.includes('aliyun-oss')&&name.startsWith('github.com/aliyun/')||selectedProviders.includes('tencent-cos')&&name.startsWith('github.com/tencentyun/'));

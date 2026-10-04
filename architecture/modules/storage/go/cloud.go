@@ -168,7 +168,18 @@ func (p *Cloud) Get(ctx context.Context, key string) (Download, error) {
 		res.Body.Close()
 		return Download{}, fail("UNAVAILABLE")
 	}
-	return Download{Body: res.Body, Info: ObjectInfo{Key: key, Size: res.ContentLength, ContentType: res.Header.Get("Content-Type"), ETag: res.Header.Get("ETag"), ModifiedAt: res.Header.Get("Last-Modified")}}, nil
+	version := ""
+	if p.name == "aliyun-oss" {
+		version = "null"
+		if raw, ok := res.Header["X-Oss-Version-Id"]; ok {
+			if len(raw) != 1 || validVersionID(raw[0]) != nil {
+				res.Body.Close()
+				return Download{}, fail("UNAVAILABLE")
+			}
+			version = raw[0]
+		}
+	}
+	return Download{Body: res.Body, Info: ObjectInfo{Key: key, Size: res.ContentLength, ContentType: res.Header.Get("Content-Type"), ETag: res.Header.Get("ETag"), ModifiedAt: res.Header.Get("Last-Modified"), VersionID: version}}, nil
 }
 
 type exactReader struct {
@@ -224,5 +235,15 @@ func (p *Cloud) Put(ctx context.Context, key string, input PutInput) (ObjectInfo
 	if body.seen != input.Size {
 		return ObjectInfo{}, fail("INVALID_INPUT")
 	}
-	return ObjectInfo{Key: key, Size: input.Size, ContentType: input.ContentType, ETag: res.Header.Get("ETag")}, nil
+	version := ""
+	if p.name == "aliyun-oss" {
+		version = "null"
+		if raw, ok := res.Header["X-Oss-Version-Id"]; ok {
+			if len(raw) != 1 || raw[0] == "" {
+				return ObjectInfo{}, fail("UNAVAILABLE")
+			}
+			version = raw[0]
+		}
+	}
+	return ObjectInfo{VersionID: version, Key: key, Size: input.Size, ContentType: input.ContentType, ETag: res.Header.Get("ETag")}, nil
 }

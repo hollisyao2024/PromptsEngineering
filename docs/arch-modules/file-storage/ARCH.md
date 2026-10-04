@@ -43,3 +43,9 @@ FileObject：id、ownerId、storeId、objectKey、state、version、record（版
 通用实现 update；package.json 与 go.mod 结构化/文本三方合并；环境、业务接线示例、Schema init-if-missing；SQL append。取消选型不会偷偷卸载或删除历史文件，路径/运行语言/已有 store provider 变更需要显式迁移。升级用已有引擎冻结计划和恢复，不增加第二套 updater。
 
 验证：配置负例与旧配置回归；四 Provider 合约、签名参数与取消；Node/Go 真编译与本地文件旅程；Prisma PG/SQLite；上传组件；消费者初始化/更新/定制保护；opt-in 真云测试。真实 OSS/COS 无配置时标未验证，不能拿 HTTP fixture 代替。
+
+## OSS 可选版本端口（US-STORAGE-009）
+
+Node/Go 增加可选 VersionedStorageProvider，不扩大其他 Provider 的强制合约。对象信息可携带 versionId；OSS 缺少版本响应头规范化为字符串 null（不是空值）。固定版本 GET/HEAD/DELETE 始终携带 versionId，包括 null，不回退当前对象。ListVersions 每页查询 Bucket 状态：未开启用普通列表，Enabled/Suspended 用版本列表并包含删除标记；查询失败中止。游标绑定模式和前缀，模式改变拒绝续页，有界分页和无前进游标拒绝。
+
+模板 FileService 已将独立暂存 key 复制到独立最终 key，完成后拒绝重写；不依赖 Bucket 版本控制。不新增业务 Schema/SQL。业务历史附件须保存 key、versionId 与内容摘要，由项目核验摘要和授权。完整清理采用端口枚举再精确删除，项目控制授权、冻结写入和最终对账。SDK 原生签名及请求；私有 Bucket 仍由短期授权 URL/后端流供公网用户读取。
