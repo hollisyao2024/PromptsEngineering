@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const path = require('path');
+const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
 const {
@@ -39,9 +40,15 @@ function runGit(args, options = {}) {
   return result.stdout;
 }
 
+/**
+ * porcelain 每行前两列是 XY 状态码；只去行尾空白，保留首行开头的空格列。
+ */
+function parseWorkingTreeStatus(output) {
+  return String(output || '').split('\n').map((line) => line.trimEnd()).filter(Boolean);
+}
+
 function getWorkingTreeStatusLines() {
-  const status = runGit(['status', '--porcelain'], { capture: true }).trim();
-  return status ? status.split('\n').filter(Boolean) : [];
+  return parseWorkingTreeStatus(runGit(['status', '--porcelain'], { capture: true }));
 }
 
 function parseCliArgs(argv) {
@@ -182,6 +189,27 @@ function buildAutoCommitMessage(branch) {
   return `${subject.type}: ${subject.desc}`;
 }
 
+const AUTO_COMMIT_BODY_LIMIT = 20;
+
+function describeStatusLine(line) {
+  const code = line.slice(0, 2);
+  const file = line.slice(3);
+  if (code === '??' || code.includes('A')) return `新增 ${file}`;
+  if (code.includes('R')) return `重命名 ${file}`;
+  if (code.includes('D')) return `删除 ${file}`;
+  return `修改 ${file}`;
+}
+
+/**
+ * 自动提交正文逐条列出改动文件，供 PR 概要提取要点；超过上限时汇总剩余数量。
+ */
+function buildAutoCommitBody(statusLines) {
+  const shown = statusLines.slice(0, AUTO_COMMIT_BODY_LIMIT).map((line) => `- ${describeStatusLine(line)}`);
+  const rest = statusLines.length - shown.length;
+  if (rest > 0) shown.push(`- 另有 ${rest} 个文件改动`);
+  return shown.join('\n');
+}
+
 function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
   if (options.committedOnly) {
     console.log('仅推送已有提交；保留本地索引及未提交内容。');
@@ -210,7 +238,7 @@ function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
 
   console.log(`\x1b[33m检测到工作区存在 ${statusLines.length} 个未提交改动，开始自动提交到当前分支。\x1b[0m`);
   runGit(['add', '-A']);
-  runGit(['commit', '-m', commitMessage]);
+  runGit(['commit', '-m', commitMessage, '-m', buildAutoCommitBody(statusLines)]);
   console.log(`\x1b[32m✓ 已自动提交当前工作区改动：${commitMessage}\x1b[0m`);
 
   return {
@@ -232,16 +260,23 @@ async function findOpenPullRequest(branch, { backend, runGh: _runGh = runGh }) {
       { token: backend.token }
     );
     if (!Array.isArray(prs) || prs.length === 0) return null;
-    return { number: prs[0].number, url: prs[0].html_url || prs[0].url || '', body: prs[0].body || '' };
+    return {
+      number: prs[0].number,
+      url: prs[0].html_url || prs[0].url || '',
+      title: prs[0].title || '',
+      body: prs[0].body || '',
+    };
   }
 
-  const args = ['pr', 'list', '--head', branch, '--state', 'open', '--json', 'number,url,body'];
+  const args = ['pr', 'list', '--head', branch, '--state', 'open', '--json', 'number,url,body,title'];
   const result = _runGh(args);
   if (result.status !== 0) {
     throw new Error(`查询当前分支 PR 失败：${(result.stderr || result.stdout || '').trim()}`);
   }
   const prs = JSON.parse(result.stdout || '[]');
-  return prs.length > 0 ? { number: prs[0].number, url: prs[0].url, body: prs[0].body || '' } : null;
+  return prs.length > 0
+    ? { number: prs[0].number, url: prs[0].url, title: prs[0].title || '', body: prs[0].body || '' }
+    : null;
 }
 
 function getReviewSection(reviewDecision) {
@@ -379,37 +414,71 @@ function buildPrSummaryLines(title, commits) {
   return unique.length ? unique : [`- ${title}`];
 }
 
-const AUTO_SUMMARY_START = '<!-- xirang:auto-summary:start -->';
+const AUTO_SUMMARY_START_PREFIX = '<!-- xirang:auto-summary:start';
+const AUTO_SUMMARY_START_REGEX = /<!-- xirang:auto-summary:start(?: digest=([0-9a-f]{12}))? -->/;
 const AUTO_SUMMARY_END = '<!-- xirang:auto-summary:end -->';
 
+function digestAutoSummary(inner) {
+  const normalized = inner.replace(/\r\n/g, '\n').trim();
+  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 12);
+}
+
 /**
- * 自动生成的概要与变更内容放在标记内，后续 tdd push 只刷新标记内文本。
+ * 自动生成的概要与变更内容放在标记内；起始标记记录生成内容摘要，
+ * 后续 tdd push 仅在摘要仍匹配（未被人工修改）时刷新标记内文本。
  */
 function buildAutoSummaryBlock(title, commits = []) {
   const changes = commits.length
     ? commits.map((commit) => `- ${commit.sha.slice(0, 7)} ${commit.subject}`)
     : ['_见 commit 历史_'];
-  return [
-    AUTO_SUMMARY_START,
+  const inner = [
     '### 概要',
     ...buildPrSummaryLines(title, commits),
     '',
     '### 变更内容',
     ...changes,
-    AUTO_SUMMARY_END,
   ].join('\n');
+  return [`${AUTO_SUMMARY_START_PREFIX} digest=${digestAutoSummary(inner)} -->`, inner, AUTO_SUMMARY_END].join('\n');
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * 已有 PR 含完整标记且分支有提交时替换标记内文本；否则保持正文不变。
+ * 刷新已有 PR 正文中的自动概要，返回 { status, body }：
+ * - refreshed：标记内容未被修改（或旧版无摘要标记），已按当前提交重建；
+ * - manual-edit：摘要不匹配，保留人工修改；
+ * - upgraded：无标记但仍是旧版自动生成格式（概要仅一行 PR 标题），升级为带标记的块；
+ * - unmarked / no-commits：保持原文。
  */
-function refreshAutoSummaryInBody(body, title, commits = []) {
-  const start = body.indexOf(AUTO_SUMMARY_START);
-  const end = body.indexOf(AUTO_SUMMARY_END);
-  if (!commits.length || start === -1 || end === -1 || end < start) return body;
-  return body.slice(0, start)
-    + buildAutoSummaryBlock(title, commits)
-    + body.slice(end + AUTO_SUMMARY_END.length);
+function refreshAutoSummaryInBody(body, title, commits = [], { legacyTitles = [] } = {}) {
+  if (!commits.length) return { status: 'no-commits', body };
+  const startMatch = AUTO_SUMMARY_START_REGEX.exec(body);
+  const end = startMatch ? body.indexOf(AUTO_SUMMARY_END, startMatch.index) : -1;
+  if (startMatch && end !== -1) {
+    const innerStart = startMatch.index + startMatch[0].length;
+    if (startMatch[1] && startMatch[1] !== digestAutoSummary(body.slice(innerStart, end))) {
+      return { status: 'manual-edit', body };
+    }
+    return {
+      status: 'refreshed',
+      body: body.slice(0, startMatch.index)
+        + buildAutoSummaryBlock(title, commits)
+        + body.slice(end + AUTO_SUMMARY_END.length),
+    };
+  }
+
+  const normalized = body.replace(/\r\n/g, '\n');
+  for (const legacyTitle of [...new Set(legacyTitles.filter(Boolean))]) {
+    const legacyRegex = new RegExp(
+      `^### 概要\\n- ${escapeRegExp(legacyTitle)}\\n\\n### 变更内容\\n_见 commit 历史_(?=\\n|$)`
+    );
+    if (legacyRegex.test(normalized)) {
+      return { status: 'upgraded', body: normalized.replace(legacyRegex, buildAutoSummaryBlock(title, commits)) };
+    }
+  }
+  return { status: 'unmarked', body };
 }
 
 function buildPrBody(title, reviewDecision, commits = []) {
@@ -430,12 +499,22 @@ function buildPrBody(title, reviewDecision, commits = []) {
 async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, commits = [], runGh: _runGh = runGh }) {
   const existing = await findOpenPullRequest(branch, { backend, runGh: _runGh });
   if (existing) {
+    let summaryStatus = 'unmarked';
     await updatePrReviewSection(existing, reviewDecision, {
       backend,
       runGh: _runGh,
-      refreshBody: (body) => refreshAutoSummaryInBody(body, resolvePrTitle(branch, commits), commits),
+      refreshBody: (body) => {
+        const refreshed = refreshAutoSummaryInBody(body, resolvePrTitle(branch, commits), commits, {
+          legacyTitles: [existing.title, buildPrTitle(branch)],
+        });
+        summaryStatus = refreshed.status;
+        return refreshed.body;
+      },
     });
-    return { status: 'existing', pr: { number: existing.number, url: existing.url } };
+    if (summaryStatus === 'manual-edit') {
+      console.log('\x1b[33mPR 自动概要已被人工修改，保留原文不刷新；如需重新生成，删除起始标记中的 digest。\x1b[0m');
+    }
+    return { status: 'existing', summaryStatus, pr: { number: existing.number, url: existing.url } };
   }
 
   const title = resolvePrTitle(branch, commits);
@@ -544,12 +623,15 @@ if (require.main === module) {
 module.exports = {
   parseCliArgs,
   autoCommitWorkingTreeIfNeeded,
+  buildAutoCommitBody,
   buildAutoCommitMessage,
   buildPrBody,
   buildPrCreateArgs,
   buildPrTitle,
   collectBranchCommits,
   ensurePullRequest,
+  parseWorkingTreeStatus,
+  refreshAutoSummaryInBody,
   resolvePrTitle,
   main,
 };
