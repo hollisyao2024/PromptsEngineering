@@ -408,8 +408,8 @@ function switchVscodeWindow(mainRepoRoot, { spawn: _spawn = spawn, env = process
   }
 }
 
-function buildCommitMessage(pr) {
-  const header = `${pr.title} (#${pr.number})`;
+function buildSquashCommitParts(pr) {
+  const title = `${pr.title} (#${pr.number})`;
   let summary = '';
   if (pr.body) {
     const lines = pr.body.split('\n');
@@ -425,8 +425,13 @@ function buildCommitMessage(pr) {
     }
   }
 
-  const parts = [header];
-  if (summary) parts.push('', summary);
+  return { title, body: summary };
+}
+
+function buildCommitMessage(pr) {
+  const { title, body } = buildSquashCommitParts(pr);
+  const parts = [title];
+  if (body) parts.push('', body);
 
   return parts.join('\n');
 }
@@ -441,16 +446,24 @@ function formatMergeStrategyLabel(strategy) {
   return '本地 git merge --squash';
 }
 
-function buildGhMergeArgs(prNumber, expectedHeadSha) {
-  return [
+function buildGhMergeArgs(prNumber, expectedHeadSha, pr) {
+  const args = [
     'pr', 'merge', String(prNumber),
     '--squash',
     '--match-head-commit', expectedHeadSha,
   ];
+  if (pr) {
+    const { title, body } = buildSquashCommitParts(pr);
+    args.push('--subject', title, '--body', body);
+  }
+  return args;
 }
 
-async function tryGhMerge(prNumber, { backend = getGitHubBackend(), expectedHeadSha } = {}) {
+async function tryGhMerge(prNumber, { backend = getGitHubBackend(), expectedHeadSha, pr } = {}) {
   if (!expectedHeadSha) throw new Error('expectedHeadSha is required for PR merge');
+  const commitFields = pr
+    ? (({ title, body }) => ({ commit_title: title, commit_message: body }))(buildSquashCommitParts(pr))
+    : {};
   if (backend.mode === 'api') {
     console.log(`\x1b[36m尝试 GitHub API squash merge #${prNumber}...\x1b[0m`);
     try {
@@ -459,7 +472,7 @@ async function tryGhMerge(prNumber, { backend = getGitHubBackend(), expectedHead
         repoApiPath(backend, `/pulls/${prNumber}/merge`),
         {
           token: backend.token,
-          body: { merge_method: 'squash', sha: expectedHeadSha },
+          body: { merge_method: 'squash', sha: expectedHeadSha, ...commitFields },
         }
       );
       console.log('\x1b[32m  GitHub API squash merge 成功\x1b[0m');
@@ -475,7 +488,7 @@ async function tryGhMerge(prNumber, { backend = getGitHubBackend(), expectedHead
   }
 
   console.log(`\x1b[36m尝试 gh pr merge #${prNumber} --squash...\x1b[0m`);
-  const result = runGh(buildGhMergeArgs(prNumber, expectedHeadSha));
+  const result = runGh(buildGhMergeArgs(prNumber, expectedHeadSha, pr));
 
   if (result.status === 0) {
     console.log('\x1b[32m  gh pr merge 成功\x1b[0m');
@@ -1662,7 +1675,7 @@ async function main() {
       }
     };
     const ghMerged = resumedMerge
-      || await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha });
+      || await tryGhMerge(pr.number, { expectedHeadSha: qaReceipt.head_sha, pr });
 
     if (ghMerged) {
       strategy = resolveRemoteMergeStrategy(getGitHubBackend());

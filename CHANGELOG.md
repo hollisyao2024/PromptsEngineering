@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `qa merge` 的远端 squash 合并（gh CLI 与 GitHub API）与本地降级使用同一提交格式：标题为 `PR 标题 (#编号)`，正文为 PR「概要」段，不再落入 GitHub 默认的逐提交列表。
+
 - `qa merge` 摘要的「策略」按实际合并后端显示：gh CLI 为 `gh pr merge --squash`，GH_TOKEN 走 GitHub API 时为 `GitHub API squash merge`，降级时为 `本地 git merge --squash`；本地 squash 提交信息不再硬编码 `Co-Authored-By: Claude Opus 4.6`，模板对 Codex 与 Claude 等执行器保持中立。
 
 - `tdd push` 在本机缺少 gh CLI 时改用 `.env.local` 的 `GH_TOKEN` 走 GitHub API 创建 PR（base 为配置主干）或同步已有 PR 的 Review Gate，与 `qa merge` 共用 `infra/scripts/shared/github-api.js`；gh 与 GH_TOKEN 都不可用或 PR 创建失败时输出 `STATUS=BLOCKED` 并非零退出，不再只打印手动链接后静默成功。自动提交信息与 PR 标题按分支前缀（feature/fix/docs/refactor/test 等）生成 Conventional 类型并去掉末尾日期，不再出现 `chore: auto-commit before /tdd push`。

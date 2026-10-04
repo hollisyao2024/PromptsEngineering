@@ -27,3 +27,30 @@ test('local squash commit message carries no hardcoded model co-author', () => {
   assert.equal(message, 'fix: example (#7)\n\n- first change');
   assert.doesNotMatch(message, /Co-Authored-By/i);
 });
+
+test('remote squash merges reuse the local commit title and summary body', async () => {
+  const { buildGhMergeArgs, tryGhMerge } = require('./qa-merge');
+  const pr = { number: 7, title: 'fix: example', body: '## 概要\n- first change\n\n## 测试\n- ok' };
+  const head = 'b'.repeat(40);
+
+  const calls = [];
+  const backend = {
+    mode: 'api', token: 't', owner: 'o', repo: 'r',
+    apiRequest: async (method, apiPath, options) => { calls.push(options.body); return {}; },
+  };
+  assert.equal(await tryGhMerge(7, { backend, expectedHeadSha: head, pr }), true);
+  assert.deepEqual(calls[0], {
+    merge_method: 'squash',
+    sha: head,
+    commit_title: 'fix: example (#7)',
+    commit_message: '- first change',
+  });
+
+  assert.deepEqual(buildGhMergeArgs(7, head, pr), [
+    'pr', 'merge', '7', '--squash', '--match-head-commit', head,
+    '--subject', 'fix: example (#7)', '--body', '- first change',
+  ]);
+  assert.deepEqual(buildGhMergeArgs(7, head), [
+    'pr', 'merge', '7', '--squash', '--match-head-commit', head,
+  ]);
+});
