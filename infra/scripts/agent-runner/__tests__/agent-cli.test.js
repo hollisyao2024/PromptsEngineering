@@ -87,3 +87,19 @@ test('private service shortcut only accepts lifecycle actions', () => {
 test('unified agent CLI rejects unknown routes', () => {
   assert.throws(() => resolveCommand(['unknown']), /unknown agent command/u);
 });
+
+test('unified agent CLI only treats help flags before the forwarded command separator as CLI help', () => {
+  const { isHelpRequest } = require('../agent-cli');
+  assert.equal(isHelpRequest([]), true);
+  assert.equal(isHelpRequest(['--help']), true);
+  assert.equal(isHelpRequest(['tdd', 'sync', '-h']), true);
+  assert.equal(isHelpRequest(['task', 'exec', '--task', 'demo', '--name', 'ls', '--', 'ls', '-h']), false);
+  assert.equal(isHelpRequest(['test', '--file', 'a.test.js', '--', 'node', '--test', '--help']), false);
+});
+
+test('unified agent CLI fails when the routed script is killed by a signal', () => {
+  const os = require('node:os');
+  const { exitCodeFor } = require('../agent-cli');
+  assert.equal(exitCodeFor({ status: null, signal: 'SIGKILL' }), 128 + os.constants.signals.SIGKILL);
+  assert.equal(exitCodeFor({ status: 2, signal: null }), 2);
+});

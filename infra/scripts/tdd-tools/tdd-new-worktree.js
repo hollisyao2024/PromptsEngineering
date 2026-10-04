@@ -2,6 +2,7 @@
 
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { spawnExitCode } = require('../shared/spawn-exit');
 
 function translateArgs(argv) {
   const translated = ['--phase=tdd'];
@@ -46,4 +47,4 @@ const result = spawnSync(process.execPath, [script, ...translateArgs(process.arg
   env: process.env,
 });
 
-process.exit(result.status || 0);
+process.exit(spawnExitCode(result));

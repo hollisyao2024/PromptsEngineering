@@ -13,6 +13,7 @@ const {
   resolveContainerPath,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 function main() {
   try {
@@ -62,4 +63,5 @@ function main() {
   }
 }
 
+exitOnHelp('Usage: pnpm agent -- worktree cancel <branch|path>\n\nCancel a managed worktree session.');
 main();

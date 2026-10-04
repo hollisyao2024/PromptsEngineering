@@ -23,7 +23,31 @@ function nextVersion(base, current) {
   if (!Number.isSafeInteger(after[2] + 1)) throw Error('Unsafe source release version increment');
   return `${after[0]}.${after[1]}.${after[2] + 1}`;
 }
-function syncSourceVersions({ repoRoot, config, fetchBase } = {}) {
+// Move [Unreleased] entries under the release heading so published versions never accumulate unlabeled notes.
+function releaseChangelog(text, version, date) {
+  const marker = '## [Unreleased]\n';
+  const start = text.indexOf(marker);
+  if (start === -1) return text;
+  const bodyStart = start + marker.length;
+  const next = text.indexOf('\n## [', bodyStart - 1);
+  const bodyEnd = next === -1 ? text.length : next + 1;
+  const body = text.slice(bodyStart, bodyEnd).trim();
+  if (!body) return text;
+  const heading = `## [v${version}]`;
+  const rest = text.slice(bodyEnd);
+  const prefix = text.slice(0, bodyStart) + '\n';
+  if (rest.startsWith(heading)) {
+    const lineEnd = rest.indexOf('\n');
+    const headingLine = lineEnd === -1 ? rest : rest.slice(0, lineEnd);
+    return `${prefix}${headingLine}\n\n${body}\n${rest.slice(headingLine.length).replace(/^\n+/, '')}`;
+  }
+  return `${prefix}${heading} - ${date}\n\n${body}\n${rest ? '\n' + rest : ''}`;
+}
+function localDate() {
+  const now = new Date();
+  return [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((x, i) => String(x).padStart(i ? 2 : 4, '0')).join('-');
+}
+function syncSourceVersions({ repoRoot, config, fetchBase, today = localDate() } = {}) {
   if (config?.template?.role !== 'source') return { status: 'SKIPPED' };
   const origin = git(repoRoot, ['remote', 'get-url', 'origin']);
   if (!/^(?:https:\/\/github\.com\/|git@github\.com:)hollisyao2024\/PromptsEngineering(?:\.git)?$/.test(origin)) return { status: 'SKIPPED' };
@@ -53,14 +77,16 @@ function syncSourceVersions({ repoRoot, config, fetchBase } = {}) {
     architectureVersion = nextVersion(previous('architecture/manifest.json').version, manifest.version);
     manifest.version = architectureVersion; updates.push(['architecture/manifest.json', manifest]);
   }
+  const changelog = path.join(repoRoot, 'CHANGELOG.md');
+  if (fs.existsSync(changelog)) updates.push(['CHANGELOG.md', releaseChangelog(fs.readFileSync(changelog, 'utf8'), version, today)]);
   // Parse and validate every version before any file write; reruns converge on the same fetched baseline.
   const changed = [];
   for (const [name, value] of updates) {
-    const file = path.join(repoRoot, name), content = JSON.stringify(value, null, 2) + '\n';
+    const file = path.join(repoRoot, name), content = typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n';
     if (fs.readFileSync(file, 'utf8') === content) continue;
     fs.writeFileSync(file + '.version-sync-tmp', content, { flag: 'wx' });
     fs.renameSync(file + '.version-sync-tmp', file); changed.push(name);
   }
   return { status: 'OK', version, architectureVersion, baseSha, changed };
 }
-module.exports = { syncSourceVersions, nextVersion };
+module.exports = { syncSourceVersions, nextVersion, releaseChangelog };

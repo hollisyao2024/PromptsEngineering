@@ -2,6 +2,7 @@
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
+const { spawnExitCode } = require('../shared/spawn-exit');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { resolveMigrationRegistryConfig } = require('./check-migration-registry');
 
@@ -203,7 +204,7 @@ function main() {
     }
   }
 
-  process.exit(result.status || 0);
+  process.exit(spawnExitCode(result));
 }
 
 if (require.main === module) main();

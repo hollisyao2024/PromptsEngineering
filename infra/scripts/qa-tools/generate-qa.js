@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { getQaPlanSessionStatePath } = require('../worktree-tools/qa-plan-state-audit');
+const { exitOnHelp } = require('../shared/cli-help');
 const {
   getWorktreeRoot,
   loadConfig,
@@ -845,6 +846,7 @@ function main() {
 }
 
 if (require.main === module) {
+  exitOnHelp('Usage: pnpm agent -- qa plan [--project | --scope <session|project>] [--module <name>] [--dry-run]\n\nGenerate the QA plan for the current branch.');
   try {
     main();
   } catch (error) {

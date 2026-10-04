@@ -13,6 +13,7 @@ const {
   runWorktreeBootstrap,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 function main() {
   try {
@@ -114,4 +115,5 @@ function main() {
   }
 }
 
+exitOnHelp('Usage: pnpm agent -- worktree resume <branch>\n\nResume a local or remote task branch into a managed worktree.');
 main();

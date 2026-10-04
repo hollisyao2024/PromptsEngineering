@@ -8,6 +8,7 @@
 
 const { spawnSync } = require('child_process');
 const { getWorktreeRoot, loadConfig } = require('../shared/config');
+const { exitOnHelp } = require('../shared/cli-help');
 
 function parseArgs(argv) {
   const cli = { _: [] };
@@ -171,4 +172,5 @@ function main() {
   console.log('NEXT_ACTION=Continue in this directory; commit, merge, or switch back to the base branch when done.');
 }
 
+exitOnHelp('Usage: node infra/scripts/tdd-tools/tdd-new-branch.js [--phase=<phase>] [--kind=<kind>] <name>\n\nCreate a task branch in the current worktree.');
 main();

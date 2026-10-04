@@ -52,6 +52,9 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 - `managed-block`：只更新受管块，块外文本归项目。
 - `init-if-missing`：仅初始化，已有项目文件不覆盖。
 - `project-owned`：模板永不写入。
+- `remove`：仅当项目文件与已安装基线一致时删除；已修改则冲突阻断。
+
+作业包清单 `infra/templates/agent/template.manifest.json` 另使用以下兼容写法，规划时映射为上述策略：`merge-jsonc` → `update`，`merge-package-scripts` → 仅 `scripts` 字段的 `merge-json`，`append-block` → `managed-block`；`generated` 与 `exclude` 不分发。
 
 `RULES.md`、真实项目文档、源码、业务部署脚本和已有 `agent.config.json` 均属于项目；`RULES.md` 仅在缺失时初始化，已有内容（包括空文件）不改写，初始化后由项目维护。仅模板接入初始化允许缺失规则，创建后必须全文预读再进行其他项目副作用；空文件或读取失败仍按基础规则阻断。模板更新流程必须：
 
@@ -251,7 +254,7 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交（提交前运行可用受测文件摘要核对提交内容）、测试范围、命令、退出码、依赖/配置和环境。上述条件未变且证据完整时，不因阶段切换重复执行；有变更、失败、证据缺失或时效要求时，补跑受影响范围。新增 QA 测试仍须实际执行。测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验。
 
 必需验证通过后，仅因新变更、失败或具体未解决风险扩大或重跑测试；时间压力不能豁免必需项。静态检查和构建按受影响技术栈及项目门禁执行，不适用项须记录理由，未运行项不得记为通过。
-官方息壤源的 linked worktree 在 `tdd sync` 时自动递增发布版本：required fetch 官方配置主干并锁定基线 SHA，整体 `package.json`、`agent/manifest.json` 与应用清单版本同步；`architecture/` 发生变化时独立架构号同步递增。默认 patch，已显式选定更高 minor/major 时保留，同一基线重复同步幂等；非法/回退版本、fetch 失败阻断。实际项目不启用此源发布门禁，继续使用自身 `release` 配置；`template sync` 仍锁定官方 commit SHA 并在锁中记录版本。
+官方息壤源的 linked worktree 在 `tdd sync` 时自动递增发布版本：required fetch 官方配置主干并锁定基线 SHA，整体 `package.json`、`agent/manifest.json` 与应用清单版本同步；`architecture/` 发生变化时独立架构号同步递增；`CHANGELOG.md` 的 `[Unreleased]` 条目同时移入该版本标题。默认 patch，已显式选定更高 minor/major 时保留，同一基线重复同步幂等；非法/回退版本、fetch 失败阻断。实际项目不启用此源发布门禁，继续使用自身 `release` 配置；`template sync` 仍锁定官方 commit SHA 并在锁中记录版本。
 修改任务固定执行 `tdd sync → tdd push → qa plan → qa verify → qa merge → task finish`。`tdd push` 创建 PR 时显式使用 `config.baseBranch`；`qa verify` 产生的本机 SHA 回执不可跨电脑冒充共享门禁，换电脑合并时必须在该电脑重新执行验证。任务级 completion guard 只检查本 task 明确拥有的 worktree 生命周期 blocker；仓库级 `pnpm agent -- finish` 检查全部受管理 worktree。两者都只在配置主干已合并、工作区干净且与远端一致时返回成功。开发 worktree 可保留 staged、unstaged、untracked 内容；`tdd push --committed-only` 不自动暂存、提交或回写 tracked 阶段文档。`qa merge` 只合并回执绑定的提交，目标主干须独立且干净；本地内容不参与合并、不被 stash 或删除。合并成功与清理完成分开报告，保留的 worktree 仍受 completion guard 保护。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。

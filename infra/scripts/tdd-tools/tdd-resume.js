@@ -2,6 +2,7 @@
 
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { spawnExitCode } = require('../shared/spawn-exit');
 
 const script = path.resolve(__dirname, '..', 'worktree-tools', 'worktree-resume.js');
 const result = spawnSync(process.execPath, [script, ...process.argv.slice(2)], {
@@ -10,4 +11,4 @@ const result = spawnSync(process.execPath, [script, ...process.argv.slice(2)], {
   env: process.env,
 });
 
-process.exit(result.status || 0);
+process.exit(spawnExitCode(result));
