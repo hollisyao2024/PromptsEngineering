@@ -380,7 +380,8 @@ function collectBranchCommits(baseBranch, { runGit: _runGit = runGit } = {}) {
   } catch {
     // 无远端跟踪引用时使用本地 base
   }
-  const output = _runGit(['log', '--reverse', '--format=%H%x1f%s%x1f%b%x1e', `${baseRef}..HEAD`], { capture: true });
+  // 同步配置主干产生的 merge 提交不代表本分支改动，不进入概要、变更内容与标题判定
+  const output = _runGit(['log', '--reverse', '--no-merges', '--format=%H%x1f%s%x1f%b%x1e', `${baseRef}..HEAD`], { capture: true });
   return String(output || '')
     .split('\x1e')
     .map((record) => record.replace(/^\n+/, ''))
@@ -391,12 +392,39 @@ function collectBranchCommits(baseBranch, { runGit: _runGit = runGit } = {}) {
     });
 }
 
+function commitBullets(commit) {
+  return commit.body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+\S/.test(line))
+    .map((line) => line.replace(/^[-*]\s+/, ''));
+}
+
+const AUTO_COMMIT_FILE_LINE = /^(?:(?:新增|修改|删除|重命名) \S.*|另有 \d+ 个文件改动)$/;
+
+/**
+ * 工作区自动提交的正文只是改动文件清单（见 buildAutoCommitBody）。
+ */
+function isFileListCommit(commit) {
+  const bullets = commitBullets(commit);
+  return bullets.length > 0 && bullets.every((line) => AUTO_COMMIT_FILE_LINE.test(line));
+}
+
+/**
+ * 分支上还有其他提交时，文件清单式自动提交不参与概要与标题判定；只有自动提交时保留全部。
+ */
+function describingCommits(commits) {
+  const authored = commits.filter((commit) => !isFileListCommit(commit));
+  return authored.length ? authored : commits;
+}
+
 /**
  * 单个 Conventional 提交时直接作为 PR 标题，否则按分支名推导。
  */
 function resolvePrTitle(branch, commits = []) {
-  if (commits.length === 1 && CONVENTIONAL_SUBJECT.test(commits[0].subject)) {
-    return commits[0].subject;
+  const candidates = describingCommits(commits);
+  if (candidates.length === 1 && CONVENTIONAL_SUBJECT.test(candidates[0].subject)) {
+    return candidates[0].subject;
   }
   return buildPrTitle(branch);
 }
@@ -404,12 +432,8 @@ function resolvePrTitle(branch, commits = []) {
 function buildPrSummaryLines(title, commits) {
   const lines = [];
   for (const commit of commits) {
-    const bullets = commit.body
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => /^[-*]\s+\S/.test(line))
-      .map((line) => `- ${line.replace(/^[-*]\s+/, '')}`);
-    lines.push(...(bullets.length ? bullets : [`- ${commit.subject}`]));
+    const bullets = commitBullets(commit);
+    lines.push(...(bullets.length ? bullets.map((line) => `- ${line}`) : [`- ${commit.subject}`]));
   }
   const unique = [...new Set(lines)];
   return unique.length ? unique : [`- ${title}`];
@@ -434,7 +458,7 @@ function buildAutoSummaryBlock(title, commits = []) {
     : ['_见 commit 历史_'];
   const inner = [
     '### 概要',
-    ...buildPrSummaryLines(title, commits),
+    ...buildPrSummaryLines(title, describingCommits(commits)),
     '',
     '### 变更内容',
     ...changes,

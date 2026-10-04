@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `tdd push` 生成 PR 概要、变更内容与标题时排除同步配置主干产生的 merge 提交；分支上还有其他提交时，工作区自动提交的文件清单不再写入概要、也不影响标题判定（仅剩一个人工 Conventional 提交时直接用其标题），只有自动提交时仍保留文件清单。
+
 ## [v3.7.19] - 2026-10-04
 
 - 子进程被信号终止时 `pnpm agent`、`github-auth-run.js`、`tdd finish` 及 worktree/TDD 入口按 `128+信号号` 非零退出，不再把 `status=null` 当作成功；`pnpm agent` 只把 `--` 之前的 `-h`/`--help` 视为自身帮助，透传给下游运行器的参数不再被拦截。
