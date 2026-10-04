@@ -357,6 +357,51 @@ test('delivery pipeline, schema and review rules live with their owners instead 
   }
 });
 
+test('conventions section 8 states each test-scope rule once and keeps the rules next to every trim', () => {
+  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const occurrences = (needle) => section.split(needle).length - 1;
+
+  // 「不能单独触发全量」清单只在全量段列一次，首段只保留低风险判定。
+  assert.equal(occurrences('进入 QA、创建 PR'), 1);
+  assert.match(section, /高风险标签、进入 QA、创建 PR 均不能单独触发全量/u);
+  assert.match(section, /改动行数少不能单独证明低风险/u);
+
+  // 范围不明先调查、仍不明再升级由第三类触发表达，不再另起一句。
+  assert.doesNotMatch(section, /遇到范围不明/u);
+  assert.match(section, /调查调用关系后仍无法可靠界定影响（不猜测范围）/u);
+
+  // 大日志的存放位置由 AGENTS.md 与 §6 的 evidence/ 约定负责。
+  assert.doesNotMatch(section, /大日志留在任务 evidence/u);
+  assert.match(read('AGENTS.md'), /完整日志写入任务 evidence/u);
+  assert.match(read('AGENTS.md'), /大证据放 `evidence\/`/u);
+  assert.match(conventionsSection('6. 长任务状态文件', '7. '), /evidence\/\s+# 可选大体积证据/u);
+
+  // 预提交运行的绑定规则只写一次，并带上摘要核对方式。
+  assert.equal(occurrences('提交前运行'), 1);
+  assert.match(section, /提交前运行的测试须先确认受测内容与当前提交一致（可用受测文件摘要核对），再绑定 HEAD/u);
+  assert.match(section, /证据须能绑定当前提交、测试范围、命令、退出码、依赖\/配置和环境/u);
+
+  // 全量入口段不再重复触发依据的记录要求，放行条件仍由 task exec 一句承担。
+  assert.doesNotMatch(section, /按上段记录触发依据/u);
+  assert.match(section, /只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行/u);
+  assert.match(section, /明确需要全量时使用项目显式全量入口/u);
+
+  // 压缩只合并重复，邻近的规则本身必须原样保留。
+  for (const rule of [
+    '不得用全量失败掩盖定向结果',
+    '全量测试是例外，只有以下四类可触发',
+    '某一应用的全量单测不自动扩大为所有应用、全量 E2E、安全与负载测试',
+    '结构校验不代替 QA 对范围、日志与证据真实性的判断',
+    '`task exec` 在启动前拦截常见聚合测试命令',
+    '不得临时改成空命令或忽略失败来缩小范围',
+    '新增 QA 测试仍须实际执行',
+    '测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验',
+    '时间压力不能豁免必需项',
+  ]) {
+    assert.ok(section.includes(rule), rule);
+  }
+});
+
 test('qa receipt scope stays with the receipt definition in conventions section 5', () => {
   const section = conventionsSection('5. Worktree 生命周期', '6. ');
   assert.match(section, /回执不跨电脑共享.*重新执行 `qa verify`/u);
