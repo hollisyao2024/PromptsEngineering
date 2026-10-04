@@ -30,7 +30,7 @@ function mkTmpDir(prefix) {
 }
 
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  return execFileSync('git', ['-c', 'core.autocrlf=false', ...args], { cwd: root, encoding: 'utf8' }).trim();
 }
 
 function writeFile(root, relativePath, content) {

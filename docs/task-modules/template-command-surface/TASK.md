@@ -302,3 +302,14 @@
 | TASK-CMDSURF-014-03 | 模板应用、同步、引擎和规则上下文定向回归，QA SHA绑定与合并 | QA | 1h | 014-02 |
 
 覆盖边界：现有模板引擎及 update/sync 消费者；不变更应用代码、数据库、部署或CI，无DevOps任务。风险：旧所有权断言与骨架升级误覆盖，正反例验证并沿用固定SHA QA。验收引用 TC-CMDSURF-038~040；证据留任务状态。
+
+## 固定提交证据 WBS（US-CMDSURF-015/016）
+
+| Task | Deliverable / 验收 | Owner | Estimate | 依赖 |
+| --- | --- | --- | --- | --- |
+| TASK-CMDSURF-015-01 | TC041-044：严格默认、非法配置、历史限制、恶化、删除、闭环、逐记录指纹与固定 Git 快照的失败测试 | TDD | 2h | PRD/ARCH015 |
+| TASK-CMDSURF-015-02 | merge-evidence 组件、稀疏配置默认与 qa-merge 回执接线；独立发布结论 | TDD | 2h | 015-01 |
+| TASK-CMDSURF-016-01 | TC045/046：模板 update/sync Git 夹具确定换行、Codex 说明与兼容回归 | TDD | 1h | 015-02 |
+| TASK-CMDSURF-015-03 | 定向消费者回归、语义审查、模板源推送/QA/固定 SHA 合并，随后消费者模板同步 | QA | 1h | 016-01 |
+
+关键路径按表顺序，里程碑为 RED → GREEN → 双 SHA QA → 官方主干交付。无跨模块新依赖，既有三套模块集合与主总纲索引继续有效。数据库 Expand/Migrate/Contract、回灌/对账/回滚及 CI/部署任务均不适用；脚本回滚采用 revert。Review-Class REQUIRED（共享合并门禁）；Codex review skipped by policy。执行证据记录 task state/session，不写入 WBS。

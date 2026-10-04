@@ -17,7 +17,7 @@ const TEMPLATE_IDENTITY = Object.freeze({
 const OFFICIAL_REPOSITORY = 'https://github.com/hollisyao2024/PromptsEngineering.git';
 
 function git(cwd, args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  return execFileSync('git', ['-c', 'core.autocrlf=false', ...args], { cwd, encoding: 'utf8' }).trim();
 }
 
 function write(root, relativePath, content) {
@@ -29,6 +29,8 @@ function write(root, relativePath, content) {
 function initializeRepository(root) {
   fs.mkdirSync(root, { recursive: true });
   git(root, ['init']);
+  // The anonymous fetched checkout also needs a committed LF contract, independent of host Git settings.
+  write(root, '.gitattributes', '* text eol=lf\n');
   git(root, ['config', 'user.name', 'Xirang Test']);
   git(root, ['config', 'user.email', 'xirang-test@example.invalid']);
   git(root, ['branch', '-M', 'main']);

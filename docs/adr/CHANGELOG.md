@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-04：[ADR 036](036-arch-fixed-commit-merge-evidence.md)，默认严格、显式固定提交集成、逐记录语义指纹与独立发布判定。
+
 - 2026-10-04：[ADR 035](035-arch-data-semantic-enforcement.md)，语义门禁默认阻断、按安装形态条件豁免、身份/文件模块核心表分层合规与适配器层软删除。
 
 - 2026-10-03：[ADR 034](034-arch-data-semantic-conventions.md)，数据语义约定（命名、注释、审计字段、软删除、状态值）与 schema 变更阻断门禁。
