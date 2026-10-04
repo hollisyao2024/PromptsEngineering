@@ -190,24 +190,25 @@ function mergeDefect(existing, incoming) {
 }
 
 // 解析缺陷列表
-function parseDefects() {
+function parseDefects(options = {}) {
   log('\n📖 扫描模块 QA 缺陷列表...', 'cyan');
 
+  const config = { ...CONFIG, ...options };
   const defects = new Map();
 
-  if (!fs.existsSync(CONFIG.qaModulesDir)) {
+  if (!fs.existsSync(config.qaModulesDir)) {
     log('⚠️  qa-modules/ 目录不存在', 'yellow');
     return [];
   }
 
-  const entries = fs.readdirSync(CONFIG.qaModulesDir, { withFileTypes: true });
+  const entries = fs.readdirSync(config.qaModulesDir, { withFileTypes: true });
   const moduleDirs = entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.'));
 
   log(`✅ 找到 ${moduleDirs.length} 个模块 QA 文档`);
 
   moduleDirs.forEach(dir => {
     for (const fileName of ['QA.md', 'defect-log.md']) {
-      const filePath = path.join(CONFIG.qaModulesDir, dir.name, fileName);
+      const filePath = path.join(config.qaModulesDir, dir.name, fileName);
       if (!fs.existsSync(filePath)) continue;
       const content = fs.readFileSync(filePath, 'utf-8');
       for (const defect of parseDefectContent(content, dir.name)) {
@@ -580,6 +581,7 @@ module.exports = {
   checkNFRCompliance,
   determineReleaseDecision,
   generateReleaseGateReport,
+  moreBlockingStatus,
   parseDefectContent,
   parseDefects,
   parseNFRCompliance,

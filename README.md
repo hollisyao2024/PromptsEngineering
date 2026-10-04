@@ -180,7 +180,7 @@ Git 下载和缓存可能包含完整源码快照；轻量化指项目只提交�
 
 模板回灌使用显式 `template backfill` 操作，只处理可回灌的 template-owned 差异。具体限制见 [AGENTS.md](AGENTS.md) 与[通用约定](docs/CONVENTIONS.md)。
 
-合并证据默认采用严格发布门禁。项目若需要区分固定提交集成与整体发布，可在 project-owned 的 `agent.config.json` 设置 `qa.mergeEvidence.mode = "fixed-commit"`；仅 session 合并使用 QA 回执的固定 base/head 比较证据，project 模式保持严格。默认读取 `docs/qa-modules/*/{QA,defect-log,nfr-tracking}.md` 与 `docs/data/nfr-tracking.md`，可通过 `qaModulesDir`、`nfrTrackingFile` 配置仓库内相对路径。历史阻塞会单独报告，新增/变化的阻塞、证据文件或未闭环记录删除、缺失可解析 NFR 均阻断。无关文字及其他记录不改变既有记录指纹；集成通过不代表发布通过。
+合并证据默认采用严格发布门禁。项目若需要区分固定提交集成与整体发布，可在 project-owned 的 `agent.config.json` 设置 `qa.mergeEvidence.mode = "fixed-commit"`；仅 session 合并使用 QA 回执的固定 base/head 比较证据，project 模式保持严格。两种模式默认都读取 `docs/qa-modules/*/{QA,defect-log,nfr-tracking}.md` 与 `docs/data/nfr-tracking.md`，可通过 `qaModulesDir`、`nfrTrackingFile` 配置仓库内相对路径。历史阻塞会单独报告，新增/变化的阻塞、证据文件或未闭环记录删除、未明确关闭或达标的降级（如 P0 改 P2、未达标改条件通过）、缺失可解析 NFR 均阻断。无关文字及其他记录不改变既有记录指纹；集成通过不代表发布通过。
 
 ## 模型作业流程
 

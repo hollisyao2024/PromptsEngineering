@@ -72,3 +72,28 @@ test('TC042 configured paths and immutable blobs', t => {
   assert.equal(result.globalDecision.gatePass,false); assert.equal(result.gatePass,true);
   assert.throws(() => checkMergeEvidence({cwd:f.cwd,baseSha:'HEAD',headSha}));
 });
+const defectRow = (severity, status) => `| Bug ID | Title | Severity | Status |\n| --- | --- | --- | --- |\n| BUG-TEST-001 | historical | ${severity} | ${status} |\n`;
+test('TC043 downgraded blocker without closure is blocked', t => {
+  const f=fixture(t); f.write(f.defectFile,defectRow('P2','Open')); f.write(f.metric,nfr('✅ 达标'));
+  assert.match(f.check().blockers.join('\n'),/BUG-TEST-001.*downgraded without closure|downgraded without closure.*BUG-TEST-001/);
+});
+test('TC043 NFR moved to conditional is not closure', t => {
+  const f=fixture(t); f.write(f.defectFile,defect('Closed')); f.write(f.metric,nfr('⚠️ 条件通过'));
+  assert.match(f.check().blockers.join('\n'),/downgraded without closure: NFR-TEST-001/);
+});
+test('TC043 downgraded and explicitly closed defect passes', t => {
+  const f=fixture(t); f.write(f.defectFile,defectRow('P2','Closed')); f.write(f.metric,nfr('✅ 达标'));
+  assert.equal(f.check().gatePass,true);
+});
+test('TC042 P1 release warnings follow strict status buckets', t => {
+  const f=fixture(t); f.write(f.defectFile,defect()+'| BUG-TEST-002 | p1 | P1 | In Progress |\n');
+  const warnings=f.check().globalDecision.warningIssues.join('\n');
+  assert.match(warnings,/1 个 P1 缺陷修复中/); assert.doesNotMatch(warnings,/P1 缺陷未修复/);
+});
+test('TC041 strict mode reads configured evidence paths', t => {
+  const f=fixture(t,{qaModulesDir:'quality/modules',nfrTrackingFile:'quality/metrics.md'});
+  const config={qa:{mergeEvidence:{qaModulesDir:'quality/modules',nfrTrackingFile:'quality/metrics.md'}}};
+  assert.equal(runPreMergeChecks({scope:'project',cwd:f.cwd,config}),false);
+  f.write(f.defectFile,defect('Closed')); f.write(f.metric,nfr('✅ 达标'));
+  assert.equal(runPreMergeChecks({scope:'project',cwd:f.cwd,config}),true);
+});
