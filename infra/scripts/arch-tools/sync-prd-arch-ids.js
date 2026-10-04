@@ -56,6 +56,17 @@ function collectModuleArchFiles(dir) {
   return files;
 }
 
+function collectModulePrdFiles(dir) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+    .map(entry => path.join(dir, entry.name))
+    .sort();
+}
+
 // 存储
 const storyIDsInArch = new Map(); // story_id -> { files: [file], lines: [line] }
 const storyIDsInPRD = new Map(); // story_id -> { file, line }
@@ -176,10 +187,15 @@ function scanPRDForStoryIDs() {
       .filter(dirent => dirent.isDirectory());
 
     for (const dir of moduleDirs) {
-      const prdFile = path.join(PRD_MODULES_DIR, dir.name, 'PRD.md');
-      if (fs.existsSync(prdFile)) {
+      // Canonical story headings may live in a linked module specification
+      // rather than the module landing page. Both are PRD-owned sources.
+      const moduleDir = path.join(PRD_MODULES_DIR, dir.name);
+      const prdFiles = collectModulePrdFiles(moduleDir);
+
+      for (const prdFile of prdFiles) {
         const content = fs.readFileSync(prdFile, 'utf8');
-        const results = extractStoryDefinitions(content, `prd-modules/${dir.name}/PRD.md`);
+        const relativePath = path.relative(PROJECT_ROOT, prdFile).replace(/\\/g, '/');
+        const results = extractStoryDefinitions(content, relativePath);
 
         results.forEach(({ storyID, file, line }) => {
           if (!storyIDsInPRD.has(storyID)) {
@@ -515,6 +531,7 @@ function main() {
 if (require.main === module) process.exitCode = main();
 
 module.exports = {
+  collectModulePrdFiles,
   extractComponentIDs,
   extractStoryDefinitions,
   extractStoryIDs,
