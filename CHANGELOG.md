@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `tdd push` 在本机缺少 gh CLI 时改用 `.env.local` 的 `GH_TOKEN` 走 GitHub API 创建 PR（base 为配置主干）或同步已有 PR 的 Review Gate，与 `qa merge` 共用 `infra/scripts/shared/github-api.js`；gh 与 GH_TOKEN 都不可用或 PR 创建失败时输出 `STATUS=BLOCKED` 并非零退出，不再只打印手动链接后静默成功。自动提交信息与 PR 标题按分支前缀（feature/fix/docs/refactor/test 等）生成 Conventional 类型并去掉末尾日期，不再出现 `chore: auto-commit before /tdd push`。
+
 - 修复合并证据门禁：fixed-commit 下历史阻塞记录仅降级严重度或改为条件通过、未明确关闭/达标时阻断；严格模式（含 project）同样按 `qa.mergeEvidence.qaModulesDir`、`nfrTrackingFile` 读取证据；fixed-commit 发布结论的 P1 未修复/修复中统计与严格模式一致。
 
 - 合并证据保持默认严格，新增项目显式启用的 `qa.mergeEvidence.mode=fixed-commit`：从 QA 回执的固定 base/head Git 快照检查新增或变化的阻塞、证据删除与未闭环记录，并单独输出发布结论。逐记录语义指纹避免无关文档修改误阻断；证据路径可配置且非法输入 fail closed。模板同步/update 的 Git 测试夹具固定换行；既有 Codex 维护分支兼容只做回归，不增加或推荐新的分支命名。
