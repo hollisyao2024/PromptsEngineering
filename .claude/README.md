@@ -39,6 +39,7 @@
 - 推送到远程（`git push`）
 - 网络访问（`WebFetch`）
 - 有远端、部署或任意命令执行副作用的 agent 入口：`tdd push`、`qa merge`、`finish`/`tdd finish`（按 guard 自动串联 push 与 merge）、`worktree bootstrap`（执行项目配置的依赖安装）、`task exec`、`task cancel`、`test`、`build`、`ship`、`private ...`、`template ...`；需要免确认时在 `settings.local.json` 中自行追加
+- 项目自有的 `pnpm test*` / `pnpm run test*` 不再通配放行：聚合测试脚本常为全量，不是默认回归；定向测试用 `pnpm agent -- test --file <测试文件> -- <运行器>`
 
 ### 个人配置 (`settings.local.json`)
 

@@ -112,7 +112,7 @@ schema 变更必须在同一交付中同时包含：schema 源修改、由 schem
 - 共享基础库或跨文件业务联动；
 - hotfix。
 
-同时输出 `Domain-Hit` 和简短 `Reason`。Codex 按仓库策略记录 `Codex review skipped by policy` 后继续，其余执行器按项目要求执行 review。未命中可标记 OPTIONAL，但适用的 lint、类型检查和测试仍是强制项；高风险标签本身不触发全量，按通用约定界定范围。
+同时输出 `Domain-Hit` 和简短 `Reason`。Codex 按仓库策略记录 `Codex review skipped by policy` 后继续，其余执行器按项目要求执行 review。未命中可标记 OPTIONAL，但适用的 lint、类型检查和测试仍是强制项；高风险标签本身不触发全量，按 `docs/CONVENTIONS.md` §测试范围与证据复用界定范围。
 
 ## 文档同步
 

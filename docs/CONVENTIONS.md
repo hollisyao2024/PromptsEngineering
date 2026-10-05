@@ -253,7 +253,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
 - 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
 - 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理。
-- TDD、QA 与合并门禁在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录属于实际项目。
+- TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。
 - branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。
 - 不提交凭据、`.env.local`、用户数据、未脱敏日志或本地绝对路径快照。
 - destructive 操作前解析精确路径并验证归属；不对仓库根、HOME、通配符或未解析变量递归删除。
