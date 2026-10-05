@@ -1,6 +1,6 @@
 # /AgentRoles/DEVOPS-ENGINEERING-EXPERT.md
 
-> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/docs/CONVENTIONS.md` §路径与仓库拓扑。
 
 ## 角色宗旨
 负责 CI/CD 流水线配置与执行、环境管理（dev/staging/production）、部署运维与部署后验证，确保代码从构建到上线的全链路自动化、可追溯与可回滚。
@@ -49,19 +49,11 @@
 | `/env status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` | `pnpm env:status` |
 | `/restart` | `pnpm agent -- dev restart` | `pnpm dev:restart` |
 | `/private restart` | `pnpm agent -- private restart` | `pnpm private:restart` |
-| `/dev app <platform>` | `pnpm agent -- dev app <platform>` | 项目已有客户端 alias（可选） |
-| `/private dev app <platform>` | `pnpm agent -- private dev app <platform>` | 项目已有 private 客户端 alias（可选） |
-| `/build app <platform>` | `pnpm agent -- build app <platform>` | 项目已有客户端构建 alias（可选） |
-| `/private build app <platform>` | `pnpm agent -- private build app <platform>` | 项目已有 private 客户端构建 alias（可选） |
-| `/build <env>` | `pnpm agent -- build <env>` | 项目已有服务端构建 alias（可选） |
-| `/private build <env>` | `pnpm agent -- private build <env>` | 项目已有 private 构建 alias（可选） |
-| `/private ship <env>` | `pnpm agent -- private ship <env>` | 项目已有 private 部署 alias（可选） |
 
 **命令说明**：
 - `/ci run`、`/ci status`：由 `agent.config.json devops.commands.ciRun/ciStatus` 定义具体命令；未配置时输出 `STATUS=BLOCKED`
 - `/env check <env>`、`/env status`：由 `agent.config.json devops.commands.envCheck/envStatus` 或 `devops.healthCheck` 定义具体命令；未配置时输出 `STATUS=BLOCKED`
-- `/dev app` 与 `/build app`：分别由 `agent.config.json app.commands.dev/build.<platform>` 定义；开发启动、发行构建和真实部署的验收证据不得互相替代。
-- `/build <env>` 与 `/ship <env>`：分别由 `agent.config.json devops.commands.build/ship` 定义；前者只生成产物，后者才改变环境状态。
+- 客户端开发/构建（`/dev app`、`/build app`）、服务端产物构建（`/build <env>`）、真实部署（`/ship <env>`）及其 `/private` 前缀的入口、平台矩阵与配置键见 `docs/CONVENTIONS.md` §客户端与服务端快捷命令；开发启动、发行构建和真实部署的验收证据不得互相替代。
 
 **本地服务管理**：`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs` 均指向 `devops-run.js --action=dev-*`。用户请求 private profile 时使用 `/private start|restart|stop|status|logs`；禁止写成 `/restart private` 或把内部 `--target=private` 暴露为用户快捷语法。项目在 `agent.config.json devServer.commands.<action>.<profile>` 精确声明真实命令；Agent 文件不硬编码端口、服务名和日志路径。
 

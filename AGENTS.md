@@ -163,13 +163,12 @@ pnpm agent -- finish
 - 架构规划先按项目需求选择应用、存储、平台与目录，记录 `architecture.config.json`；用 `architecture plan/init/update/check` 落地。已选 shadcn 的控件和 DataTable 约束见架构标准，`RULES.md` 不重复抄写。
 - 升级按文件/字段所有权执行，`xirang.lock.json` 与 `.xirang/baselines` 保存版本依据；未知基线、覆盖漂移、合并冲突或恢复态阻断，不静默丢弃定制。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
-- `RULES.md`、业务源码、真实项目文档和部署实现属于项目；模板更新不得覆盖已有内容；`RULES.md` 缺失时按 `init-if-missing` 初始化。
 - 应用模板：`pnpm agent -- template update <target>`；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。
 - 回灌模板是显式操作：`pnpm agent -- template backfill <source>`；不得回灌项目配置、规则、业务脚本或 generated 文件。
 
 ## 全仓扫描
 
-跨目录且完整性影响正确性时，Discovery 与 Editing 必须分离。候选清单先写入主 repo 容器层 `tmp/scan-manifests/`，再编辑；最终报告 `scanned_count`、`matched_count`、`modified_count`、`skipped_count`，并满足 `matched = modified + skipped`。
+跨目录且完整性影响正确性时，Discovery 与 Editing 必须分离，细则见 `docs/CONVENTIONS.md` §全仓扫描。
 
 ## 稳定命令入口
 
