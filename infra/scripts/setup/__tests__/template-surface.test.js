@@ -547,6 +547,38 @@ test('agents task exec usage rule stays consistent with the conventions syntax r
   }
 });
 
+test('agents worktree section leaves the remote same-name branch rule to conventions section 5 and keeps its unique lifecycle rules', () => {
+  const agents = read('AGENTS.md');
+  for (const removed of [/远端同名分支/u, /固定 SHA 建立本机/u, /worktree resume/u]) {
+    assert.doesNotMatch(agents, removed);
+  }
+  for (const kept of [
+    '合并后清理由 session 封印和补偿器完成；存在未提交变更、HEAD 漂移或缺少封印时转为恢复状态，禁止删除。',
+    '多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。',
+    '不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。',
+    '`policy_denied`（工具明确拒绝：保留原始理由和调用编号，停止该操作，不改写命令、换入口或扩大权限）',
+    '禁止改写命令、换工具或迁移记录以重试被拒绝动作。',
+  ]) {
+    assert.ok(agents.includes(kept), kept);
+  }
+  const section = conventionsSection('5. Worktree 生命周期', '6. ');
+  for (const carried of [
+    '如果 required fetch 后已经存在 `refs/remotes/origin/<branch>`，`worktree new` 必须阻断并提示显式恢复或更名',
+    '只有 `worktree resume` 可以从远端分支固定 SHA 创建本机 tracking branch、worktree 和 session',
+  ]) {
+    assert.ok(section.includes(carried), carried);
+  }
+});
+
+test('tdd playbook points to the conventions test-scope section by name instead of a vague reference', () => {
+  const playbook = read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md');
+  assert.ok(playbook.includes(
+    '以下是命令示例，须按项目运行器核实过滤参数并选择受影响用例；全量命令仅在满足 `docs/CONVENTIONS.md` §测试范围与证据复用的升级条件时使用，不按示例逐条执行。',
+  ));
+  assert.doesNotMatch(playbook, /满足通用约定的升级条件/u);
+  assert.ok(conventionsSection('8. TDD、QA 与交付', '9. ').includes('\n### 测试范围与证据复用\n'));
+});
+
 test('TDD read-only flow does not require writing diagnostic artifacts', () => {
   const handbook = read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md');
   assert.doesNotMatch(handbook, /只读排查[^\n]*产物写容器/u);
