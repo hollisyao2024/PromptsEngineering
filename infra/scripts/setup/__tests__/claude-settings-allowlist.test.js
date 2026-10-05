@@ -91,6 +91,62 @@ test('team allowlist does not wildcard-allow project test scripts, which are not
   );
 });
 
+test('team allowlist no longer carries legacy pnpm rules that match no script of this template', () => {
+  // 这 7 条在模板源 package.json 中没有任何可匹配的脚本：`build`、`clean`、`dev` 从未存在；
+  // `priority:*`、`persona:*`、`goal:*` 对应的脚本已随 PRD 工具链精简在 dbf60fd 移除，且 `:*` 按词边界只匹配
+  // 无冒号后缀的 `pnpm run priority`。下游项目自带 `build`、`clean` 脚本时，需要免确认就在 settings.local.json 追加。
+  for (const rule of [
+    'Bash(pnpm build*)',
+    'Bash(pnpm run build*)',
+    'Bash(pnpm run clean*)',
+    'Bash(pnpm dev)',
+    'Bash(pnpm run priority:*)',
+    'Bash(pnpm run persona:*)',
+    'Bash(pnpm run goal:*)',
+  ]) {
+    assert.ok(!settings.permissions.allow.includes(rule), `dead rule should be removed: ${rule}`);
+  }
+  for (const command of [
+    'pnpm build',
+    'pnpm build:app:mac',
+    'pnpm run build',
+    'pnpm run build:dev',
+    'pnpm run clean',
+    'pnpm run priority',
+    'pnpm run persona',
+    'pnpm run goal',
+  ]) {
+    assert.ok(!isAllowed(command), `should require confirmation: ${command}`);
+  }
+  // `Bash(pnpm dev)` 是 `Bash(pnpm dev:*)` 的子集（后者按词边界同样匹配裸 `pnpm dev`），删除不改变放行结果。
+  assert.ok(isAllowed('pnpm dev'), 'bare pnpm dev stays allowed through Bash(pnpm dev:*)');
+});
+
+test('team allowlist keeps the other legacy pnpm rules and the dev ship aliases untouched', () => {
+  assert.deepEqual(
+    bashRules().filter((rule) => /^pnpm (?!agent )/u.test(rule)),
+    [
+      'pnpm lint*',
+      'pnpm run lint*',
+      'pnpm type-check*',
+      'pnpm run type-check*',
+      'pnpm run codemap*',
+      'pnpm run precommit*',
+      'pnpm run dev*',
+      'pnpm dev:*',
+      'pnpm run prd:*',
+      'pnpm run arch:*',
+      'pnpm run nfr:*',
+      'pnpm run task:*',
+      'pnpm run tdd:*',
+      'pnpm run qa:*',
+      'pnpm ship:dev',
+      'pnpm run ship:dev',
+      'pnpm run ship:dev:quick',
+    ],
+  );
+});
+
 test('team allowlist stays valid JSON with unique entries', () => {
   const allow = settings.permissions.allow;
   assert.equal(new Set(allow).size, allow.length, 'allow entries must be unique');
