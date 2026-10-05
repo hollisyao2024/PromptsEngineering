@@ -402,6 +402,79 @@ test('conventions section 8 states each test-scope rule once and keeps the rules
   }
 });
 
+test('agents test entry keeps its own rules and leaves task exec interception to conventions section 8', () => {
+  const agents = read('AGENTS.md');
+  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+
+  // 「task exec 拦截聚合测试命令」只在 §8 运行器段写一次，并带放行条件。
+  assert.doesNotMatch(agents, /`task exec` 会在启动前拦截聚合测试命令/u);
+  assert.ok(
+    section.includes('`task exec` 在启动前拦截常见聚合测试命令，只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行'),
+    'conventions section 8 keeps the task exec interception rule with its release condition',
+  );
+
+  // 测试入口句的其余规则原样保留：定向入口、默认回归禁令、全量记录要求与 CONVENTIONS 指针。
+  assert.ok(
+    agents.includes(
+      '测试优先使用 `pnpm agent -- test --file <测试文件> -- <定向运行器>`；不得把项目自有 `pnpm test` 或无文件参数的运行器当作默认回归。全量测试须先按 `docs/CONVENTIONS.md` 记录触发依据和对应命令。',
+    ),
+    'agents keeps the targeted test entry, the default-regression ban and the full-test pointer',
+  );
+  // task exec 的长命令用法仍由上下文预算章节承担。
+  assert.ok(
+    agents.includes('任何预计超过 5 秒或 2KB 输出的测试、构建、部署命令使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`'),
+    'agents keeps the task exec usage in the context budget section',
+  );
+});
+
+test('qa expert points to conventions section 8 and keeps only its own review duties', () => {
+  const qa = read('AgentRoles/QA-TESTING-EXPERT.md');
+  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+
+  // 旧 QA 子句 → 仍在 §8 的承接原文：删除与保留在同一处断言，避免只删不留。
+  const dedupedIntoSection = [
+    [/检查完整 diff、调用方和依赖，按影响范围选择测试/u, ['TDD 与 QA 共用以下口径', '检查调用方、共享依赖、配置和测试映射，再选择最小充分范围']],
+    [/记录命令、退出码、覆盖范围和未运行项/u, ['`impact_paths`', '`commands`', '`not_run`', '`exit_code:0`']],
+    [/不得将未运行项记为通过/u, ['未运行项不得记为通过']],
+    [/纯文档运行格式、链接或模板契约检查/u, ['相关格式、链接或模板契约检查']],
+    [/局部样式运行相关视觉或定向 E2E/u, ['受影响页面的视觉或定向 E2E']],
+    [/局部逻辑运行定向单元\/集成及消费者回归/u, ['定向单测及直接调用方回归', '涉及用户路径时补相关 E2E']],
+    [/全局样式追踪受影响页面/u, ['全局样式须追踪受影响页面']],
+    [/高风险标签不自动触发全量/u, ['高风险标签、进入 QA、创建 PR 均不能单独触发全量']],
+    [/记录具体依据及全量的应用\/测试类型/u, ['记录具体触发项、调查证据、需要全量的应用/工作区和测试类型']],
+    [/必需验证通过后，无新变更、失败或具体未解决风险不继续扩大或重复测试/u, ['必需验证通过后，仅因新变更、失败或具体未解决风险扩大或重跑测试']],
+    [/时间限制不能豁免必需项/u, ['时间压力不能豁免必需项']],
+    [/范围不明先调查再决定升级/u, ['调查调用关系后仍无法可靠界定影响（不猜测范围）', '先界定影响范围，再判断是否升级全量']],
+  ];
+  for (const [removed, kept] of dedupedIntoSection) {
+    assert.doesNotMatch(qa, removed);
+    for (const needle of kept) {
+      assert.ok(section.includes(needle), 'conventions section 8 keeps ' + needle);
+    }
+  }
+
+  // QA 自有职责保留：显式指针、§8 未列出的跨模块联动高风险清单、对 TEST_SCOPE 记录的审查与复用边界。
+  for (const duty of [
+    '- **测试执行**：遵循 `docs/CONVENTIONS.md` §测试范围与证据复用（变更影响表、全量触发与停止条件均以该节为准）。',
+    '- **高风险变更**：认证权限、数据写删、事务、缓存、并发、外部 API、schema、共享基础库和跨模块联动补足对应专项及消费者回归。',
+    '- **证据复用**：QA 审查当前任务的 `TEST_SCOPE_DECISION` 与 `TEST_SCOPE_RESULT`，核实影响分析、全量触发依据、未运行项及仍覆盖当前提交、依赖、配置和环境的 TDD 通过证据，只补新增或失效范围。',
+  ]) {
+    assert.ok(qa.includes(duty), duty);
+  }
+
+  // 门禁标题与四项保留；第 1 项只去掉与 §8 重复的升级尾句，第 2 项原样保留。
+  const gateStart = qa.indexOf('## 测试执行验证门禁（/qa verify 前置，强制）');
+  assert.ok(gateStart > 0, 'qa gate heading');
+  const gate = qa.slice(gateStart, qa.indexOf('\n## ', gateStart + 1));
+  for (const item of ['**测试范围已判定**', '**对应测试有有效结果**', '**测试覆盖摘要已输出**', '**专项验证按域完成**']) {
+    assert.ok(gate.includes(item), item);
+  }
+  assert.match(gate, /全量时核实通用约定中的触发项、调查证据及具体应用\/测试类型$/mu);
+  assert.match(gate, /逻辑变更有受影响的单元\/集成结果，涉及用户路径时有相关 E2E/u);
+  assert.match(gate, /可复用符合通用约定的 TDD 证据/u);
+  assert.ok(gate.includes('未满足任一条件 → 禁止执行 `/qa verify`，输出缺失项提示。'));
+});
+
 test('qa receipt scope stays with the receipt definition in conventions section 5', () => {
   const section = conventionsSection('5. Worktree 生命周期', '6. ');
   assert.match(section, /回执不跨电脑共享.*重新执行 `qa verify`/u);
