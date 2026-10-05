@@ -480,6 +480,73 @@ test('qa receipt scope stays with the receipt definition in conventions section 
   assert.match(section, /回执不跨电脑共享.*重新执行 `qa verify`/u);
 });
 
+test('agents cleanup deferral keeps its principle and bounds and leaves the command to conventions section 6', () => {
+  const agents = read('AGENTS.md');
+  for (const removed of [/--defer-cleanup-step/u, /--cleanup-evidence/u, /独立性与保留措施/u]) {
+    assert.doesNotMatch(agents, removed);
+  }
+  assert.ok(agents.includes(
+    '独立清理失败不得自动升级为交付前置条件。进入 QA/DEVOPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。',
+  ));
+  assert.ok(agents.includes(
+    '开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。',
+  ));
+  const section = conventionsSection('6. 长任务状态文件', '7. ');
+  for (const kept of [
+    '独立收尾清理可以在进入 QA/DEVOPS 时显式延后',
+    '`transition ... --defer-cleanup-step S5 --cleanup-evidence',
+    '仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由',
+    '不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用',
+    '失败状态和恢复要求不变',
+    '`task finish` 仍要求清理完成',
+    '此参数不授权执行被拒绝的动作',
+  ]) {
+    assert.ok(section.includes(kept), kept);
+  }
+});
+
+test('qa playbook points to the conventions test-scope section by name instead of a vague reference', () => {
+  const playbook = read('AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md');
+  for (const anchored of [
+    '按 `docs/CONVENTIONS.md` §测试范围与证据复用选择定向、消费者及专项回归',
+    '全量与证据复用遵循 `docs/CONVENTIONS.md` §测试范围与证据复用',
+    '过滤参数的核实见 `docs/CONVENTIONS.md` §测试范围与证据复用；不逐条执行',
+    '有效的 TDD 证据按 `docs/CONVENTIONS.md` §测试范围与证据复用的条件复用',
+  ]) {
+    assert.ok(playbook.includes(anchored), anchored);
+  }
+  for (const removed of [/全量与证据复用遵循通用约定/u, /TDD 证据按通用约定复用/u, /并核实过滤参数/u]) {
+    assert.doesNotMatch(playbook, removed);
+  }
+  for (const kept of [
+    '不逐条执行，不因进入 QA 自动运行全量或生成全仓覆盖率',
+    '# 仅满足明确全量升级条件时执行',
+    '具体门禁见 Expert 文件',
+    '不适用项记录理由，不能据此默认新增测试类型或扩大为全量',
+    '确认 §测试执行验证门禁（Expert 文件）全部满足',
+  ]) {
+    assert.ok(playbook.includes(kept), kept);
+  }
+  assert.ok(conventionsSection('8. TDD、QA 与交付', '9. ').includes('确认测试运行器支持所用过滤参数'));
+});
+
+test('agents task exec usage rule stays consistent with the conventions syntax registry and cli limits', () => {
+  assert.ok(read('AGENTS.md').includes(
+    '使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志写入任务 evidence，只回传约 8KB/80 行摘要',
+  ));
+  const section = conventionsSection('7. 命令面', '8. ');
+  for (const syntax of [
+    'pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>',
+    'pnpm agent -- task context --task <id> [--max-bytes 8192] [--include <path#Lx-Ly>]...',
+  ]) {
+    assert.ok(section.includes(syntax), syntax);
+  }
+  const cli = read('infra/scripts/agent-runner/agent-task.js');
+  for (const limit of [/DEFAULT_CONTEXT_BYTES\s*=\s*8192\b/u, /DEFAULT_SUMMARY_BYTES\s*=\s*8192\b/u, /DEFAULT_SUMMARY_LINES\s*=\s*80\b/u]) {
+    assert.match(cli, limit);
+  }
+});
+
 test('TDD read-only flow does not require writing diagnostic artifacts', () => {
   const handbook = read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md');
   assert.doesNotMatch(handbook, /只读排查[^\n]*产物写容器/u);
