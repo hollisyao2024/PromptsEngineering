@@ -11,6 +11,7 @@ const ROUTES = new Map([
   ['finish', 'infra/scripts/tdd-tools/tdd-finish.js'],
   ['tdd:sync', 'infra/scripts/tdd-tools/tdd-sync.js'],
   ['tdd:push', 'infra/scripts/tdd-tools/tdd-push.js'],
+  ['tdd:commit', 'infra/scripts/tdd-tools/tdd-commit.js'],
   ['tdd:finish', 'infra/scripts/tdd-tools/tdd-finish.js'],
   ['tdd:guard', 'infra/scripts/tdd-tools/tdd-completion-guard.js'],
   ['qa:plan', 'infra/scripts/qa-tools/generate-qa.js'],
@@ -117,7 +118,7 @@ Core commands:
   test --file <test-file> -- <runner> [args]
   task <paths|context|start|checkpoint|exec|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
-  tdd <sync|push|finish|guard>
+  tdd <sync|push|commit|finish|guard>
   qa <plan|verify|merge>
   template <sync|update|backfill>
   architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>

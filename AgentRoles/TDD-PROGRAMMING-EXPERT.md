@@ -136,6 +136,8 @@ pnpm agent -- qa merge
 
 QA plan/verify 是合并前必需门禁；用户明确要求只创建 PR 或不合并时，按 `AGENTS.md` 的交付例外停止在相应阶段，不把跳过 QA 当作可合并路径。脚本输出 BLOCKED 时按 `NEXT_COMMANDS` 继续；外部权限或用户决策确实缺失时才停下。
 
+手动提交用 `pnpm agent -- tdd commit [git commit 选项]`：git 没有身份时，作者与提交者取自 `.env.local` 的 `GH_TOKEN` 所属账号，不手填身份、不写 git 配置、不接受 `--author`。
+
 ## 完成门禁
 
 final 前在主 worktree 验证：

@@ -12,6 +12,7 @@ const scriptsRoot = path.resolve(__dirname, '../..');
 // Entries whose default action mutates Git, GitHub, worktrees, templates or environments.
 const SIDE_EFFECT_ENTRIES = [
   'tdd-tools/tdd-push.js',
+  'tdd-tools/tdd-commit.js',
   'tdd-tools/tdd-new-branch.js',
   'qa-tools/generate-qa.js',
   'qa-tools/qa-verify.js',

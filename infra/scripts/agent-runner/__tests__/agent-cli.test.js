@@ -80,6 +80,24 @@ test('unified agent CLI routes stable workflow commands', () => {
   });
 });
 
+test('unified agent CLI routes tdd commit to the GH_TOKEN-identity commit entry and lists it in help', () => {
+  const { main } = require('../agent-cli');
+  assert.deepEqual(resolveCommand(['tdd', 'commit', '-m', 'feat: x', '--no-verify']), {
+    script: 'infra/scripts/tdd-tools/tdd-commit.js',
+    args: ['-m', 'feat: x', '--no-verify'],
+  });
+
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    assert.equal(main(['--help']), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.match(lines.join('\n'), /tdd <sync\|push\|commit\|finish\|guard>/u);
+});
+
 test('private service shortcut only accepts lifecycle actions', () => {
   assert.throws(() => resolveCommand(['private', 'unknown']), /private requires/u);
 });

@@ -93,6 +93,25 @@ pnpm run tdd:review-gate -- --base main
 
 ---
 
+### 5. 提交（/tdd commit）
+
+```bash
+pnpm agent -- tdd commit [git commit 选项...]
+```
+
+提交已暂存的改动；提交身份只来自 git 已有身份或 `.env.local` 的 `GH_TOKEN` 所属账号，不需要也不接受手填身份。
+
+**执行流程：**
+- 选项原样转发给 `git commit`（如 `-m`、`-a`、`--no-verify`）；不接受 `--author`（含 `--au` 等缩写）。不负责暂存，先用 `git add` 选好要提交的文件。
+- 作者与提交者分别判断：git 已有显式身份（git 配置，或 `GIT_AUTHOR_*` / `GIT_COMMITTER_*` 环境变量）的角色保持不变，不访问网络。
+- git 没有身份的角色，取 `GH_TOKEN` 所属账号（`GET /user`）：姓名为账号 `name`（为空则用 `login`），邮箱为 `<id>+<login>@users.noreply.github.com`，与该账号经 GitHub 合并产生的提交所用的 noreply 身份一致。身份只经本次 git 进程的环境变量传递，不写任何 git 配置，不落盘缓存；账号查询在子进程中完成，令牌只经子进程环境变量传递，不进命令行参数，错误信息中的令牌一律替换为 `***`。
+- git 没有身份、又读不到 `GH_TOKEN`，或账号查询失败时输出 `STATUS=BLOCKED` 并非零退出，不运行 git，也不退回 git 的 EMAIL / 主机名自动探测。
+- 输出 `STATUS`、`SUMMARY`、`NEXT_ACTION`、`IDENTITY_SOURCE`（`configured` / `github-token` / `unresolved`）、`IDENTITY`、`COMMIT`。
+
+**同一机制也作用于脚本内的 git 调用：** `tdd push` 的自动提交，以及 `qa merge` 的本地 squash 提交、发布/状态提交与注解 tag，经共享的 `buildGitHubGitEnv` 时按同样规则补身份，只对 `commit` 和注解 `tag` 生效。直接在终端裸执行的 `git commit`、以及 `github-auth-run.js -- git commit` 不经过这条路径，不会被补身份。
+
+---
+
 ## 📊 脚本状态
 
 | 脚本 | 状态 | 说明 |
@@ -102,6 +121,7 @@ pnpm run tdd:review-gate -- --base main
 | `tdd-new-branch.js` | ⚠️ 显式 opt-in | 默认阻断并提示使用 worktree；传入 `--explicit` 才创建普通 branch，不提供默认 package alias |
 | `tdd-tick.js` | ✅ 实现 | 基于分支名自动勾选 TASK 文档中的复选项 |
 | `tdd-push.js` | ✅ 实现 | push + 自动创建 PR + 输出 review gate 判定 |
+| `tdd-commit.js` | ✅ 实现 | 提交已暂存改动；git 无身份时作者与提交者取自 `GH_TOKEN` 所属账号，不写 git 配置 |
 | `tdd-review-gate.js` | ✅ 实现 | 按差异风险判定 `required / optional-skipped / skipped` |
 
 ---

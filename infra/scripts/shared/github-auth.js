@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { getMainRepoRoot, resolveRepoRoot } = require('./config');
+const { resolveCommitIdentity } = require('./github-identity');
 
 const REMOTE_GIT_COMMANDS = new Set(['fetch', 'pull', 'push', 'ls-remote']);
 const GIT_OPTIONS_WITH_VALUES = new Set([
@@ -204,12 +205,15 @@ function buildGitHubGitEnv({
   cwd = process.cwd(),
   args = [],
   env = process.env,
+  identityLookup,
 } = {}) {
   const token = getProjectGitHubToken({ repoRoot, cwd, env });
-  if (!token) return env;
-  if (!shouldInjectGitHubAuth({ cwd, args, env })) return env;
+  // commit 与注解 tag 在 git 没有身份时，由 GH_TOKEN 所属账号补齐（仅限本次进程环境，不写 git 配置）。
+  const gitEnv = resolveCommitIdentity({ args, cwd, env, token, lookup: identityLookup }).env;
+  if (!token) return gitEnv;
+  if (!shouldInjectGitHubAuth({ cwd, args, env: gitEnv })) return gitEnv;
   return appendGitConfigEnv(
-    withProjectGitHubToken(env, token),
+    withProjectGitHubToken(gitEnv, token),
     'http.https://github.com/.extraheader',
     buildGitHubExtraHeader(token)
   );
