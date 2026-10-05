@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.7.27] - 2026-10-05
+
+- `AGENTS.md`「修改与交付门禁」清理延后句去除与 `docs/CONVENTIONS.md` §6 重复的命令片段，规则含义不变：原句的「通过 `task transition --defer-cleanup-step <id> --cleanup-evidence "<独立性与保留措施>"`」（保留于 §6 的 `transition ... --defer-cleanup-step S5 --cleanup-evidence ...` 示例，及同条的「仅限有结构化失败证明 `not_started` 的 `blocked` 步骤」「不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用」等适用条件）改为指向 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求；「独立清理失败不得自动升级为交付前置条件」与「不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁」仍留在 `AGENTS.md`（后者的「最终完成门禁」宽于 §6 的「`task finish` 仍要求清理完成」，不能并入）。`AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` 的三处「通用约定」指代与一处「并核实过滤参数」改为显式指向 `docs/CONVENTIONS.md` §测试范围与证据复用（过滤参数核实保留于该节运行器段「确认测试运行器支持所用过滤参数」），playbook 其余文字不变。经核对不改动：`AGENTS.md`「开发 worktree 的未提交内容…」整段（`tdd push --committed-only` 与 `CLEANUP_STATUS=PRESERVED` 在 §5/§6 均无正文）、`AGENTS.md` 的 `task exec` 使用规则（§7 仅登记语法，AGENTS 句另含触发阈值与 8KB/80 行摘要上限，且与 `agent-task.js` 默认值一致）。字节：常驻加载的 `AGENTS.md` −66 B，按需读取的 playbook +147 B，合计 +81 B；新增三条契约测试固定删除项、保留项、指针与承接原文。
+
 ## [v3.7.26] - 2026-10-05
 
 - `AGENTS.md`「修改与交付门禁」与 `AgentRoles/QA-TESTING-EXPERT.md` 去除已在 `docs/CONVENTIONS.md` §8 有同义正文的重复子句，规则含义不变：`AGENTS.md` 测试入口句的「`task exec` 会在启动前拦截聚合测试命令」（保留于 §8 运行器段，并带「只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行」的放行条件）；QA 专家「测试执行」条的「检查完整 diff、调用方和依赖，按影响范围选择测试」（保留于 §8 首段）、「记录命令、退出码、覆盖范围和未运行项」（保留于 `TEST_SCOPE_DECISION` 的 `commands`/`impact_paths`/`not_run` 与 `TEST_SCOPE_RESULT` 的 `exit_code`）、「不得将未运行项记为通过」（保留于 §8 末段「未运行项不得记为通过」）；整条「局部变更」的三类场景（保留于变更影响表前三行）；「高风险变更」条的「全局样式追踪受影响页面」（保留于变更影响表局部样式行）、「高风险标签不自动触发全量」与「记录具体依据及全量的应用/测试类型」（保留于 §8「全量」段）；「证据复用与停止条件」条的「必需验证通过后…不继续扩大或重复测试」与「时间限制不能豁免必需项」（保留于 §8 末段，条目名随之收窄为「证据复用」）；QA 门禁第 1 项的「范围不明先调查再决定升级」（保留于 §8「全量」段第三类触发「（不猜测范围）」与变更影响表高风险行「先界定影响范围，再判断是否升级全量」）。「测试执行」条改为指向 §8 的括注，QA 专家保留高风险域清单（含 §8 未逐项列出的「跨模块联动」）、`TEST_SCOPE_*` 审查职责与「只补新增或失效范围」、门禁四项及「禁止执行 `/qa verify`」；`TEST_SCOPE_DECISION/RESULT` 字段与枚举、§8 变更影响表及全部必须/禁止类规则原样保留；新增契约测试逐条固定各删除项的承接与保留项。
