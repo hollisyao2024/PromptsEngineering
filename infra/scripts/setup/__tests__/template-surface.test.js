@@ -469,9 +469,9 @@ test('qa expert points to conventions section 8 and keeps only its own review du
   for (const item of ['**测试范围已判定**', '**对应测试有有效结果**', '**测试覆盖摘要已输出**', '**专项验证按域完成**']) {
     assert.ok(gate.includes(item), item);
   }
-  assert.match(gate, /全量时核实通用约定中的触发项、调查证据及具体应用\/测试类型$/mu);
+  assert.match(gate, /全量时核实 `docs\/CONVENTIONS\.md` §测试范围与证据复用中的触发项、调查证据及具体应用\/测试类型$/mu);
   assert.match(gate, /逻辑变更有受影响的单元\/集成结果，涉及用户路径时有相关 E2E/u);
-  assert.match(gate, /可复用符合通用约定的 TDD 证据/u);
+  assert.match(gate, /可复用符合 `docs\/CONVENTIONS\.md` §测试范围与证据复用的 TDD 证据/u);
   assert.ok(gate.includes('未满足任一条件 → 禁止执行 `/qa verify`，输出缺失项提示。'));
 });
 
@@ -577,6 +577,62 @@ test('tdd playbook points to the conventions test-scope section by name instead 
   ));
   assert.doesNotMatch(playbook, /满足通用约定的升级条件/u);
   assert.ok(conventionsSection('8. TDD、QA 与交付', '9. ').includes('\n### 测试范围与证据复用\n'));
+});
+
+test('experts and handbooks name the conventions test-scope section instead of a vague 通用约定 reference', () => {
+  const roleFiles = ['AgentRoles', 'AgentRoles/Handbooks'].flatMap((dir) => fs
+    .readdirSync(path.join(ROOT, dir))
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => `${dir}/${name}`));
+  assert.ok(roleFiles.length >= 12, 'expert and handbook files found');
+  for (const file of roleFiles) {
+    assert.doesNotMatch(read(file), /通用约定/u, `${file} names docs/CONVENTIONS.md instead of 通用约定`);
+  }
+  assert.ok(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md').includes(
+    '高风险标签本身不触发全量，按 `docs/CONVENTIONS.md` §测试范围与证据复用界定范围。',
+  ));
+});
+
+test('agents github section leaves the rules carried by conventions sections 5 and 9 there and keeps its own unique rules', () => {
+  const agents = read('AGENTS.md');
+  const start = agents.indexOf('\n## GitHub 与安全');
+  const end = agents.indexOf('\n## ', start + 1);
+  assert.ok(start >= 0 && end > start, 'agents github section');
+  const section = agents.slice(start, end);
+  const receipts = conventionsSection('5. Worktree 生命周期', '6. ');
+  const policy = conventionsSection('9. GitHub、命名与安全', '10. ');
+
+  // 旧 AGENTS 子句 → 仍在 CONVENTIONS 的承接原文：删除与保留在同一处断言，避免只删不留。
+  const dedupedIntoConventions = [
+    [/远端 Git\/GitHub 操作只能走/u, policy, ['GitHub token 变量统一为 `GH_TOKEN`。', '远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。']],
+    [/是阶段职责，不是电脑或账号身份/u, policy, ['专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。']],
+    [/原子写入绑定 base、branch/u, receipts, [
+      '`qa verify` 通过后在本机原子保存绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执',
+      '合并前重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验',
+      '任何 SHA 漂移、冲突或非快进拒绝都必须停止并要求重新 QA，不得自动 rebase 已验证分支或覆盖远端历史',
+    ]],
+    [/配置主干禁止 force push 和删除/u, policy, ['配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。']],
+    [/主干并发更新失败时不得覆盖远端历史/u, receipts, ['不得自动 rebase 已验证分支或覆盖远端历史']],
+    [/不创建、修改、触发或依赖 GitHub CI/u, policy, ['TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。']],
+  ];
+  for (const [removed, carrier, kept] of dedupedIntoConventions) {
+    assert.doesNotMatch(agents, removed);
+    for (const needle of kept) {
+      assert.ok(carrier.includes(needle), `conventions keeps ${needle}`);
+    }
+  }
+
+  // AGENTS 自有规则保留：CONVENTIONS 无正文的裸执行清单、PR base 绑定、expected SHA 租约、删除与状态保护、记录边界，外加一条指针。
+  for (const kept of [
+    '- GitHub 鉴权封装与 `GH_TOKEN`、阶段不绑定电脑或账号、QA 回执复验、配置主干禁止 force push 与删除、本地门禁不依赖 GitHub CI 的规则见 `docs/CONVENTIONS.md` §5、§9。',
+    '- 不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。',
+    '- `tdd push` 必须显式以 `config.baseBranch` 为 PR base。',
+    '- 功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。',
+    '- 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。',
+    '- 不记录或提交密钥、凭据、个人信息和大段原始日志。',
+  ]) {
+    assert.ok(section.includes(kept), kept);
+  }
 });
 
 test('TDD read-only flow does not require writing diagnostic artifacts', () => {

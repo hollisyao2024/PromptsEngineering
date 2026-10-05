@@ -147,12 +147,10 @@ pnpm agent -- finish
 
 ## GitHub 与安全
 
-- 远端 Git/GitHub 操作只能走 `github-auth-run.js` 或仓库脚本，token 变量仅用 `GH_TOKEN`。
+- GitHub 鉴权封装与 `GH_TOKEN`、阶段不绑定电脑或账号、QA 回执复验、配置主干禁止 force push 与删除、本地门禁不依赖 GitHub CI 的规则见 `docs/CONVENTIONS.md` §5、§9。
 - 不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。
-- PRD、ARCH、TASK、TDD、QA、DEVOPS 是阶段职责，不是电脑或账号身份；所有已获仓库权限的协作者均可在任意电脑执行任意阶段、合并 PR，或对配置主干执行普通非强制 push。
-- `tdd push` 必须显式以 `config.baseBranch` 为 PR base。`qa verify` 通过后在本机原子写入绑定 base、branch、`BASE_SHA` 和 `HEAD_SHA` 的回执；`qa merge` 必须重新 fetch，并把回执与 PR base/head refs 逐项复验，任一漂移都阻断并要求重新 QA。
-- 配置主干禁止 force push 和删除；功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。主干并发更新失败时不得覆盖远端历史。
-- TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；该目录始终由实际项目自行维护。
+- `tdd push` 必须显式以 `config.baseBranch` 为 PR base。
+- 功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。
 - 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。
 - 不记录或提交密钥、凭据、个人信息和大段原始日志。
 

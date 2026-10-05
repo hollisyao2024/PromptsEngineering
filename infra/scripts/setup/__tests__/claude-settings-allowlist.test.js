@@ -70,6 +70,27 @@ test('team allowlist keeps remote, merge-chaining, install, deploy, arbitrary-ex
   }
 });
 
+test('team allowlist does not wildcard-allow project test scripts, which are not the default regression', () => {
+  // `pnpm test*` / `pnpm run test*` 是原始前缀通配：既放行项目自有的聚合测试脚本（常为全量，
+  // 与「不把全量测试当默认回归」相悖），也会匹配 `pnpm testing` 之类无关命令；需要免确认时在 settings.local.json 追加。
+  for (const command of [
+    'pnpm test',
+    'pnpm test:e2e',
+    'pnpm test --coverage',
+    'pnpm testing',
+    'pnpm run test',
+    'pnpm run test:unit',
+    'pnpm run testall',
+  ]) {
+    assert.ok(!isAllowed(command), `should still require confirmation: ${command}`);
+  }
+  assert.deepEqual(
+    bashRules().filter((rule) => /^pnpm (?:run )?test/u.test(rule)),
+    [],
+    'no pnpm test wildcard rule remains in the team allowlist',
+  );
+});
+
 test('team allowlist stays valid JSON with unique entries', () => {
   const allow = settings.permissions.allow;
   assert.equal(new Set(allow).size, allow.length, 'allow entries must be unique');

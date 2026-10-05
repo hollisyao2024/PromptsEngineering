@@ -24,8 +24,6 @@
       "Bash(git tag:*)",
       "Bash(git pull:*)",
 
-      "Bash(pnpm test*)",
-      "Bash(pnpm run test*)",
       "Bash(pnpm lint*)",
       "Bash(pnpm run lint*)",
       "Bash(pnpm type-check*)",
