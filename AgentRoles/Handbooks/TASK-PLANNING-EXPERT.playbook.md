@@ -2,7 +2,7 @@
 
 > 角色定义、输入输出与 DoD 见 `/AgentRoles/TASK-PLANNING-EXPERT.md`。
 > 主 TASK 总纲模板见 `/docs/data/templates/task/TASK-TEMPLATE.md`；模块任务模板见 `/docs/task-modules/MODULE-TEMPLATE.md`。
-> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/docs/CONVENTIONS.md` §路径与仓库拓扑。
 
 ## 核心工作流程
 

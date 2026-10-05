@@ -132,7 +132,7 @@ pnpm agent -- worktree list
 状态写入必须复用 `agent-locks`，采用同目录临时文件、flush/sync 和原子 rename。读取时忽略残留临时文件；损坏 JSON、schema 不符、锁冲突和多候选任务必须 fail-closed。
 记录前可选用 `pnpm agent -- task paths [--task <id>]` 只读解析状态和锁目录；不创建目录、不联网，`PERMISSION_STATUS=NOT_EVALUATED` 不表示权限已通过。容器 tmp 通常位于 repo 外，必须与实际会话可写范围核对，禁止模板自动扩大权限；检查不是普通查询的新门禁。记录不可用时按 `AGENTS.md`“长任务断点续跑”的失败恢复规则对话留痕，继续获准且独立的只读工作。
 ### 命令
-任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准；mutation 必须显式提供可观察验收。
+任务输入的补齐、假设和最小提问规则以 `AGENTS.md` 的“任务输入门禁”为准。
 
 ```bash
 pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<步骤>"
@@ -149,8 +149,7 @@ pnpm agent -- task cancel --task <id> --force
 - `safe` 步骤中断后回到 `pending`，可重放。
 - `verify_first` 步骤中断时转为 `verify_required`，先查询真实外部状态。
 - `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
-- 同一次 checkpoint 可更新步骤和验收项，减少机械写盘。
-- 新任务安全默认 `type=mutation`；确认不会修改 tracked 文件时才显式选择只读类型。schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
+- schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
 - 新任务以 `evidence_order` 追加引用 `{step_id,index}`，与步骤证据同一原子写入；QA 与测试命令入口共用该顺序，回流到较早步骤仍按实际 checkpoint 追加顺序判断。索引必须完整、无重复且保持每步内部追加顺序，损坏时 fail-closed。旧 v1/v2 文件缺少索引时保留既有步骤顺序；首次步骤 checkpoint 先按该旧顺序建立历史引用，再追加新证据，不按步骤更新时间猜测旧证据时序。旧历史无法复原真实先后时须补录当前决策和结果。
 - `extend` 只允许追加步骤和验收项并递增 `plan_revision`；不允许删除、重排或重写已完成历史。
 - `transition` 要求证据且校验相邻前进或显式回流路径；默认存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
@@ -180,7 +179,7 @@ pnpm agent -- task context --task <id> [--max-bytes 8192] [--include <path#Lx-Ly
 pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 ```
 
-旧 aliases 在已有项目中保留兼容，但模板不继续增加同义入口。命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
+命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
 
 ### 客户端与服务端快捷命令
 
@@ -270,5 +269,3 @@ skipped_count
 ```
 
 并满足 `matched_count = modified_count + skipped_count`。范围变化时创建新 manifest，不得静默缩小。
-
-上下文预算、阶段交接与失败恢复协议以 `AGENTS.md`“上下文预算与阶段交接”和“长任务断点续跑”为准。

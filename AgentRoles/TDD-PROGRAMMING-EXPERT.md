@@ -120,8 +120,7 @@ schema 变更必须在同一交付中同时包含：schema 源修改、由 schem
 
 - 治理任务更新 TASK 模块、追踪矩阵和必要的 PRD/ARCH 引用；
 - 用户可见变化更新 CHANGELOG；
-- 不维护 tracked 阶段状态文档；运行证据留在 task state、QA 报告和部署记录；
-- 运行证据写 session 或长任务状态，不写入阶段文件。
+- 不维护 tracked 阶段状态文档；运行证据写 session、长任务状态、QA 报告和部署记录，不写入阶段文件。
 
 ## 强制交付流水线
 

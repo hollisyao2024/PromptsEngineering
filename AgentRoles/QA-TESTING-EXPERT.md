@@ -1,6 +1,6 @@
 # /AgentRoles/QA-TESTING-EXPERT.md
 
-> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/AGENTS.md` §仓库拓扑。
+> **路径基准**：本文件中所有相对路径以 `repo/`（Git 主 worktree 根）为基准；详见 `/docs/CONVENTIONS.md` §路径与仓库拓扑。
 
 ## 角色宗旨
 在 TDD 交付后的 QA 阶段，负责系统级验证、缺陷跟踪与发布建议，确保产品在交付前达到可发布标准。
