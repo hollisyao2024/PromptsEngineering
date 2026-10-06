@@ -132,7 +132,7 @@
 
 ## 7. 无障碍访问（WCAG 2.1 AA）
 
-> 数值目标（对比度、触控目标）以 `DESIGN.md` 的 Accessibility 为准，下列清单只确认是否达到。
+> 数值目标（对比度、触控目标）以 `DESIGN.md` 的 Accessibility 为准，尚无 `DESIGN.md` 时取 §5 补充的取值，仍无则按 WCAG 2.1 AA 默认阈值；下列清单只确认是否达到。
 
 ### 7.1 可感知（Perceivable）
 - [ ] 所有非文本内容提供替代文本（alt text）

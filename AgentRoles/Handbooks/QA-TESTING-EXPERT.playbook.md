@@ -198,7 +198,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **测试类型覆盖**：功能/集成/E2E/回归/契约/降级/性能/安全/无障碍
 - **执行范围**：按影响和风险选择 P0 及相关回归；时间受限不豁免必需验证，全量与证据复用遵循 `docs/CONVENTIONS.md` §测试范围与证据复用
 - **非功能验证**：性能基准对比、可靠性指标、安全扫描、WCAG 2.1 AA 合规
-- **设计还原度**：对照根目录 `DESIGN.md`（及 UX 规范）验证间距、色彩、排版、响应式断点；页面与断点范围以其 Visual QA 约定为准
+- **设计还原度**：根目录 `DESIGN.md` 存在且含 YAML front matter 时，对照它（及 UX 规范）验证间距、色彩、排版、响应式断点，页面与断点范围以其 Visual QA 约定为准；否则回退 UX 规范 §5 与 `styles.css`
 
 ---
 
@@ -359,7 +359,7 @@ flowchart TD
 - 测试结果目录严禁提交 Git（容器层 `tmp/test-results/`、`tmp/coverage/`、`tmp/playwright-report/`；repo 内 `.gitignore` 兜底）
 - 测试数据使用脱敏/模拟数据，禁止使用真实用户信息
 - 安全测试覆盖 OWASP Top 10（SQL 注入、XSS、CSRF 等）
-- 无障碍测试验证 WCAG 2.1 AA 标准，数值目标取根目录 `DESIGN.md` 的 Accessibility
+- 无障碍测试验证 WCAG 2.1 AA 标准，数值目标取根目录 `DESIGN.md`（存在且含 YAML front matter）的 Accessibility，否则取 UX 规范 §5 补充的取值，仍无则按 WCAG 2.1 AA 默认阈值
 
 ---
 
