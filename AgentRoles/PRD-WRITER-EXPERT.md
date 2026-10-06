@@ -47,9 +47,15 @@
 - 在 PRD 交付前，执行 Playbook §7 "需求验证前置检查清单"和 §8 "用户体验验证清单"。
 - 必要时组织技术评审会（PRD 70% 完成时），产出技术风险评估报告。
 
+### 业务测试自动化衔接（有页面或客户端界面时）
+- **原子 AC 表**：模块 PRD 附录 A（`/docs/prd-modules/MODULE-TEMPLATE.md`）逐行维护原子 AC：每行一条可断言的验收标准，Given/When/Then 分列，并标注优先级、验证方式（`auto`/`manual`）、端与 TC。它是自动化验收的唯一规格来源，QA 阶段据此用 `pnpm agent -- qa paths` 校验并推导 `PATHS.md`，再用 `pnpm agent -- qa run` 运行业务测试套件。
+- **预言机**：预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。因此 Then 列写用户可观察的结果，不写实现细节；字段取值范围写入数据字典，界面状态写入 UX 规范。
+- **标识**：AC 与 TC 标识用来绑定测试结果，自动化用例须遵守命名规则：测试名携带 AC/TC 标识；标识一经使用不复用，修改或删除 AC 时按差异提案评审。
+
 ## 完成定义（DoD）
 - PRD 含：目标、范围/非范围、角色与场景、用户故事、**验收标准（Given-When-Then）**、NFR（性能/安全/可用性/合规/数据保留与隐私）、依赖与风险、里程碑、开放问题。
 - **可追溯表**：`User Story → 验收标准 → 测试用例 ID` 必须独立维护在 `/docs/data/traceability-matrix.md`。
+- **原子 AC 表完备**（有页面或客户端界面的功能域）：模块 PRD 附录 A 的原子 AC 逐行可断言，优先级、验证方式、端与 TC 列齐全，运行 `pnpm agent -- qa paths` 无 `VIOLATION=`；无法自动化的 AC 标为 `manual`。
 - **追溯矩阵初始化**：若 `/docs/data/traceability-matrix.md` 尚不存在，PRD 专家需参照 `/docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 创建初始文件，并先填入 Story/AC ID，供后续 QA 补充 Test Case 和状态；
 - **模块化结构完整**：`/docs/PRD.md`、`/docs/prd-modules/module-list.md`、至少一个 `/docs/prd-modules/{domain}/PRD.md` 和 `/docs/data/traceability-matrix.md` 同时存在且互相链接。
 - **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、设计-开发交接文档就绪，且根目录 `DESIGN.md` 已建立（Token、断点、无障碍目标）。Playbook §8 用户体验验证清单逐项通过。
@@ -72,10 +78,11 @@
 - 出现重要取舍（例如：收费模型、关键数据采集/留存策略）→ 新增 ADR；状态 `Proposed/Accepted`。
 
 ## 快捷命令
-- `/prd confirm`：对 `/docs/PRD.md` 进行**轻量收口与完整性检查**，补齐 *范围/非范围*、*用户故事与验收标准（AC）*、*追溯表（Story→AC→TestID）*、*开放问题*；完成后在任务 state 中记录 `PRD_CONFIRMED` 证据。
+- `/prd confirm`：对 `/docs/PRD.md` 进行**轻量收口与完整性检查**，补齐 *范围/非范围*、*用户故事与验收标准（AC）*、*追溯表（Story→AC→TestID）*、*原子 AC 表*（有界面的功能域用 `pnpm agent -- qa paths` 自检）、*开放问题*；完成后在任务 state 中记录 `PRD_CONFIRMED` 证据。
 
 ## 参考资源
 - Handbook: `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md`（§核心工作流程、§7 需求验证前置检查清单、§8 用户体验验证清单）
 - 模块模板: `/docs/prd-modules/MODULE-TEMPLATE.md`
 - UX 规范模板: `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md`
 - 视觉契约骨架: `/docs/data/templates/prd/DESIGN-TEMPLATE.md`
+- 业务测试自动化: `/docs/data/templates/qa/PATHS-TEMPLATE.md`（页面状态与操作路径）、QA Playbook §业务测试自动化

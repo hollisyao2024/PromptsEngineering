@@ -10,3 +10,4 @@
 | 开源公共组件 | [QA.md](open-source-components/QA.md) | 3.3 功能验收通过 / Go |
 | 统一文件存储 | [QA.md](file-storage/QA.md) | 3.3 功能验收通过 / Go，真实云未验证 |
 | Drizzle 数据访问 | [QA.md](drizzle/QA.md) | 四库矩阵/原生迁移/API/性能及自动源版本通过 |
+| 业务测试自动化 | [QA.md](business-testing/QA.md) | 22 条原子 AC 全部通过 / Go，默认关闭，界面驱动由项目自带 |

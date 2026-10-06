@@ -15,6 +15,7 @@
 | 双能力包与架构落地 | [QA](qa-modules/architecture-platform/QA.md) | 第 8 节：公共 UI 新增 5 项 AC、嵌套日期修复、生成与升级矩阵；第 2～7 节保留历史基线 |
 | 模板命令面 | [QA](qa-modules/template-command-surface/QA.md) | 既有命令、官方同步和生命周期兼容回归 |
 | 环境文件初始化 | [QA](qa-modules/environment-file-initialization/QA.md) | 既有初始化和文件所有权兼容回归 |
+| 业务测试自动化 | [QA](qa-modules/business-testing/QA.md) | 原子 AC 表、路径模型校验、套件运行与结果绑定、业务验收门禁、指导同步与分发闭环 |
 
 索引：[模块清单](qa-modules/module-list.md)。详细证据、缺陷、NFR 只维护在模块报告。
 

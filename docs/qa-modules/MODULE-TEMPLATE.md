@@ -51,13 +51,15 @@
 
 | AC ID | 场景 | 层级 | 用例 ID | 状态 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| {{AC_ID}} | {{SCENARIO}} | e2e/integration/manual | QA-{{N}} | pending | {{EVIDENCE}} |
+| {{AC_ID}} | {{SCENARIO}} | e2e/integration/manual | TC-{{MODULE_ID}}-001 | pending | {{EVIDENCE}} |
 
 所有必需 AC 必须至少有一个测试或明确的静态验证证据。
 
+用例 ID 统一为 `TC-{MODULE}-NNN`（模块标记与 PRD 原子 AC 表一致，序号固定 3 位），与 PRD 原子 AC 表的 `TC` 列、`PATHS.md` 的「关联 TC」列使用同一套编号。自动化测试名同时携带 AC 与 TC 标识（如 `TC-USER-006 AC-USER-002-02 连续输错密码`），`pnpm agent -- qa run` 据此把测试报告绑定回 AC；`pnpm agent -- qa paths` 校验引用与覆盖，启用 `qa.business` 后 `qa verify` 复验。
+
 ## 5. 功能用例
 
-### QA-{{N}} — {{CASE_NAME}}
+### TC-{{MODULE_ID}}-001 — {{CASE_NAME}}
 
 - 对应 AC：{{AC_IDS}}
 - 优先级：P0 / P1 / P2

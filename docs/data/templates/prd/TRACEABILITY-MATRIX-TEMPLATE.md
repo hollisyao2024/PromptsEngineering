@@ -14,8 +14,8 @@
 
 | Story ID | Story Title | AC ID | Test Case ID | 状态 | 负责人 | 备注 |
 |----------|-------------|-------|--------------|------|--------|------|
-| （示例）US-USER-001 | 用户注册 | AC-USER-001-01 | TC-REG-001 | ✅ 已确认 | @tester-a | - |
-| （示例）US-USER-001 | 用户注册 | AC-USER-001-02 | TC-REG-002 | 🔄 进行中 | @tester-a | 等待环境配置 |
+| （示例）US-USER-001 | 用户注册 | AC-USER-001-01 | TC-USER-001 | ✅ 已确认 | @tester-a | - |
+| （示例）US-USER-001 | 用户注册 | AC-USER-001-02 | TC-USER-002 | 🔄 进行中 | @tester-a | 等待环境配置 |
 | （示例）US-PAY-005 | 支付确认 | AC-PAY-005-01 | TC-PAY-012 | ⚠️ 需更新 | @tester-b | [BUG-123](#) |
 | （待填充） | - | - | - | - | - | - |
 
@@ -55,11 +55,11 @@
   - `AC-PAY-005-03` — US-PAY-005 的第 3 个验收标准
 
 ### Test Case ID
-- **格式**：`TC-{MODULE}-{序号}` 或按测试框架惯例（如 Jest describe/test 路径）
+- **格式**：`TC-{MODULE}-NNN`（序号固定 3 位，模块标记与 Story/AC 一致）；只有这一种写法，不用测试文件路径或框架描述代替
 - **示例**：
-  - `TC-REG-001` — 用户注册相关测试用例 001
-  - `TC-PAY-012` — 支付相关测试用例 012
-  - `tests/user/registration.test.ts::should validate email format` — Jest 测试路径
+  - `TC-USER-001` — 用户管理模块测试用例 001
+  - `TC-PAY-012` — 支付系统模块测试用例 012
+- **与自动化测试的关系**：测试名同时携带 TC 与 AC 标识，`pnpm agent -- qa run` 据此把测试结果绑定回 AC
 
 ---
 
@@ -85,21 +85,22 @@
 
 ### 1. PRD 阶段（PRD 专家）
 - 在编写模块 PRD 时，为每个用户故事分配 **Story ID**
-- 为每个验收标准（Given-When-Then）分配 **AC ID**
+- 为每条验收标准分配 **AC ID**：一条 AC 占原子 AC 表的一行，Given/When/Then 各占一列
  - 在追溯矩阵中创建初始条目，状态标记为 `📝 待启动`
 
 **示例**：
 ```markdown
-### US-USER-001: 用户注册
-**作为** 新用户
-**我希望** 通过邮箱和密码注册账号
-**以便** 使用平台服务
+| Story ID | 用户故事 | Task ID | QA 负责人 |
+|----------|----------|---------|-----------|
+| US-USER-001 | 作为访客，我希望用邮箱注册账号，以便使用平台服务 | TASK-USER-001 | @qa-lead |
 
-**验收标准：**
-- **AC-USER-001-01 (Given)** 用户访问注册页面
-- **AC-USER-001-02 (When)** 输入有效邮箱和符合规则的密码
-- **AC-USER-001-03 (Then)** 系统创建账号并发送验证邮件
+| AC ID | Story | 优先级 | 验证 | 端 | Given | When | Then | TC |
+|-------|-------|--------|------|----|-------|------|------|----|
+| AC-USER-001-01 | US-USER-001 | P0 | auto | web | 访客在注册页，邮箱未被注册 | 提交合法邮箱、合规密码与正确验证码 | 返回 201，系统创建账号并发送验证邮件 | TC-USER-001 |
+| AC-USER-001-02 | US-USER-001 | P1 | auto | web | 邮箱已被注册 | 使用同一邮箱再次提交注册 | 返回错误码 1001，不新建账号 | TC-USER-002 |
 ```
+
+每条 AC 一行，Given/When/Then 各占一列，不要拆成三个 AC。完整列定义见 `/docs/prd-modules/MODULE-TEMPLATE.md` Appendix A。
 
 ### 2. TASK 阶段（TASK 专家）
 - 在任务规划时，将 Story ID 关联到具体的开发任务（WBS 节点）
@@ -110,16 +111,17 @@
 - 在追溯矩阵中更新 Test Case ID 列，关联到对应的 AC ID
 - 测试通过后更新状态为 `✅ 已确认`
 
-**示例**（Jest 测试）：
+**示例**（Jest 测试，测试名同时携带 TC 与 AC 标识）：
 ```typescript
 // tests/user/registration.test.ts
 describe('User Registration (US-USER-001)', () => {
-  it('TC-REG-001: should validate email format (AC-USER-001-02)', async () => {
-    // Given: 用户访问注册页面
-    // When: 输入无效邮箱格式
-    // Then: 系统提示邮箱格式错误
-    const result = await registerUser({ email: 'invalid-email', password: 'Pass123!' });
-    expect(result.error).toBe('Invalid email format');
+  it('TC-USER-002: rejects an email that is already registered (AC-USER-001-02)', async () => {
+    // Given: 邮箱已被注册
+    await registerUser({ email: 'taken@example.com', password: 'Pass123!', captcha: 'ABC123' });
+    // When: 使用同一邮箱再次提交注册
+    const result = await registerUser({ email: 'taken@example.com', password: 'Pass123!', captcha: 'ABC123' });
+    // Then: 返回错误码 1001，不新建账号
+    expect(result.code).toBe(1001);
   });
 });
 ```
@@ -140,7 +142,7 @@ describe('User Registration (US-USER-001)', () => {
   └─ 功能域索引 → /docs/prd-modules/{domain}/PRD.md（子 PRD）
        └─ 需求追溯矩阵模板 → /docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md
        └─ 实际需求追溯矩阵文件 → /docs/data/traceability-matrix.md
-            └─ Test Case ID → 测试代码（如 tests/**/*.test.ts）
+            └─ Test Case ID → 测试代码（测试名携带 AC/TC 标识，如 tests/**/*.test.ts）
                  └─ 测试执行结果 → /docs/QA.md（测试报告）
 ```
 
@@ -153,6 +155,7 @@ describe('User Registration (US-USER-001)', () => {
 - **Markdown 表格编辑器**：VSCode 插件如 `Markdown Table` 或 `Excel to Markdown table`
 - **测试覆盖率工具**：Jest/Vitest Coverage Report，导出为 JSON 后脚本解析
 - **自定义脚本**：
+  - `pnpm agent -- qa paths` — 只读解析原子 AC 表与 `docs/qa-modules/{domain}/PATHS.md`，输出 AC 与操作路径的追溯矩阵
   - `scripts/sync-traceability.js` — 从 PRD 模块提取 Story/AC ID，与测试文件中的注释对比，生成矩阵
   - `scripts/coverage-report.js` — 基于矩阵生成覆盖率统计
 

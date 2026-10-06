@@ -143,5 +143,6 @@ module.exports = {
   removeQaVerificationReceipt,
   validateMergedPrReceipt,
   validateQaVerificationReceipt,
+  worktreeReceiptKey,
   writeQaVerificationReceipt,
 };

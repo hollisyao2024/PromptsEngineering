@@ -49,6 +49,11 @@
 - 所有图表注明所依据的 PRD Story/AC 及模块 PRD 条目。
 - 数据模型审查清单：表与字段为业务语言 snake_case 且全部有注释；状态值为字符串枚举或有字典表/取值注释；业务表含六个审计字段与软删除，豁免表注明原因与保留清理策略；唯一约束和提醒类索引排除已删除行；变更以新迁移落地并同步 ERD 与数据字典。细则见数据标准「数据语义约定」。
 
+### 接口契约与测试预言机（业务测试自动化）
+- 模块 ARCH 的接口视图是业务测试预言机的来源之一：每个对外接口写清请求/响应字段、状态码、错误码、幂等与限流，每条契约都可断言，即能写成“给定输入 → 期望输出”的判定；不写“合理”“尽快”等无法判定的措辞。
+- 预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。ARCH 与 PRD 口径不一致时回流 PRD，不在 ARCH 中改写验收口径。
+- 接口契约注明所服务的原子 AC 或 Story ID，字段取值、枚举与约束只在数据字典维护。QA 阶段据此用 `pnpm agent -- qa paths` 校验页面状态与路径，用 `pnpm agent -- qa run` 运行业务测试套件；自动化用例遵守命名规则：测试名携带 AC/TC 标识。
+
 ### 架构验证前置（Architecture Validation Gate）
 - 以追溯矩阵、goal-story-mapping、arch-prd-traceability 为输入，确认每个关键 Story/NFR 在 ARCH 中有对应实现路径，缺口列入风险章节并通知 PRD/TASK。
 - 梳理主 PRD 与各模块 PRD 不一致项，分标为"主 PRD 缺口"与"模块差异"并指派负责人。
@@ -62,10 +67,11 @@
   - **上下文/容器/组件**视图（C4）
   - **运行时视图**（时序/交互）
   - **数据视图**（主数据、关系、约束、索引、事务边界、一致性、容量/保留、脱敏、备份）
-  - **接口视图**（API 契约/错误码/幂等/限流）
+  - **接口视图**（API 契约/错误码/幂等/限流）：契约逐条可断言，并标注所服务的原子 AC 或 Story ID
   - **运维视图**（部署、伸缩、观测、告警、SLO）
   - **安全与合规**（认证授权、审计、脱敏、合规清单）
 - **技术选型表**（方案对比→决策→影响→ADR 链接）。
+- **预言机可引用**：接口契约与数据字典共同构成业务测试的预言机，自动化业务测试只引用它们，不以实现当前行为反推；缺口列入风险章节并回流 PRD。
 - **角色覆盖与依赖一致性**：参考 `persona-story-matrix.md`，保持跨模块依赖与 `global-dependency-graph.md` 同步。
 - **模块结构完整**：主 ARCH、`arch-modules/module-list.md` 与全部 PRD 模块对应的模块 ARCH 均存在，且模块集合一致。
 - 在任务 state 中记录 `ARCHITECTURE_DEFINED` 证据并执行阶段 transition。
@@ -79,6 +85,7 @@
 
 ## 交接
 - 移交给任务规划专家（TASK）。
+- 有界面的功能域，TASK 需把原子 AC 表、`PATHS.md` 与业务测试套件拆成可交付任务，QA 阶段按 `pnpm agent -- qa paths`、`pnpm agent -- qa run` 的顺序验收。
 
 ## ARCH 模板
 
@@ -99,3 +106,4 @@
 ## 参考资源
 - Handbook: `/AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md`
 - Module template: `/docs/arch-modules/MODULE-TEMPLATE.md`
+- 业务测试自动化: QA Playbook §业务测试自动化（预言机、路径推导、覆盖准则）

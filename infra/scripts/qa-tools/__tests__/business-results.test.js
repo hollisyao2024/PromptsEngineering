@@ -1,0 +1,1005 @@
+'use strict';
+
+// TASK-BIZTEST-005：JUnit 解析、AC/TC 标识绑定、按端聚合与 ac-results.json 读写。
+// 全部为纯数据或容器 tmp 下的临时目录测试，不启动任何套件。
+
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+
+const { DEFAULT_CONFIG } = require('../../shared/config');
+const { loadBusinessSpec } = require('../business-spec');
+const { worktreeReceiptKey } = require('../qa-verification-state');
+const {
+  CASE_STATUSES,
+  MAX_REPORT_BYTES,
+  RESULTS_FILE,
+  SCHEMA_VERSION,
+  SUITE_STATUSES,
+  aggregateResults,
+  buildResults,
+  evaluateSuiteOutcome,
+  extractCaseLabels,
+  judgeAc,
+  parseJunitReport,
+  readResults,
+  reportCopyPath,
+  resultsDirectory,
+  validateResults,
+  writeResults,
+} = require('../business-results');
+const { createProject, junitReport, prdDocument, shopProject, xmlEscape } = require('./fixtures/business-testing/builders');
+
+const HEAD = 'a'.repeat(40);
+const DIGEST = `sha256:${'b'.repeat(64)}`;
+const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+
+function withShop(fn) {
+  const project = shopProject();
+  try {
+    return fn({ project, spec: loadBusinessSpec({ repoRoot: project.repo }) });
+  } finally {
+    project.cleanup();
+  }
+}
+
+function withSpec(files, fn) {
+  const project = createProject(files);
+  try {
+    return fn({ project, spec: loadBusinessSpec({ repoRoot: project.repo }) });
+  } finally {
+    project.cleanup();
+  }
+}
+
+function withTempDir(fn) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-results-'));
+  try {
+    return fn(directory);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+const parsed = (cases) => ({ cases });
+const web = (cases, name = 'web-e2e') => ({ name, platform: 'web', ...parsed(cases) });
+const kase = (name, status = 'passed', classname = '') => ({ name, classname, status });
+
+// ---------------------------------------------------------------------------
+// JUnit 解析（AC-BIZTEST-003-02 / TC-BIZTEST-008）
+// ---------------------------------------------------------------------------
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 常量与状态集合符合契约', () => {
+  assert.equal(SCHEMA_VERSION, 1);
+  assert.equal(RESULTS_FILE, 'ac-results.json');
+  assert.equal(MAX_REPORT_BYTES, 64 * 1024 * 1024);
+  assert.deepEqual(CASE_STATUSES, ['passed', 'failed', 'error', 'skipped']);
+  assert.deepEqual(SUITE_STATUSES, ['ok', 'exit_nonzero', 'spawn_error', 'timeout', 'report_missing', 'report_invalid']);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 解析 pass、fail、error、skipped 四种用例状态', () => {
+  const xml = junitReport([
+    { name: 'TC-SHOP-001 结算', status: 'passed' },
+    { name: 'TC-SHOP-002 支付', status: 'failed' },
+    { name: 'TC-SHOP-003 拒付', status: 'error' },
+    { name: 'AC-SHOP-001-01 跳过', status: 'skipped' },
+  ], { suite: 'checkout' });
+  const result = parseJunitReport(xml);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cases, [
+    { name: 'TC-SHOP-001 结算', classname: 'checkout', status: 'passed' },
+    { name: 'TC-SHOP-002 支付', classname: 'checkout', status: 'failed' },
+    { name: 'TC-SHOP-003 拒付', classname: 'checkout', status: 'error' },
+    { name: 'AC-SHOP-001-01 跳过', classname: 'checkout', status: 'skipped' },
+  ]);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 同一用例含多种结果元素时 error 优先于 failure 优先于 skipped', () => {
+  const xml = `<testsuites><testsuite name="s">
+    <testcase name="a" classname="c"><skipped/><failure message="x"/><error message="y"/></testcase>
+    <testcase name="b" classname="c"><skipped/><failure message="x"/></testcase>
+    <testcase name="c" classname="c"><system-out>out</system-out><skipped message="later"/></testcase>
+    <testcase name="d" classname="c"><system-out>out</system-out></testcase>
+  </testsuite></testsuites>`;
+  assert.deepEqual(parseJunitReport(xml).cases.map((item) => item.status), ['error', 'failed', 'skipped', 'passed']);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 只统计 testcase 的直接子元素，嵌套在其他元素里的 failure 不计', () => {
+  const xml = `<testsuite name="s"><testcase name="a"><system-out><failure/></system-out></testcase></testsuite>`;
+  assert.equal(parseJunitReport(xml).cases[0].status, 'passed');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 驱动重试产生的 flakyFailure 与 rerunFailure 不改变最终结果', () => {
+  const xml = `<testsuite name="s">
+    <testcase name="ok-after-retry"><flakyFailure message="first"/></testcase>
+    <testcase name="fail-after-retry"><failure message="last"/><rerunFailure message="again"/></testcase>
+  </testsuite>`;
+  assert.deepEqual(parseJunitReport(xml).cases.map((item) => item.status), ['passed', 'failed']);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 嵌套 testsuite、CDATA、注释与处理指令都能正常解析', () => {
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!-- generated by driver -->',
+    '<testsuites><testsuite name="outer"><testsuite name="inner">',
+    '<testcase name="TC-SHOP-001 a" classname="x"><failure><![CDATA[<<not a tag>> & stack]]></failure></testcase>',
+    '</testsuite></testsuite></testsuites>',
+  ].join('\n');
+  const result = parseJunitReport(xml);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cases, [{ name: 'TC-SHOP-001 a', classname: 'x', status: 'failed' }]);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: CDATA 内出现 DOCTYPE 文本不被误判为声明（失败页面 HTML 常见）', () => {
+  const xml = `<testsuite name="s"><testcase name="TC-SHOP-001 page"><failure><![CDATA[<!DOCTYPE html><html></html>]]></failure></testcase></testsuite>`;
+  const result = parseJunitReport(xml);
+  assert.equal(result.ok, true);
+  assert.equal(result.cases[0].status, 'failed');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 注释内出现 DOCTYPE 文本不被误判', () => {
+  const xml = `<testsuite name="s"><!-- <!DOCTYPE x [<!ENTITY a "b">]> --><testcase name="TC-SHOP-001 a"/></testsuite>`;
+  assert.equal(parseJunitReport(xml).ok, true);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 属性值只还原五个预定义实体与数字字符引用', () => {
+  const xml = `<testsuite name="s"><testcase name='TC-SHOP-001 &lt;a&gt; &amp; &quot;b&quot; &apos;c&apos; &#x4E2D;&#25991;' classname="a&amp;b"/></testsuite>`;
+  const [item] = parseJunitReport(xml).cases;
+  assert.equal(item.name, `TC-SHOP-001 <a> & "b" 'c' 中文`);
+  assert.equal(item.classname, 'a&b');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 缺少 name 或 classname 属性时按空串处理', () => {
+  const [item] = parseJunitReport('<testsuite><testcase/></testsuite>').cases;
+  assert.deepEqual(item, { name: '', classname: '', status: 'passed' });
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 接受 Buffer 与带 BOM 的 UTF-8 输入', () => {
+  const xml = junitReport([{ name: 'TC-SHOP-001 中文名', status: 'passed' }]);
+  const withBom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(xml, 'utf8')]);
+  assert.equal(parseJunitReport(Buffer.from(xml, 'utf8')).cases[0].name, 'TC-SHOP-001 中文名');
+  assert.equal(parseJunitReport(withBom).cases[0].name, 'TC-SHOP-001 中文名');
+});
+
+const REJECTED = [
+  ['DOCTYPE 声明', '<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x "y">]><testsuite><testcase name="a"/></testsuite>', 'doctype'],
+  ['小写 doctype 声明', '<!doctype r><testsuite><testcase name="a"/></testsuite>', 'doctype'],
+  ['外部实体声明', '<!DOCTYPE r SYSTEM "file:///etc/passwd"><testsuite><testcase name="a"/></testsuite>', 'doctype'],
+  ['元素内的实体声明', '<testsuite><!ENTITY x "y"><testcase name="a"/></testsuite>', 'doctype'],
+  ['未声明的命名实体', '<testsuite><testcase name="a&nbsp;b"/></testsuite>', 'malformed'],
+  ['自定义实体引用', '<testsuite><testcase name="&xxe;"/></testsuite>', 'malformed'],
+  ['裸 & 符号', '<testsuite><testcase name="a & b"/></testsuite>', 'malformed'],
+  ['非法数字字符引用', '<testsuite><testcase name="&#0;"/></testsuite>', 'malformed'],
+  ['超出范围的数字字符引用', '<testsuite><testcase name="&#x110000;"/></testsuite>', 'malformed'],
+  ['代理项数字字符引用', '<testsuite><testcase name="&#xD800;"/></testsuite>', 'malformed'],
+  ['属性值含裸 <', '<testsuite><testcase name="a<b"/></testsuite>', 'malformed'],
+  ['属性缺少引号', '<testsuite><testcase name=a/></testsuite>', 'malformed'],
+  ['属性缺少等号', '<testsuite><testcase name/></testsuite>', 'malformed'],
+  ['重复属性', '<testsuite><testcase name="a" name="b"/></testsuite>', 'malformed'],
+  ['标签未闭合', '<testsuite><testcase name="a"></testsuite>', 'malformed'],
+  ['闭合标签不匹配', '<testsuite><testcase name="a"/></testsuites>', 'malformed'],
+  ['根元素未闭合', '<testsuite><testcase name="a"/>', 'malformed'],
+  ['CDATA 未闭合', '<testsuite><testcase name="a"><failure><![CDATA[oops</failure></testcase></testsuite>', 'malformed'],
+  ['注释未闭合', '<testsuite><!-- oops <testcase name="a"/></testsuite>', 'malformed'],
+  ['嵌套的 testcase', '<testsuite><testcase name="a"><testcase name="b"/></testcase></testsuite>', 'malformed'],
+  ['多个根元素', '<testsuite><testcase name="a"/></testsuite><testsuite><testcase name="b"/></testsuite>', 'malformed'],
+  ['没有根元素', '<?xml version="1.0"?>', 'malformed'],
+  ['空文档', '', 'malformed'],
+  ['纯文本', 'this is not xml', 'malformed'],
+  ['声明了非 UTF-8 编码', '<?xml version="1.0" encoding="UTF-16"?><testsuite><testcase name="a"/></testsuite>', 'encoding'],
+  ['声明了 ISO-8859-1 编码', '<?xml version="1.0" encoding="ISO-8859-1"?><testsuite><testcase name="a"/></testsuite>', 'encoding'],
+  ['包含 NUL 字节', '<testsuite><testcase name="a\u0000b"/></testsuite>', 'encoding'],
+  ['没有 testcase', '<testsuites><testsuite name="s" tests="0"/></testsuites>', 'no_testcases'],
+];
+
+for (const [title, xml, reason] of REJECTED) {
+  test(`AC-BIZTEST-003-02 / TC-BIZTEST-008: 拒绝${title}（${reason}）`, () => {
+    const result = parseJunitReport(xml);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, reason);
+    assert.match(result.message, /\S/u);
+    assert.equal(result.cases, undefined);
+  });
+}
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 拒绝不是 UTF-8 的字节序列', () => {
+  const result = parseJunitReport(Buffer.from([0x3c, 0x74, 0x73, 0x3e, 0xff, 0xfe, 0xfd, 0x3c, 0x2f, 0x74, 0x73, 0x3e]));
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'encoding');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 拒绝 UTF-16 编码的报告', () => {
+  const result = parseJunitReport(Buffer.from('<testsuite><testcase name="a"/></testsuite>', 'utf16le'));
+  assert.equal(result.ok, false);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 超过大小上限的报告被拒绝，且上限可由调用方收紧', () => {
+  const xml = junitReport([{ name: 'TC-SHOP-001 a', status: 'passed' }]);
+  const result = parseJunitReport(Buffer.from(xml), { maxBytes: 16 });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'too_large');
+  assert.equal(parseJunitReport(Buffer.from(xml), { maxBytes: Buffer.byteLength(xml) }).ok, true);
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 任意异常输入只返回失败结果而不抛出', () => {
+  for (const input of [null, undefined, 42, {}, [], Buffer.alloc(0), '<', '<<<<', '</', '<a', '<a b', '<a b="', '<!', '<![CDATA[', '&', '\u0000']) {
+    const result = parseJunitReport(input);
+    assert.equal(result.ok, false, `input ${JSON.stringify(String(input))}`);
+  }
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 大量用例的报告可在合理时间内解析', () => {
+  const cases = Array.from({ length: 5000 }, (_, index) => ({ name: `TC-SHOP-001 case ${index}`, status: index % 7 === 0 ? 'failed' : 'passed' }));
+  const startedAt = Date.now();
+  const result = parseJunitReport(junitReport(cases));
+  assert.equal(result.cases.length, 5000);
+  assert.ok(Date.now() - startedAt < 2000, 'parsing 5000 cases took too long');
+});
+
+// ---------------------------------------------------------------------------
+// 标识提取
+// ---------------------------------------------------------------------------
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 从 name 与 classname 提取 AC 与 TC 标识（大写整词、去重、保持出现顺序）', () => {
+  assert.deepEqual(
+    extractCaseLabels({ name: 'AC-SHOP-001-02 与 TC-SHOP-002 同时出现 TC-SHOP-002', classname: 'login.TC-SHOP-001' }),
+    { acs: ['AC-SHOP-001-02'], tcs: ['TC-SHOP-002', 'TC-SHOP-001'] },
+  );
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 小写、嵌在其他词中或多余后缀的标识不算标识', () => {
+  for (const name of ['tc-shop-001', 'ac-shop-001-01', 'PRETC-SHOP-001', 'XAC-SHOP-001-01', 'TC-SHOP-1', 'AC-SHOP-001-1', 'TC-SHOP-001-X']) {
+    assert.deepEqual(extractCaseLabels({ name, classname: '' }), { acs: [], tcs: [] }, name);
+  }
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 多段模块标识与数字模块标识都能提取', () => {
+  assert.deepEqual(
+    extractCaseLabels({ name: 'AC-USER-AUTH-012-03 / TC-USER-AUTH-007 / AC-B2B-001-01', classname: '' }),
+    { acs: ['AC-USER-AUTH-012-03', 'AC-B2B-001-01'], tcs: ['TC-USER-AUTH-007'] },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 套件结果评估（AC-BIZTEST-003-01 / 003-02）
+// ---------------------------------------------------------------------------
+
+const GOOD_REPORT = Buffer.from(junitReport([{ name: 'TC-SHOP-001 a', status: 'passed' }]));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 退出码 0 且报告有效时套件为 ok，并给出报告哈希与字节数', () => {
+  const outcome = evaluateSuiteOutcome({ exitCode: 0, reportBytes: GOOD_REPORT });
+  assert.equal(outcome.status, 'ok');
+  assert.equal(outcome.detail, null);
+  assert.equal(outcome.cases.length, 1);
+  assert.deepEqual(outcome.report, { sha256: sha256(GOOD_REPORT), bytes: GOOD_REPORT.length });
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 退出码非零但报告有效时只是 exit_nonzero，用例照常绑定（由 AC 状态裁决）', () => {
+  const outcome = evaluateSuiteOutcome({ exitCode: 1, reportBytes: GOOD_REPORT });
+  assert.equal(outcome.status, 'exit_nonzero');
+  assert.equal(outcome.cases.length, 1);
+  assert.equal(outcome.report.sha256, sha256(GOOD_REPORT));
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 无法启动、超时、缺报告、报告无效都是硬失败，且不绑定用例', () => {
+  const spawn = evaluateSuiteOutcome({ spawnError: 'spawn ENOENT', exitCode: null, reportBytes: GOOD_REPORT });
+  assert.equal(spawn.status, 'spawn_error');
+  assert.match(spawn.detail, /ENOENT/u);
+
+  const timeout = evaluateSuiteOutcome({ timedOut: true, exitCode: null, reportBytes: GOOD_REPORT, timeoutSeconds: 30 });
+  assert.equal(timeout.status, 'timeout');
+  assert.match(timeout.detail, /30/u);
+
+  const missing = evaluateSuiteOutcome({ exitCode: 0, reportBytes: null });
+  assert.equal(missing.status, 'report_missing');
+
+  const invalid = evaluateSuiteOutcome({ exitCode: 0, reportBytes: Buffer.from('<!DOCTYPE x><a/>') });
+  assert.equal(invalid.status, 'report_invalid');
+  assert.match(invalid.detail, /\S/u);
+
+  for (const outcome of [spawn, timeout, missing, invalid]) {
+    assert.equal(outcome.cases, null);
+    assert.equal(outcome.report, null);
+  }
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 零个 testcase 的报告视为 report_invalid', () => {
+  const outcome = evaluateSuiteOutcome({ exitCode: 0, reportBytes: Buffer.from('<testsuites><testsuite name="s" tests="0"/></testsuites>') });
+  assert.equal(outcome.status, 'report_invalid');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 多个问题并存时按 spawn_error、timeout、report_missing、report_invalid、exit_nonzero 的顺序取最严重者', () => {
+  const bad = Buffer.from('not xml');
+  assert.equal(evaluateSuiteOutcome({ spawnError: 'x', timedOut: true, exitCode: 1, reportBytes: bad }).status, 'spawn_error');
+  assert.equal(evaluateSuiteOutcome({ timedOut: true, exitCode: 1, reportBytes: null }).status, 'timeout');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 1, reportBytes: null }).status, 'report_missing');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 1, reportBytes: bad }).status, 'report_invalid');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 2, reportBytes: GOOD_REPORT }).status, 'exit_nonzero');
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 超过上限的报告记为 report_invalid 且说明原因', () => {
+  const outcome = evaluateSuiteOutcome({ exitCode: 0, reportBytes: GOOD_REPORT, maxBytes: 8 });
+  assert.equal(outcome.status, 'report_invalid');
+  assert.match(outcome.detail, /上限/u);
+});
+
+test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 调用方读取报告时遇到的问题记为 report_invalid 并保留原因，不绑定用例', () => {
+  const noBytes = evaluateSuiteOutcome({ exitCode: 0, reportBytes: null, reportProblem: '报告不是普通文件' });
+  assert.equal(noBytes.status, 'report_invalid');
+  assert.match(noBytes.detail, /报告不是普通文件/u);
+  assert.equal(noBytes.cases, null);
+  assert.equal(noBytes.report, null);
+
+  const withBytes = evaluateSuiteOutcome({ exitCode: 0, reportBytes: GOOD_REPORT, reportProblem: '读取被截断' });
+  assert.equal(withBytes.status, 'report_invalid', '调用方已声明报告有问题时不得再采信读到的内容');
+  assert.equal(withBytes.cases, null);
+  assert.equal(withBytes.report, null);
+});
+
+test('AC-BIZTEST-003-01 / TC-BIZTEST-007: reportProblem 不压过 spawn_error 与 timeout，但压过 report_missing 与 exit_nonzero', () => {
+  assert.equal(evaluateSuiteOutcome({ spawnError: 'x', reportProblem: 'p' }).status, 'spawn_error');
+  assert.equal(evaluateSuiteOutcome({ timedOut: true, reportProblem: 'p' }).status, 'timeout');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 1, reportBytes: null, reportProblem: 'p' }).status, 'report_invalid');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 2, reportBytes: GOOD_REPORT, reportProblem: 'p' }).status, 'report_invalid');
+  assert.equal(evaluateSuiteOutcome({ exitCode: 0, reportBytes: null, reportProblem: null }).status, 'report_missing');
+});
+
+// ---------------------------------------------------------------------------
+// 聚合：AC/TC 绑定（AC-BIZTEST-003-02 / TC-BIZTEST-008）
+// ---------------------------------------------------------------------------
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 经 TC 标识把通过的用例绑定到 AC 与路径', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([
+      kase('TC-SHOP-001 结算进入支付页'),
+      kase('TC-SHOP-002 有效卡号支付成功'),
+      kase('TC-SHOP-003 拒绝卡号提示失败'),
+    ])],
+  });
+  assert.deepEqual(Object.keys(aggregate.tcs), ['TC-SHOP-001', 'TC-SHOP-002', 'TC-SHOP-003']);
+  for (const id of Object.keys(aggregate.tcs)) assert.equal(aggregate.tcs[id].status, 'passed', id);
+  assert.deepEqual(aggregate.tcs['TC-SHOP-001'].cases, { total: 1, passed: 1, failed: 0, error: 0, skipped: 0 });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'passed');
+  assert.equal(aggregate.acs['AC-SHOP-001-03'].status, 'passed');
+  assert.equal(aggregate.acs['AC-SHOP-002-01'].status, 'missing');
+  assert.deepEqual(aggregate.paths['PTH-SHOP-001'], { status: 'passed', tcs: ['TC-SHOP-001', 'TC-SHOP-002'] });
+  assert.deepEqual(aggregate.paths['PTH-SHOP-002'], { status: 'passed', tcs: ['TC-SHOP-003'] });
+  assert.deepEqual(aggregate.unknown_ids, []);
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: AC 记录携带优先级、验证方式、声明的端与关联 TC', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('TC-SHOP-002 pay')])] });
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-02'], {
+    priority: 'P0',
+    verification: 'auto',
+    platforms: ['ios', 'web'],
+    status: 'passed',
+    by_platform: { ios: 'missing', web: 'passed' },
+    tcs: ['TC-SHOP-002'],
+  });
+  assert.deepEqual(aggregate.acs['AC-SHOP-002-01'], {
+    priority: 'P0',
+    verification: 'manual',
+    platforms: [],
+    status: 'missing',
+    by_platform: {},
+    tcs: [],
+  });
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 用例名直接含 AC 标识时绑定到该 AC，不影响 TC 状态', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('AC-SHOP-001-01 点击结算')])] });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.equal(aggregate.tcs['TC-SHOP-001'].status, 'missing');
+  assert.equal(aggregate.paths['PTH-SHOP-001'].status, 'missing');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: classname 中的标识同样参与绑定', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('支付成功', 'passed', 'TC-SHOP-002')])] });
+  assert.equal(aggregate.tcs['TC-SHOP-002'].status, 'passed');
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'passed');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 同一用例同时含 AC 与其 TC 标识时，对该 AC 只计一个用例', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('AC-SHOP-001-01 / TC-SHOP-001 结算')])] });
+  assert.equal(aggregate.summary.cases.total, 1);
+  assert.deepEqual(aggregate.tcs['TC-SHOP-001'].cases, { total: 1, passed: 1, failed: 0, error: 0, skipped: 0 });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 一个 TC 被多条 AC 列出时，其用例绑定到列出它的全部 AC', () => withSpec({
+  'docs/prd-modules/shop/PRD.md': prdDocument([
+    { id: 'AC-SHOP-001-01', tc: 'TC-SHOP-001' },
+    { id: 'AC-SHOP-001-02', tc: 'TC-SHOP-001, TC-SHOP-002' },
+  ]),
+}, ({ spec }) => {
+  const failed = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 shared', 'failed')])] });
+  assert.equal(failed.acs['AC-SHOP-001-01'].status, 'failed');
+  assert.equal(failed.acs['AC-SHOP-001-02'].status, 'failed');
+
+  const passed = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 shared')])] });
+  assert.equal(passed.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.equal(passed.acs['AC-SHOP-001-02'].status, 'passed');
+  assert.equal(passed.tcs['TC-SHOP-002'].status, 'missing');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 端与 TC 列表按规范顺序输出，与表格里的书写顺序无关', () => {
+  const resultsFor = (platform, tc) => withSpec({
+    'docs/prd-modules/shop/PRD.md': prdDocument([{ id: 'AC-SHOP-001-01', platform, tc }]),
+  }, ({ spec }) => aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 a')])] }));
+  const left = resultsFor('web,ios', 'TC-SHOP-002, TC-SHOP-001');
+  const right = resultsFor('ios, web', 'TC-SHOP-001, TC-SHOP-002');
+  assert.deepEqual(left.acs['AC-SHOP-001-01'].platforms, ['ios', 'web']);
+  assert.deepEqual(left.acs['AC-SHOP-001-01'].tcs, ['TC-SHOP-001', 'TC-SHOP-002']);
+  assert.equal(JSON.stringify(left), JSON.stringify(right));
+});
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 失败、错误用例使 TC、AC 与路径变为 failed', () => withShop(({ spec }) => {
+  const failed = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 a', 'failed'), kase('TC-SHOP-002 b')])] });
+  assert.equal(failed.tcs['TC-SHOP-001'].status, 'failed');
+  assert.equal(failed.acs['AC-SHOP-001-01'].status, 'failed');
+  assert.equal(failed.paths['PTH-SHOP-001'].status, 'failed');
+  assert.equal(failed.acs['AC-SHOP-001-02'].status, 'passed');
+
+  const errored = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 a', 'error')])] });
+  assert.equal(errored.tcs['TC-SHOP-001'].status, 'failed');
+  assert.deepEqual(errored.tcs['TC-SHOP-001'].cases, { total: 1, passed: 0, failed: 0, error: 1, skipped: 0 });
+  assert.equal(errored.acs['AC-SHOP-001-01'].status, 'failed');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 全部跳过为 skipped，路径不算通过', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 a', 'skipped'), kase('TC-SHOP-002 b')])] });
+  assert.equal(aggregate.tcs['TC-SHOP-001'].status, 'skipped');
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'skipped');
+  assert.equal(aggregate.paths['PTH-SHOP-001'].status, 'missing');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 数据驱动的多行用例任一失败即整体失败，跳过加通过为通过', () => withShop(({ spec }) => {
+  const rows = (statuses) => aggregateResults({
+    spec,
+    suites: [web(statuses.map((status, index) => kase(`TC-SHOP-002 card #${index}`, status)))],
+  });
+  assert.equal(rows(['passed', 'passed', 'failed']).tcs['TC-SHOP-002'].status, 'failed');
+  assert.equal(rows(['passed', 'skipped']).tcs['TC-SHOP-002'].status, 'passed');
+  assert.equal(rows(['skipped', 'skipped']).tcs['TC-SHOP-002'].status, 'skipped');
+  assert.deepEqual(rows(['passed', 'skipped', 'failed', 'error']).tcs['TC-SHOP-002'].cases, { total: 4, passed: 1, failed: 1, error: 1, skipped: 1 });
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 路径状态：任一 TC 失败即失败，全部通过才通过，否则缺失', () => withShop(({ spec }) => {
+  const status = (cases) => aggregateResults({ spec, suites: [web(cases)] }).paths['PTH-SHOP-001'].status;
+  assert.equal(status([kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b')]), 'passed');
+  assert.equal(status([kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b', 'failed')]), 'failed');
+  assert.equal(status([kase('TC-SHOP-001 a')]), 'missing');
+  assert.equal(status([kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b', 'skipped')]), 'missing');
+  assert.equal(status([kase('TC-SHOP-001 a', 'failed')]), 'failed');
+  assert.equal(status([]), 'missing');
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 不含任何标识的用例单独计数，不参与绑定也不算未知标识', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([kase('登录页冒烟', 'failed'), kase('无标识用例'), kase('TC-SHOP-001 a')])],
+  });
+  assert.deepEqual(aggregate.suites, [{ name: 'web-e2e', cases: 3, unlabelled: 2 }]);
+  assert.equal(aggregate.summary.unlabelled, 2);
+  assert.equal(aggregate.summary.cases.total, 3);
+  assert.equal(aggregate.summary.cases.failed, 1);
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.deepEqual(aggregate.unknown_ids, []);
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 规格中不存在的标识记入 unknown_ids（去重、排序），已知标识仍然绑定', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([
+      kase('TC-SHOP-001 a / AC-SHOP-009-01'),
+      kase('TC-SHOP-099 ghost'),
+      kase('TC-SHOP-099 ghost again / AC-SHOP-009-01'),
+      kase('AC-ZZZ-001-01 other module'),
+    ])],
+  });
+  assert.deepEqual(aggregate.unknown_ids, ['AC-SHOP-009-01', 'AC-ZZZ-001-01', 'TC-SHOP-099']);
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.equal(aggregate.summary.unlabelled, 0);
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 硬失败的套件（cases 为 null）不参与绑定，但计入套件数', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([kase('TC-SHOP-001 a')]), { name: 'ios-e2e', platform: 'ios', cases: null }],
+  });
+  assert.deepEqual(aggregate.suites, [
+    { name: 'web-e2e', cases: 1, unlabelled: 0 },
+    { name: 'ios-e2e', cases: 0, unlabelled: 0 },
+  ]);
+  assert.equal(aggregate.summary.suites, 2);
+  assert.equal(aggregate.summary.cases.total, 1);
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: summary 含套件数、用例各状态数、无标识数、AC 各状态数与人工自动数、路径数', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([
+      kase('TC-SHOP-001 a'),
+      kase('TC-SHOP-002 b', 'failed'),
+      kase('TC-SHOP-003 c', 'skipped'),
+      kase('随手写的用例', 'error'),
+    ])],
+  });
+  assert.deepEqual(aggregate.summary, {
+    suites: 1,
+    cases: { total: 4, passed: 1, failed: 1, error: 1, skipped: 1 },
+    unlabelled: 1,
+    acs: { total: 4, passed: 1, failed: 1, skipped: 1, missing: 1, auto: 3, manual: 1 },
+    paths: { total: 2, passed: 0 },
+  });
+}));
+
+test('AC-BIZTEST-003-02 / TC-BIZTEST-008: 同样的用例以不同顺序输入，聚合结果逐字节一致', () => withShop(({ spec }) => {
+  const cases = [kase('TC-SHOP-002 b'), kase('AC-SHOP-001-01 a', 'failed'), kase('TC-SHOP-003 c', 'skipped'), kase('TC-SHOP-404 ghost'), kase('无标识')];
+  const forward = aggregateResults({ spec, suites: [web(cases)] });
+  const reverse = aggregateResults({ spec, suites: [web([...cases].reverse())] });
+  assert.equal(JSON.stringify(reverse), JSON.stringify(forward));
+  assert.deepEqual(Object.keys(forward.acs), [...Object.keys(forward.acs)].sort());
+  assert.deepEqual(Object.keys(forward.tcs), [...Object.keys(forward.tcs)].sort());
+}));
+
+// ---------------------------------------------------------------------------
+// 按端聚合（AC-BIZTEST-003-04 / TC-BIZTEST-010）
+// ---------------------------------------------------------------------------
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: 多端 AC 的状态按端分别记录，总体失败优先', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [
+      web([kase('TC-SHOP-002 pay')], 'web-e2e'),
+      { name: 'ios-e2e', platform: 'ios', cases: [kase('TC-SHOP-002 pay', 'failed')] },
+    ],
+  });
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'failed');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-02'].by_platform, { ios: 'failed', web: 'passed' });
+}));
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: 声明了的端没有提供套件时记为 missing', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('TC-SHOP-002 pay')])] });
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'passed');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-02'].by_platform, { ios: 'missing', web: 'passed' });
+}));
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: 端为 - 的套件只计入总体，不产生端记录', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [{ name: 'any', platform: '-', cases: [kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b')] }],
+  });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-01'].by_platform, { web: 'missing' });
+  assert.equal(aggregate.acs['AC-SHOP-001-03'].status, 'missing');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-03'].by_platform, {});
+}));
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: AC 未限定端（-）时，运行用例的各端都如实记录', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [
+      web([kase('TC-SHOP-003 reject')]),
+      { name: 'android-e2e', platform: 'android', cases: [kase('TC-SHOP-003 reject', 'skipped')] },
+    ],
+  });
+  assert.equal(aggregate.acs['AC-SHOP-001-03'].status, 'passed');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-03'].by_platform, { android: 'skipped', web: 'passed' });
+}));
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: 声明范围之外的端失败同样使总体失败', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([kase('TC-SHOP-001 a')]), { name: 'android-e2e', platform: 'android', cases: [kase('TC-SHOP-001 a', 'failed')] }],
+  });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'failed');
+  assert.deepEqual(aggregate.acs['AC-SHOP-001-01'].by_platform, { android: 'failed', web: 'passed' });
+}));
+
+test('AC-BIZTEST-003-04 / TC-BIZTEST-010: 同一端的多个套件合并计算该端状态', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [
+      web([kase('TC-SHOP-001 a')], 'web-smoke'),
+      web([kase('TC-SHOP-001 a', 'failed')], 'web-regression'),
+    ],
+  });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].by_platform.web, 'failed');
+}));
+
+// ---------------------------------------------------------------------------
+// 结果文件（AC-BIZTEST-003-03 / TC-BIZTEST-009）
+// ---------------------------------------------------------------------------
+
+function sampleSuites() {
+  return [
+    {
+      name: 'web-e2e',
+      platform: 'web',
+      command: 'pnpm exec playwright test',
+      exitCode: 0,
+      status: 'ok',
+      durationMs: 1234,
+      detail: null,
+      report: { path: 'test-results/junit.xml', sha256: 'c'.repeat(64), bytes: 321 },
+      cases: [kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b', 'failed'), kase('无标识')],
+    },
+    {
+      name: 'ios-e2e',
+      platform: 'ios',
+      command: 'bash run-ios.sh',
+      exitCode: null,
+      status: 'timeout',
+      durationMs: 900000,
+      detail: '运行超过 900 秒被终止',
+      report: null,
+      cases: null,
+    },
+  ];
+}
+
+function sampleResults(spec, overrides = {}) {
+  return buildResults({
+    spec,
+    headSha: HEAD,
+    worktreeClean: true,
+    configDigest: DIGEST,
+    generatedAt: '2026-10-06T00:00:00.000Z',
+    suites: sampleSuites(),
+    ...overrides,
+  });
+}
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果含 HEAD、生成时间、配置摘要、套件命令退出码与报告哈希、逐 TC 逐 AC 状态、路径状态与汇总', () => withShop(({ spec }) => {
+  const results = sampleResults(spec);
+  assert.deepEqual(Object.keys(results), [
+    'schema_version', 'generated_at', 'head_sha', 'worktree_clean', 'config_digest',
+    'suites', 'tcs', 'acs', 'paths', 'unknown_ids', 'summary',
+  ]);
+  assert.equal(results.schema_version, 1);
+  assert.equal(results.generated_at, '2026-10-06T00:00:00.000Z');
+  assert.equal(results.head_sha, HEAD);
+  assert.equal(results.worktree_clean, true);
+  assert.equal(results.config_digest, DIGEST);
+  assert.deepEqual(results.suites, [
+    {
+      name: 'web-e2e',
+      platform: 'web',
+      command: 'pnpm exec playwright test',
+      exit_code: 0,
+      status: 'ok',
+      detail: null,
+      duration_ms: 1234,
+      cases: 3,
+      unlabelled: 1,
+      report: { path: 'test-results/junit.xml', copy: 'reports/web-e2e.xml', sha256: 'c'.repeat(64), bytes: 321 },
+    },
+    {
+      name: 'ios-e2e',
+      platform: 'ios',
+      command: 'bash run-ios.sh',
+      exit_code: null,
+      status: 'timeout',
+      detail: '运行超过 900 秒被终止',
+      duration_ms: 900000,
+      cases: 0,
+      unlabelled: 0,
+      report: null,
+    },
+  ]);
+  assert.equal(results.tcs['TC-SHOP-001'].status, 'passed');
+  assert.equal(results.tcs['TC-SHOP-002'].status, 'failed');
+  assert.equal(results.acs['AC-SHOP-001-02'].status, 'failed');
+  assert.equal(results.paths['PTH-SHOP-001'].status, 'failed');
+  assert.equal(results.summary.suites, 2);
+  assert.equal(results.summary.cases.total, 3);
+  assert.deepEqual(validateResults(results), []);
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果不含仓库绝对路径、环境变量值或命令之外的本机信息', () => withShop(({ project, spec }) => {
+  process.env.XIRANG_BIZ_SECRET = 'super-secret-value';
+  try {
+    const text = JSON.stringify(sampleResults(spec));
+    assert.equal(text.includes(project.repo), false);
+    assert.equal(text.includes(os.tmpdir()), false);
+    assert.equal(text.includes('super-secret-value'), false);
+  } finally {
+    delete process.env.XIRANG_BIZ_SECRET;
+  }
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 缺少必填输入时 buildResults 直接报错而不是写出残缺结果', () => withShop(({ spec }) => {
+  assert.throws(() => sampleResults(spec, { headSha: 'not-a-sha' }), /headSha/u);
+  assert.throws(() => sampleResults(spec, { worktreeClean: 'yes' }), /worktreeClean/u);
+  assert.throws(() => sampleResults(spec, { configDigest: 'sha256:short' }), /configDigest/u);
+  assert.throws(() => sampleResults(spec, { generatedAt: '' }), /generatedAt/u);
+  assert.throws(() => sampleResults(spec, { suites: [{ ...sampleSuites()[0], status: 'weird' }] }), /status/u);
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 同一 HEAD、配置与报告产生相同的 tcs、acs、paths 与 summary（时间与耗时除外）', () => withShop(({ spec }) => {
+  const first = sampleResults(spec);
+  const slower = sampleSuites().map((suite) => ({ ...suite, durationMs: suite.durationMs + 999 }));
+  const second = sampleResults(spec, { generatedAt: '2030-01-01T00:00:00.000Z', suites: slower });
+  assert.notEqual(second.generated_at, first.generated_at);
+  for (const key of ['tcs', 'acs', 'paths', 'summary', 'unknown_ids']) {
+    assert.equal(JSON.stringify(second[key]), JSON.stringify(first[key]), key);
+  }
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果目录位于容器 tmp 下并按 worktree 键隔离，键与 QA 回执同源', () => withShop(({ project }) => {
+  const directory = resultsDirectory(DEFAULT_CONFIG, project.repo, project.repo);
+  assert.equal(directory, path.join(project.tmp, 'qa-business-results', worktreeReceiptKey(project.repo)));
+  assert.equal(path.relative(project.repo, directory).startsWith('..'), true);
+  assert.equal(fs.existsSync(directory), false, 'resultsDirectory 只解析路径，不创建目录');
+  const other = resultsDirectory(DEFAULT_CONFIG, project.repo, path.join(project.root, 'another'));
+  assert.notEqual(other, directory);
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 先写报告副本，最后才以 rename 原子写入 ac-results.json', () => withShop(({ spec }) => withTempDir((directory) => {
+  const calls = [];
+  const original = fs.renameSync;
+  fs.renameSync = (from, to) => { calls.push(path.relative(directory, to)); return original(from, to); };
+  try {
+    const results = sampleResults(spec);
+    const written = writeResults({ directory, results, reportCopies: { 'web-e2e': Buffer.from(junitReport([{ name: 'TC-SHOP-001 a' }])) } });
+    assert.equal(written, path.join(directory, 'ac-results.json'));
+  } finally {
+    fs.renameSync = original;
+  }
+  assert.deepEqual(calls, [path.join('reports', 'web-e2e.xml'), 'ac-results.json']);
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['ac-results.json', 'reports']);
+  assert.deepEqual(fs.readdirSync(path.join(directory, 'reports')), ['web-e2e.xml']);
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 写结果失败时不留下半截文件，也不覆盖旧结果', () => withShop(({ spec }) => withTempDir((directory) => {
+  const previous = sampleResults(spec, { generatedAt: '2026-01-01T00:00:00.000Z' });
+  writeResults({ directory, results: previous, reportCopies: {} });
+  const original = fs.renameSync;
+  fs.renameSync = (from, to) => {
+    if (to.endsWith('ac-results.json')) throw new Error('disk full');
+    return original(from, to);
+  };
+  try {
+    assert.throws(() => writeResults({ directory, results: sampleResults(spec), reportCopies: {} }), /disk full/u);
+  } finally {
+    fs.renameSync = original;
+  }
+  assert.equal(readResults(directory).results.generated_at, '2026-01-01T00:00:00.000Z');
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['ac-results.json', 'reports']);
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 再次写入覆盖旧结果，并清理已不在结果中的旧报告副本', () => withShop(({ spec }) => withTempDir((directory) => {
+  const xml = Buffer.from(junitReport([{ name: 'TC-SHOP-001 a' }]));
+  writeResults({ directory, results: sampleResults(spec), reportCopies: { 'web-e2e': xml, 'old-suite': xml } });
+  assert.deepEqual(fs.readdirSync(path.join(directory, 'reports')).sort(), ['old-suite.xml', 'web-e2e.xml']);
+
+  writeResults({ directory, results: sampleResults(spec, { generatedAt: '2027-02-02T00:00:00.000Z' }), reportCopies: { 'web-e2e': xml } });
+  assert.deepEqual(fs.readdirSync(path.join(directory, 'reports')), ['web-e2e.xml']);
+  assert.equal(readResults(directory).results.generated_at, '2027-02-02T00:00:00.000Z');
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 副本或结果文件的位置被换成目录后，再次写入能够自愈', () => withShop(({ spec }) => withTempDir((directory) => {
+  const xml = Buffer.from(junitReport([{ name: 'TC-SHOP-001 a' }]));
+  writeResults({ directory, results: sampleResults(spec), reportCopies: { 'web-e2e': xml } });
+  const copy = path.join(directory, reportCopyPath('web-e2e'));
+  const resultsFile = path.join(directory, 'ac-results.json');
+  for (const target of [copy, resultsFile]) {
+    fs.rmSync(target);
+    fs.mkdirSync(target);
+    fs.writeFileSync(path.join(target, 'left-over.txt'), 'x');
+  }
+  assert.equal(readResults(directory).ok, false);
+
+  writeResults({ directory, results: sampleResults(spec, { generatedAt: '2027-03-03T00:00:00.000Z' }), reportCopies: { 'web-e2e': xml } });
+  assert.equal(fs.lstatSync(copy).isFile(), true);
+  assert.deepEqual(fs.readFileSync(copy), xml);
+  assert.equal(readResults(directory).results.generated_at, '2027-03-03T00:00:00.000Z');
+  assert.deepEqual(fs.readdirSync(directory).sort(), ['ac-results.json', 'reports']);
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 报告副本内容与记录的字节一致', () => withShop(({ spec }) => withTempDir((directory) => {
+  const xml = Buffer.from(junitReport([{ name: 'TC-SHOP-001 中文' }]));
+  writeResults({ directory, results: sampleResults(spec), reportCopies: { 'web-e2e': xml } });
+  assert.deepEqual(fs.readFileSync(path.join(directory, reportCopyPath('web-e2e'))), xml);
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 报告副本名称必须是合法套件名，不允许路径穿越', () => withShop(({ spec }) => withTempDir((directory) => {
+  for (const name of ['../escape', 'a/b', 'A', '', '.hidden', 'x.xml']) {
+    assert.throws(() => reportCopyPath(name), /套件名称/u, name);
+    assert.throws(() => writeResults({ directory, results: sampleResults(spec), reportCopies: { [name]: Buffer.from('x') } }), /套件名称/u, name);
+  }
+  assert.equal(reportCopyPath('web-e2e'), 'reports/web-e2e.xml');
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 读取结果往返一致，并忽略残留的临时文件', () => withShop(({ spec }) => withTempDir((directory) => {
+  const results = sampleResults(spec);
+  writeResults({ directory, results, reportCopies: {} });
+  fs.writeFileSync(path.join(directory, 'ac-results.json.123.456.tmp'), '{ truncated');
+  const read = readResults(directory);
+  assert.equal(read.ok, true);
+  assert.deepEqual(read.results, results);
+})));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果缺失、不是 JSON、不是对象都被识别为不可用', () => withTempDir((directory) => {
+  const missing = readResults(path.join(directory, 'nowhere'));
+  assert.equal(missing.ok, false);
+  assert.equal(missing.code, 'RESULTS_MISSING');
+  assert.match(missing.message, /ac-results\.json/u);
+
+  fs.writeFileSync(path.join(directory, 'ac-results.json'), '{ not json');
+  assert.equal(readResults(directory).code, 'RESULTS_INVALID');
+  fs.writeFileSync(path.join(directory, 'ac-results.json'), '[]');
+  assert.equal(readResults(directory).code, 'RESULTS_INVALID');
+  fs.writeFileSync(path.join(directory, 'ac-results.json'), 'null');
+  assert.equal(readResults(directory).code, 'RESULTS_INVALID');
+  fs.writeFileSync(path.join(directory, 'ac-results.json'), '');
+  assert.equal(readResults(directory).code, 'RESULTS_INVALID');
+}));
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果文件是目录或符号链接时视为不可用', () => withShop(({ spec }) => withTempDir((directory) => {
+  fs.mkdirSync(path.join(directory, 'ac-results.json'));
+  assert.equal(readResults(directory).ok, false);
+  fs.rmSync(path.join(directory, 'ac-results.json'), { recursive: true });
+
+  const elsewhere = path.join(directory, 'elsewhere.json');
+  fs.writeFileSync(elsewhere, JSON.stringify(sampleResults(spec)));
+  fs.symlinkSync(elsewhere, path.join(directory, 'ac-results.json'));
+  const read = readResults(directory);
+  assert.equal(read.ok, false);
+  assert.equal(read.code, 'RESULTS_INVALID');
+})));
+
+const BROKEN = [
+  ['schema_version 不是 1', (r) => { r.schema_version = 2; }, /schema_version/u],
+  ['缺少 head_sha', (r) => { delete r.head_sha; }, /head_sha/u],
+  ['head_sha 不是完整 SHA', (r) => { r.head_sha = 'abc123'; }, /head_sha/u],
+  ['worktree_clean 不是布尔', (r) => { r.worktree_clean = 'true'; }, /worktree_clean/u],
+  ['config_digest 格式错误', (r) => { r.config_digest = 'md5:abc'; }, /config_digest/u],
+  ['generated_at 缺失', (r) => { delete r.generated_at; }, /generated_at/u],
+  ['suites 不是数组', (r) => { r.suites = {}; }, /suites/u],
+  ['套件缺少 name', (r) => { delete r.suites[0].name; }, /suites\[0\]\.name/u],
+  ['套件名称重复', (r) => { r.suites[1].name = r.suites[0].name; }, /重复/u],
+  ['套件状态未知', (r) => { r.suites[0].status = 'great'; }, /suites\[0\]\.status/u],
+  ['套件 exit_code 不是整数或 null', (r) => { r.suites[0].exit_code = '0'; }, /exit_code/u],
+  ['套件 cases 为负数', (r) => { r.suites[0].cases = -1; }, /suites\[0\]\.cases/u],
+  ['ok 套件缺少报告记录', (r) => { r.suites[0].report = null; }, /report/u],
+  ['报告 copy 路径穿越', (r) => { r.suites[0].report.copy = '../../etc/passwd'; }, /copy/u],
+  ['报告 copy 与套件名不符', (r) => { r.suites[0].report.copy = 'reports/other.xml'; }, /copy/u],
+  ['报告 sha256 格式错误', (r) => { r.suites[0].report.sha256 = 'sha256:abc'; }, /sha256/u],
+  ['报告 bytes 不是非负整数', (r) => { r.suites[0].report.bytes = 1.5; }, /bytes/u],
+  ['tcs 是数组', (r) => { r.tcs = []; }, /tcs/u],
+  ['acs 缺失', (r) => { delete r.acs; }, /acs/u],
+  ['paths 是 null', (r) => { r.paths = null; }, /paths/u],
+  ['unknown_ids 含非字符串', (r) => { r.unknown_ids = [1]; }, /unknown_ids/u],
+  ['summary 缺失', (r) => { delete r.summary; }, /summary/u],
+];
+
+for (const [title, mutate, expected] of BROKEN) {
+  test(`AC-BIZTEST-003-03 / TC-BIZTEST-009: 结果结构校验拒绝${title}`, () => withShop(({ spec }) => withTempDir((directory) => {
+    const results = JSON.parse(JSON.stringify(sampleResults(spec)));
+    mutate(results);
+    const problems = validateResults(results);
+    assert.ok(problems.length > 0, '应报告结构问题');
+    assert.match(problems.join('\n'), expected);
+
+    fs.writeFileSync(path.join(directory, 'ac-results.json'), JSON.stringify(results));
+    const read = readResults(directory);
+    assert.equal(read.ok, false);
+    assert.equal(read.code, 'RESULTS_INVALID');
+    assert.match(read.message, expected);
+  })));
+}
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: 非对象输入的结构校验不抛出', () => {
+  for (const value of [null, undefined, 1, 'x', [], true]) {
+    assert.ok(validateResults(value).length > 0);
+  }
+});
+
+test('AC-BIZTEST-003-03 / TC-BIZTEST-009: xmlEscape 构造的特殊字符套件名称与命令原样往返', () => withShop(({ spec }) => withTempDir((directory) => {
+  const command = `node run.js --title "${xmlEscape('<a & b>')}" && echo 中文`;
+  const suites = [{ ...sampleSuites()[0], command }];
+  const results = sampleResults(spec, { suites });
+  writeResults({ directory, results, reportCopies: {} });
+  assert.equal(readResults(directory).results.suites[0].command, command);
+})));
+
+// ---------------------------------------------------------------------------
+// AC 验收判定：qa run 的 AC_OPEN 与 qa verify 门禁共用（AC-BIZTEST-004-01 / 004-05）
+// ---------------------------------------------------------------------------
+
+const acRecord = (overrides = {}) => ({
+  priority: 'P0',
+  verification: 'auto',
+  platforms: [],
+  status: 'passed',
+  by_platform: {},
+  tcs: ['TC-SHOP-001'],
+  ...overrides,
+});
+
+test('AC-BIZTEST-004-01 / TC-BIZTEST-011: judgeAc 对未限定端的 AC 按整体状态裁决：passed 通过，failed、skipped、missing 不通过', () => {
+  assert.deepEqual(judgeAc(acRecord({ status: 'passed' })), { proven: true, state: 'passed', reason: null });
+  assert.deepEqual(judgeAc(acRecord({ status: 'failed' })), { proven: false, state: 'failed', reason: '存在失败用例' });
+  assert.deepEqual(judgeAc(acRecord({ status: 'skipped' })), { proven: false, state: 'skipped', reason: '用例全部被跳过' });
+  assert.deepEqual(judgeAc(acRecord({ status: 'missing' })), { proven: false, state: 'missing', reason: '没有任何用例覆盖' });
+});
+
+test('AC-BIZTEST-004-01 / TC-BIZTEST-011: judgeAc 对缺失或畸形的记录一律判为不通过而不抛出', () => {
+  for (const value of [undefined, null, 1, 'x', []]) {
+    const verdict = judgeAc(value);
+    assert.equal(verdict.proven, false);
+    assert.equal(verdict.state, 'missing');
+    assert.match(verdict.reason, /\S/u);
+  }
+  assert.equal(judgeAc(acRecord({ status: 'unknown' })).proven, false, '无法识别的状态不得被当作通过');
+});
+
+test('AC-BIZTEST-004-05 / TC-BIZTEST-015: judgeAc 要求每个声明的端都通过', () => {
+  const declared = { platforms: ['ios', 'web'] };
+  assert.deepEqual(
+    judgeAc(acRecord({ ...declared, by_platform: { ios: 'passed', web: 'passed' } })),
+    { proven: true, state: 'passed', reason: null },
+  );
+
+  const missing = judgeAc(acRecord({ ...declared, by_platform: { web: 'passed' } }));
+  assert.equal(missing.proven, false);
+  assert.equal(missing.state, 'missing');
+  assert.match(missing.reason, /ios: missing/u);
+  assert.doesNotMatch(missing.reason, /web/u, '已通过的端不列入原因');
+
+  const skipped = judgeAc(acRecord({ ...declared, by_platform: { ios: 'skipped', web: 'passed' } }));
+  assert.equal(skipped.proven, false);
+  assert.equal(skipped.state, 'skipped');
+  assert.match(skipped.reason, /ios: skipped/u);
+});
+
+test('AC-BIZTEST-004-05 / TC-BIZTEST-015: judgeAc 多个端不通过时逐端列出，任一端缺失则整体为 missing', () => {
+  const verdict = judgeAc(acRecord({ platforms: ['android', 'ios', 'web'], by_platform: { android: 'skipped', web: 'passed' } }));
+  assert.equal(verdict.proven, false);
+  assert.equal(verdict.state, 'missing');
+  assert.match(verdict.reason, /android: skipped/u);
+  assert.match(verdict.reason, /ios: missing/u);
+});
+
+test('AC-BIZTEST-004-05 / TC-BIZTEST-015: judgeAc 任一端失败即不通过，包括声明范围之外的端', () => {
+  const declared = judgeAc(acRecord({ platforms: ['ios', 'web'], status: 'failed', by_platform: { ios: 'failed', web: 'passed' } }));
+  assert.deepEqual(declared, { proven: false, state: 'failed', reason: '存在失败用例' });
+
+  const outside = judgeAc(acRecord({ platforms: ['web'], status: 'failed', by_platform: { android: 'failed', web: 'passed' } }));
+  assert.deepEqual(outside, { proven: false, state: 'failed', reason: '存在失败用例' });
+
+  const inconsistent = judgeAc(acRecord({ platforms: ['web'], status: 'passed', by_platform: { android: 'failed', web: 'passed' } }));
+  assert.equal(inconsistent.proven, false, '整体状态与分端状态不一致时以失败为准');
+  assert.equal(inconsistent.state, 'failed');
+});
+
+test('AC-BIZTEST-004-05 / TC-BIZTEST-015: judgeAc 声明范围之外的端被跳过或缺失不影响判定', () => {
+  const verdict = judgeAc(acRecord({ platforms: ['web'], by_platform: { android: 'skipped', web: 'passed' } }));
+  assert.deepEqual(verdict, { proven: true, state: 'passed', reason: null });
+});
+
+test('AC-BIZTEST-004-05 / TC-BIZTEST-015: judgeAc 与 aggregateResults 的真实输出配合：端为 - 的套件不能代替声明的端', () => withShop(({ spec }) => {
+  const anyPlatform = aggregateResults({
+    spec,
+    suites: [{ name: 'any', platform: '-', cases: [kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b')] }],
+  });
+  assert.equal(judgeAc(anyPlatform.acs['AC-SHOP-001-01']).proven, false, '声明了 web 端的 AC 不能由未标端的套件证明');
+  assert.equal(judgeAc(anyPlatform.acs['AC-SHOP-001-02']).proven, false);
+
+  const both = aggregateResults({
+    spec,
+    suites: [web([kase('TC-SHOP-001 a'), kase('TC-SHOP-002 b')]), { name: 'ios-e2e', platform: 'ios', cases: [kase('TC-SHOP-002 b')] }],
+  });
+  assert.equal(judgeAc(both.acs['AC-SHOP-001-01']).proven, true);
+  assert.equal(judgeAc(both.acs['AC-SHOP-001-02']).proven, true);
+  assert.equal(judgeAc(both.acs['AC-SHOP-001-03']).proven, false, '没有任何用例覆盖');
+  assert.equal(judgeAc(both.acs['AC-SHOP-001-03']).state, 'missing');
+}));

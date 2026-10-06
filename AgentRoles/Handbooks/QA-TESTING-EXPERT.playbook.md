@@ -10,7 +10,8 @@
 - `docs/data/traceability-matrix.md`：追溯矩阵（Story → AC → Test Case 映射）
 - `docs/data/test-strategy-matrix.md`、`test-priority-matrix.md`、`test-risk-matrix.md`：全局测试矩阵
 - `docs/data/qa-reports/`：全局质量报告归档
-- `docs/data/templates/qa/`：QA 主总纲模板（`QA-TEMPLATE.md`）与矩阵模板
+- `docs/qa-modules/{domain}/PATHS.md`：页面状态与操作路径（界面、状态、转移、路径与覆盖准则；业务测试自动化使用，由 QA 维护，`/qa plan` 不生成也不覆盖）
+- `docs/data/templates/qa/`：QA 主总纲模板（`QA-TEMPLATE.md`）、页面状态与操作路径模板（`PATHS-TEMPLATE.md`）与矩阵模板
 - `<primary-app-tests>/`：集成测试代码，按 `agent.config.json paths.primaryApp` 或项目约定定位
 - `e2e/`：端到端测试代码
 - 容器层 `tmp/coverage/`、`tmp/test-results/`、`tmp/playwright-report/`：测试产物（由脚本按主 repo 解析；`.gitignore` 兜底）
@@ -139,7 +140,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **任务输入**：治理流程的 `/docs/TASK.md`（WBS、里程碑、Owner）；日常流程使用用户验收、交付 diff 与有效测试证据
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（Story → AC → Test Case 映射）
 - **模块输入**：根据模块清单读取 `/docs/prd-modules/{domain}/PRD.md`、`/docs/arch-modules/{domain}/ARCH.md`、`/docs/task-modules/{domain}/TASK.md`
-- **模块 QA 参考**：若已有模块 QA 数据，读取 `/docs/qa-modules/{domain}/priority-matrix.md`、`nfr-tracking.md`、`defect-log.md`，便于延续历史信息
+- **模块 QA 参考**：若已有模块 QA 数据，读取 `/docs/qa-modules/{domain}/priority-matrix.md`、`nfr-tracking.md`、`defect-log.md`，以及业务测试自动化使用的 `PATHS.md`，便于延续历史信息
 - **历史数据**（如存在）：已有的 QA 稳定策略与缺陷资料；单次执行结果从 QA 证据读取
 
 ### 生成逻辑（6 步）
@@ -156,8 +157,8 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
      - **断言质量**：每用例 ≥2 个有效断言（验证状态变更或业务数据，禁止仅检查 defined/null/truthy）
      - **负面测试**：必须包含验证"不应发生"的行为
      - **边界场景**：从 §E2E 边界场景清单 选取适用项
-  3. 生成 Test Case ID：`TC-{MODULE}-{NNN}`
-  4. 使用 Given-When-Then 格式填充测试步骤模板
+  3. 生成 Test Case ID：`TC-{MODULE}-NNN`；PRD 原子 AC 表 TC 列已有的标识沿用，新增标识在同一编号空间内取未占用的序号并回填 TC 列
+  4. 使用 Given-When-Then 格式填充测试步骤：已有原子 AC 表时直接取该表的 Given、When、Then 三列，不改写也不另行发明；自动化用例须做到测试名携带 AC/TC 标识（命名规则见「业务测试自动化」一章）
   5. 标记测试类型（功能/集成/E2E/回归/性能/安全）
   6. 标记优先级（P0/P1/P2，继承 Story 优先级）
   7. 关联 Story ID 与 AC ID
@@ -187,9 +188,259 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - 执行状态（Pending/Pass/Fail/Blocked）与缺陷 ID 保存在本次 QA 证据；稳定缺陷与 NFR 口径按需同步模块资料
 
 ### 更新现有 QA.md 的保留策略
-当 `/qa plan` 刷新已有的 QA.md 时（MVP 版简化策略）：
-- **直接覆盖**：完全重新生成 QA.md（MVP 版不保留人工标注）
-- **建议操作**：执行 `/qa plan` 前手动备份现有 QA.md
+`/qa plan` 刷新已有文档时按文档归属处理，已评审的业务测试资料不会被覆盖：
+- **生成器自有文档**：以 `<!-- QA-GENERATED: generate-qa.js -->` 标记开头的文档由 `/qa plan` 重新生成，内容以 PRD、ARCH、TASK 与追溯矩阵为准
+- **手工维护文档**：没有该标记的 `docs/QA.md`、QA 模块清单与模块 QA 文档会被保留（日志提示「保留手工维护的…」），差异由 QA 专家评审后合并
+- **业务测试资料**：`PATHS.md`、业务测试套件与已评审的 TC 行从不由 `/qa plan` 生成或覆盖；刷新只新增或提出差异，不覆盖已评审用例，详见「业务测试自动化」一章的刷新策略
+- **建议操作**：刷新前先提交现有改动，刷新后用 `git diff` 审阅，再决定保留或回退
+
+---
+
+## 业务测试自动化（qa paths / qa run / 业务验收门禁）
+
+> 适用于有页面或客户端界面、需要把 PRD 验收标准落成端到端自动化验收的项目。`agent.config.json` 的 `qa.business.enabled=true` 才启用业务验收门禁；未启用时 `qa verify` 的行为与输出保持不变。
+> 分工：模型在创作期生成路径模型与用例；脚本只做确定性的解析、校验、运行、绑定与判定，不调用大模型、不含随机、不联网，同一份 PRD、PATHS.md、用例与报告永远得出同一个结论。
+
+```text
+PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa paths（STATUS=OK）
+→ 编写并评审自动化用例（测试名携带 AC/TC 标识）→ 提交 → pnpm agent -- qa run → pnpm agent -- qa verify
+```
+
+### 预言机：期望值从哪里来
+
+预言机是判定「实际结果对不对」的依据。自动生成的用例只有在预言机独立于被测系统时才有验证价值：
+
+预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。
+
+| 来源 | 提供什么 | 引用方式 |
+|------|----------|----------|
+| PRD 原子 AC | Then 列的可观察结果，Given 列的前置条件 | 断言逐条对应 Then 列，用例名携带该 AC 的标识 |
+| 数据字典 | 字段类型、长度、取值范围、枚举与默认值 | 等价类与边界值的取值依据，数据行注明出处 |
+| UX 规范 | 界面状态、提示文案、交互反馈 | 状态断言引用 PATHS.md 中对应的 SCR 与 STA 标识 |
+| ARCH 接口契约 | 状态码、错误码、幂等与限流约定 | 接口断言引用契约条目 |
+
+禁止项：
+- 把被测代码或页面的**当前输出**当作期望值。先运行一遍、再把结果抄进断言，只能证明「它现在是这样」，不能证明「它应该这样」；
+- 以**录制**回放的结果作为预期，或用**截图**与快照基线代替断言。基线只能在期望已由 AC 或 UX 规范固定之后，用于视觉回归；
+- 从实现代码反推业务规则，再据此写断言。
+
+规格有歧义或缺失时不要猜测：回流 PRD 澄清，澄清之前该 AC 不进入自动化。每条用例至少 2 个有效断言，且都能追溯到某条 AC 的 Then 列。
+
+### 路径推导：从原子 AC 到 PATHS.md
+
+把 `docs/data/templates/qa/PATHS-TEMPLATE.md` 复制为 `docs/qa-modules/{domain}/PATHS.md`（`{domain}` 与 `docs/prd-modules/{domain}/` 同名）。该文件由 QA 专家维护，其他专家通过评审提出修改；它只引用 AC 与 TC，不复制 Given/When/Then，规格以 PRD 原子 AC 表为唯一来源。
+
+1. **列界面**：从 UX 规范列出每个用户可见的页面或客户端视图（`SCR-{MODULE}-NNN`），写明适用的端。
+2. **列状态**：列出界面上用户能观察到、且会影响下一步操作的状态（`STA-{MODULE}-NNN`）；状态必须可断言，不写内部实现细节。
+3. **列转移**：每个转移是「起始状态 + 操作 + 守卫 → 目标状态」（`TRN-{MODULE}-NNN`）；守卫写区分分支的条件，无条件写 `-`；承载验收标准的转移在「关联 AC」引用该 AC，纯导航转移写 `-`。
+4. **选覆盖准则**：默认 `all-transitions`，声明方式与取舍见下一小节。
+5. **推导路径**：用尽量少的路径覆盖全部转移，路径内的转移首尾相接；每条路径（`PTH-{MODULE}-NNN`）绑定一个端到端用例 `TC-{MODULE}-NNN`，与 PRD 原子 AC 表的 TC 列共用同一个编号空间。
+6. **运行 `pnpm agent -- qa paths`**：输出 `STATUS=OK` 才表示模型自洽，逐条处理 `VIOLATION=` 行（含义见速查表）；再用 `MATRIX_AC=` 行核对每条 AC 关联的转移、路径与 TC，用 `MATRIX_PATH=` 行核对每条路径的转移序列与 TC，这两组行就是要编写的用例清单。
+
+`qa paths` 只读，不创建目录、不写文件。路径模型由模型推导，容易编造或过度细化，因此 P0 路径必须经过评审，评审人对照 UX 规范确认：
+- 每个状态在 UX 规范中有依据，没有凭空添加的界面；
+- 同一起始状态的各个守卫互斥且完整，没有遗漏分支；
+- 没有为凑覆盖率增加冗余路径；`manual`（人工验收）的 AC 不需要转移。
+
+### 覆盖准则
+
+覆盖准则决定「哪些路径是必须的」。在 PATHS.md 的行首单独写一行声明，整份文件只声明一次（围栏代码块里的示例不生效）：
+
+```text
+覆盖准则：all-transitions
+```
+
+| 取值 | 含义 | 何时使用 |
+|------|------|----------|
+| `all-transitions` | 每条转移至少被一条通过的路径经过 | 默认推荐，能发现守卫分支的遗漏 |
+| `all-states` | 每个状态至少被一条通过的路径经过，要求较弱 | 界面流程尚在成形的过渡阶段 |
+| `none` | 不要求覆盖，只校验引用 | 暂无界面流程的模块，须在评审中说明理由 |
+
+- `all-*` 取值可用逗号组合（如 `all-transitions,all-states`），`none` 不与其他取值并存；重复声明或取值非法会报 `CRITERION_INVALID`。
+- 覆盖只统计结果为通过的路径：路径对应的用例失败、被跳过或缺失，相应的转移就算未覆盖，业务验收门禁报 `PATH_COVERAGE_GAP`。
+- 声明了 `none` 以外的准则后，每条 P0 的 `auto` AC 都必须被某条转移引用，否则 `qa paths` 报 `AC_UNLINKED`。
+- 取值差异（等价类、边界值、组合）是同一条路径上的数据行，不会改变覆盖准则要求的路径集合。
+- `manual` 的 AC 不需要转移，但会在门禁里披露为 `RISK_MANUAL_AC`，需要人工验收。
+
+### 测试设计技术
+
+取值技术只产生同一条路径上的数据行，不新增状态、转移或路径：先由覆盖准则选出路径，再用下列技术决定每条路径上要跑哪些数据。
+
+| 技术 | 用法 | 落点 |
+|------|------|------|
+| 等价类 | 把输入按「系统应当同样对待」分类，每类取一个代表值，有效类与无效类都要覆盖 | 同一条路径的数据行，类别取自数据字典的类型、范围与枚举 |
+| 边界值 | 在数据字典给出的范围边界上取边界值及其相邻值（最小、最大、刚好越界） | 同一条路径的数据行，注明所属边界 |
+| 判定表 | 列出条件组合与期望结果；可观察结果不同的规则对应不同守卫，结果相同的规则合并为数据行 | 区分结果的规则写成转移的守卫，其余规则是数据行 |
+| 状态迁移 | 由 PATHS.md 的转移与覆盖准则承载，不再另画一张状态图 | 转移与路径本身；被拒绝的操作若有可观察的拒绝结果，写成带守卫的转移 |
+| 两两组合 | 仅对相互独立、且组合会改变结果的多个参数，取覆盖全部参数两两组合的最小用例集 | 同一条路径的数据行，不为无关参数做全组合 |
+
+选用顺序：先用判定表理清哪些条件会改变可观察结果（它们才值得成为守卫），再对每个守卫分支做等价类与边界值，最后只在参数仍然过多时用两两组合收敛。
+
+### 用例预算：按优先级分配
+
+预算按 AC 的优先级分配，时间紧时按优先级自下而上削减，但不降低 P0 的断言质量。`qa.business.requiredPriorities` 默认 `["P0"]`，只有优先级落在其中且验证方式为 `auto` 的 AC 才进入业务验收门禁。
+
+| 优先级 | 预算 | 门禁 |
+|--------|------|------|
+| P0 | 承载 P0 AC 的每条转移都被自动化路径覆盖，正向与负向都要有；等价类、边界值与判定表规则齐全，参数组合用两两组合收敛 | 默认在门禁内；没有被通过的用例证明时报 `AC_NOT_PROVEN` 并阻断 |
+| P1 | 覆盖主要分支，每个分支取代表值与关键边界 | 默认不在门禁内；可加入 `requiredPriorities`，未证明时披露 `RISK_LOWER_PRIORITY` |
+| P2 | 冒烟或抽样：主流程正向加一个典型负向 | 不在门禁内；`auto` 的 AC 未被证明时同样披露 `RISK_LOWER_PRIORITY` |
+| P3 | 不要求自动化，可手工验收 | 不阻断；标为 `auto` 却未被证明的 AC 仍披露 `RISK_LOWER_PRIORITY` |
+
+- 预算不免除门禁要求：落在 `requiredPriorities` 内的 `auto` AC 必须被通过的用例证明。
+- 需要把 P1 纳入验收时，把 `requiredPriorities` 改为 `["P0","P1"]`，P1 的预算随之按 P0 标准执行。
+- 无法自动化的 AC 在 PRD 中标为 `manual`，由人工验收，不当作自动化通过。
+
+### 数据驱动用例与测试命名
+
+测试名携带 AC/TC 标识：业务验收门禁只靠标识把测试结果绑定到验收标准，没有标识的用例不计入任何验收。
+
+```text
+TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不锁定
+```
+
+- 命名格式：`<TC 标识> <AC 标识…> <行为描述>`。标识可写在 `test` 名或外层 `describe` 名里（JUnit 报告的 `name` 与 `classname` 都会被扫描），标识前后不要紧贴大写字母、数字或连字符。
+- 绑定规则：AC 标识直接绑定该 AC；TC 标识经 PRD 原子 AC 表的 TC 列，绑定到所有列出该 TC 的 AC；只出现在 PATHS.md 路径表里的 TC 只计入路径覆盖、不为任何 AC 提供证明，所以端到端路径用例的 TC 还要登记在它所覆盖的各条 AC 的 TC 列。没有标识的用例披露为 `RISK_UNLABELLED_CASES`，标识在规格中不存在的披露为 `RISK_UNKNOWN_IDS`。
+- 一行数据对应一个 `testcase`：同一条路径上的所有数据行共用同一个 TC 标识，任一数据行失败，该 TC 及其绑定的 AC 即判失败。
+- 数据集放在用例旁边，每行注明来源（等价类、边界值或判定规则）；期望值按预言机规则取自规格，不用系统输出计算。
+
+### 刷新策略
+
+刷新只新增或提出差异，不覆盖已评审用例：PRD 变化后，已评审的界面、状态、转移、路径、标识与用例保持原样，新内容只追加，需要改动已评审内容时先作为差异提案进入评审。
+
+| 变化 | 处理 | 评审 |
+|------|------|------|
+| 新增 AC | 运行 `pnpm agent -- qa paths` 找出缺口，为新 AC 追加转移、路径与用例，已有标识与用例不动 | 评审新增的 P0 路径与断言 |
+| 修改 AC | 先写差异提案：旧 Then 与新 Then、受影响的 TC 与路径；评审通过后再改用例与断言 | 必须评审，评审前不改已评审用例 |
+| 删除 AC | 评审确认后归档或移除关联的转移、路径与用例，标识不复用 | 必须评审 |
+| 应用改版 | 只更新 PATHS.md 中「操作」「守卫」的描述与驱动适配层，不改标识与期望值；期望值变化须由 AC 变化触发 | 对照 UX 规范抽查 |
+
+- `/qa plan` 只重新生成带 `QA-GENERATED` 标记的文档，保留手工维护的 QA 文档，并且从不生成或覆盖 PATHS.md、业务测试套件与已评审的 TC 行（见「更新现有 QA.md 的保留策略」）。
+- 刷新前先提交已有改动，刷新后用 `git diff` 审阅差异，再决定保留或回退；不要让模型一次性重写全部用例。
+
+### 驱动产物与报告
+
+驱动（Playwright、pytest、JUnit/Gradle、XCUITest 等）只需满足一个契约：输出 JUnit XML 报告，`testcase` 的 `name` 或 `classname` 带 AC/TC 标识；端由套件配置的 `platform` 声明，不从报告推断。报告按 UTF-8 解析，含 DOCTYPE 或自定义实体的报告、超过 64 MiB 的报告都判为无效。
+
+- **忽略产物**：报告、截图、trace、视频、录制脚本等驱动产物加入 `.gitignore`（如 `reports/`）。已被跟踪的报告先执行 `git rm --cached`，再加入忽略；否则 `qa run` 时工作区不干净，业务验收门禁报 `RESULTS_DIRTY_WORKTREE`。
+- **跨平台路径**：报告输出路径写在驱动自己的配置里（例如 `playwright.config.ts` 的 `reporter`），不要在 `command` 里内联环境变量赋值（`FOO=bar cmd` 在 Windows shell 中无效）；`report` 使用相对仓库根、以 `/` 分隔的路径。
+- **不自动重试**：不要在驱动层开启失败重试（如 Playwright 的 `retries`），重试会把不稳定的用例洗成「偶尔通过」；先修等待条件与数据隔离，让失败如实暴露。
+- **失败如实**：失败、超时、缺报告都是真实结果；不要删除或手改报告，不要把失败改成跳过来换取通过；`command` 中不放密钥。
+
+### 配置与使用顺序
+
+在稀疏的 `agent.config.json` 里配置 `qa.business`；默认 `enabled` 为 `false`，此时 `qa verify` 的行为与输出保持不变。
+
+| 配置项 | 默认值 | 含义 |
+|--------|--------|------|
+| `enabled` | `false` | 是否启用业务验收门禁；值不是布尔类型，或 `qa.business` 下出现未知键（如把 `enabled` 拼成 `enable`）时按已启用处理（失败即关闭） |
+| `requiredPriorities` | `["P0"]` | 进入门禁的优先级；只检查这些优先级且验证方式为 `auto` 的 AC |
+| `suites` | `[]` | 业务测试套件列表；启用时至少声明一个，按配置顺序运行 |
+
+套件字段（`suites` 的每一项，不允许出现其他键）：
+
+| 套件字段 | 默认值 | 约束 |
+|----------|--------|------|
+| `name` | 必填 | 小写字母开头，只含小写字母、数字与连字符；套件之间不重复 |
+| `platform` | `-` | 单个端标签，需与 PRD 原子 AC 表「端」列的标签一致；`-` 表示不区分端 |
+| `command` | 必填 | 在仓库根执行的 shell 命令，只写受信配置，不放密钥 |
+| `report` | 必填 | JUnit XML 报告路径，相对仓库根、以 `/` 分隔；不得为绝对路径、目录、符号链接、已被 Git 跟踪的文件或 `.git` 内的路径 |
+| `timeoutSeconds` | `900` | 1 到 `7200` 的整数；超时记为 `SUITE_HARD_FAILURE` |
+
+```json
+{
+  "qa": {
+    "business": {
+      "enabled": true,
+      "requiredPriorities": ["P0"],
+      "suites": [
+        {
+          "name": "web-e2e",
+          "platform": "web",
+          "command": "pnpm exec playwright test",
+          "report": "reports/business/web-e2e.xml",
+          "timeoutSeconds": 900
+        }
+      ]
+    }
+  }
+}
+```
+
+Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['junit', { outputFile: 'reports/business/web-e2e.xml' }]]`），并把 `reports/` 加入 `.gitignore`。AC 的「端」列声明了多个端时，每个端都要有 `platform` 相同的套件给出通过的用例，否则该 AC 判为未证明（`AC_NOT_PROVEN`，原因是声明的端未通过）。
+
+使用顺序：
+
+1. `pnpm agent -- qa paths`，处理全部 `VIOLATION=` 直至 `STATUS=OK`；
+2. 编写并评审自动化用例，测试名携带 AC/TC 标识；
+3. 提交全部改动（用例、PATHS.md、`.gitignore`）；
+4. 在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；
+5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，阻断时输出原因、不签发回执。
+
+套件命令退出码非零但报告有效时，以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`，不直接阻断；启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
+
+### 阻断码与风险码速查
+
+输出格式：`qa paths` 为 `VIOLATION=<代码>|<文件>:<行号>|<说明>`；`qa verify` 为 `BUSINESS_BLOCK=<代码>|<对象>|<详情>` 与 `BUSINESS_RISK=<代码>|<详情>`。下列三张表由漂移守卫测试对照脚本中的代码清单校验，脚本新增或改名代码时必须同步这里。
+
+#### qa paths 违规码
+
+| 代码 | 含义 | 处理 |
+|------|------|------|
+| `ROW_COLUMNS` | 表格行的单元格数与表头不一致 | 补齐缺失的单元格；单元格内的竖线需用反斜杠转义 |
+| `AC_ID_INVALID` | AC 标识格式不合法，应形如 `AC-{模块}-NNN-NN` | 按「模块、三位 Story 序号、两位 AC 序号」重命名 |
+| `AC_ID_DUPLICATE` | 同一 AC 标识被定义了两次，说明里给出首次定义的位置 | 删除重复行，或换用未占用的序号（标识不复用） |
+| `STORY_INVALID` | Story 列的标识格式不合法，应形如 `US-{模块}-NNN` | 改为合法的 Story 标识 |
+| `STORY_MISMATCH` | AC 所属的 Story 与其标识不一致：AC 标识去掉末段序号后必须等于 Story 标识 | 修改 Story 列，或重命名 AC 使二者一致 |
+| `PRIORITY_INVALID` | 优先级不是 P0、P1、P2、P3 之一 | 改为合法的优先级 |
+| `VERIFICATION_INVALID` | 验证方式不是 `auto` 或 `manual` | 改为 auto 或 manual |
+| `PLATFORM_INVALID` | 端标签不合法：以小写字母开头的标签（如 web、ios），多个用逗号分隔，不区分端写 `-`；PATHS.md 界面表的「端」列同理 | 补写合法标签，不区分端写 `-`，不要留空 |
+| `FIELD_EMPTY` | Given、When、Then 单元格为空 | 补全三列，它们是预言机的来源 |
+| `TC_INVALID` | TC 标识格式不合法，应形如 `TC-{模块}-NNN`，多个用逗号分隔，没有写 `-`；PATHS.md 路径表的「关联 TC」同理 | 改为合法标识，暂无用例写 `-` |
+| `CRITERION_INVALID` | 覆盖准则重复声明，或取值为空、不合法，或 `none` 与其他取值并存 | 整份 PATHS.md 只声明一次合法取值 |
+| `ID_INVALID` | 界面、状态、转移或路径的标识格式不合法 | 按 `SCR-`、`STA-`、`TRN-`、`PTH-` 前缀加模块与三位序号重命名 |
+| `ID_DUPLICATE` | 标识重复，包括不同功能域的 PATHS.md 之间重复 | 换用未占用的序号 |
+| `PATHS_TABLE_MISSING` | PATHS.md 缺少某张表，或表头不符 | 按 PATHS-TEMPLATE.md 补齐界面、状态、转移、路径四张表及表头 |
+| `NO_ATOMIC_AC` | `docs/prd-modules/<域>/` 下没有找到任何原子 AC 表 | 按 PRD 模块模板补写原子 AC 表，或把 `qa.business.enabled` 设为 false |
+| `REF_UNKNOWN` | 引用了不存在的界面、状态、转移或 AC | 修正引用，或先补上被引用的条目 |
+| `PATH_EMPTY` | 路径的转移序列为空 | 补写转移序列，或删除该路径 |
+| `PATH_DISCONNECTED` | 路径中前一转移的目标状态不是后一转移的起始状态 | 调整转移顺序，或补上中间的转移 |
+| `COVERAGE_GAP` | 按覆盖准则，有转移（all-transitions）或状态（all-states）没有被任何路径覆盖 | 补一条经过它的路径，或在评审后调整覆盖准则 |
+| `AC_UNLINKED` | P0 且 `auto` 的 AC 没有被任何转移引用（仅当该域 PATHS.md 声明了 `none` 以外的覆盖准则时报告） | 在承载该 AC 的转移「关联 AC」中引用它，或把它改为 manual |
+
+#### qa verify 阻断码
+
+判定顺序：配置 → 规格 → 结果存在 → 结果新鲜度 → 套件 → 报告完整性 → 验收 → 路径覆盖。前六步遇到第一个失败的步骤即停止，同一步内的问题全部列出；验收与路径覆盖彼此独立，同时失败时都会列出。阻断时不签发回执。
+
+| 代码 | 含义 | 处理 |
+|------|------|------|
+| `CONFIG_INVALID` | `qa.business` 配置不合法，或启用后没有声明任何套件 | 修正 `agent.config.json` 的 `qa.business`（启用时至少声明一个套件），再运行 `pnpm agent -- qa verify` |
+| `NO_ATOMIC_AC` | 启用了业务验收，但 `docs/prd-modules/<域>/` 下没有任何原子 AC 表 | 在 PRD 中按模板补写原子 AC 表，或把 `qa.business.enabled` 设为 false |
+| `SPEC_INVALID` | 原子 AC 表或 PATHS.md 存在违规，详情为「违规码: 说明」 | 运行 `pnpm agent -- qa paths` 查看全部 VIOLATION，修正后重新运行 `qa verify` |
+| `RESULTS_MISSING` | 没有找到 `qa run` 生成的结果文件 | 提交全部改动后运行 `pnpm agent -- qa run`，再运行 `qa verify` |
+| `RESULTS_INVALID` | 结果文件无法读取或格式不合法 | 重新运行 `pnpm agent -- qa run`，再运行 `qa verify` |
+| `RESULTS_STALE_HEAD` | 结果绑定的 HEAD 与当前 HEAD 不一致，说明运行之后又有新提交 | 在最后一次提交之后重新运行 `pnpm agent -- qa run` |
+| `RESULTS_DIRTY_WORKTREE` | `qa run` 运行时工作区有未提交的改动 | 把报告输出路径加入 `.gitignore`（已跟踪的报告先 `git rm --cached`），或提交、清理其余改动，再运行 `qa run` |
+| `RESULTS_CONFIG_DRIFT` | `qa run` 之后套件或 `requiredPriorities` 又被修改 | 重新运行 `pnpm agent -- qa run` |
+| `SUITE_HARD_FAILURE` | 套件启动失败、超时、没有产生报告，或报告无法解析 | 先按原因修复套件命令或报告路径，再重新运行 `pnpm agent -- qa run` |
+| `REPORT_TAMPERED` | 报告副本的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
+| `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果，与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
+| `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」 | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
+| `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径及其状态 | 补写或修复覆盖该路径的用例使其通过，或修正 PATHS.md 的路径、关联 TC 与覆盖准则，再运行 `qa run` |
+| `GATE_ERROR` | 业务验收门禁自身出错 | 带着错误信息排查后重新运行 `pnpm agent -- qa verify` |
+
+#### 风险披露码
+
+风险码只披露、不阻断，且仅在结果可信（结果存在、新鲜、套件与报告完整）时给出；由评审决定是否接受。
+
+| 代码 | 含义 | 建议 |
+|------|------|------|
+| `RISK_MANUAL_AC` | 进入门禁优先级内的 `manual` AC，门禁不验证它 | 安排人工验收并留下记录；能自动化时改为 auto 并补用例 |
+| `RISK_LOWER_PRIORITY` | 不在 `requiredPriorities` 内的 `auto` AC 没有被通过的用例证明 | 按用例预算补用例，或把对应优先级加入 `requiredPriorities` |
+| `RISK_UNLABELLED_CASES` | 有用例的名称不带任何 AC/TC 标识，不计入任何验收 | 按命名约定补上标识 |
+| `RISK_UNKNOWN_IDS` | 用例引用了规格中不存在的标识 | 修正标识的拼写，或回到 PRD 补写对应的 AC/TC |
+| `RISK_SUITE_EXIT_NONZERO` | 套件命令退出码非零，但报告有效，结果以报告为准 | 查看失败原因，常见于驱动自身的非零退出策略 |
+| `RISK_MODULE_WITHOUT_TABLE` | 有的模块没有原子 AC 表，不在门禁覆盖内 | 为该模块补写原子 AC 表，或在评审中确认无需业务测试 |
 
 ---
 
@@ -215,6 +466,10 @@ pnpm run qa:generate -- --dry-run       # 预览（不写入文件）
 # 验收检查
 pnpm run qa:verify                      # session 模式
 pnpm run qa:verify -- --project         # project 模式
+
+# 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
+pnpm agent -- qa paths                  # 校验原子 AC 与 PATHS.md，输出覆盖矩阵（只读）
+pnpm agent -- qa run                    # 在最后一次提交之后运行业务测试套件并写入结果
 
 # 合并发布
 pnpm run qa:merge                       # session 模式
@@ -291,6 +546,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] 命中安全风险时，对应验证已执行，无未解决的阻塞漏洞
 - [ ] NFR 验收在模块 `nfr-tracking.md` 中有最新状态
 - [ ] 全局矩阵（strategy/priority/risk）反映当前覆盖/优先级/风险
+- [ ] 启用 `qa.business` 时：`pnpm agent -- qa paths` 输出 `STATUS=OK`；`pnpm agent -- qa run` 在最后一次提交之后运行；`qa verify` 的业务验收门禁通过，`BUSINESS_RISK=` 披露项已在评审中处理
 
 ### 发布评估
 - [ ] 发布建议已明确（Go / Conditional / No-Go）
@@ -367,7 +623,7 @@ flowchart TD
 
 | 协作方 | 输入 | 输出 | 要点 |
 |--------|------|------|------|
-| TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件 |
-| ARCH | 架构约束 + NFR 指标 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO |
-| PRD | 验收标准 + 用户故事 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖 |
+| TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件；业务测试的用例名携带 AC/TC 标识 |
+| ARCH | 架构约束 + NFR 指标 + 接口契约 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO；接口契约是业务测试的预言机来源 |
+| PRD | 验收标准 + 用户故事 + 原子 AC 表 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖；AC 有歧义时回流 PRD 澄清 |
 | DevOps | — | Go/Conditional/No-Go + QA 回执 | 发布建议为 Go 后执行 /qa merge，交接 DevOps 部署 |

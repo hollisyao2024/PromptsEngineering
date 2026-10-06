@@ -1,10 +1,10 @@
 # 息壤（Xirang）模板任务计划（总纲）
 
-日期：2026-09-06　版本：v1.6
+日期：2026-10-07　版本：v1.8
 
 ## 1. 项目概述
 
-按测试先行顺序交付模板客户端/服务端通用命令面、环境文件首次初始化、无 GitHub CI 的多电脑同权 Git 协作保护，以及息壤模板从实际项目发起的官方源自更新。新增范围保持现有 apply 所有权和本地治理入口，以固定 GitHub 源、required fetch、不可变 SHA 快照和最新应用器自举补齐模板来源链。
+按测试先行顺序交付模板客户端/服务端通用命令面、环境文件首次初始化、无 GitHub CI 的多电脑同权 Git 协作保护，以及息壤模板从实际项目发起的官方源自更新。新增范围保持现有 apply 所有权和本地治理入口，以固定 GitHub 源、required fetch、不可变 SHA 快照和最新应用器自举补齐模板来源链。另规划业务测试自动化 P1：大模型依据 PRD 推导业务操作路径与用例，脚本确定性地校验路径、运行套件、绑定结果，并在 `qa verify` 提供默认关闭的业务验收门禁。
 
 ## 2. 模块任务索引
 
@@ -16,10 +16,13 @@
 
 多端 Monorepo 与 Prisma 的 3.2 验收通过，见 [模块 TASK](task-modules/monorepo-platform/TASK.md) 与 [QA](qa-modules/monorepo-platform/QA.md)，依赖架构能力包与所有权引擎。
 
+业务测试自动化：[模块 TASK](task-modules/business-testing/TASK.md)，TASK-BIZTEST-001~011，覆盖 US-BIZTEST-001~006；复用 `qa verify` 本地门禁、治理标识解析与容器目录初始化器，默认关闭，P1 验收通过 / Go（2026-10-07）。
+
 | 模块名称 | 负责团队 | 文档链接 | 状态 | 关键依赖 | 数据/接口追溯 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 官方匿名获取回归通过 | Agent CLI、GitHub auth、template apply、worktree lifecycle、固定官方源 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 兼容回归通过 / Go | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-11 |
+| 业务测试自动化 | @template-maintainers | [TASK.md](task-modules/business-testing/TASK.md) | 验收通过 / Go；P2~P4 另行立项 | qa verify 本地门禁、governance-ids、容器目录初始化器、template manifest 所有权 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-10-07 |
 
 ## 3. 全局里程碑（跨模块）
 
@@ -33,12 +36,13 @@
 | M6-WORKTREE-BASE | Worktree 最新远端基线 | 2026-09-01 | required fetch、固定 SHA 创建、显式 skip、测试与协议 | TC-CMDSURF-012~015、全量回归与 QA merge 通过 | ✅ 兼容回归通过 |
 | M7-MULTI-HOST | 无 CI 多电脑同权 Git 安全 | 2026-09-05 | 远端恢复、QA 双 SHA 回执、精确合并、三 clone 模拟 | TC-CMDSURF-016~021、模板收敛与 QA merge 通过 | ✅ QA 验证通过 |
 | M8-XIRANG-SYNC | 息壤官方模板自更新 | 2026-09-06 | 模板身份、自然语言路由、`template sync`、固定 SHA 自举与传播验证 | TC-CMDSURF-022~026、全量回归、目标副本收敛与 QA merge 通过 | ✅ QA 通过 |
+| M9-BIZTEST | 业务测试自动化 P1 | 2026-10-06 | 规格解析、路径校验、套件运行、结果绑定、业务验收门禁、模板与指引 | TC-BIZTEST-001~022、默认关闭兼容回归、模板收敛 dry-run 与 QA merge 通过 | TC-BIZTEST-001~022 验收通过；回执及合并以运行态为准 |
 
-既有命令面和环境能力的状态依据 [命令面 QA](qa-modules/template-command-surface/QA.md) 与 [环境 QA](qa-modules/environment-file-initialization/QA.md)。实际业务项目的接入验收单独记录，消费者回归不替代小懒或其他真实项目的同步与验收。
+既有命令面和环境能力的状态依据 [命令面 QA](qa-modules/template-command-surface/QA.md) 与 [环境 QA](qa-modules/environment-file-initialization/QA.md)；业务测试自动化的状态依据 [业务测试 QA](qa-modules/business-testing/QA.md)。实际业务项目的接入验收单独记录，消费者回归不替代小懒或其他真实项目的同步与验收。
 
 ## 4. 跨模块依赖关系
 
-两个模块无业务运行时依赖，均依赖模板 apply 生命周期；环境文件模块可独立交付。详见 [task-dependency-matrix.md](data/task-dependency-matrix.md)。
+两个模块无业务运行时依赖，均依赖模板 apply 生命周期；环境文件模块可独立交付。业务测试自动化依赖既有 `qa verify` 本地门禁、`governance-ids` 标识解析与容器目录初始化器，不引入新的外部服务，默认关闭，不改变其他模块行为。详见 [task-dependency-matrix.md](data/task-dependency-matrix.md)。
 
 ## 5. 全局关键路径（CPM）
 
@@ -71,9 +75,25 @@ flowchart LR
   X3 --> X4[Latest updater bootstrap and convergence]
   X4 --> X5[Template propagation and regression]
   X5 --> X6[QA merge]
+  B1[Business test RED] --> B2[Spec parser]
+  B1 --> B4[Config parser]
+  B2 --> B3[Paths validator]
+  B2 --> B5[Result binder]
+  B3 --> B6[Suite runner]
+  B4 --> B6
+  B5 --> B6
+  B3 --> B7[Business gate]
+  B4 --> B7
+  B5 --> B7
+  B6 --> B8[CLI and qa verify integration]
+  B7 --> B8
+  B3 --> B9[Templates and ownership]
+  B8 --> B10[Guidance and role sync]
+  B9 --> B10
+  B10 --> B11[Closed loop and NFR QA]
 ```
 
-关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。
+关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。业务测试自动化链路中 003/005 与 006/007 为等长并行替代，004 与 009 有浮动时间，关键路径约 6 人日。
 
 ## 6. 全局风险与缓解
 
@@ -91,6 +111,9 @@ flowchart LR
 - 息壤来源陈旧风险：普通同步 required fetch 固定官方源并锁定 SHA，禁止项目内旧快照和缓存回退。
 - 自举风险：轻量引导器只负责获取与校验，实际 apply 必须调用固定 SHA 快照中的最新更新器。
 - 同步部分写入风险：来源、linked-worktree 预检和首次 dry-run 全部前置，应用后强制 convergence dry-run。
+- 业务测试默认关闭兼容风险：`qa.business.enabled` 缺省时 `qa verify` 输出与退出码必须与既有逐字节一致，由回归测试守护。
+- 业务验收证据可信度风险：结果绑定 HEAD、配置摘要与报告 SHA256 并在门禁重算比对，陈旧或被改动即阻断；信任边界与既有本地门禁一致，只做篡改可见。
+- 预言机污染风险：用例期望只能来自 PRD AC、数据字典、UX 规范与 ARCH 契约；闭环夹具故意破坏后门禁必须变红，以证明可证伪。
 
 ## 7. 模块同步与相关文档
 
@@ -100,6 +123,10 @@ flowchart LR
 - [ARCH](arch-modules/template-command-surface/ARCH.md)
 - [Traceability](data/traceability-matrix.md)
 - [Story → Task](data/story-task-mapping.md)
+- [业务测试自动化 TASK](task-modules/business-testing/TASK.md)
+- [业务测试自动化 PRD](prd-modules/business-testing/PRD.md)
+- [业务测试自动化 ARCH](arch-modules/business-testing/ARCH.md)
+- [业务测试自动化 QA](qa-modules/business-testing/QA.md)
 
 模块状态、里程碑和 Gate 结果由模块 TASK 维护并在 TDD/QA 阶段同步。
 
@@ -114,3 +141,7 @@ flowchart LR
 Drizzle 数据访问：[模块 TASK](task-modules/drizzle/TASK.md)，依赖 Monorepo、身份权限、文件存储和队列。
 
 数据语义约定：[模块 TASK](task-modules/data-semantics/TASK.md)，TASK-DATA-001~010，依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。
+
+## 业务测试自动化
+
+[模块任务与依赖](task-modules/business-testing/TASK.md)：TASK-BIZTEST-001~011，覆盖 US-BIZTEST-001~006，依赖既有 `qa verify` 本地门禁、治理标识解析与容器目录初始化器。P1 验收通过 / Go，证据见 [业务测试自动化 QA](qa-modules/business-testing/QA.md)。PRD 里程碑 P2~P4（用例骨架与断言质量、驱动脚手架、flaky 策略与人工验收记录）另行立项，不在本轮。
