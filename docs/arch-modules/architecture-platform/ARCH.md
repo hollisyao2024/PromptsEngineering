@@ -91,4 +91,4 @@ ADR：[版本化能力包与所有权引擎](../../adr/026-arch-architecture-pla
 
 运行时：任务触及界面 → 根 `DESIGN.md` 存在且含 YAML front matter → 当前阶段专家点读并按本阶段职责使用；缺失则回退 UX 规范 §5 与 `styles.css`。`AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md` 不加入界面文字，`AGENTS.md` 不超过 180 行、TDD 专家文件不超过 220 行，由 template-surface 测试固定。ARCH 文档只记录 Token 到 `styles.css` 的映射、组件集、明暗策略和字体加载，不复述取值。
 
-验证：template-surface 契约测试（TC-ARCHPLAT-015～017）覆盖骨架行数、front matter 键、八章节顺序、Token 与 `tokens.css` 同源、manifest/README 登记与根 `DESIGN.md` 未登记、四个阶段的路由与 TASK/DEVOPS 无路由、指针与误标更正、体量上限；真实浏览器视觉验收仍由项目负责。无服务端/schema/部署变化。ADR：[界面视觉契约的所有权与按需路由](../../adr/037-arch-ui-design-contract.md)。
+验证：template-surface 契约测试（TC-ARCHPLAT-015～017）覆盖骨架行数、front matter 键与取值类型、八章节顺序、Token 与 `tokens.css` 同源、manifest/README 登记与根 `DESIGN.md` 未登记、四个阶段的路由（点读方须以 `DESIGN.md` 存在且含 YAML front matter 为条件并回退，含 QA 无障碍数值目标）与 TASK/DEVOPS 无路由、指针与误标更正；体量上限由同文件既有的体量测试固定；真实浏览器视觉验收仍由项目负责。无服务端/schema/部署变化。ADR：[界面视觉契约的所有权与按需路由](../../adr/037-arch-ui-design-contract.md)。

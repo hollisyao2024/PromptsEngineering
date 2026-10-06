@@ -21,7 +21,7 @@
 
 - `DESIGN.md` 是色值、间距、圆角与无障碍目标的唯一来源；需要调整取值时先改 `DESIGN.md`，再同步 `styles.css`，业务页面不硬编码颜色与间距。
 - 采用架构包的项目另读 `docs/standards/ui.md` 取得控件与 DataTable 约束；需要源规范时从架构命令输出的 `ARCHITECTURE_SOURCE_ROOT` 下读取 `architecture/standards/ui.md`。
-- 没有 `DESIGN.md` 时退回 UX 规范 §5 与 `styles.css`，不为实现方便自行新增取值。
+- 没有 `DESIGN.md` 时回退 UX 规范 §5 与 `styles.css`，不为实现方便自行新增取值。
 - 实现与 `DESIGN.md` 的偏差先回溯其 Components 与 Do's and Don'ts；仍无法判断时回到 PRD 澄清，不在代码里自行裁定。
 
 ---

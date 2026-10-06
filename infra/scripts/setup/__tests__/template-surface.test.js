@@ -131,6 +131,7 @@ test('large expert and module templates are concise entrypoints', () => {
   assert.ok(lineCount('AgentRoles/TDD-PROGRAMMING-EXPERT.md') <= 220);
   assert.ok(lineCount('docs/qa-modules/MODULE-TEMPLATE.md') <= 350);
   assert.ok(lineCount('docs/arch-modules/MODULE-TEMPLATE.md') <= 350);
+  assert.ok(lineCount('docs/prd-modules/MODULE-TEMPLATE.md') <= 350);
 });
 
 const DESIGN_TEMPLATE = 'docs/data/templates/prd/DESIGN-TEMPLATE.md';
@@ -147,12 +148,20 @@ const DESIGN_SECTIONS = [
 const TOUCH_TARGET_MISLABEL = /44×44(?:px)?\s*[（(]\s*WCAG\s*2\.5\.8/u;
 
 // 行形态检查把骨架限定为嵌套映射（拒绝列表项）；解析交给随模板分发的 tooling/xirang/yaml，重复键与非法缩进会直接抛错。
-function parseDesignTemplate() {
-  const text = read(DESIGN_TEMPLATE);
+function parseDesignTemplate(text = read(DESIGN_TEMPLATE)) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(text);
   assert.ok(match, 'DESIGN skeleton starts with YAML front matter');
   for (const line of match[1].split(/\r?\n/u)) assert.match(line, /^\s*(?:#.*|[A-Za-z0-9_.-]+:(?:\s.*)?)?$/u, `front matter line is key: value: ${line}`);
   return { data: parseDocument(match[1]).value, rest: text.slice(match[0].length), text };
+}
+
+// 未加引号的 {colors.primary} 会被解析成单键映射而非字符串，Token 引用必须带引号才是 DESIGN.md 规范里的值
+function assertComponentValuesAreStrings(components) {
+  for (const [component, props] of Object.entries(components)) {
+    for (const [prop, value] of Object.entries(props)) {
+      assert.equal(typeof value, 'string', `components.${component}.${prop} is a string (quote token references)`);
+    }
+  }
 }
 
 function headingBody(text, heading) {
@@ -167,7 +176,7 @@ function headingBody(text, heading) {
 
 test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the accessibility targets', () => {
   assert.ok(lineCount(DESIGN_TEMPLATE) <= 80, 'skeleton stays within 80 lines');
-  const { data, rest } = parseDesignTemplate();
+  const { data, rest, text } = parseDesignTemplate();
   assert.deepEqual(
     Object.keys(data),
     ['version', 'name', 'colors', 'typography', 'rounded', 'spacing', 'components'],
@@ -181,30 +190,41 @@ test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the ac
   const accessibility = headingBody(rest, 'Accessibility');
   assert.match(accessibility, /正文 ≥ 4\.5:1，大文本 ≥ 3:1/u);
   assert.match(accessibility, /推荐 ≥ 44×44；WCAG 2\.2 SC 2\.5\.8 最低 24×24（AA）/u);
-  assert.doesNotMatch(read(DESIGN_TEMPLATE), TOUCH_TARGET_MISLABEL);
+  assert.doesNotMatch(text, TOUCH_TARGET_MISLABEL);
 });
 
 test('TC-ARCHPLAT-015 DESIGN skeleton tokens match the shadcn defaults and resolve their references', () => {
   const { data, text } = parseDesignTemplate();
+  assertComponentValuesAreStrings(data.components);
   const resolve = (ref) => ref.split('.').reduce((node, key) => (node && typeof node === 'object' ? node[key] : undefined), data);
   const refs = text.match(/\{[A-Za-z0-9_.-]+\}/gu) || [];
   assert.ok(refs.length > 0, 'components reference tokens');
   for (const ref of refs) assert.notEqual(resolve(ref.slice(1, -1)), undefined, `${ref} resolves in front matter`);
   assert.doesNotMatch(text, /https?:\/\/|@font-face|@import/u, 'no network font or external asset');
+  assert.doesNotMatch(text, /architecture\/components\/|tokens\.css/u, 'no path that exists only in the Xirang source');
   // 项目侧没有 architecture 组件源，同源比对只在息壤源执行
   if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
   const tokens = read('architecture/components/shadcn/tokens.css');
-  const rootBlock = /:root\s*\{([^}]*)\}/u.exec(tokens)[1];
+  const rootMatch = /:root\s*\{([^}]*)\}/u.exec(tokens);
+  assert.ok(rootMatch, 'tokens.css has a :root block');
   const defaults = Object.fromEntries(
-    [...rootBlock.matchAll(/--([a-z-]+):\s*([^;]+);/gu)].map((match) => [match[1], match[2].trim()]),
+    [...rootMatch[1].matchAll(/--([a-z0-9-]+):\s*([^;]+);/gu)].map((match) => [match[1], match[2].trim()]),
   );
   for (const [name, value] of Object.entries(data.colors)) {
     assert.equal(value, defaults[name], `colors.${name} equals the shadcn default`);
   }
+  assert.match(defaults.radius, /^[\d.]+rem$/u, 'tokens.css radius is in rem');
   const radius = parseFloat(defaults.radius) * 16;
   assert.deepEqual(data.rounded, { sm: `${radius - 4}px`, md: `${radius - 2}px`, lg: `${radius}px` });
   assert.match(tokens, /--radius-sm: calc\(var\(--radius\) - 4px\);\s*--radius-md: calc\(var\(--radius\) - 2px\);\s*--radius-lg: var\(--radius\);/u, 'rounded offsets mirror tokens.css');
   assert.equal(data.typography.body.fontFamily, /font-family:\s*([^;]+);/u.exec(tokens)[1].trim());
+});
+
+test('TC-ARCHPLAT-015 unquoted token references are rejected', () => {
+  const skeleton = read(DESIGN_TEMPLATE);
+  const unquoted = skeleton.replace(/"(\{[A-Za-z0-9_.-]+\})"/gu, '$1');
+  assert.notEqual(unquoted, skeleton, 'skeleton quotes its token references');
+  assert.throws(() => assertComponentValuesAreStrings(parseDesignTemplate(unquoted).data.components), /is a string/u);
 });
 
 test('TC-ARCHPLAT-016 DESIGN skeleton is template-owned while the root DESIGN.md stays project-owned', () => {
@@ -241,17 +261,28 @@ test('TC-ARCHPLAT-016 UX, PRD and module templates point to DESIGN.md instead of
   for (const text of [prdTemplate, moduleTemplate, playbook]) assert.ok(!text.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
 });
 
+// AC-ARCHPLAT-015-03：PRD 负责建立；ARCH、TDD、QA 仅在根 DESIGN.md 存在且含 YAML front matter 时点读，否则回退 UX 规范 §5 与 styles.css
+const DESIGN_BUILDERS = ['AgentRoles/PRD-WRITER-EXPERT.md', 'AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md'];
+const DESIGN_CONSUMERS = [
+  'AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md',
+  'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
+  'AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md',
+  'AgentRoles/QA-TESTING-EXPERT.md',
+  'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
+];
+const DESIGN_GATE = /存在[^\n]{0,8}YAML front matter/u;
+const DESIGN_FALLBACK = /回退 UX 规范 §5[^\n]*`styles\.css`/u;
+const ACCESSIBILITY_FALLBACK = /Accessibility[^\n]*WCAG 2\.1 AA 默认阈值/u;
+
 test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility', () => {
-  for (const file of [
-    'AgentRoles/PRD-WRITER-EXPERT.md',
-    'AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md',
-    'AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md',
-    'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
-    'AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md',
-    'AgentRoles/QA-TESTING-EXPERT.md',
-    'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
-  ]) assert.ok(read(file).includes('DESIGN.md'), `${file} routes to DESIGN.md`);
+  for (const file of DESIGN_BUILDERS) assert.ok(read(file).includes('DESIGN.md'), `${file} builds DESIGN.md`);
   assert.match(read('AgentRoles/PRD-WRITER-EXPERT.md'), /DESIGN-TEMPLATE\.md/u);
+  for (const file of DESIGN_CONSUMERS) {
+    const text = read(file);
+    assert.ok(text.includes('DESIGN.md'), `${file} routes to DESIGN.md`);
+    assert.match(text, DESIGN_GATE, `${file} reads DESIGN.md only when it exists with YAML front matter`);
+    assert.match(text, DESIGN_FALLBACK, `${file} falls back to UX §5 and styles.css`);
+  }
   assert.match(read('AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md'), /`DESIGN\.md`[^\n]*实现映射[^\n]*不复述取值/u);
   for (const file of ['AgentRoles/QA-TESTING-EXPERT.md', 'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md']) {
     assert.match(read(file), /设计还原度[^\n]*`DESIGN\.md`/u, `${file} checks fidelity against DESIGN.md`);
@@ -263,7 +294,15 @@ test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their ow
   assert.match(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md'), /UI 实现约定/u);
 });
 
-test('TC-ARCHPLAT-017 DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules within the size caps', () => {
+test('TC-ARCHPLAT-017 accessibility targets keep a fallback when DESIGN.md is absent', () => {
+  for (const file of [
+    'AgentRoles/QA-TESTING-EXPERT.md',
+    'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
+    'docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md',
+  ]) assert.match(read(file), ACCESSIBILITY_FALLBACK, `${file} falls back to WCAG 2.1 AA default thresholds without DESIGN.md`);
+});
+
+test('TC-ARCHPLAT-017 DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules', () => {
   for (const file of [
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md',
@@ -273,11 +312,6 @@ test('TC-ARCHPLAT-017 DESIGN.md stays out of TASK, DEVOPS and the always-loaded 
     'docs/CONVENTIONS.md',
     'infra/templates/agent/RULES.example.md',
   ]) assert.ok(!read(file).includes('DESIGN.md'), `${file} stays free of DESIGN.md`);
-  assert.ok(lineCount('AGENTS.md') <= 180);
-  assert.ok(lineCount('AgentRoles/TDD-PROGRAMMING-EXPERT.md') <= 220);
-  for (const file of ['prd', 'arch', 'qa'].map((module) => `docs/${module}-modules/MODULE-TEMPLATE.md`)) {
-    assert.ok(lineCount(file) <= 350, `${file} stays within 350 lines`);
-  }
 });
 
 test('every phase expert explicitly participates in durable task recovery', () => {
@@ -451,16 +485,12 @@ test('failure recovery protocol lives in AGENTS.md and is not duplicated in conv
   assert.doesNotMatch(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
 });
 
-function conventionsSection(heading, nextHeading) {
-  const text = read('docs/CONVENTIONS.md');
-  const start = text.indexOf(`\n## ${heading}`);
-  const end = text.indexOf(`\n## ${nextHeading}`, start + 1);
-  assert.ok(start >= 0 && end > start, `conventions section ${heading}`);
-  return text.slice(start, end);
+function conventionsSection(heading) {
+  return headingBody(read('docs/CONVENTIONS.md'), heading);
 }
 
 test('conventions test-scope section keeps the contract that experts reference by name', () => {
-  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const section = conventionsSection('8. TDD、QA 与交付');
   assert.match(section, /^### 测试范围与证据复用$/mu);
   assert.match(section, /\| 变更影响 \| 必需验证 \|/u);
   for (const trigger of ['explicit_requirement', 'whole_scope_impact', 'unbounded_after_investigation', 'cross_domain_failure']) {
@@ -475,7 +505,7 @@ test('conventions test-scope section keeps the contract that experts reference b
 });
 
 test('delivery pipeline, schema and review rules live with their owners instead of conventions section 8', () => {
-  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const section = conventionsSection('8. TDD、QA 与交付');
   for (const removed of [
     /修改任务固定执行/u,
     /数据库 schema 变更必须同一交付/u,
@@ -504,7 +534,7 @@ test('delivery pipeline, schema and review rules live with their owners instead 
 });
 
 test('conventions section 8 states each test-scope rule once and keeps the rules next to every trim', () => {
-  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const section = conventionsSection('8. TDD、QA 与交付');
   const occurrences = (needle) => section.split(needle).length - 1;
 
   // 「不能单独触发全量」清单只在全量段列一次，首段只保留低风险判定。
@@ -520,7 +550,7 @@ test('conventions section 8 states each test-scope rule once and keeps the rules
   assert.doesNotMatch(section, /大日志留在任务 evidence/u);
   assert.match(read('AGENTS.md'), /完整日志写入任务 evidence/u);
   assert.match(read('AGENTS.md'), /大证据放 `evidence\/`/u);
-  assert.match(conventionsSection('6. 长任务状态文件', '7. '), /evidence\/\s+# 可选大体积证据/u);
+  assert.match(conventionsSection('6. 长任务状态文件'), /evidence\/\s+# 可选大体积证据/u);
 
   // 预提交运行的绑定规则只写一次，并带上摘要核对方式。
   assert.equal(occurrences('提交前运行'), 1);
@@ -550,7 +580,7 @@ test('conventions section 8 states each test-scope rule once and keeps the rules
 
 test('agents test entry keeps its own rules and leaves task exec interception to conventions section 8', () => {
   const agents = read('AGENTS.md');
-  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const section = conventionsSection('8. TDD、QA 与交付');
 
   // 「task exec 拦截聚合测试命令」只在 §8 运行器段写一次，并带放行条件。
   assert.doesNotMatch(agents, /`task exec` 会在启动前拦截聚合测试命令/u);
@@ -575,7 +605,7 @@ test('agents test entry keeps its own rules and leaves task exec interception to
 
 test('qa expert points to conventions section 8 and keeps only its own review duties', () => {
   const qa = read('AgentRoles/QA-TESTING-EXPERT.md');
-  const section = conventionsSection('8. TDD、QA 与交付', '9. ');
+  const section = conventionsSection('8. TDD、QA 与交付');
 
   // 旧 QA 子句 → 仍在 §8 的承接原文：删除与保留在同一处断言，避免只删不留。
   const dedupedIntoSection = [
@@ -622,7 +652,7 @@ test('qa expert points to conventions section 8 and keeps only its own review du
 });
 
 test('qa receipt scope stays with the receipt definition in conventions section 5', () => {
-  const section = conventionsSection('5. Worktree 生命周期', '6. ');
+  const section = conventionsSection('5. Worktree 生命周期');
   assert.match(section, /回执不跨电脑共享.*重新执行 `qa verify`/u);
 });
 
@@ -637,7 +667,7 @@ test('agents cleanup deferral keeps its principle and bounds and leaves the comm
   assert.ok(agents.includes(
     '开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。',
   ));
-  const section = conventionsSection('6. 长任务状态文件', '7. ');
+  const section = conventionsSection('6. 长任务状态文件');
   for (const kept of [
     '独立收尾清理可以在进入 QA/DEVOPS 时显式延后',
     '`transition ... --defer-cleanup-step S5 --cleanup-evidence',
@@ -673,14 +703,14 @@ test('qa playbook points to the conventions test-scope section by name instead o
   ]) {
     assert.ok(playbook.includes(kept), kept);
   }
-  assert.ok(conventionsSection('8. TDD、QA 与交付', '9. ').includes('确认测试运行器支持所用过滤参数'));
+  assert.ok(conventionsSection('8. TDD、QA 与交付').includes('确认测试运行器支持所用过滤参数'));
 });
 
 test('agents task exec usage rule stays consistent with the conventions syntax registry and cli limits', () => {
   assert.ok(read('AGENTS.md').includes(
     '使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志写入任务 evidence，只回传约 8KB/80 行摘要',
   ));
-  const section = conventionsSection('7. 命令面', '8. ');
+  const section = conventionsSection('7. 命令面');
   for (const syntax of [
     'pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>',
     'pnpm agent -- task context --task <id> [--max-bytes 8192] [--include <path#Lx-Ly>]...',
@@ -707,7 +737,7 @@ test('agents worktree section leaves the remote same-name branch rule to convent
   ]) {
     assert.ok(agents.includes(kept), kept);
   }
-  const section = conventionsSection('5. Worktree 生命周期', '6. ');
+  const section = conventionsSection('5. Worktree 生命周期');
   for (const carried of [
     '如果 required fetch 后已经存在 `refs/remotes/origin/<branch>`，`worktree new` 必须阻断并提示显式恢复或更名',
     '只有 `worktree resume` 可以从远端分支固定 SHA 创建本机 tracking branch、worktree 和 session',
@@ -722,7 +752,7 @@ test('tdd playbook points to the conventions test-scope section by name instead 
     '以下是命令示例，须按项目运行器核实过滤参数并选择受影响用例；全量命令仅在满足 `docs/CONVENTIONS.md` §测试范围与证据复用的升级条件时使用，不按示例逐条执行。',
   ));
   assert.doesNotMatch(playbook, /满足通用约定的升级条件/u);
-  assert.ok(conventionsSection('8. TDD、QA 与交付', '9. ').includes('\n### 测试范围与证据复用\n'));
+  assert.ok(conventionsSection('8. TDD、QA 与交付').includes('\n### 测试范围与证据复用\n'));
 });
 
 test('experts and handbooks name the conventions test-scope section instead of a vague 通用约定 reference', () => {
@@ -745,8 +775,8 @@ test('agents github section leaves the rules carried by conventions sections 5 a
   const end = agents.indexOf('\n## ', start + 1);
   assert.ok(start >= 0 && end > start, 'agents github section');
   const section = agents.slice(start, end);
-  const receipts = conventionsSection('5. Worktree 生命周期', '6. ');
-  const policy = conventionsSection('9. GitHub、命名与安全', '10. ');
+  const receipts = conventionsSection('5. Worktree 生命周期');
+  const policy = conventionsSection('9. GitHub、命名与安全');
 
   // 旧 AGENTS 子句 → 仍在 CONVENTIONS 的承接原文：删除与保留在同一处断言，避免只删不留。
   const dedupedIntoConventions = [
@@ -784,7 +814,7 @@ test('agents github section leaves the rules carried by conventions sections 5 a
 test('agents leaves project ownership and scan details to conventions while keeping its own one-line rules', () => {
   const agents = read('AGENTS.md');
   const conventions = read('docs/CONVENTIONS.md');
-  const ownership = conventionsSection('3. 模板所有权', '4. ');
+  const ownership = conventionsSection('3. 模板所有权');
   const scan = conventions.slice(conventions.indexOf('\n## 10. 全仓扫描'));
   assert.ok(scan.startsWith('\n## 10. 全仓扫描'), 'conventions scan section');
   const scanStart = agents.indexOf('\n## 全仓扫描');
@@ -818,8 +848,8 @@ test('agents leaves project ownership and scan details to conventions while keep
 test('conventions leaves task-input, checkpoint, default-type, alias and context-budget sentences to agents', () => {
   const agents = read('AGENTS.md');
   const conventions = read('docs/CONVENTIONS.md');
-  const tasks = conventionsSection('6. 长任务状态文件', '7. ');
-  const commands = conventionsSection('7. 命令面', '8. ');
+  const tasks = conventionsSection('6. 长任务状态文件');
+  const commands = conventionsSection('7. 命令面');
 
   // 旧 CONVENTIONS 子句 → 仍在 AGENTS 的承接原文：删除与保留在同一处断言，避免只删不留。
   const dedupedIntoAgents = [
@@ -852,7 +882,7 @@ test('conventions leaves task-input, checkpoint, default-type, alias and context
 
 test('devops expert leaves client, build and ship shortcut rows to conventions section 7 and keeps its own routing', () => {
   const expert = read('AgentRoles/DEVOPS-ENGINEERING-EXPERT.md');
-  const section = conventionsSection('7. 命令面', '8. ');
+  const section = conventionsSection('7. 命令面');
   assert.ok(section.includes('\n### 客户端与服务端快捷命令\n'), 'conventions keeps the shortcut registry the pointers name');
 
   // 旧专家表行 → 仍在 §7 的承接行：删除与保留在同一处断言，避免只删不留。
