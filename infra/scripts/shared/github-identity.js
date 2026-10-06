@@ -26,8 +26,8 @@ const ROLES = Object.freeze({
 const TAG_ANNOTATE_LONG = new Set(['--annotate', '--sign']);
 const TAG_ANNOTATE_VALUE_LONG = new Set(['--message', '--file', '--local-user']);
 const TAG_NON_CREATING_LONG = new Set(['--delete', '--list', '--verify']);
-const TAG_ANNOTATE_SHORT = new Set(['a', 's', 'm', 'F', 'u']);
-const TAG_VALUE_SHORT = new Set(['m', 'F', 'u']);
+const TAG_ANNOTATE_SHORT = new Set(['a', 's']);
+const TAG_ANNOTATE_VALUE_SHORT = new Set(['m', 'F', 'u']);
 const TAG_NON_CREATING_SHORT = new Set(['d', 'l', 'v']);
 
 // GitHub 登录名：字母数字开头结尾，中间可含连字符；企业托管账号还可能含下划线。
@@ -72,7 +72,8 @@ function isAnnotatedTagCommand(args) {
       for (const [index, flag] of flags.entries()) {
         if (TAG_NON_CREATING_SHORT.has(flag)) return false;
         if (TAG_ANNOTATE_SHORT.has(flag)) annotated = true;
-        if (TAG_VALUE_SHORT.has(flag)) {
+        if (TAG_ANNOTATE_VALUE_SHORT.has(flag)) {
+          annotated = true;
           skipNext = index === flags.length - 1;
           break;
         }
@@ -219,17 +220,14 @@ function lookupGitHubCommitIdentity({
   }
 
   const reply = parseProbeReply(result.stdout);
-  if (reply && reply.ok === false) {
-    throw lookupFailure(`GitHub 账号查询失败：${reply.message || '未知错误'}`, token);
-  }
   if (!reply) {
+    if (result.status === 0) throw lookupFailure('无法解析账号查询结果', token);
     const exit = result.signal ? `信号 ${result.signal}` : `退出码 ${result.status}`;
-    throw lookupFailure(
-      result.status === 0
-        ? '无法解析账号查询结果'
-        : `账号查询进程异常退出（${exit}）${tailOf(result.stderr) ? `：${tailOf(result.stderr)}` : ''}`,
-      token
-    );
+    const detail = tailOf(result.stderr);
+    throw lookupFailure(`账号查询进程异常退出（${exit}）${detail ? `：${detail}` : ''}`, token);
+  }
+  if (reply.ok === false) {
+    throw lookupFailure(`GitHub 账号查询失败：${reply.message || '未知错误'}`, token);
   }
   if (result.status !== 0 || reply.ok !== true || !isFilledString(reply.name) || !isFilledString(reply.email)) {
     throw lookupFailure('无法解析账号查询结果', token);

@@ -77,7 +77,7 @@ function run(repo, env, argv, overrides = {}) {
     log: (line) => lines.push(String(line)),
     ...overrides,
   });
-  return { exitCode, lines, report: parseReport(lines), lookupCalls };
+  return { exitCode, report: parseReport(lines), lookupCalls };
 }
 
 function configValue(repo, env, key) {

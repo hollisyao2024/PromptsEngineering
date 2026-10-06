@@ -50,10 +50,10 @@ function createRepo(env) {
   return dir;
 }
 
-function recordingLookup(calls, identity = IDENTITY) {
+function recordingLookup(calls) {
   return ({ token }) => {
     calls.push(token);
-    return { ...identity };
+    return { ...IDENTITY };
   };
 }
 
