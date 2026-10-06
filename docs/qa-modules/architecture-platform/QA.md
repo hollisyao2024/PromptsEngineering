@@ -135,15 +135,15 @@ Review-Class: REQUIRED；Domain-Hit: 共享基础库、异步并发、跨文件�
 | 验证层 | 组合与结果 |
 | --- | --- |
 | 先红后绿 | 6 条新增契约测试在无实现时 5 条因预期原因失败（缺骨架、缺登记、模板未去重、专家未路由）；第 6 条（017 范围与体量守卫）在基线即通过，作为边界守卫保留；实现后 template-surface 47/47，update-template 14/14 |
-| 定向回归 | 同步 origin/main（含 `pnpm agent -- tdd commit`）后，27 个测试文件逐个执行 `pnpm agent -- test --file … -- node --test`：281/281，0 失败、0 跳过；setup 13 个文件 175/175，agent-runner 7 个 70/70，tdd/qa/shared 3 个 14/14，architecture 4 个 22/22 |
+| 定向回归 | 合并 origin/main（v3.7.33，含 `pnpm agent -- tdd commit` 与令牌来源条款）后，27 个测试文件逐个执行 `pnpm agent -- test --file … -- node --test`：281/281，0 失败、0 跳过；setup 13 个文件 175/175，agent-runner 7 个 70/70，tdd/qa/shared 3 个 14/14，architecture 4 个 22/22 |
 | 体量 | 骨架 61/80 行；`AGENTS.md` 175/180 行；TDD 专家 170/220 行（含同步带入的 `tdd commit` 两行）；prd、arch、qa 三份 MODULE-TEMPLATE 为 160、175、176/350 行 |
-| 常驻上下文 | `AGENTS.md`（18,945 B）、`docs/CONVENTIONS.md`（26,778 B）、`RULES.example.md` 零改动；新增 UI 文字全部落在按需读取的文件，TDD 阶段每次激活多读一句（+140 B） |
+| 常驻上下文 | `AGENTS.md`（18,970 B）、`docs/CONVENTIONS.md`（26,778 B）、`RULES.example.md` 零改动；新增 UI 文字全部落在按需读取的文件，TDD 阶段每次激活多读一句（+140 B） |
 | 字节账 | 13 个内容文件净 +4,279 B：骨架 +2,938 B，UX 规范 −1,360 B（242→199 行），其余专家、手册、模板、README 与 manifest 合计 +2,701 B |
-| 版本 | `package.json`、`agent/manifest.json`、`template.manifest.json` 一致为 3.8.0，高于同步后的 origin/main（3.7.32） |
+| 版本 | `package.json`、`agent/manifest.json`、`template.manifest.json` 一致为 3.8.0，高于合并后的 origin/main（3.7.33） |
 
 测试范围按 `docs/CONVENTIONS.md` §测试范围与证据复用界定：本轮只改文档、模板与清单路由，没有改运行时代码，选择定向范围而非全量；未运行全量 `pnpm test`、E2E、性能、安全与负载测试，也未运行架构包的浏览器样本和 `devops-run` 测试。范围决策与逐文件结果记录在任务证据中。
 
-Review-Class: REQUIRED；Domain-Hit: 共享模板、跨专家路由、清单所有权。已复核：取值只在 `DESIGN.md` 一处，UX 规范、PRD 模板、模块模板与 PRD 手册不再复述 `4.5:1`、`44×44`，PRD 的 AC-015-02 所说「误标更正」体现为误标不再出现于这些文件，更正后的写法只在骨架 Accessibility 中；骨架 `overwrite` 而根 `DESIGN.md` 不入任何 manifest，更新不会写入或覆盖项目文件；路由以「任务触及界面且根 `DESIGN.md` 存在」为条件并有回退，TASK、DEVOPS 与三份常驻规则无路由；44×44 只更正标注（推荐值与 WCAG 2.2 SC 2.5.8 最低 24×24 AA 并列），不改 WCAG 2.1 AA 基线；骨架色值与圆角同 `tokens.css`；下游影响见 CHANGELOG：骨架为新增的 `overwrite` 文件，下游下次同步时创建，其余模板自有文件的更新沿用既有所有权与基线比对规则。Codex review skipped by policy。3/3 新增 AC 通过，无遗留阻断缺陷，Go（模板源码）；最终交付以当前提交 QA receipt、合并及 completion guard 为准。
+Review-Class: REQUIRED；Domain-Hit: 共享模板、跨专家路由、清单所有权。已复核：取值只在 `DESIGN.md` 一处，UX 规范、PRD 模板、模块模板与 PRD 手册不再复述 `4.5:1`、`44×44`，PRD 的 AC-015-02 所说「误标更正」体现为误标不再出现于这些文件，更正后的写法只在骨架 Accessibility 中；骨架 `overwrite` 而根 `DESIGN.md` 不入任何 manifest，更新不会写入或覆盖项目文件；路由以「任务触及界面且根 `DESIGN.md` 存在」为条件并有回退，TASK、DEVOPS 与三份常驻规则无路由；44×44 只更正标注（推荐值与 WCAG 2.2 SC 2.5.8 最低 24×24 AA 并列），不改 WCAG 2.1 AA 基线；骨架色值与圆角同 `tokens.css`；下游影响见 CHANGELOG：骨架为新增的 `overwrite` 文件，下游下次同步时创建，其余模板自有文件的更新沿用既有所有权与基线比对规则。Post-Push `/code-review` 未执行：执行器为 Claude Code，需先安装 `code-review@claude-plugins-official` 插件，安装属外部下载、未获授权；替代复核有两项：`code-simplifier` 子代理复核了本分支新增测试（在首次推送之后执行，提 7 条建议，全部采纳，均未放宽断言），以及执行器对完整 diff 的语义自查（业务文件仅三处版本号与一条 `overwrite` 登记，共 10 行），二者都不等同于独立 `/code-review`。3/3 新增 AC 通过，无遗留阻断缺陷，Go（模板源码）；最终交付以当前提交 QA receipt、合并及 completion guard 为准。
 
 限制与未覆盖：① 没有运行官方 `@google/design.md` lint（规范为 alpha，运行需要下载，未获授权），骨架的键、章节顺序与 `{ref}` 解析只由契约测试固化；② `DESIGN.md` 与 `styles.css` 之间没有自动漂移检查，依赖专家点读与 QA 核验，由 TASK-ARCHPLAT-012 补齐；③ 规范 alpha 没有暗色机制，骨架以「暗色策略」一句文字约定，不能机器校验；④ 没有真实浏览器或设备上的视觉验收，规范合规不代替视觉还原度与无障碍实测；⑤ 文档脚本：`arch:lint` 退出 0（既有 6 条警告），`task:lint` 退出 0，`qa:lint` 退出 0（1 条既有警告：data-semantics 缺 QA 模块）；`prd:lint` 退出 1，仅因 data-semantics 与 drizzle 两个未触及的模块缺第 7 节，Story ID 格式（109 个）、Given-When-Then 与 architecture-platform 模块结构三项对本轮新增内容均通过；`arch:sync` 与 `sync-prd-task-ids` 在 main 基线即失败，因为检查器只认标题式 Story 定义，而多数模块 PRD 以表格登记，本轮新增的 US-ARCHPLAT-015 使 `arch:sync` 由 31 条增至 32 条，TASK-ARCHPLAT-011、012 与既有 001～010 一同列为孤立任务，同因，均未在本轮修复。
 

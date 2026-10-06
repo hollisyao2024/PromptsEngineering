@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { parseDocument } = require('../../../../tooling/xirang/yaml');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 
@@ -145,29 +146,13 @@ const DESIGN_SECTIONS = [
 ];
 const TOUCH_TARGET_MISLABEL = /44×44(?:px)?\s*[（(]\s*WCAG\s*2\.5\.8/u;
 
-// 骨架 front matter 只用嵌套映射与标量，最小解析器足够，契约测试不引入 YAML 依赖。
+// 行形态检查把骨架限定为嵌套映射（拒绝列表项）；解析交给随模板分发的 tooling/xirang/yaml，重复键与非法缩进会直接抛错。
 function parseDesignTemplate() {
   const text = read(DESIGN_TEMPLATE);
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(text);
   assert.ok(match, 'DESIGN skeleton starts with YAML front matter');
-  const data = {};
-  const stack = [{ indent: -1, node: data }];
-  for (const raw of match[1].split(/\r?\n/u)) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const entry = /^([A-Za-z0-9_.-]+):(?:\s+(.*))?$/u.exec(line);
-    assert.ok(entry, `front matter line is key: value: ${raw}`);
-    const indent = raw.length - raw.trimStart().length;
-    while (stack[stack.length - 1].indent >= indent) stack.pop();
-    const parent = stack[stack.length - 1].node;
-    if (entry[2] === undefined) {
-      parent[entry[1]] = {};
-      stack.push({ indent, node: parent[entry[1]] });
-    } else {
-      parent[entry[1]] = entry[2].replace(/^(["'])(.*)\1$/u, '$2');
-    }
-  }
-  return { data, rest: text.slice(match[0].length), text };
+  for (const line of match[1].split(/\r?\n/u)) assert.match(line, /^\s*(?:#.*|[A-Za-z0-9_.-]+:(?:\s.*)?)?$/u, `front matter line is key: value: ${line}`);
+  return { data: parseDocument(match[1]).value, rest: text.slice(match[0].length), text };
 }
 
 function headingBody(text, heading) {
@@ -181,26 +166,20 @@ function headingBody(text, heading) {
 }
 
 test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the accessibility targets', () => {
-  assert.ok(read(DESIGN_TEMPLATE).replace(/\r?\n$/u, '').split(/\r?\n/u).length <= 80, 'skeleton stays within 80 lines');
+  assert.ok(lineCount(DESIGN_TEMPLATE) <= 80, 'skeleton stays within 80 lines');
   const { data, rest } = parseDesignTemplate();
   assert.deepEqual(
     Object.keys(data),
     ['version', 'name', 'colors', 'typography', 'rounded', 'spacing', 'components'],
   );
   assert.equal(data.version, 'alpha');
-  const lines = rest.split(/\r?\n/u);
-  assert.deepEqual(lines.filter((line) => /^## /u.test(line)).map((line) => line.slice(3)), DESIGN_SECTIONS);
+  // 八个规范章节依次出现，三个三级节排在最后一个规范章节 Do's and Don'ts 之下
   assert.deepEqual(
-    lines.filter((line) => /^### /u.test(line)).map((line) => line.slice(4)),
-    ['Accessibility', 'Motion', 'Visual QA'],
-  );
-  assert.ok(
-    lines.findIndex((line) => /^### /u.test(line)) > lines.indexOf("## Do's and Don'ts"),
-    'accessibility, motion and visual QA sit under Do\'s and Don\'ts',
+    rest.split(/\r?\n/u).filter((line) => /^#{2,3} /u.test(line)),
+    [...DESIGN_SECTIONS.map((section) => `## ${section}`), '### Accessibility', '### Motion', '### Visual QA'],
   );
   const accessibility = headingBody(rest, 'Accessibility');
-  assert.match(accessibility, /4\.5:1/u);
-  assert.match(accessibility, /3:1/u);
+  assert.match(accessibility, /正文 ≥ 4\.5:1，大文本 ≥ 3:1/u);
   assert.match(accessibility, /推荐 ≥ 44×44；WCAG 2\.2 SC 2\.5\.8 最低 24×24（AA）/u);
   assert.doesNotMatch(read(DESIGN_TEMPLATE), TOUCH_TARGET_MISLABEL);
 });
@@ -224,6 +203,7 @@ test('TC-ARCHPLAT-015 DESIGN skeleton tokens match the shadcn defaults and resol
   }
   const radius = parseFloat(defaults.radius) * 16;
   assert.deepEqual(data.rounded, { sm: `${radius - 4}px`, md: `${radius - 2}px`, lg: `${radius}px` });
+  assert.match(tokens, /--radius-sm: calc\(var\(--radius\) - 4px\);\s*--radius-md: calc\(var\(--radius\) - 2px\);\s*--radius-lg: var\(--radius\);/u, 'rounded offsets mirror tokens.css');
   assert.equal(data.typography.body.fontFamily, /font-family:\s*([^;]+);/u.exec(tokens)[1].trim());
 });
 
@@ -258,12 +238,10 @@ test('TC-ARCHPLAT-016 UX, PRD and module templates point to DESIGN.md instead of
   assert.ok(!moduleTemplate.includes('设计系统引用（全局 Design Token + 模块特定组件）'));
   assert.ok(!moduleTemplate.includes('响应式断点与无障碍要求（WCAG 2.1 AA）'));
   const playbook = read('AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md');
-  for (const text of [ux, prdTemplate, moduleTemplate, playbook]) assert.doesNotMatch(text, TOUCH_TARGET_MISLABEL);
-  assert.ok(!playbook.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
+  for (const text of [prdTemplate, moduleTemplate, playbook]) assert.ok(!text.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
 });
 
 test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility', () => {
-  const mentions = (file) => read(file).includes('DESIGN.md');
   for (const file of [
     'AgentRoles/PRD-WRITER-EXPERT.md',
     'AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md',
@@ -272,7 +250,7 @@ test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their ow
     'AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md',
     'AgentRoles/QA-TESTING-EXPERT.md',
     'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
-  ]) assert.ok(mentions(file), `${file} routes to DESIGN.md`);
+  ]) assert.ok(read(file).includes('DESIGN.md'), `${file} routes to DESIGN.md`);
   assert.match(read('AgentRoles/PRD-WRITER-EXPERT.md'), /DESIGN-TEMPLATE\.md/u);
   assert.match(read('AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md'), /`DESIGN\.md`[^\n]*实现映射[^\n]*不复述取值/u);
   for (const file of ['AgentRoles/QA-TESTING-EXPERT.md', 'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md']) {
