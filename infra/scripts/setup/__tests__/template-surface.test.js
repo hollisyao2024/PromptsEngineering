@@ -620,10 +620,10 @@ test('agents github section leaves the rules carried by conventions sections 5 a
     }
   }
 
-  // AGENTS 自有规则保留：CONVENTIONS 无正文的裸执行清单、PR base 绑定、expected SHA 租约、删除与状态保护、记录边界，外加一条指针。
+  // AGENTS 自有规则保留：CONVENTIONS 无正文的「只用 `.env.local`」排他令牌来源声明（§9 只写落点与解析顺序）与裸执行清单、PR base 绑定、expected SHA 租约、删除与状态保护、记录边界，外加一条指针。
   for (const kept of [
     '- GitHub 鉴权封装与 `GH_TOKEN`、阶段不绑定电脑或账号、QA 回执复验、配置主干禁止 force push 与删除、本地门禁不依赖 GitHub CI 的规则见 `docs/CONVENTIONS.md` §5、§9。',
-    '- 不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。',
+    '- GitHub 访问只用 `.env.local` 的 `GH_TOKEN`；不得裸执行 `git fetch/pull/push/ls-remote`、`gh`。',
     '- `tdd push` 必须显式以 `config.baseBranch` 为 PR base。',
     '- 功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。',
     '- 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。',
