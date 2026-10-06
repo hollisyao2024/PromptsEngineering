@@ -20,7 +20,7 @@
 
 | 功能域 | 负责团队 | 文档链接 | 状态 | 依赖/Gate | Traceability ID | 阻塞/待办 | 最后更新 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 双能力包与架构落地 | @template-maintainers | [ARCH.md](arch-modules/architecture-platform/ARCH.md) | 已定义 | 初始化/升级/生成项目验证 | US-ARCHPLAT-001~014 | 无 | 2026-09-09 |
+| 双能力包与架构落地 | @template-maintainers | [ARCH.md](arch-modules/architecture-platform/ARCH.md) | 已定义 | 初始化/升级/生成项目验证 | US-ARCHPLAT-001~015 | 无 | 2026-10-06 |
 | 模板命令面 | @template-maintainers | [ARCH.md](arch-modules/template-command-surface/ARCH.md) | ✅ v1.5 已确认 | TDD/QA 定向测试、模板源模拟与传播收敛 | US-CMDSURF-001~009 | 无 | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [ARCH.md](arch-modules/environment-file-initialization/ARCH.md) | ✅ 已确认 | init-if-missing / Git ignore 验收 | US-ENVINIT-001~003 | 无 | 2026-08-24 |
 
@@ -174,6 +174,8 @@ sequenceDiagram
 ## 公共 UI 扩展索引
 
 3.1 表单、选择器、日期与反馈组件及初始化依赖闭包见 [架构模块 §8](arch-modules/architecture-platform/ARCH.md#8-四组公共-ui-与按需组件集31)。
+
+3.8 界面视觉契约（根目录 DESIGN.md 的所有权、骨架与专家按需路由）见 [架构模块 §9](arch-modules/architecture-platform/ARCH.md#9-界面视觉契约-designmd38) 和 [ADR-037](adr/037-arch-ui-design-contract.md)。
 
 Drizzle 与常见数据库：[模块 ARCH](arch-modules/drizzle/ARCH.md)。
 

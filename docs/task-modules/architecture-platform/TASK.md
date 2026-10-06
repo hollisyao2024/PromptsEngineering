@@ -1,6 +1,6 @@
 # 双能力包与架构落地 - TASK
 
-> 总纲：[TASK.md](../../TASK.md)；输入：[PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)；2026-09-08；负责人：@template-maintainers。
+> 总纲：[TASK.md](../../TASK.md)；输入：[PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)；2026-10-06；负责人：@template-maintainers。
 
 ## 1. WBS 与依赖
 
@@ -45,3 +45,20 @@ DB（Expand/Migrate/Contract、Backfill/对账/回滚）：不适用，无数据
 风险与验证：旧 owner ID、utils 定制和三方合并用 3.0.1 消费者回归；共享依赖与别名用多应用真实类型/构建；异步防重与乱序用受控 Promise；日期以日历字符串跨时区测试；键盘、焦点与面板交互用 DOM 和真实浏览器验收。对应 TC-ARCHPLAT-010～014。
 
 TDD/QA 证据：412 项源码测试通过；完整 Vite/Next/Tauri Web 各 29 项 DOM、类型/构建通过；forms 独立 10 项、空集 3 项通过；Node 22.22.2 和 UTC/夏威夷日期验证通过。3.0.1 消费者升级 20 项测试通过，保留按钮、页面、工具函数与脚本定制，二次计划零差异。QA 曾将日期弹层裁切回流 TDD，新增嵌套面板回归后，桌面/窄屏真实浏览器复验通过。详情见 [模块 QA 第 8 节](../../qa-modules/architecture-platform/QA.md)。语义审查：Review-Class REQUIRED；Domain-Hit 共享基础库、异步并发和升级文件所有权；已检查请求取消/乱序、表单防重、受控面板焦点恢复、旧 owner ID 与组件保留。Codex review skipped by policy。
+
+## 5. 界面视觉契约 3.8 实施计划
+
+状态：TASK-ARCHPLAT-011 已实施并通过 QA（2026-10-06），Go；TASK-ARCHPLAT-012 为后续、不在本轮范围；负责人：@template-maintainers；单工作树顺序实施。交付以合并门禁为准。
+
+| Task ID | Story | 交付物与验收 | 依赖 | 估算 |
+| --- | --- | --- | --- | --- |
+| TASK-ARCHPLAT-011 | US-ARCHPLAT-015 | 骨架 `DESIGN-TEMPLATE.md`（≤ 80 行，七个 front matter 键，八个二级章节，色板与圆角同 `tokens.css`），`overwrite` 登记与 README 行，根 `DESIGN.md` 不入任何 manifest；UX 规范、PRD 模板、模块模板改为指向 `DESIGN.md` 并更正 44×44 误标；PRD/ARCH/TDD/QA 专家与手册按需路由，TASK/DEVOPS 无路由；3.8.0 版本与 CHANGELOG；TC-ARCHPLAT-015～017 契约测试 | 无 | 2 人天 |
+| TASK-ARCHPLAT-012 | US-ARCHPLAT-015（后续） | 架构包 `ui.md` 增补视觉契约章节；`project-check.js` 校验 `DESIGN.md` 与 `styles.css` 取值漂移；`architecture init` 为界面栈生成骨架 | 011 合并后评估 | 本轮不排期 |
+
+关键路径：TC-ARCHPLAT-015～017 契约测试 RED → 骨架与登记 → UX/PRD/模块模板改指针与误标更正 → PRD/ARCH/TDD/QA 专家与手册路由 → 版本、CHANGELOG 与 QA 回填 → 合并门禁。测试先于实现；里程碑以可观察断言通过为准，不只检查文件存在：M1 三组契约测试在无实现时因预期原因失败；M2 骨架行数、键、章节顺序、取值同源及 manifest/README 登记断言通过；M3 指针、误标更正、路由位置与体量上限断言通过，既有 template-surface 与相关回归无新增失败；M4 三处版本一致为 3.8.0，合并门禁通过且主干与远端一致。
+
+DB（Expand/Migrate/Contract、Backfill/对账/回滚）：不适用，无数据库及生产写入。部署/CI：不适用，不创建或触发 GitHub workflow，不安装依赖，不需要浏览器。回滚为 revert 本次变更；项目已建立的根 `DESIGN.md` 属项目文件，保留。
+
+风险与验证：规范合规不代替真实浏览器与设备上的视觉验收，仍由项目负责；`DESIGN.md` 与 `styles.css` 暂无自动漂移检查，依赖专家点读和 QA 核验，由 012 补齐；路由文字挤占常驻上下文，由 `AGENTS.md` ≤ 180 行、TDD 专家 ≤ 220 行、两份 `MODULE-TEMPLATE.md` ≤ 350 行的体量测试约束，细则放手册；WCAG 数值只更正标注，不改基线版本；并行合并造成版本与 CHANGELOG 冲突时经 `tdd sync` 处理，提交集漂移后重新 QA。对应 TC-ARCHPLAT-015～017。
+
+TDD/QA 证据：TC-ARCHPLAT-015～017 的 6 条契约测试先红后绿，无实现时 5 条因预期原因失败，另 1 条范围与体量守卫在基线即通过并作为边界守卫保留；同步 origin/main 后 27 个定向测试文件 281/281，0 失败、0 跳过。骨架 61 行、2,938 B，`AGENTS.md` 175/180 行、TDD 专家 170/220 行，三份常驻规则零字节变化，13 个内容文件净 +4,279 B。详情见 [模块 QA 第 9 节](../../qa-modules/architecture-platform/QA.md)。语义审查：Review-Class REQUIRED；Domain-Hit 共享模板、跨专家路由和清单所有权；已检查取值单一来源、`overwrite` 与项目文件不覆盖、按需路由与缺失回退、44×44 标注更正且不改 WCAG 基线、骨架与 `tokens.css` 同源。复核：`/code-review` 未执行（所需插件未安装，安装未获授权），以 `code-simplifier` 子代理对新增测试的复核（7 条建议全部采纳）和执行器对完整 diff 的语义自查代替，不等同于独立 `/code-review`。未覆盖：官方 `@google/design.md` lint、`DESIGN.md` 与 `styles.css` 漂移检查（TASK-ARCHPLAT-012）、真实设备视觉验收。合并状态以本机回执和 Git 历史为准。

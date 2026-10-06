@@ -29,6 +29,7 @@
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
 - **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。
 - **UX 规范文档**：`/docs/data/ux-specifications.md`（全局）或 `/docs/prd-modules/{domain}/ux-specifications.md`（模块级），由 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md` 生成。
+- **视觉与无障碍契约**（有前端界面时）：项目根目录 `DESIGN.md`，按 `/docs/data/templates/prd/DESIGN-TEMPLATE.md` 建立并持续维护；Token、断点、无障碍与动效目标只在此写取值，UX 规范与 PRD 只引用。该文件属项目，模板更新不改写。
 
 ### 文档结构（强制）
 所有项目统一使用“主 PRD 总纲与索引 + 模块 PRD”结构，不再按项目规模判断是否拆分，也不支持单一 PRD 模式。即使当前只有一个功能域，也必须创建一个模块目录并把详细 Story、AC、NFR 和模块依赖维护在模块 PRD 中。
@@ -51,7 +52,7 @@
 - **可追溯表**：`User Story → 验收标准 → 测试用例 ID` 必须独立维护在 `/docs/data/traceability-matrix.md`。
 - **追溯矩阵初始化**：若 `/docs/data/traceability-matrix.md` 尚不存在，PRD 专家需参照 `/docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 创建初始文件，并先填入 Story/AC ID，供后续 QA 补充 Test Case 和状态；
 - **模块化结构完整**：`/docs/PRD.md`、`/docs/prd-modules/module-list.md`、至少一个 `/docs/prd-modules/{domain}/PRD.md` 和 `/docs/data/traceability-matrix.md` 同时存在且互相链接。
-- **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、响应式断点矩阵定义、设计系统 Token 列表、设计-开发交接文档就绪。Playbook §8 用户体验验证清单逐项通过。
+- **UX 规范完备**（有前端界面时）：关键用户旅程有线框图/原型描述、WCAG AA 级检查清单完成、设计-开发交接文档就绪，且根目录 `DESIGN.md` 已建立（Token、断点、无障碍目标）。Playbook §8 用户体验验证清单逐项通过。
 - 与干系人达成一致后，在任务 state 中记录 `PRD_CONFIRMED` 证据并执行阶段 transition。
 
 ## 交接
@@ -77,3 +78,4 @@
 - Handbook: `/AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md`（§核心工作流程、§7 需求验证前置检查清单、§8 用户体验验证清单）
 - 模块模板: `/docs/prd-modules/MODULE-TEMPLATE.md`
 - UX 规范模板: `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md`
+- 视觉契约骨架: `/docs/data/templates/prd/DESIGN-TEMPLATE.md`

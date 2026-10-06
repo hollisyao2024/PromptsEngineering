@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-06：[ADR 037](037-arch-ui-design-contract.md)，根目录 DESIGN.md 作为项目所有的界面视觉契约，骨架由作业包提供，仅在专家阶段按需点读。
+
 - 2026-10-04：[ADR 036](036-arch-fixed-commit-merge-evidence.md)，默认严格、显式固定提交集成、逐记录语义指纹与独立发布判定。
 
 - 2026-10-04：[ADR 035](035-arch-data-semantic-enforcement.md)，语义门禁默认阻断、按安装形态条件豁免、身份/文件模块核心表分层合规与适配器层软删除。

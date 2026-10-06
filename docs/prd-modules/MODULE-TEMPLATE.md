@@ -142,8 +142,7 @@
 ## 8. 用户体验设计（UX）（可选，有前端界面时填写）
 - 模块级用户旅程摘要（关联 Story ID）
 - 关键页面/组件的线框图或原型链接
-- 设计系统引用（全局 Design Token + 模块特定组件）
-- 响应式断点与无障碍要求（WCAG 2.1 AA）
+- 视觉与无障碍取值引用根目录 `DESIGN.md`；仅记录模块特定组件，不复述 Token、断点与无障碍数值
 - 详细 UX 规范见模块 `ux-specifications.md`（参照 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md`）
 
 ## 9. 开放问题
@@ -157,5 +156,5 @@
 - [ ] 是否同步 traceability matrix 与 QA 状态？
 - [ ] 是否通知 ARCH/TASK/TDD/QA？
 - [ ] 是否在任务 state 和相关模块文档中标注阶段状态？
-- [ ] 若有前端界面，是否创建了 `ux-specifications.md`？
+- [ ] 若有前端界面，是否创建了 `ux-specifications.md` 并引用根目录 `DESIGN.md`？
 ```

@@ -1,6 +1,6 @@
 # 息壤双能力包与架构落地 - PRD 模块
 
-> 所属主 PRD：[PRD.md](../../PRD.md)；负责人：@template-maintainers；版本：v1.0；最后更新：2026-09-08；状态：已确认。依据用户确认的三个目标及自动实施授权。
+> 所属主 PRD：[PRD.md](../../PRD.md)；负责人：@template-maintainers；版本：v1.0；最后更新：2026-10-06；状态：已确认。依据用户确认的三个目标及自动实施授权。
 
 ## 1. 模块概述
 
@@ -52,7 +52,7 @@ CLI 输出计划中的新增、覆盖、更新、追加、跳过和冲突及原�
 
 ## 9. 开放问题与变更记录
 
-无阻塞问题。2026-09-08：将初始 UI 约定需求扩展为用户确认的双能力包、架构初始化与所有权升级整体方案。
+无阻塞问题。2026-09-08：将初始 UI 约定需求扩展为用户确认的双能力包、架构初始化与所有权升级整体方案。2026-10-06：新增 §11 界面视觉契约（US-ARCHPLAT-015），既有 Story 与验收无变更。
 
 ## 10. 公共 UI 基础能力扩展（3.1）
 
@@ -69,3 +69,17 @@ CLI 输出计划中的新增、覆盖、更新、追加、跳过和冲突及原�
 交互约定：表单从标题、说明、字段区到操作区顺序导航；错误紧邻字段且可被辅助技术读取，提交错误在面板内保留。搜索下拉支持键盘和清除，异步请求中显示加载状态，失败后提供明确重试。日期使用日历选择和格式明确的输入，范围未完整时不提交无效值。窄屏面板适配视口、内容可滚动，桌面字段可分列；均使用现有语义 Token 和可见焦点。
 
 NFR：没有新增后台数据采集或存储；组件通过项目回调访问数据，未配置回调不产生伪成功。可访问名称、键盘、焦点恢复、防重复、请求竞态、日期边界及更新保护均以测试验证。不将小样本 UI 验收当作大数据容量或跨设备无障碍认证。可选依赖按兼容性锁定；新功能源和初始化目录仍属于架构包，模型作业规则只引用标准。
+
+## 11. 界面视觉契约 DESIGN.md（3.8）
+
+2026-10-06，依据用户“按此执行”授权，实施已确认的方案：作业包为有界面的项目提供统一的视觉与无障碍契约入口。项目根目录 `DESIGN.md` 由 PRD 阶段按骨架建立，承载 Token、排版、间距、圆角、组件状态及无障碍、动效、视觉验收目标；各阶段只在任务触及界面时点读，不进入常驻规则。本轮只交付作业包（骨架、模板收敛、专家路由）与治理文档；架构包 `ui.md` 增补及 `DESIGN.md` 与 `styles.css` 的漂移检查另列后续（TASK-ARCHPLAT-012），不进入本轮。
+
+| Story ID | 验收标准（Given-When-Then） | Task ID | Test Case ID |
+| --- | --- | --- | --- |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-01：Given 有界面的项目采用作业包，When PRD 阶段按 `docs/data/templates/prd/DESIGN-TEMPLATE.md` 建立根目录 `DESIGN.md`，Then 骨架不超过 80 行，含 YAML front matter（`version`、`name`、`colors`、`typography`、`rounded`、`spacing`、`components`）与固定顺序的八个二级章节，颜色与圆角取值同 shadcn Token 默认值，不含品牌色与网络字体；模板登记为 `overwrite` 并列入模板 README | TASK-ARCHPLAT-011 | TC-ARCHPLAT-015 |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-02：Given 项目已有或尚无根目录 `DESIGN.md`，When 执行 `template sync` 或 `template update`，Then 根 `DESIGN.md` 不被写入或覆盖；UX 规范模板的设计系统与数值目标、PRD 模板及模块模板的 UX 条目改为指向 `DESIGN.md` 而不重复取值，检查清单与工具表保留；“44×44px（WCAG 2.5.8）”误标更正为“推荐 ≥ 44×44；WCAG 2.2 SC 2.5.8 最低 24×24（AA）” | TASK-ARCHPLAT-011 | TC-ARCHPLAT-016 |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-03：Given 任务触及界面，When PRD、ARCH、TDD、QA 专家工作，Then 仅在根 `DESIGN.md` 存在且含 YAML front matter 时点读：PRD 写入视觉与无障碍目标，ARCH 只记录实现映射，TDD 先改 `DESIGN.md` 再改样式，QA 据此核验还原度与无障碍；缺失时回退 UX 规范 §5 与 `styles.css`；TASK、DEVOPS 不加载；`AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md` 不新增界面文字，`AGENTS.md` 不超过 180 行，TDD 专家文件不超过 220 行 | TASK-ARCHPLAT-011 | TC-ARCHPLAT-017 |
+
+阶段约定：PRD 建立并维护 `DESIGN.md`；ARCH 在架构文档只记录实现映射（Token 到 `styles.css`、组件集、明暗策略、字体加载），不复述取值；TDD 实现界面前先读它，取值变更先改 `DESIGN.md` 再改样式，业务页面不硬编码颜色与间距；QA 以它核验视觉还原与无障碍目标。功能级旅程、线框和交互仍写在 UX 规范，`DESIGN.md` 只承载全局视觉取值与目标。
+
+NFR：骨架不含品牌色、网络字体与外部依赖，不引入 `@google/design.md` 包；根 `DESIGN.md` 属项目所有，模板更新零写入；未采用界面的项目不受影响，按需点读不增加常驻上下文。本轮不提供 `DESIGN.md` 与 `styles.css` 的自动漂移检查，也不以规范合规代替真实浏览器或设备上的视觉验收；暗色、动效与品牌取值由项目在 `DESIGN.md` 内自行定义。

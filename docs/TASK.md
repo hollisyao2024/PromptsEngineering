@@ -109,6 +109,8 @@ flowchart LR
 
 公共 UI 3.1：TASK-ARCHPLAT-007～010 已通过 QA，覆盖 US-ARCHPLAT-010～014；组件闭包、公共交互和消费者升级证据见 [架构平台 QA](qa-modules/architecture-platform/QA.md)，详细任务由模块 TASK §4 维护。
 
+界面视觉契约 3.8：TASK-ARCHPLAT-011 已通过 QA，覆盖 US-ARCHPLAT-015；骨架、模板去重与专家路由证据见 [架构平台 QA](qa-modules/architecture-platform/QA.md)；TASK-ARCHPLAT-012（架构包 `ui.md` 与漂移检查）为后续，不在本轮。详细任务由模块 TASK §5 维护。
+
 Drizzle 数据访问：[模块 TASK](task-modules/drizzle/TASK.md)，依赖 Monorepo、身份权限、文件存储和队列。
 
 数据语义约定：[模块 TASK](task-modules/data-semantics/TASK.md)，TASK-DATA-001~010，依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。

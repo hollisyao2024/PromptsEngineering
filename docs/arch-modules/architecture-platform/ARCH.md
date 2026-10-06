@@ -1,6 +1,6 @@
 # 双能力包与架构落地 - ARCH
 
-> 主架构：[ARCH.md](../../ARCH.md)；基线：[已确认 PRD v1.0](../../prd-modules/architecture-platform/PRD.md)；Story：US-ARCHPLAT-001~009；2026-09-08。
+> 主架构：[ARCH.md](../../ARCH.md)；基线：[已确认 PRD v1.0](../../prd-modules/architecture-platform/PRD.md)；Story：US-ARCHPLAT-001~015；2026-10-06。
 
 ## 1. 边界与组件
 
@@ -77,3 +77,18 @@ ADR：[版本化能力包与所有权引擎](../../adr/026-arch-architecture-pla
 生成时先展开组件集与 Registry 引用，再按文件映射生成；共享包取消费者所需依赖并集，避免多应用重复版本和 React/表单上下文分裂。旧 ui/table owner 标识保留；新增组合按目录拥有者更新；项目 lib/utils.ts、业务示例保持 init-if-missing；模板基础/组合源码三方更新。配置和依赖清单按字段合并，失败仍走冻结计划阻断。
 
 验证：组件集负向/闭包、共享目录、旧基线升级、类型/构建；表单错误恢复/未保存关闭、异步请求乱序、日期无效/时区、多选筛选和已有表格回归。浏览器至少覆盖表单保存与失败恢复、选择器搜索/多选、日期筛选与清除。无服务端/schema/部署变化。ADR：[可选择公共组件集](../../adr/027-arch-ui-component-sets.md)。
+
+## 9. 界面视觉契约 DESIGN.md（3.8）
+
+依据 US-ARCHPLAT-015，作业包为有界面的项目提供统一的视觉与无障碍契约入口：模板拥有骨架，项目拥有根目录 `DESIGN.md`，专家阶段按需点读。本轮只落作业包；架构包 `ui.md` 增补与漂移检查另列后续（TASK-ARCHPLAT-012）。
+
+| 组件 | 实现和边界 | Story |
+| --- | --- | --- |
+| CMP-ARCHPLAT-DESIGN-SKELETON | `docs/data/templates/prd/DESIGN-TEMPLATE.md`：模板所有（overwrite）的骨架，不超过 80 行；YAML front matter（version、name、colors、typography、rounded、spacing、components）加固定顺序的八个二级章节；色板与圆角取自 `architecture/components/shadcn/tokens.css` 的 `:root`，无品牌色与网络字体，暗色策略以文字约定 | US-ARCHPLAT-015 |
+| CMP-ARCHPLAT-DESIGN-ROUTING | PRD、ARCH、TDD、QA 专家文件与手册中的按需点读规则：PRD 建立并维护，ARCH 只记录实现映射，TDD 先改 `DESIGN.md` 再改样式，QA 核验还原度与无障碍；TASK、DEVOPS 不加载 | US-ARCHPLAT-015 |
+
+所有权：骨架在 `infra/templates/agent/template.manifest.json` 登记为 overwrite，并列入 `docs/data/templates/README.md`；根 `DESIGN.md` 不出现在任何 manifest，沿用 project-owned 语义，`template sync`/`template update` 零写入。UX 规范模板、PRD 模板和模块模板的设计系统与数值目标条目改为指向 `DESIGN.md`，旅程、线框、状态与页面级清单保留。
+
+运行时：任务触及界面 → 根 `DESIGN.md` 存在且含 YAML front matter → 当前阶段专家点读并按本阶段职责使用；缺失则回退 UX 规范 §5 与 `styles.css`。`AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md` 不加入界面文字，`AGENTS.md` 不超过 180 行、TDD 专家文件不超过 220 行，由 template-surface 测试固定。ARCH 文档只记录 Token 到 `styles.css` 的映射、组件集、明暗策略和字体加载，不复述取值。
+
+验证：template-surface 契约测试（TC-ARCHPLAT-015～017）覆盖骨架行数、front matter 键、八章节顺序、Token 与 `tokens.css` 同源、manifest/README 登记与根 `DESIGN.md` 未登记、四个阶段的路由与 TASK/DEVOPS 无路由、指针与误标更正、体量上限；真实浏览器视觉验收仍由项目负责。无服务端/schema/部署变化。ADR：[界面视觉契约的所有权与按需路由](../../adr/037-arch-ui-design-contract.md)。

@@ -57,7 +57,15 @@
 | US-ARCHPLAT-013 | AC-ARCHPLAT-013-01 | TC-ARCHPLAT-013 | Pass | [反馈、确认、状态 QA](../qa-modules/architecture-platform/QA.md) |
 | US-ARCHPLAT-014 | AC-ARCHPLAT-014-01 | TC-ARCHPLAT-014 | Pass | [按需生成与消费者升级 QA](../qa-modules/architecture-platform/QA.md)；D12 Closed |
 
-下表为 3.0 基线统计；3.1 新增 5 项 Story/AC 由上表单独记录，覆盖及通过均为 5/5。
+3.8 界面视觉契约追踪：
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-01 | TC-ARCHPLAT-015 | Pass | [骨架契约 QA](../qa-modules/architecture-platform/QA.md)；行数、front matter、八章节、Token 同源、manifest 与 README 登记 |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-02 | TC-ARCHPLAT-016 | Pass | [所有权、去重与误标更正 QA](../qa-modules/architecture-platform/QA.md)；根 `DESIGN.md` 项目所有、模板去重 |
+| US-ARCHPLAT-015 | AC-ARCHPLAT-015-03 | TC-ARCHPLAT-017 | Pass | [专家按需路由 QA](../qa-modules/architecture-platform/QA.md)；TASK/DEVOPS 不加载、体量上限 |
+
+下表为 3.0 基线统计；3.1 新增 5 项 Story/AC、3.8 新增 1 项 Story 与 3 项 AC 由上表单独记录，覆盖及通过分别为 5/5 与 3/3。
 
 | 指标 | 数值 | 目标 |
 | --- | --- | --- |

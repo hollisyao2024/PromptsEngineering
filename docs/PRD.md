@@ -1,6 +1,6 @@
 # 息壤（Xirang）模板需求总纲
 
-日期：2026-09-08　版本：v2.0
+日期：2026-10-06　版本：v2.0
 
 ## 1. 产品概述
 
@@ -13,6 +13,8 @@
 多端 Monorepo 与 Prisma 扩展：[模块 PRD](prd-modules/monorepo-platform/PRD.md)，含 workspace、真实数据流程、应用组合蓝图及升级保护。
 
 3.1 公共 UI 扩展：表单、搜索/多选、日期范围和反馈确认，按项目配置初始化并与公共表格协作。验收见 [架构模块 §10](prd-modules/architecture-platform/PRD.md#10-公共-ui-基础能力扩展31)。
+
+3.8 界面视觉契约：作业包提供根目录 `DESIGN.md` 骨架，由 PRD 阶段建立，ARCH、TDD、QA 在任务触及界面时按需点读，统一承载 Token 与无障碍目标。验收见 [架构模块 §11](prd-modules/architecture-platform/PRD.md#11-界面视觉契约-designmd38)。
 
 息壤（Xirang，代码仓库为 PromptsEngineering）为目标仓库提供可移植的 Agent 工程治理模板。新增核心能力见 [双能力包与架构落地](prd-modules/architecture-platform/PRD.md)：作业流程与应用架构分离，按项目要求初始化，并以明确所有权安全升级。既有目标覆盖稳定命令协议、目标项目首次初始化时的环境变量文件骨架、不依赖 GitHub CI 的多电脑同权协作与主干合并保护，以及由实际项目主动发起的官方模板自更新能力。
 
@@ -53,7 +55,7 @@
 
 | 功能域 | 优先级/阶段 | 负责人 | 文档链接 | 依赖状态/Traceability | 当前 Gate 状态 |
 | --- | --- | --- | --- | --- | --- |
-| 双能力包与架构落地 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/architecture-platform/PRD.md) | TC-ARCHPLAT-001~009 | 进入 ARCH |
+| 双能力包与架构落地 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/architecture-platform/PRD.md) | TC-ARCHPLAT-001~017 | 进入 ARCH |
 | 模板命令面 | P0 / PRD v1.6 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | 息壤匿名获取 AC/Traceability 已确认 | 进入 ARCH |
 | 环境文件初始化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/environment-file-initialization/PRD.md) | Traceability 已初始化 | 进入 ARCH |
 

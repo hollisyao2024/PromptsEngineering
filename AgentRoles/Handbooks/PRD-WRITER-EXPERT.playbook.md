@@ -28,11 +28,11 @@
 - 包含时间规划、里程碑及风险/依赖说明
 
 ### 5. 用户体验设计（UX）
-UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md`。PRD 专家需确保以下四项在 PRD 阶段启动：
+UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md`；视觉与无障碍取值统一建立在根目录 `DESIGN.md`（骨架见 `/docs/data/templates/prd/DESIGN-TEMPLATE.md`）。PRD 专家需确保以下四项在 PRD 阶段启动：
 - 关键用户旅程与线框图/原型
-- 设计系统 Token 定义
-- WCAG 2.1 AA 无障碍合规
-- 响应式断点矩阵
+- 设计系统 Token 定义（写入 `DESIGN.md`）
+- WCAG 2.1 AA 无障碍合规（目标写入 `DESIGN.md` 的 Accessibility）
+- 响应式断点矩阵（写入 `DESIGN.md` 的 Layout）
 
 纯后端项目可标注"不适用"并跳过。
 
@@ -133,13 +133,13 @@ UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS
 - 所有关键页面/视图有低保真线框图，P0 Story 有高保真原型，可用性测试≥3 人次
 
 ### 设计系统一致性
-- Design Tokens 已定义（色彩/排版/间距），基础组件清单已确定且有状态说明
+- 根目录 `DESIGN.md` 已建立并定义 Design Tokens（色彩/排版/间距），基础组件清单已确定且有状态说明
 
 ### WCAG 无障碍合规性
-- 色彩对比度满足 AA 标准（正文≥4.5:1），键盘可达所有功能，语义化 HTML 要求已传达
+- `DESIGN.md` 的 Accessibility 已写明对比度与触控目标，键盘可达所有功能，语义化 HTML 要求已传达
 
 ### 响应式设计覆盖
-- 断点矩阵已定义，各断点布局策略明确，触控目标 ≥ 44×44px
+- `DESIGN.md` 的 Layout 已定义断点与各断点布局策略，触控目标达到其 Accessibility 目标
 
 ### 设计-开发交接准备
 - 设计标注完整，组件映射表就绪，资源导出完成，`/docs/data/ux-specifications.md` 已创建/更新

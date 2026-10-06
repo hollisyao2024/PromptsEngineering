@@ -15,6 +15,15 @@
 
 采用架构包的项目先读 `docs/standards/data.md`，需要源规范时从架构命令输出的 `ARCHITECTURE_SOURCE_ROOT` 下读取 `architecture/standards/data.md`；轻量入口不包含完整标准目录。仅使用作业包的项目遵循自身 ARCH、RULES 和迁移约定，无需为读取规范安装未选择的技术模板。实际命名与目录以所采用模块和 `architecture.config.json` 为准。初始化只生成文件，执行需显式环境与迁移命令。已应用迁移只追加，注册项和校验和必须一致；无关技术栈不强制使用 Supabase、Prisma 或 Node 业务运行时。
 
+### UI 实现约定
+
+任务触及界面且根目录存在带 YAML front matter 的 `DESIGN.md` 时，先读它，再动样式：
+
+- `DESIGN.md` 是色值、间距、圆角与无障碍目标的唯一来源；需要调整取值时先改 `DESIGN.md`，再同步 `styles.css`，业务页面不硬编码颜色与间距。
+- 采用架构包的项目另读 `docs/standards/ui.md` 取得控件与 DataTable 约束；需要源规范时从架构命令输出的 `ARCHITECTURE_SOURCE_ROOT` 下读取 `architecture/standards/ui.md`。
+- 没有 `DESIGN.md` 时退回 UX 规范 §5 与 `styles.css`，不为实现方便自行新增取值。
+- 实现与 `DESIGN.md` 的偏差先回溯其 Components 与 Do's and Don'ts；仍无法判断时回到 PRD 澄清，不在代码里自行裁定。
+
 ---
 
 ## TDD 核心流程
