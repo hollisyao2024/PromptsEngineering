@@ -148,7 +148,7 @@ pnpm agent -- finish
 ## GitHub 与安全
 
 - GitHub 鉴权封装与 `GH_TOKEN`、阶段不绑定电脑或账号、QA 回执复验、配置主干禁止 force push 与删除、本地门禁不依赖 GitHub CI 的规则见 `docs/CONVENTIONS.md` §5、§9。
-- 不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。
+- GitHub 访问只用 `.env.local` 的 `GH_TOKEN`；不得裸执行 `git fetch/pull/push/ls-remote`、`gh`。
 - `tdd push` 必须显式以 `config.baseBranch` 为 PR base。
 - 功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。
 - 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。
