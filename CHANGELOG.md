@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.8.1] - 2026-10-06
+
 - 修复 3.8.0 合并后 `/code-review`（max，10 条发现，无运行期缺陷）指出的问题，逐条处置、无搁置；不改 AC 与 TC 编号，不改 manifest、命令与配置键，`AGENTS.md`、`docs/CONVENTIONS.md` 与 `RULES.md` 示例零字节变化。
 - `DESIGN.md` 点读门禁在各专家文件间对齐：AC-015-03 规定仅在根 `DESIGN.md` 存在且含 YAML front matter 时点读、缺失回退 UX 规范 §5 与 `styles.css`，但 3.8.0 只有 TDD 手册完整写出；ARCH 手册、TDD 专家、QA 手册与 QA 专家的无障碍条目没有读取条件也没有回退，QA 专家的还原度条目有回退却缺 YAML front matter 条件，没有 `DESIGN.md` 的项目会被这些文字指向不存在的文件。现 ARCH 手册、TDD 专家与手册、QA 专家与手册五处消费方统一为同一读取条件和同一回退动词「回退 UX 规范 §5 与 `styles.css`」（TDD 手册只把「退回」改为「回退」）；TDD 专家同时写明 `docs/standards/ui.md` 只对已采用架构标准的项目另读，与手册一致。QA 的无障碍数值目标原先只能取自 `DESIGN.md` 的 Accessibility，缺失时没有来源，现 QA 专家、QA 手册与 UX 规范模板写为「`DESIGN.md` 的 Accessibility → UX 规范 §5 补充的取值 → WCAG 2.1 AA 默认阈值」，回退不复述任何数值，`4.5:1`、`44×44` 仍只在骨架一处。PRD 专家与手册是 `DESIGN.md` 的建立方，不设条件；TASK、DEVOPS 与常驻规则仍无路由。
 - 骨架不再引用下游没有的路径：`DESIGN-TEMPLATE.md` Colors 节原写「息壤架构包 shadcn 组件的默认 Token（`architecture/components/shadcn/tokens.css`）」，该路径只在息壤源存在，下游项目读到的是死路径；改为不含源码路径的表述（61 行不变，2,938 → 2,892 B），取值不变。
