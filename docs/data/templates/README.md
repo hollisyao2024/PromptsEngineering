@@ -20,7 +20,8 @@ templates/
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
 | `PRD-TEMPLATE.md` | 主 PRD 总纲与模块索引模板 | 所有项目 |
-| `UX-SPECIFICATIONS-TEMPLATE.md` | UX 规范文档模板 | 有前端界面的项目 |
+| `UX-SPECIFICATIONS-TEMPLATE.md` | UX 规范文档模板（旅程、线框、交互状态、检查清单） | 有前端界面的项目 |
+| `DESIGN-TEMPLATE.md` | 视觉与无障碍契约骨架（YAML Token + 八个章节） | 有前端界面的项目，PRD 阶段据此建立根目录 `DESIGN.md` |
 | `PERSONA-STORY-MATRIX-TEMPLATE.md` | 角色-故事矩阵模板 | 验证功能覆盖完整性 |
 | `TRACEABILITY-MATRIX-TEMPLATE.md` | 追溯矩阵模板 | Story → AC → Test Case 映射 |
 | `DEPENDENCY-GRAPH-TEMPLATE.md` | 跨模块依赖图模板 | 多模块项目，识别协作点 |
@@ -30,6 +31,7 @@ templates/
 **注意**：
 - 模块级 PRD 文档使用 `/docs/prd-modules/MODULE-TEMPLATE.md`（核心模板，非本目录）
 - 所有项目都必须创建 `docs/prd-modules/module-list.md` 和至少一个模块 PRD
+- 根目录 `DESIGN.md` 属项目文件：由 PRD 阶段按 `DESIGN-TEMPLATE.md` 建立，模板更新只交付骨架、不写入根目录文件；色值、间距、无障碍目标只在其中维护，UX 规范保留旅程、线框、交互状态与检查清单
 
 ---
 

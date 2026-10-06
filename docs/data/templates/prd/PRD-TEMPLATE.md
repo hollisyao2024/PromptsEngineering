@@ -65,8 +65,7 @@
 ## 8. 用户体验设计（UX）
 - 用户研究摘要与关键洞察
 - 核心用户旅程线框图/原型索引（附设计工具链接）
-- 设计系统规范摘要（Token 定义概览）
-- 响应式设计与无障碍访问（WCAG AA）要求
+- 视觉与无障碍契约见根目录 `DESIGN.md`（骨架 `/docs/data/templates/prd/DESIGN-TEMPLATE.md`），本章只引用、不复述取值
 - 设计-开发交接规范
 - 详见 `/docs/data/ux-specifications.md`
 - （纯后端项目可标注"不适用"并跳过）

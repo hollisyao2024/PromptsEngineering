@@ -132,6 +132,176 @@ test('large expert and module templates are concise entrypoints', () => {
   assert.ok(lineCount('docs/arch-modules/MODULE-TEMPLATE.md') <= 350);
 });
 
+const DESIGN_TEMPLATE = 'docs/data/templates/prd/DESIGN-TEMPLATE.md';
+const DESIGN_SECTIONS = [
+  'Overview',
+  'Colors',
+  'Typography',
+  'Layout',
+  'Elevation & Depth',
+  'Shapes',
+  'Components',
+  "Do's and Don'ts",
+];
+const TOUCH_TARGET_MISLABEL = /44×44(?:px)?\s*[（(]\s*WCAG\s*2\.5\.8/u;
+
+// 骨架 front matter 只用嵌套映射与标量，最小解析器足够，契约测试不引入 YAML 依赖。
+function parseDesignTemplate() {
+  const text = read(DESIGN_TEMPLATE);
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(text);
+  assert.ok(match, 'DESIGN skeleton starts with YAML front matter');
+  const data = {};
+  const stack = [{ indent: -1, node: data }];
+  for (const raw of match[1].split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const entry = /^([A-Za-z0-9_.-]+):(?:\s+(.*))?$/u.exec(line);
+    assert.ok(entry, `front matter line is key: value: ${raw}`);
+    const indent = raw.length - raw.trimStart().length;
+    while (stack[stack.length - 1].indent >= indent) stack.pop();
+    const parent = stack[stack.length - 1].node;
+    if (entry[2] === undefined) {
+      parent[entry[1]] = {};
+      stack.push({ indent, node: parent[entry[1]] });
+    } else {
+      parent[entry[1]] = entry[2].replace(/^(["'])(.*)\1$/u, '$2');
+    }
+  }
+  return { data, rest: text.slice(match[0].length), text };
+}
+
+function headingBody(text, heading) {
+  const lines = text.split(/\r?\n/u);
+  const isHeading = (line) => /^#{2,3} /u.test(line);
+  const levelOf = (line) => /^#+/u.exec(line)[0].length;
+  const start = lines.findIndex((line) => isHeading(line) && line.replace(/^#+ /u, '') === heading);
+  assert.notEqual(start, -1, `heading ${heading} exists`);
+  const stop = lines.findIndex((line, index) => index > start && isHeading(line) && levelOf(line) <= levelOf(lines[start]));
+  return lines.slice(start + 1, stop === -1 ? lines.length : stop).join('\n');
+}
+
+test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the accessibility targets', () => {
+  assert.ok(read(DESIGN_TEMPLATE).replace(/\r?\n$/u, '').split(/\r?\n/u).length <= 80, 'skeleton stays within 80 lines');
+  const { data, rest } = parseDesignTemplate();
+  assert.deepEqual(
+    Object.keys(data),
+    ['version', 'name', 'colors', 'typography', 'rounded', 'spacing', 'components'],
+  );
+  assert.equal(data.version, 'alpha');
+  const lines = rest.split(/\r?\n/u);
+  assert.deepEqual(lines.filter((line) => /^## /u.test(line)).map((line) => line.slice(3)), DESIGN_SECTIONS);
+  assert.deepEqual(
+    lines.filter((line) => /^### /u.test(line)).map((line) => line.slice(4)),
+    ['Accessibility', 'Motion', 'Visual QA'],
+  );
+  assert.ok(
+    lines.findIndex((line) => /^### /u.test(line)) > lines.indexOf("## Do's and Don'ts"),
+    'accessibility, motion and visual QA sit under Do\'s and Don\'ts',
+  );
+  const accessibility = headingBody(rest, 'Accessibility');
+  assert.match(accessibility, /4\.5:1/u);
+  assert.match(accessibility, /3:1/u);
+  assert.match(accessibility, /推荐 ≥ 44×44；WCAG 2\.2 SC 2\.5\.8 最低 24×24（AA）/u);
+  assert.doesNotMatch(read(DESIGN_TEMPLATE), TOUCH_TARGET_MISLABEL);
+});
+
+test('TC-ARCHPLAT-015 DESIGN skeleton tokens match the shadcn defaults and resolve their references', () => {
+  const { data, text } = parseDesignTemplate();
+  const resolve = (ref) => ref.split('.').reduce((node, key) => (node && typeof node === 'object' ? node[key] : undefined), data);
+  const refs = text.match(/\{[A-Za-z0-9_.-]+\}/gu) || [];
+  assert.ok(refs.length > 0, 'components reference tokens');
+  for (const ref of refs) assert.notEqual(resolve(ref.slice(1, -1)), undefined, `${ref} resolves in front matter`);
+  assert.doesNotMatch(text, /https?:\/\/|@font-face|@import/u, 'no network font or external asset');
+  // 项目侧没有 architecture 组件源，同源比对只在息壤源执行
+  if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
+  const tokens = read('architecture/components/shadcn/tokens.css');
+  const rootBlock = /:root\s*\{([^}]*)\}/u.exec(tokens)[1];
+  const defaults = Object.fromEntries(
+    [...rootBlock.matchAll(/--([a-z-]+):\s*([^;]+);/gu)].map((match) => [match[1], match[2].trim()]),
+  );
+  for (const [name, value] of Object.entries(data.colors)) {
+    assert.equal(value, defaults[name], `colors.${name} equals the shadcn default`);
+  }
+  const radius = parseFloat(defaults.radius) * 16;
+  assert.deepEqual(data.rounded, { sm: `${radius - 4}px`, md: `${radius - 2}px`, lg: `${radius}px` });
+  assert.equal(data.typography.body.fontFamily, /font-family:\s*([^;]+);/u.exec(tokens)[1].trim());
+});
+
+test('TC-ARCHPLAT-016 DESIGN skeleton is template-owned while the root DESIGN.md stays project-owned', () => {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  assert.deepEqual(
+    manifest.rules.find((entry) => entry.path === DESIGN_TEMPLATE),
+    { path: DESIGN_TEMPLATE, strategy: 'overwrite' },
+  );
+  assert.equal(manifest.rules.some((entry) => entry.path === 'DESIGN.md'), false);
+  for (const file of ['agent/manifest.json', 'architecture/manifest.json']) {
+    if (fs.existsSync(path.join(ROOT, file))) assert.doesNotMatch(read(file), /"DESIGN\.md"/u, `${file} does not own the root file`);
+  }
+  const readme = read('docs/data/templates/README.md');
+  assert.match(readme, /`DESIGN-TEMPLATE\.md`/u);
+  assert.match(readme, /根目录 `DESIGN\.md` 属项目文件/u);
+});
+
+test('TC-ARCHPLAT-016 UX, PRD and module templates point to DESIGN.md instead of repeating its values', () => {
+  const ux = read('docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md');
+  assert.match(ux, /`DESIGN\.md`/u);
+  for (const repeated of ['色彩系统', '排版系统', '间距系统', '其他视觉 Token', '--color-primary', '--space-md', '--radius-sm', '#XXXXXX', 'Mobile S', '4.5:1', '44×44']) {
+    assert.ok(!ux.includes(repeated), `UX template no longer repeats ${repeated}`);
+  }
+  assert.match(ux, /状态覆盖/u, 'component state coverage stays in the UX template');
+  assert.match(ux, /^### 7\.5 验证工具$/mu);
+  const prdTemplate = read('docs/data/templates/prd/PRD-TEMPLATE.md');
+  assert.match(prdTemplate, /`DESIGN\.md`/u);
+  assert.ok(!prdTemplate.includes('Token 定义概览'));
+  const moduleTemplate = read('docs/prd-modules/MODULE-TEMPLATE.md');
+  assert.match(moduleTemplate, /`DESIGN\.md`/u);
+  assert.ok(!moduleTemplate.includes('设计系统引用（全局 Design Token + 模块特定组件）'));
+  assert.ok(!moduleTemplate.includes('响应式断点与无障碍要求（WCAG 2.1 AA）'));
+  const playbook = read('AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md');
+  for (const text of [ux, prdTemplate, moduleTemplate, playbook]) assert.doesNotMatch(text, TOUCH_TARGET_MISLABEL);
+  assert.ok(!playbook.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
+});
+
+test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility', () => {
+  const mentions = (file) => read(file).includes('DESIGN.md');
+  for (const file of [
+    'AgentRoles/PRD-WRITER-EXPERT.md',
+    'AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md',
+    'AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md',
+    'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
+    'AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md',
+    'AgentRoles/QA-TESTING-EXPERT.md',
+    'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
+  ]) assert.ok(mentions(file), `${file} routes to DESIGN.md`);
+  assert.match(read('AgentRoles/PRD-WRITER-EXPERT.md'), /DESIGN-TEMPLATE\.md/u);
+  assert.match(read('AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md'), /`DESIGN\.md`[^\n]*实现映射[^\n]*不复述取值/u);
+  for (const file of ['AgentRoles/QA-TESTING-EXPERT.md', 'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md']) {
+    assert.match(read(file), /设计还原度[^\n]*`DESIGN\.md`/u, `${file} checks fidelity against DESIGN.md`);
+  }
+  const tddUi = headingBody(read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md'), 'UI 实现约定');
+  for (const needle of ['`DESIGN.md`', 'YAML front matter', '`docs/standards/ui.md`', '`styles.css`']) {
+    assert.ok(tddUi.includes(needle), `TDD UI convention names ${needle}`);
+  }
+  assert.match(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md'), /UI 实现约定/u);
+});
+
+test('TC-ARCHPLAT-017 DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules within the size caps', () => {
+  for (const file of [
+    'AgentRoles/TASK-PLANNING-EXPERT.md',
+    'AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md',
+    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+    'AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md',
+    'AGENTS.md',
+    'docs/CONVENTIONS.md',
+    'infra/templates/agent/RULES.example.md',
+  ]) assert.ok(!read(file).includes('DESIGN.md'), `${file} stays free of DESIGN.md`);
+  assert.ok(lineCount('AGENTS.md') <= 180);
+  assert.ok(lineCount('AgentRoles/TDD-PROGRAMMING-EXPERT.md') <= 220);
+  for (const file of ['prd', 'arch', 'qa'].map((module) => `docs/${module}-modules/MODULE-TEMPLATE.md`)) {
+    assert.ok(lineCount(file) <= 350, `${file} stays within 350 lines`);
+  }
+});
+
 test('every phase expert explicitly participates in durable task recovery', () => {
   const agents = read('AGENTS.md');
   assert.match(agents, /pnpm agent -- task resume --auto/u);

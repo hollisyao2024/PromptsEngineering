@@ -291,6 +291,7 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   writeFile(mainRoot, 'README.md', 'PROJECT_README_SENTINEL\n');
   writeFile(mainRoot, '.gitignore', '.codex/config.toml\n');
   writeFile(mainRoot, 'RULES.md', 'PROJECT_RULES_SENTINEL\n');
+  writeFile(mainRoot, 'DESIGN.md', 'PROJECT_DESIGN_SENTINEL\n');
   writeFile(mainRoot, 'src/business.js', 'module.exports = "PROJECT_BUSINESS_SENTINEL";\n');
   writeFile(mainRoot, 'package.json', `${JSON.stringify({
     name: 'actual-project',
@@ -326,6 +327,12 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   assert.match(geminiSettings, /"model"\s*:\s*\{\s*"compressionThreshold"\s*:\s*0\.18\s*\}/u);
   assert.match(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), /更新息壤模板/u);
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULES_SENTINEL\n');
+  // TC-ARCHPLAT-016：骨架随模板交付，根目录 DESIGN.md 属项目文件，更新不改写
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'DESIGN.md'), 'utf8'), 'PROJECT_DESIGN_SENTINEL\n');
+  assert.equal(
+    fs.readFileSync(path.join(linkedRoot, 'docs/data/templates/prd/DESIGN-TEMPLATE.md'), 'utf8'),
+    fs.readFileSync(path.join(TEMPLATE_ROOT, 'docs/data/templates/prd/DESIGN-TEMPLATE.md'), 'utf8'),
+  );
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'README.md'), 'utf8'), 'PROJECT_README_SENTINEL\n');
   assert.equal(
     fs.readFileSync(path.join(linkedRoot, 'src/business.js'), 'utf8'),
@@ -351,4 +358,5 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   const secondOutput = `${second.stdout || ''}${second.stderr || ''}`;
   assert.equal(second.status, 0, secondOutput.slice(-5000));
   assert.match(secondOutput, /^CONVERGENCE_STATUS=OK$/mu);
+  assert.equal(fs.readFileSync(path.join(linkedRoot, 'DESIGN.md'), 'utf8'), 'PROJECT_DESIGN_SENTINEL\n');
 });

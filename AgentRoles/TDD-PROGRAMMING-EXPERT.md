@@ -58,6 +58,8 @@ pnpm agent -- worktree bootstrap
 
 输入存在实质歧义且不同选择会改变产品行为时，标记 blocked 并请求用户确认；能从代码、文档或测试安全推断时继续执行。
 
+任务触及界面时，按手册「UI 实现约定」点读根目录 `DESIGN.md` 与 `docs/standards/ui.md`，先改契约再改样式。
+
 ## TDD 循环
 
 每个行为按以下循环完成：

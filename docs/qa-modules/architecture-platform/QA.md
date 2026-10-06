@@ -1,10 +1,10 @@
 # 双能力包与架构落地 QA
 
-> 模块：architecture-platform；日期：2026-09-09；状态：测试 Passed，交付以本机 QA receipt 和合并门禁为准；负责人：@template-maintainers。
+> 模块：architecture-platform；日期：2026-10-06；状态：测试 Passed，交付以本机 QA receipt 和合并门禁为准；负责人：@template-maintainers。
 
 ## 1. 范围与输入
 
-验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～014。第 2～6 节记录 3.0.0 基线；3.0.1 兼容升级复验见第 7 节，3.1 公共 UI 见第 8 节。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
+验证 [PRD](../../prd-modules/architecture-platform/PRD.md)、[ARCH](../../arch-modules/architecture-platform/ARCH.md)、[TASK](../../task-modules/architecture-platform/TASK.md) 的 US-ARCHPLAT-001～015。第 2～6 节记录 3.0.0 基线；3.0.1 兼容升级复验见第 7 节，3.1 公共 UI 见第 8 节，3.8 界面视觉契约见第 9 节。消费者都在容器 tmp 内初始化；三青鸟、小懒实际仓库没有写入。
 
 ## 2. 验收追踪与执行
 
@@ -118,3 +118,33 @@ QA 曾因 Next 生产弹窗内日期弹层超出可用高度给出 No-Go，并�
 Review-Class: REQUIRED；Domain-Hit: 共享基础库、异步并发、跨文件初始化和升级所有权。已复核防重与取消/乱序、RHF 校验及转换结果、失败保留、日期时区与边界、旧 owner ID、共享目录依赖和取消选择语义。Codex review skipped by policy。5/5 新增 AC 通过，无遗留阻断缺陷，Go（模板源码）；最终交付以当前提交 QA receipt、合并及 completion guard 为准。
 
 本轮证据：容器 `tmp/ui-foundations/` 中 `upstream.json`、`npm-new.json`、`source-tests-final.log`、`*-test.log`、`*-build.log`、`*-final.log`、`*-architecture-check-final.json`、`upgrade-result.json`、`*-final-update.json` 及隔离样本；真实浏览器摘要为 `tmp/test-results/ui-foundations/browser-smoke.json`。临时浏览器标签和服务已关闭，证据保留。具体 base/head SHA 由回执与 PR 保存，文档不嵌入自身提交 SHA。
+
+## 9. 3.8 界面视觉契约验收
+
+日期：2026-10-06。范围：US-ARCHPLAT-015，3 项 AC（015-01～03，对应 TC-ARCHPLAT-015～017），关联 TASK-ARCHPLAT-011；TASK-ARCHPLAT-012（架构包 `ui.md` 增补、`DESIGN.md` 与 `styles.css` 漂移检查、`architecture init` 生成骨架）不在本轮。交付物是模板自有骨架 `docs/data/templates/prd/DESIGN-TEMPLATE.md`（61 行、2,938 B，`overwrite` 登记），由 PRD 专家按需实例化为项目根 `DESIGN.md`；根文件属项目，不入任何 manifest。色值、间距、断点与无障碍目标只写在 `DESIGN.md`，UX 规范、PRD 模板和 prd 模块模板改为指向它；仅当任务触及界面且根 `DESIGN.md` 存在时，PRD 建立维护、ARCH 只记实现映射、TDD 与 QA 点读，缺失时回退 UX 规范 §5 与 `styles.css`；TASK、DEVOPS 与常驻规则没有路由。
+
+| TC / AC 后缀 | 完整路径、边界、负向 | 自动化证据 | 结果 |
+| --- | --- | --- | --- |
+| 015 / 015-01 形态 | 骨架 ≤ 80 行；七个 front matter 键按序且 `version: alpha`；八个二级章节与 Google 规范同序；Accessibility、Motion、Visual QA 三个三级小节位于 Do's and Don'ts 之后；Accessibility 含 `4.5:1`、`3:1` 与「推荐 ≥ 44×44；WCAG 2.2 SC 2.5.8 最低 24×24（AA）」，不含 44×44 误标为 2.5.8 的旧写法 | template-surface：TC-ARCHPLAT-015 骨架体量、键序、章节与无障碍目标 | Pass |
+| 015 / 015-01 同源 | 组件中所有 `{ref}` 都能在 front matter 解析；无外部 URL、`@font-face`、`@import`；在息壤源中色值、三档圆角与正文字体族同 `tokens.css`（实际项目没有组件源，同源比对跳过） | template-surface：TC-ARCHPLAT-015 Token 同源与引用可解析 | Pass |
+| 016 / 015-02 所有权 | 骨架为 `overwrite` 登记；根 `DESIGN.md` 不在模板 manifest、作业包与架构包 manifest 中；README 有骨架行并说明根目录 `DESIGN.md` 属项目文件；模板更新后根 `DESIGN.md` 哨兵内容不变，投递的骨架与源一致 | template-surface：TC-ARCHPLAT-016 所有权；update-template 引导断言 | Pass |
+| 016 / 015-02 去重 | UX 规范删除色彩、排版、间距、其他视觉 Token 四张表及 `4.5:1`、`44×44`，保留「状态覆盖」、检查清单与 §7.5 工具表；PRD 模板、prd 模块模板改指向 `DESIGN.md`；四个文件无误标，PRD 手册不含 `44×44` | template-surface：TC-ARCHPLAT-016 去重与误标 | Pass |
+| 017 / 015-03 路由 | PRD、ARCH、TDD、QA 四个阶段的七个专家与手册文件均指向 `DESIGN.md`；PRD 专家点名骨架，ARCH 手册只写实现映射、不复述取值，两份 QA 文件对照 `DESIGN.md` 核验设计还原度，TDD「UI 实现约定」点名 `DESIGN.md`、YAML front matter、`docs/standards/ui.md`、`styles.css` | template-surface：TC-ARCHPLAT-017 路由 | Pass |
+| 017 / 015-03 范围 | TASK、DEVOPS 专家与手册、`AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.example.md` 不含 `DESIGN.md`；`AGENTS.md` ≤ 180 行、TDD 专家 ≤ 220 行、三份 MODULE-TEMPLATE ≤ 350 行 | template-surface：TC-ARCHPLAT-017 范围与体量 | Pass |
+
+| 验证层 | 组合与结果 |
+| --- | --- |
+| 先红后绿 | 6 条新增契约测试在无实现时 5 条因预期原因失败（缺骨架、缺登记、模板未去重、专家未路由）；第 6 条（017 范围与体量守卫）在基线即通过，作为边界守卫保留；实现后 template-surface 47/47，update-template 14/14 |
+| 定向回归 | 同步 origin/main（含 `pnpm agent -- tdd commit`）后，27 个测试文件逐个执行 `pnpm agent -- test --file … -- node --test`：281/281，0 失败、0 跳过；setup 13 个文件 175/175，agent-runner 7 个 70/70，tdd/qa/shared 3 个 14/14，architecture 4 个 22/22 |
+| 体量 | 骨架 61/80 行；`AGENTS.md` 175/180 行；TDD 专家 170/220 行（含同步带入的 `tdd commit` 两行）；prd、arch、qa 三份 MODULE-TEMPLATE 为 160、175、176/350 行 |
+| 常驻上下文 | `AGENTS.md`（18,945 B）、`docs/CONVENTIONS.md`（26,778 B）、`RULES.example.md` 零改动；新增 UI 文字全部落在按需读取的文件，TDD 阶段每次激活多读一句（+140 B） |
+| 字节账 | 13 个内容文件净 +4,279 B：骨架 +2,938 B，UX 规范 −1,360 B（242→199 行），其余专家、手册、模板、README 与 manifest 合计 +2,701 B |
+| 版本 | `package.json`、`agent/manifest.json`、`template.manifest.json` 一致为 3.8.0，高于同步后的 origin/main（3.7.32） |
+
+测试范围按 `docs/CONVENTIONS.md` §测试范围与证据复用界定：本轮只改文档、模板与清单路由，没有改运行时代码，选择定向范围而非全量；未运行全量 `pnpm test`、E2E、性能、安全与负载测试，也未运行架构包的浏览器样本和 `devops-run` 测试。范围决策与逐文件结果记录在任务证据中。
+
+Review-Class: REQUIRED；Domain-Hit: 共享模板、跨专家路由、清单所有权。已复核：取值只在 `DESIGN.md` 一处，UX 规范、PRD 模板、模块模板与 PRD 手册不再复述 `4.5:1`、`44×44`，PRD 的 AC-015-02 所说「误标更正」体现为误标不再出现于这些文件，更正后的写法只在骨架 Accessibility 中；骨架 `overwrite` 而根 `DESIGN.md` 不入任何 manifest，更新不会写入或覆盖项目文件；路由以「任务触及界面且根 `DESIGN.md` 存在」为条件并有回退，TASK、DEVOPS 与三份常驻规则无路由；44×44 只更正标注（推荐值与 WCAG 2.2 SC 2.5.8 最低 24×24 AA 并列），不改 WCAG 2.1 AA 基线；骨架色值与圆角同 `tokens.css`；下游影响见 CHANGELOG：骨架为新增的 `overwrite` 文件，下游下次同步时创建，其余模板自有文件的更新沿用既有所有权与基线比对规则。Codex review skipped by policy。3/3 新增 AC 通过，无遗留阻断缺陷，Go（模板源码）；最终交付以当前提交 QA receipt、合并及 completion guard 为准。
+
+限制与未覆盖：① 没有运行官方 `@google/design.md` lint（规范为 alpha，运行需要下载，未获授权），骨架的键、章节顺序与 `{ref}` 解析只由契约测试固化；② `DESIGN.md` 与 `styles.css` 之间没有自动漂移检查，依赖专家点读与 QA 核验，由 TASK-ARCHPLAT-012 补齐；③ 规范 alpha 没有暗色机制，骨架以「暗色策略」一句文字约定，不能机器校验；④ 没有真实浏览器或设备上的视觉验收，规范合规不代替视觉还原度与无障碍实测；⑤ 文档脚本：`arch:lint` 退出 0（既有 6 条警告），`task:lint` 退出 0，`qa:lint` 退出 0（1 条既有警告：data-semantics 缺 QA 模块）；`prd:lint` 退出 1，仅因 data-semantics 与 drizzle 两个未触及的模块缺第 7 节，Story ID 格式（109 个）、Given-When-Then 与 architecture-platform 模块结构三项对本轮新增内容均通过；`arch:sync` 与 `sync-prd-task-ids` 在 main 基线即失败，因为检查器只认标题式 Story 定义，而多数模块 PRD 以表格登记，本轮新增的 US-ARCHPLAT-015 使 `arch:sync` 由 31 条增至 32 条，TASK-ARCHPLAT-011、012 与既有 001～010 一同列为孤立任务，同因，均未在本轮修复。
+
+本轮证据：任务证据中的 `TEST_SCOPE_DECISION` 与 `TEST_SCOPE_RESULT`、逐文件测试日志（由 `task exec` 写入并记录哈希）和 RED/GREEN 摘要。具体 base/head SHA 由回执与 PR 保存，文档不嵌入自身提交 SHA。
