@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.7.33] - 2026-10-06
+
 - `AGENTS.md`「GitHub 与安全」第 2 条改写，只改这一行：`不得裸执行 `git fetch/pull/push/ls-remote`、`gh pr/repo/api/workflow/run`。` → `GitHub 访问只用 `.env.local` 的 `GH_TOKEN`；不得裸执行 `git fetch/pull/push/ls-remote`、`gh`。`。含义变化两处：① 新增令牌来源约定——GitHub 访问只用 `.env.local` 的 `GH_TOKEN`；② 裸执行禁令里的 `gh` 由 `pr/repo/api/workflow/run` 四个子命令扩为整个 `gh`，清单之外的 `gh auth`、`gh release` 等此前不在禁令内，现在同样不得裸执行，须经 `infra/scripts/shared/github-auth-run.js` 或仓库脚本。起因：要求所有 GitHub 访问只走 `.env.local` 的 `GH_TOKEN`、不自带 git 身份；v3.7.32 已在机制层补了提交身份，本条是规则层的对应声明。「必须经包装器」仍只在 `docs/CONVENTIONS.md` §9，未复制进 `AGENTS.md`。字节：`AGENTS.md` +25 B（18,945 → 18,970 B），`docs/CONVENTIONS.md` 不变（26,778 B），常驻加载合计 45,723 → 45,748 B。`template-surface.test.js` 中逐字固定该行的断言同步改为新行。
 - 已知取舍与未覆盖（仅记录）：① 「只用 `.env.local`」是规则层的声明性约束，比代码和 `docs/CONVENTIONS.md` §9 更严：`getProjectGitHubToken` 先取 `.env.local`（当前 worktree 与 Git 主 worktree），取不到时仍回退进程环境变量 `GH_TOKEN`，本次不改代码也不改 §9；② 它是写给执行器的约定，不是机制锁：拦截裸调用的 `permissions.deny` 规则与 PreToolUse 钩子仍未做（未获授权），装有 `gh` 时 `createGitHubBackend` 仍优先走 `gh`；③ v3.7.28 条目里引用的旧行原文属于历史记录，不改。
 
