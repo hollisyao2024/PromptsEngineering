@@ -7,7 +7,8 @@
  * - 只通过本次 git 进程的 GIT_AUTHOR_* / GIT_COMMITTER_* 环境变量传递，不写任何 git 配置，也不落盘缓存。
  * - 账号查询放在子进程里完成：buildGitHubGitEnv 是同步接口，而 GitHub API 请求是异步的；
  *   令牌只经子进程环境变量传递，不进 argv，输出与错误中的令牌一律替换为 ***。
- * - 查不到时抛错（fail closed），不退回 git 自动探测（EMAIL、主机名）或任何手填身份。
+ * - 有令牌却查不到账号时抛错（fail closed），不退回 git 自动探测（EMAIL、主机名）或任何手填身份；
+ *   没有令牌时返回 unresolved，由调用方决定是否阻断（tdd commit 阻断，buildGitHubGitEnv 保持 git 原行为）。
  */
 
 const { spawnSync } = require('child_process');
