@@ -48,5 +48,20 @@
 | US-ENVINIT-003 | Dry-run 无副作用 | TASK-ENVINIT-001 | RED：dry-run 契约 | AC-ENVINIT-003-01 / TC-ENVINIT-004 |
 | US-ENVINIT-003 | Dry-run 无副作用 | TASK-ENVINIT-003 | dry-run 初始化计划 | AC-ENVINIT-003-01 / TC-ENVINIT-004 |
 | US-ENVINIT-003 | Dry-run 无副作用 | TASK-ENVINIT-004 | dry-run 集成验收 | AC-ENVINIT-003-01 / TC-ENVINIT-004 |
+| US-BIZTEST-001 | 规格契约 | TASK-BIZTEST-001 | RED：夹具与规格层、配置层失败测试 | AC-BIZTEST-001-01 / TC-BIZTEST-001 |
+| US-BIZTEST-001 | 规格契约 | TASK-BIZTEST-002 | 规格解析器 business-spec.js | AC-BIZTEST-001-01 / TC-BIZTEST-001 |
+| US-BIZTEST-001 | 规格契约 | TASK-BIZTEST-009 | 模板、示例与所有权传播 | AC-BIZTEST-001-02 / TC-BIZTEST-002 |
+| US-BIZTEST-002 | 业务操作路径模型 | TASK-BIZTEST-001 | RED：夹具与规格层、配置层失败测试 | AC-BIZTEST-002-01~04 / TC-BIZTEST-003~006 |
+| US-BIZTEST-002 | 业务操作路径模型 | TASK-BIZTEST-002 | 规格解析器 business-spec.js | AC-BIZTEST-002-01 / TC-BIZTEST-003 |
+| US-BIZTEST-002 | 业务操作路径模型 | TASK-BIZTEST-003 | 路径校验器与 qa paths | AC-BIZTEST-002-02~04 / TC-BIZTEST-004~006 |
+| US-BIZTEST-003 | 执行与结果绑定 | TASK-BIZTEST-004 | 配置解析器与 qa.business 默认值 | AC-BIZTEST-003-01 / TC-BIZTEST-007 |
+| US-BIZTEST-003 | 执行与结果绑定 | TASK-BIZTEST-005 | 结果绑定器（JUnit 解析与结果文件） | AC-BIZTEST-003-02~04 / TC-BIZTEST-008~010 |
+| US-BIZTEST-003 | 执行与结果绑定 | TASK-BIZTEST-006 | 套件运行器与 qa run | AC-BIZTEST-003-01、03 / TC-BIZTEST-007、009 |
+| US-BIZTEST-004 | 业务验收门禁 | TASK-BIZTEST-004 | 配置解析器与 qa.business 默认值 | AC-BIZTEST-004-03~04 / TC-BIZTEST-013~014 |
+| US-BIZTEST-004 | 业务验收门禁 | TASK-BIZTEST-007 | 业务验收门禁 qa-business-gate.js | AC-BIZTEST-004-01~02、04~06 / TC-BIZTEST-011~012、014~016 |
+| US-BIZTEST-004 | 业务验收门禁 | TASK-BIZTEST-008 | 命令路由与 qa verify 门禁接入 | AC-BIZTEST-004-01~03 / TC-BIZTEST-011~013 |
+| US-BIZTEST-005 | 生成指引与不变量 | TASK-BIZTEST-010 | 指引与角色文件同步 | AC-BIZTEST-005-01~04 / TC-BIZTEST-017~020 |
+| US-BIZTEST-006 | 闭环验证与传播 | TASK-BIZTEST-009 | 模板、示例与所有权传播 | AC-BIZTEST-006-02 / TC-BIZTEST-022 |
+| US-BIZTEST-006 | 闭环验证与传播 | TASK-BIZTEST-011 | 闭环夹具与非功能验证 | AC-BIZTEST-006-01 / TC-BIZTEST-021 |
 
 所有 Story 和 Task 均有映射；息壤同步沿 RED → 身份/路由 → required fetch/固定 SHA → 最新 updater 自举/收敛 → 传播与 QA 的关键路径交付。

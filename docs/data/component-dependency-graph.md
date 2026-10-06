@@ -22,6 +22,21 @@ flowchart LR
   A --> T[Target Linked Worktree]
   M[ENVINIT-SVC-001 Manifest Apply] --> I[ENVINIT-SVC-002 Environment File Initializer]
   G[ENVINIT-SVC-003 Gitignore Merge] --> I
+  BTCLI[BIZTEST-SVC-007 命令路由与门禁接入] --> BTPATHS[BIZTEST-SVC-003 路径校验器]
+  BTCLI --> BTRUN[BIZTEST-SVC-004 套件运行器]
+  BTCLI --> BTVERIFY[qa verify 既有主流程]
+  BTSPEC[BIZTEST-SVC-001 规格解析器] --> BTPATHS
+  BTSPEC --> BTRUN
+  BTSPEC --> BTBIND[BIZTEST-SVC-005 结果绑定器]
+  BTSPEC --> BTGATE[BIZTEST-SVC-006 业务验收门禁]
+  BTCONF[BIZTEST-SVC-002 配置解析器] --> BTRUN
+  BTCONF --> BTGATE
+  BTDRV[项目测试驱动] --> BTAPI[BIZTEST-API-001 报告与结果契约]
+  BTAPI --> BTBIND
+  BTRUN --> BTBIND
+  BTBIND --> BTRES[tmp 结果与报告副本]
+  BTRES --> BTGATE
+  BTVERIFY --> BTGATE
 ```
 
 | 组件 ID | 上游 | 下游 | 约束 |
@@ -38,3 +53,12 @@ flowchart LR
 | ENVINIT-SVC-001 | 模板源 | ENVINIT-SVC-002 | example 必须先完成 init-if-missing |
 | ENVINIT-SVC-002 | ENVINIT-SVC-001、目标 example | 目标实际文件 | exclusive create，已有文件不修改 |
 | ENVINIT-SVC-003 | `.gitignore` 模板块 | 目标实际文件 | 三个实际文件精确忽略 |
+| BIZTEST-API-001 | 项目测试驱动（JUnit XML、`platform` 标签） | BIZTEST-SVC-005 | 用例名携带 AC/TC 标识；报告缺失或不可解析为硬失败 |
+| BIZTEST-SVC-001 | 模块 PRD 原子 AC 表、`PATHS.md` | BIZTEST-SVC-003、BIZTEST-SVC-004、BIZTEST-SVC-005、BIZTEST-SVC-006 | 纯解析；违规带稳定代码、文件与行号 |
+| BIZTEST-SVC-002 | 合并后的 `qa.business` 配置 | BIZTEST-SVC-004、BIZTEST-SVC-006 | 非法值逐项报告；配置摘要不含 `enabled` |
+| BIZTEST-SVC-003 | BIZTEST-SVC-001、BIZTEST-SVC-007 | 覆盖矩阵与违规输出 | 只读，不创建目录 |
+| BIZTEST-SVC-004 | BIZTEST-SVC-001、BIZTEST-SVC-002、BIZTEST-SVC-007、项目测试驱动 | BIZTEST-SVC-005 | 先静态校验；套件失败与缺报告不被掩盖 |
+| BIZTEST-SVC-005 | BIZTEST-SVC-001、BIZTEST-SVC-004、BIZTEST-API-001 | 容器 `tmp` 的 `ac-results.json` 与报告副本 | 拒绝 `DOCTYPE` 与实体；报告副本先落盘，结果文件原子写入 |
+| BIZTEST-SVC-006 | BIZTEST-SVC-001、BIZTEST-SVC-002、结果文件、`qa verify` 已捕获的 HEAD | `qa verify` 阻断或风险披露 | 重算并与记录比对，陈旧或被改动即阻断；默认关闭时不读取规格与结果 |
+| BIZTEST-SVC-007 | 用户/Agent、`qa verify` 既有主流程 | BIZTEST-SVC-003、BIZTEST-SVC-004、BIZTEST-SVC-006 | 默认关闭时输出与退出码和既有一致；回执结构不变 |
+| BIZTEST-SVC-008 | 模板源 | 目标项目的 PRD/QA 模板、指引与角色约束 | project-owned 文档不被模板更新覆盖 |

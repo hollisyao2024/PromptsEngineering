@@ -42,7 +42,7 @@
 - **模块目录**：`{domain}` 使用 kebab-case（如 `user-management`），与主 PRD 功能域索引一致
 - **Story ID**：`US-{MODULE}-{序号}`（如 `US-USER-001`）
 - **验收标准 ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（如 `AC-USER-001-01`）
-- **测试用例 ID**：`TC-{MODULE}-{序号}`（如 `TC-REG-001`）
+- **测试用例 ID**：`TC-{MODULE}-NNN`（如 `TC-USER-001`，序号固定 3 位，模块标记与 Story/AC 一致）
 - **状态**：📝 待启动 ｜ 🔄 进行中 ｜ ✅ 已确认 ｜ ❌ 已废弃
 - **优先级**：P0（阻塞发布）→ P1（重要）→ P2（增值）→ P3（可延后）
 
@@ -63,6 +63,7 @@
 - **依赖管理**：主 PRD "里程碑与依赖"维护跨模块全局视图，各模块在"接口与依赖"细化
 - **数据共享**：共享实体在 `/docs/data/dictionary.md` 定义，模块直接引用
 - **追溯矩阵**：`/docs/data/traceability-matrix.md` 记录 Story → AC → Test Case ID
+- **原子 AC 表是唯一规格来源**：每条 AC 一行，Given/When/Then 各占一列，并写明优先级、验证方式（`auto`/`manual`）、适用端与用例标识；自动化测试名携带 AC/TC 标识，由 `qa run` 绑定结果、`qa verify` 把关
 - **跨团队对齐**：模块规划完成后通知 ARCH/TASK/QA 依次消费并更新对应模块状态与任务 state
 
 ## 5. 维护职责
@@ -80,6 +81,7 @@
 |------|------|
 | `pnpm run prd:lint` | 校验模块 PRD 结构、Story/AC（GWT）与 NFR/依赖/风险字段 |
 | `pnpm run prd:check-dependency-cycles` | 检查循环依赖或缺失引用 |
+| `pnpm agent -- qa paths` | 解析原子 AC 表与 `docs/qa-modules/{domain}/PATHS.md`，校验引用、覆盖准则并输出 AC/路径追溯矩阵（`qa.business` 启用后随 `qa verify` 把关） |
 
 ## 7. 相关资源
 
@@ -117,11 +119,28 @@
 
 ## 3. 用户故事与验收
 
-| Story ID | 验收标准（Given-When-Then） | Task ID | Test Case ID | QA 负责人 |
-|----------|---------------------------|---------|--------------|-----------|
-| US-XXX-001 | Given..., When..., Then... | TASK-XXX-001 | TC-XXX-001 | @qa-lead |
+### 3.1 用户故事
+
+| Story ID | 用户故事 | Task ID | QA 负责人 |
+|----------|----------|---------|-----------|
+| US-XXX-001 | 作为 {角色}，我希望 {能力}，以便 {价值} | TASK-XXX-001 | @qa-lead |
 
 - 每条故事注明是否已写入 `traceability-matrix`、是否需要 ARCH/QA 复核
+
+### 3.2 原子 AC 清单
+
+> 验收标准的唯一规格来源。每条 AC 占一行，Given/When/Then 各占一列，不要拆成三个 AC，也不要把三段话塞进一个单元格。
+> 列含义：优先级 `P0`–`P3`；验证 `auto`（自动化）或 `manual`（人工）；端写小写标签并用逗号分隔（如 `web,ios`），不适用写 `-`；`TC` 填 `TC-{MODULE}-NNN`，暂无写 `-`。
+> 单元格里需要竖线时写成 `\|`。
+
+| AC ID | Story | 优先级 | 验证 | 端 | Given | When | Then | TC |
+|-------|-------|--------|------|----|-------|------|------|----|
+| AC-XXX-001-01 | US-XXX-001 | P0 | auto | web | {可观察的前置状态} | {单一触发动作} | {可断言的结果：状态、文案、错误码或数据} | TC-XXX-001 |
+| AC-XXX-001-02 | US-XXX-001 | P2 | manual | - | {需要人工判断的前置状态} | {触发动作} | {人工可核对的结果} | - |
+
+- AC 序号对应 Story 序号（`AC-XXX-001-NN` 属于 `US-XXX-001`），模块标记与 Story、TC 保持一致
+- 正常流与异常流分别成行；覆盖准则选路径，取值差异只是数据行，不新增 AC
+- 预期结果只来自 PRD、数据字典、UX 规范与 ARCH 接口契约，不以被测代码当前的输出为准
 
 ## 4. 非功能需求（NFR）
 - 列出性能/安全/可用/可维护等指标

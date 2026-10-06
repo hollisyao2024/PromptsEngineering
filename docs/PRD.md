@@ -58,6 +58,7 @@
 | 双能力包与架构落地 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/architecture-platform/PRD.md) | TC-ARCHPLAT-001~017 | 进入 ARCH |
 | 模板命令面 | P0 / PRD v1.6 已确认 | @template-maintainers | [PRD.md](prd-modules/template-command-surface/PRD.md) | 息壤匿名获取 AC/Traceability 已确认 | 进入 ARCH |
 | 环境文件初始化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/environment-file-initialization/PRD.md) | Traceability 已初始化 | 进入 ARCH |
+| 业务测试自动化 | P0 / PRD 已确认 | @template-maintainers | [PRD.md](prd-modules/business-testing/PRD.md) | TC-BIZTEST-001~022 | 进入 ARCH |
 
 ## 6. 里程碑与依赖
 
@@ -100,3 +101,5 @@
 Drizzle 数据访问扩展：[模块 PRD](prd-modules/drizzle/PRD.md)，提供 PostgreSQL/SQLite 的 ORM、迁移治理和周边适配。
 
 数据语义约定与 Schema 变更治理：[模块 PRD](prd-modules/data-semantics/PRD.md)，规定业务命名、注释、审计字段、软删除，并以门禁保证 schema、迁移与数据文档同步。
+
+业务测试自动化：[模块 PRD](prd-modules/business-testing/PRD.md)，由 PRD 原子验收推导页面与客户端的业务操作路径模型，脚本校验路径、运行套件、按 AC/TC 标识绑定结果并在 `qa verify` 门禁判定；默认关闭，既有门禁行为不变。

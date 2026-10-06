@@ -11,3 +11,4 @@
 | 多端 Monorepo 与 Prisma | P0 | @template-maintainers | [PRD.md](monorepo-platform/PRD.md) | 已确认并完成 3.2 验收 |
 | Drizzle 数据访问 | P0 | @template-maintainers | [PRD.md](drizzle/PRD.md) | 已确认 |
 | 数据语义约定 | P0 | @template-maintainers | [PRD.md](data-semantics/PRD.md) | 已确认 |
+| 业务测试自动化 | P0 | @template-maintainers | [PRD.md](business-testing/PRD.md) | 已确认 |

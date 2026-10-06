@@ -29,6 +29,11 @@
       "mode": "strict",
       "qaModulesDir": "docs/qa-modules",
       "nfrTrackingFile": "docs/data/nfr-tracking.md"
+    },
+    "business": {
+      "enabled": false,
+      "requiredPriorities": ["P0"],
+      "suites": []
     }
   },
   "tdd": {

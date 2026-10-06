@@ -39,6 +39,23 @@
 | TASK-ENVINIT-001 | TASK-ENVINIT-002 | Finish-to-start | 0 | 是 | RED 后登记 example 与 manifest |
 | TASK-ENVINIT-002 | TASK-ENVINIT-003 | Finish-to-start | 0 | 是 | example 就绪后实现实际文件初始化 |
 | TASK-ENVINIT-003 | TASK-ENVINIT-004 | Finish-to-start | 0 | 是 | 实现后进入传播与 Git QA |
+| TASK-BIZTEST-001 | TASK-BIZTEST-002 | Finish-to-start | 0 | 是 | 夹具与 RED 冻结后实现规格解析 |
+| TASK-BIZTEST-001 | TASK-BIZTEST-004 | Finish-to-start | 0 | 否 | 配置层 RED 先行 |
+| TASK-BIZTEST-002 | TASK-BIZTEST-003 | Finish-to-start | 0 | 是 | 路径校验复用规格模型与违规结构 |
+| TASK-BIZTEST-002 | TASK-BIZTEST-005 | Finish-to-start | 0 | 是 | 结果绑定需要 AC/TC 规格模型 |
+| TASK-BIZTEST-003 | TASK-BIZTEST-006 | Finish-to-start | 0 | 是 | 套件运行前复用静态校验 |
+| TASK-BIZTEST-004 | TASK-BIZTEST-006 | Finish-to-start | 0 | 否 | 套件与超时来自规范化配置 |
+| TASK-BIZTEST-005 | TASK-BIZTEST-006 | Finish-to-start | 0 | 是 | 运行后绑定并写结果文件 |
+| TASK-BIZTEST-003 | TASK-BIZTEST-007 | Finish-to-start | 0 | 是 | 门禁复用规格与路径校验 |
+| TASK-BIZTEST-004 | TASK-BIZTEST-007 | Finish-to-start | 0 | 否 | 必需优先级与配置摘要来自配置层 |
+| TASK-BIZTEST-005 | TASK-BIZTEST-007 | Finish-to-start | 0 | 是 | 门禁用报告副本重算并比对 |
+| TASK-BIZTEST-006 | TASK-BIZTEST-008 | Finish-to-start | 0 | 是 | 运行器就绪后路由 qa run |
+| TASK-BIZTEST-007 | TASK-BIZTEST-008 | Finish-to-start | 0 | 是 | 门禁就绪后接入 qa verify |
+| TASK-BIZTEST-003 | TASK-BIZTEST-009 | Finish-to-start | 0 | 否 | 路径模型语法冻结后固化模板 |
+| TASK-BIZTEST-008 | TASK-BIZTEST-010 | Finish-to-start | 0 | 是 | 命令与输出冻结后同步指引 |
+| TASK-BIZTEST-009 | TASK-BIZTEST-010 | Finish-to-start | 0 | 否 | 模板冻结后同步指引 |
+| TASK-BIZTEST-008 | TASK-BIZTEST-011 | Finish-to-start | 0 | 否 | 命令与门禁就绪后构建闭环夹具 |
+| TASK-BIZTEST-010 | TASK-BIZTEST-011 | Finish-to-start | 0 | 是 | 指引与角色文件交付后闭环与非功能验收 |
 
 ```mermaid
 flowchart LR
@@ -76,6 +93,23 @@ flowchart LR
   E1[TASK-ENVINIT-001] --> E2[TASK-ENVINIT-002]
   E2 --> E3[TASK-ENVINIT-003]
   E3 --> E4[TASK-ENVINIT-004]
+  B1[TASK-BIZTEST-001] --> B2[TASK-BIZTEST-002]
+  B1 --> B4[TASK-BIZTEST-004]
+  B2 --> B3[TASK-BIZTEST-003]
+  B2 --> B5[TASK-BIZTEST-005]
+  B3 --> B6[TASK-BIZTEST-006]
+  B4 --> B6
+  B5 --> B6
+  B3 --> B7[TASK-BIZTEST-007]
+  B4 --> B7
+  B5 --> B7
+  B6 --> B8[TASK-BIZTEST-008]
+  B7 --> B8
+  B3 --> B9[TASK-BIZTEST-009]
+  B8 --> B10[TASK-BIZTEST-010]
+  B9 --> B10
+  B8 --> B11[TASK-BIZTEST-011]
+  B10 --> B11
 ```
 
 ## Drizzle
@@ -87,3 +121,7 @@ Drizzle 最新收敛：TASK-DRIZZLE-001 → 002 → 003 → 005（自动源版�
 ## 数据语义约定
 
 TASK-DATA-001 → TASK-DATA-002 → TASK-DATA-003 → TASK-DATA-005（QA）；TASK-DATA-004 依赖 001，与 002/003 并行。ADR-035 增量：TASK-DATA-006 → TASK-DATA-008 → TASK-DATA-010（QA）；007、009 依赖 006 并与 008 并行。依赖 Drizzle 数据访问与 Schema-Doc Sync 门禁。
+
+## 业务测试自动化
+
+TASK-BIZTEST-001 → 002 → 003 与 005（并行）→ 006 与 007（并行）→ 008 → 010 → 011；004 依赖 001 并为 006、007 的前置，009 依赖 003 并为 010 的前置，二者有浮动时间。关键路径约 6 人日；003/005 与 006/007 为等长并行替代。依赖既有 `qa verify` 本地门禁、治理标识解析与容器目录初始化器，无新增外部服务。详见 [模块 WBS](../task-modules/business-testing/TASK.md)。

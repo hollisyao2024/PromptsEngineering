@@ -11,3 +11,4 @@
 | 多端 Monorepo 与 Prisma | [monorepo-platform/TASK.md](monorepo-platform/TASK.md) | @template-maintainers | [PRD](../prd-modules/monorepo-platform/PRD.md) | [ARCH](../arch-modules/monorepo-platform/ARCH.md) | 3.2 验收通过 / Go | 2026-09-09 |
 | Drizzle 数据访问 | [drizzle/TASK.md](drizzle/TASK.md) | @template-maintainers | [PRD](../prd-modules/drizzle/PRD.md) | [ARCH](../arch-modules/drizzle/ARCH.md) | 已规划 | 2026-10-01 |
 | 数据语义约定 | [data-semantics/TASK.md](data-semantics/TASK.md) | @template-maintainers | [PRD](../prd-modules/data-semantics/PRD.md) | [ARCH](../arch-modules/data-semantics/ARCH.md) | 已规划 | 2026-10-04 |
+| 业务测试自动化 | [business-testing/TASK.md](business-testing/TASK.md) | @template-maintainers | [PRD](../prd-modules/business-testing/PRD.md) | [ARCH](../arch-modules/business-testing/ARCH.md) | 验收通过 / Go；P2~P4 另行立项 | 2026-10-07 |

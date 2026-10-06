@@ -24,22 +24,39 @@
 ---
 
 ## 2. 用户故事与验收标准
-```markdown
-### US-{MODULE}-001: {故事标题}
-**作为** [用户角色]
-**我希望** [功能描述]
-**以便** [业务价值]
 
-**验收标准（Given-When-Then）：**
-- **AC-{MODULE}-001-01 (Given)** 前置条件
-- **AC-{MODULE}-001-02 (When)** 触发动作
-- **AC-{MODULE}-001-03 (Then)** 预期结果
+### 2.1 用户故事
 
-**优先级**：P0 / P1 / P2（综合得分：X.X，详见 [priority-matrix.md](../data/priority-matrix.md)）
-**依赖**：US-{OTHER}-XXX（如有跨模块依赖，引用 Story ID）
-**预估工时**：X 人天
-```
-每个 Story 至少包含一个量化的 AC，覆盖正常与异常流，同时在 `traceability-matrix.md` 中映射 Story/AC/Test Case ID。
+| Story ID | 用户故事 | 优先级 | 依赖 | 预估工时 |
+|----------|----------|--------|------|----------|
+| US-USER-001 | 作为访客，我希望用邮箱注册账号，以便使用平台服务 | P0 | - | 5 人天 |
+| US-USER-002 | 作为已注册用户，我希望登录账号，以便访问个人数据；连续输错密码时账号要被保护 | P0 | US-USER-001 | 4 人天 |
+| US-USER-003 | 作为已登录用户，我希望查看并更新个人资料，以便保持信息准确 | P1 | US-USER-002 | 3 人天 |
+| US-USER-004 | 作为忘记密码的用户，我希望通过邮件重置密码，以便找回账号 | P0 | US-USER-001 | 3 人天 |
+
+优先级的综合得分与取舍详见 [priority-matrix.md](../data/priority-matrix.md)；跨模块依赖引用对方的 Story ID。
+
+### 2.2 原子 AC 清单
+
+验收标准的唯一规格来源：每条 AC 占一行，Given/When/Then 各占一列，不拆成三个 AC。优先级取 `P0`–`P3`；验证方式取 `auto`（自动化）或 `manual`（人工）；端是适用的客户端标签，不适用写 `-`；`TC` 是承载该 AC 的测试用例，暂无写 `-`。预期结果只来自本 PRD、数据字典、UX 规范与 §4 的接口契约。
+
+| AC ID | Story | 优先级 | 验证 | 端 | Given | When | Then | TC |
+|-------|-------|--------|------|----|-------|------|------|----|
+| AC-USER-001-01 | US-USER-001 | P0 | auto | web,ios | 访客在注册页，邮箱未被注册 | 提交合法邮箱、合规密码与正确验证码 | 返回 201 且 `needEmailVerify` 为 true，系统发送验证邮件 | TC-USER-001 |
+| AC-USER-001-02 | US-USER-001 | P1 | auto | web | 邮箱已被注册 | 使用同一邮箱再次提交注册 | 返回错误码 1001，不新建账号 | TC-USER-002 |
+| AC-USER-001-03 | US-USER-001 | P1 | auto | web | 访客在注册页 | 提交少于 8 位或不满足复杂度的密码 | 返回错误码 1002，停留在注册表单并提示密码规则 | TC-USER-003 |
+| AC-USER-001-04 | US-USER-001 | P1 | auto | web | 访客在注册页 | 提交错误或已过期的验证码 | 返回错误码 1003，刷新图形验证码 | TC-USER-004 |
+| AC-USER-002-01 | US-USER-002 | P0 | auto | web,ios | 账号已激活，密码正确 | 提交邮箱和密码登录 | 返回 200，含有效期 2 小时的 `token` 与 7 天的 `refreshToken`，进入首页 | TC-USER-005 |
+| AC-USER-002-02 | US-USER-002 | P0 | auto | web | 账号已激活，此前连续失败少于 4 次 | 提交错误密码 | 返回错误码 2001 与 `remainingAttempts`（5 减去含本次在内的累计失败次数），停留在登录页 | TC-USER-006 |
+| AC-USER-002-03 | US-USER-002 | P0 | auto | web | 账号已激活，此前已连续失败 4 次 | 第 5 次提交错误密码 | 账号锁定 15 分钟并返回错误码 2002；锁定期内即使密码正确也被拒绝 | TC-USER-007 |
+| AC-USER-002-04 | US-USER-002 | P1 | auto | web | 账号尚未完成邮箱验证 | 提交正确的邮箱和密码 | 返回错误码 2003，不签发 Token | TC-USER-008 |
+| AC-USER-003-01 | US-USER-003 | P1 | auto | web,ios | 用户已登录 | 打开个人资料页 | 显示姓名、头像和邮箱（数据来自 `GET /api/user/{userId}`） | TC-USER-009 |
+| AC-USER-003-02 | US-USER-003 | P1 | auto | web | 用户已登录并处于资料编辑态 | 修改姓名并保存 | 返回更新后的 `User` 对象，页面显示新姓名 | TC-USER-010 |
+| AC-USER-004-01 | US-USER-004 | P0 | auto | web | 邮箱已注册 | 在重置页提交该邮箱 | 提示「重置邮件已发送」，邮件队列新增一条含重置链接的任务 | TC-USER-011 |
+| AC-USER-004-02 | US-USER-004 | P1 | auto | web | 重置链接签发已超过 30 分钟 | 打开该重置链接 | 提示「链接已失效」并可重新申请 | TC-USER-012 |
+| AC-USER-004-03 | US-USER-004 | P2 | manual | - | 邮件服务正常 | 提交重置申请 | 5 分钟内在收件箱收到重置邮件（对应成功指标「密码重置响应时间 < 5min」） | - |
+
+每个 Story 至少包含一条可量化的 AC，覆盖正常流与异常流；追溯矩阵 `traceability-matrix.md` 按 Story/AC/Test Case ID 映射。页面状态与操作路径、覆盖准则见 QA 的 `docs/qa-modules/user-management/PATHS.md`（模板 `docs/data/templates/qa/PATHS-TEMPLATE.md`），路径只引用上表的 AC 与 TC，不复制规格。
 
 ---
 

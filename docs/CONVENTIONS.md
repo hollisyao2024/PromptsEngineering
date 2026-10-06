@@ -86,6 +86,7 @@ updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run�
 - `docs/{prd|arch|task|qa}-modules/module-list.md`：模块登记表。
 - `docs/{prd|arch|task|qa}-modules/<domain>/`：功能域详情。
 - `docs/data/traceability-matrix.md`：需求到测试的追踪关系。
+- `docs/prd-modules/<domain>/PRD.md` 附录 A 的原子 AC 表是验收标准的规格来源；有页面或客户端界面的功能域另在 `docs/qa-modules/<domain>/PATHS.md` 维护界面、状态、转移与操作路径，二者由 `pnpm agent -- qa paths` 校验。
 
 PRD ↔ ARCH 追溯检查默认读取 `docs/PRD.md` 和 `docs/prd-modules/<domain>/` 内全部直接子级 Markdown 文档（包括 `PRD.md` 与拆分规格），仅将正式需求标题中的编号计为定义，正文引用不计入。扫描在调用一致性检查命令时执行，不作为后台任务运行。
 
@@ -181,6 +182,15 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 
 命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
 
+业务测试自动化使用两条 QA 命令：
+
+```bash
+pnpm agent -- qa paths
+pnpm agent -- qa run
+```
+
+`qa paths` 只读，校验 PRD 原子 AC 表与 `docs/qa-modules/<domain>/PATHS.md` 并输出 AC/路径追溯矩阵；`qa run` 按 `agent.config.json` 的 `qa.business.suites` 运行套件，把 JUnit XML 报告绑定到原子 AC、TC 与路径，结果写入容器 tmp。两者与 `qa verify` 业务验收门禁的关系见 §8「业务验收门禁（可选）」。
+
 ### 客户端与服务端快捷命令
 
 用户快捷语义与模板稳定入口如下；执行命令从模板默认配置与目标项目稀疏 `agent.config.json` 的合并结果读取，项目可在任意叶级覆盖：
@@ -243,6 +253,15 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 官方息壤源的 `tdd sync` 自动递增发布版本，并把 `CHANGELOG.md` 的 `[Unreleased]` 条目移入新版本标题；默认 patch，已显式选定更高 minor/major 时保留，实现见 `infra/scripts/tdd-tools/source-version-sync.js`。实际项目不启用此源发布门禁，继续使用自身 `release` 配置。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
+
+### 业务验收门禁（可选）
+
+默认关闭。项目在 `agent.config.json` 设置 `qa.business.enabled=true` 并登记 `qa.business.suites` 后，`qa verify` 在测试范围校验之后、签发回执之前增加业务验收门禁；官方息壤源不启用此门禁。规格只来自 PRD 原子 AC 表，预期结果取自 PRD、数据字典、UX 规范与 ARCH 接口契约，不得取自被测代码的当前输出；推导与判定细则见 QA 手册「业务测试自动化」一章。
+
+- 规格：`pnpm agent -- qa paths` 校验原子 AC 表与 `PATHS.md`，有违规即 `STATUS=BLOCKED`。
+- 结果：`pnpm agent -- qa run` 须在最后一次提交之后运行，且运行时工作区干净；结果写入容器 tmp，绑定当前 HEAD、配置摘要与报告 SHA256，之后再提交或修改套件配置都会使结果失效。
+- 判定：必需优先级（默认 `P0`）的 `auto` AC 缺少通过的用例、按覆盖准则仍有未覆盖的转移、结果过期或被篡改、套件硬失败时，`qa verify` 阻断且不签发回执；人工验证、低优先级或标识缺失等情形只披露为风险，不单独阻断。
+- 输出：`BUSINESS_GATE=PASS|BLOCKED`；阻断项为 `BUSINESS_BLOCK=<code>|<subject>|<detail>`，风险项为 `BUSINESS_RISK=<code>|<detail>`。
 
 ## 9. GitHub、命名与安全
 

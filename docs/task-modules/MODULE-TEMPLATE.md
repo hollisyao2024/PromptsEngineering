@@ -31,7 +31,7 @@
 - **模块文件**：`{domain}/TASK.md`（目录固定，文件名统一为 `TASK.md`），与主 TASK 的结构保持同步，方便引用与导航。
 - **Story ID**：`US-{MODULE}-{序号}`（例如 `US-USER-001`、`US-PAY-005`）
 - **验收标准 ID**：`AC-{MODULE}-{Story序号}-{AC序号}`（例如 `AC-USER-001-01`）
-- **测试用例 ID**：`TC-{MODULE}-{序号}`（例如 `TC-REG-001`）
+- **测试用例 ID**：`TC-{MODULE}-NNN`（例如 `TC-USER-001`，序号固定 3 位）
 
 #### Task ID
 - 格式：`TASK-{MODULE}-{序号}`（3 位数字或附加后缀）。例如：

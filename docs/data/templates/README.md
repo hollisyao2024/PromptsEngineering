@@ -72,6 +72,7 @@ templates/
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
 | `QA-TEMPLATE.md` | 主 QA 总纲与模块索引模板 | 所有项目 |
+| `PATHS-TEMPLATE.md` | 页面状态与操作路径模板（界面、状态、转移、路径与覆盖准则） | 有页面或客户端界面的模块，启用业务测试自动化时 |
 | `TEST-STRATEGY-MATRIX-TEMPLATE.md` | 测试策略矩阵模板 | 测试类型、覆盖范围 |
 | `TEST-PRIORITY-MATRIX-TEMPLATE.md` | 测试优先级矩阵模板 | P0/P1/P2 测试用例分级 |
 | `TEST-RISK-MATRIX-TEMPLATE.md` | 测试风险矩阵模板 | 风险识别、缓解措施 |
@@ -81,6 +82,8 @@ templates/
 
 **注意**：
 - 模块级 QA 文档使用 `/docs/qa-modules/MODULE-TEMPLATE.md`
+- 页面状态与操作路径复制为 `docs/qa-modules/{domain}/PATHS.md`，`{domain}` 与 `docs/prd-modules/{domain}/` 同名；`pnpm agent -- qa paths` 校验引用、路径连通与覆盖准则
+- 测试用例统一使用 `TC-{MODULE}-NNN`，原子 AC 清单见 `/docs/prd-modules/MODULE-TEMPLATE.md` 附录 A
 - QA 报告归档到 `/docs/data/qa-reports/`
 
 ---

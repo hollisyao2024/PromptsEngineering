@@ -207,3 +207,30 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-CMDSURF-015 | AC-CMDSURF-015-04 | TC-CMDSURF-044 | Planned | 逐记录语义指纹 |
 | US-CMDSURF-016 | AC-CMDSURF-016-01 | TC-CMDSURF-045 | Planned | update/template-sync 夹具 |
 | US-CMDSURF-016 | AC-CMDSURF-016-02 | TC-CMDSURF-046 | Planned | tdd-tick-codex.compat |
+
+## 业务测试自动化
+
+| Story ID | AC ID | Test Case ID | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| US-BIZTEST-001 | AC-BIZTEST-001-01 | TC-BIZTEST-001 | 已验证 | 原子 AC 清单解析与逐项报错；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-001 | AC-BIZTEST-001-02 | TC-BIZTEST-002 | 已验证 | PRD/QA 模板 `TC-` 统一与示例 AC 原子化扫描；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-002 | AC-BIZTEST-002-01 | TC-BIZTEST-003 | 已验证 | 路径模型解析；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-002 | AC-BIZTEST-002-02 | TC-BIZTEST-004 | 已验证 | 引用不存在与转移不衔接的阻断；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-002 | AC-BIZTEST-002-03 | TC-BIZTEST-005 | 已验证 | 覆盖准则缺口与 P0 AC 无转移关联的阻断；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-002 | AC-BIZTEST-002-04 | TC-BIZTEST-006 | 已验证 | 覆盖矩阵与计数输出；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-003 | AC-BIZTEST-003-01 | TC-BIZTEST-007 | 已验证 | 套件运行、退出码、产物哈希与缺报告不掩盖；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-003 | AC-BIZTEST-003-02 | TC-BIZTEST-008 | 已验证 | JUnit 解析与按 AC/TC 标识绑定；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-003 | AC-BIZTEST-003-03 | TC-BIZTEST-009 | 已验证 | `ac-results.json` 字段与落盘位置；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-003 | AC-BIZTEST-003-04 | TC-BIZTEST-010 | 已验证 | 按端分别记录；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-01 | TC-BIZTEST-011 | 已验证 | P0 自动化 AC 无绑定、失败、仅跳过的阻断；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-02 | TC-BIZTEST-012 | 已验证 | 缺失、过期与哈希不符的阻断；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-03 | TC-BIZTEST-013 | 已验证 | 默认关闭时既有行为不变；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-04 | TC-BIZTEST-014 | 已验证 | 低优先级与 manual AC 的风险披露；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-05 | TC-BIZTEST-015 | 已验证 | 每个声明端须各有通过用例；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-004 | AC-BIZTEST-004-06 | TC-BIZTEST-016 | 已验证 | 覆盖准则须由通过的路径满足；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-005 | AC-BIZTEST-005-01 | TC-BIZTEST-017 | 已验证 | 预言机来源规则内容扫描；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-005 | AC-BIZTEST-005-02 | TC-BIZTEST-018 | 已验证 | 路径推导、覆盖准则与测试设计技术内容扫描；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-005 | AC-BIZTEST-005-03 | TC-BIZTEST-019 | 已验证 | 刷新策略不覆盖已评审用例；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-005 | AC-BIZTEST-005-04 | TC-BIZTEST-020 | 已验证 | 四个角色文件同步扫描；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-006 | AC-BIZTEST-006-01 | TC-BIZTEST-021 | 已验证 | 故意破坏夹具使门禁变红、恢复后变绿；[QA](../qa-modules/business-testing/QA.md) |
+| US-BIZTEST-006 | AC-BIZTEST-006-02 | TC-BIZTEST-022 | 已验证 | manifest 所有权登记与项目文档不被覆盖；[QA](../qa-modules/business-testing/QA.md) |

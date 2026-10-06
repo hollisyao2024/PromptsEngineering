@@ -25,6 +25,7 @@
   - `/docs/arch-modules/{domain}/ARCH.md`
   - `/docs/task-modules/{domain}/TASK.md`
   - `/docs/qa-modules/{domain}/priority-matrix.md`、`nfr-tracking.md`、`defect-log.md`（模块级测试优先级、NFR 验证与缺陷回流）
+  - `/docs/qa-modules/{domain}/PATHS.md`（页面状态与操作路径；启用业务测试自动化时由 QA 维护，用例规格以 PRD 原子 AC 表为准）
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（用于验证需求覆盖率与测试通过率）。
 - **全局测试数据**（QA 专家维护，按需引用）：`/docs/data/test-strategy-matrix.md`、`/docs/data/test-priority-matrix.md`、`/docs/data/test-risk-matrix.md`
 
@@ -35,6 +36,8 @@
 | 快捷命令 | 模板脚本入口 | 可选 package alias |
 |---------|---------|---------|
 | `/qa plan` | `pnpm agent -- qa plan` | `pnpm run qa:generate` |
+| `/qa paths` | `pnpm agent -- qa paths` | — |
+| `/qa run` | `pnpm agent -- qa run` | — |
 | `/qa verify` | `pnpm agent -- qa verify` | `pnpm run qa:verify` |
 | `/qa merge` | `pnpm agent -- qa merge` | `pnpm run qa:merge` |
 
@@ -44,7 +47,10 @@
 - `/qa plan`：按治理或日常流程读取适用输入，形成测试范围、用例和策略并记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。
   - **自动串联**（从 TDD 触发）：→ 智能测试编写 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
-- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。
+  - **保留边界**：只重新生成带 `QA-GENERATED` 标记的文档；`PATHS.md`、业务测试套件与已评审的 TC 行不会被生成或覆盖，刷新规则见 §业务测试自动化。
+- `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
+- `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。
+- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。
 - `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 release 配置发布 → 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
 
 ## 输出
@@ -69,7 +75,7 @@
 ## 执行规范
 
 ### 测试代码职责（QA 编写并执行）
-- **E2E 测试**（`e2e/tests/*.e2e.spec.ts`）：基于 `/qa plan` 的 Given-When-Then 规格，用 Playwright 编写用户路径脚本
+- **E2E 测试**（`e2e/tests/*.e2e.spec.ts`）：基于 PRD 原子 AC 表的 Given-When-Then 与 `PATHS.md` 的路径，用 Playwright 编写用户路径脚本；测试名携带 AC/TC 标识
   - 策略：Page Object Model + Fixtures；API 驱动创建测试数据（非 UI）；P0/P1 场景优先
   - 工具按项目选型；使用 Playwright 时可在本地分片执行，保留首次失败证据，重试不得掩盖回归。
 - **性能测试**（`perf/scenarios/*.k6.ts`）：基于 ARCH/PRD 的 NFR 指标，编写 k6 场景脚本
@@ -95,6 +101,13 @@
 - **无障碍测试**：验证 WCAG 2.1 AA 标准（对比度、键盘可达性、屏幕阅读器兼容、语义化 HTML）；数值目标取根目录 `DESIGN.md`（存在且含 YAML front matter）的 Accessibility，否则取 UX 规范 §5 补充的取值，仍无则按 WCAG 2.1 AA 默认阈值。
 - **设计还原度测试**：根目录 `DESIGN.md` 存在且含 YAML front matter 时对照它（及 UX 规范）验证间距、色彩、排版、响应式断点；否则回退 UX 规范 §5 与 `styles.css`。
 
+### 业务测试自动化（启用 `qa.business` 的项目）
+- **规格来源**：用例规格取自 PRD 原子 AC 表（`/docs/prd-modules/{domain}/` 的 AC 清单）；`PATHS.md` 只引用 AC 与 TC，不复制 Given/When/Then。
+- **预言机**：预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。
+- **路径与用例**：先推导 `PATHS.md` 并运行 `pnpm agent -- qa paths` 至 `STATUS=OK`，P0 路径须评审；再按覆盖准则与用例预算编写自动化用例，测试名携带 AC/TC 标识。
+- **执行顺序**：提交全部改动后运行 `pnpm agent -- qa run`（须在最后一次提交之后），再运行 `pnpm agent -- qa verify`；判定顺序与阻断码速查见 Playbook §业务测试自动化。
+- **刷新**：刷新只新增或提出差异，不覆盖已评审用例；`PATHS.md`、业务测试套件与已评审的 TC 行由 QA 维护，其他专家通过评审提出修改。
+
 ### 智能测试编写规则（自动串联模式）
 
 当 QA 从 TDD 自动串联激活时，**默认不新增测试代码**，复用有效证据或运行受影响的现有用例；完整交付 diff（相对 `origin/<config.baseBranch>`）语义命中下列风险域时，先核实已有测试，补齐对应覆盖缺口：
@@ -109,6 +122,8 @@
 | hotfix 分支 / 回归 P0 生产缺陷 | 回归 E2E | 1 条复现原缺陷场景 |
 
 **多域并集**：同一变更命中多行则全部触发。
+
+**启用 `qa.business` 的功能域**：用户可见 UI 流程以 PRD 原子 AC 与 `PATHS.md` 的覆盖准则为准，由业务验收门禁判定，不按上表“1 条”下限取舍。
 
 **无命中场景**（纯重构 / 重命名 / 注释 / 文档 / 样式微调 / 内部工具函数 / 配置只读项 / 测试代码自身修改）：**跳过新增 QA 测试**，按实际影响运行定向检查或复用有效证据；仍须追踪共享工具和配置的消费者，不以文件类别代替影响分析。
 
@@ -176,6 +191,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 - QA 主档与模块文档按模板记录稳定策略、用例、缺陷与发布建议；执行结果可追溯至本次 QA 证据
 - 治理流程中 PRD、ARCH、TASK、QA 四套模块清单的模块集合一致；日常流程核对适用的已有文档
 - 追溯矩阵的 Story/AC/Test Case ID 映射准确；本次 Pass/Fail/Blocked 与缺陷 ID 可在 QA 证据中追溯
+- 启用 `qa.business` 时：PRD 原子 AC 表与 `PATHS.md` 经 `pnpm agent -- qa paths` 校验为 `STATUS=OK`，自动化用例的测试名携带 AC/TC 标识，`pnpm agent -- qa run` 在最后一次提交之后运行，`qa verify` 的业务验收门禁通过且 `BUSINESS_RISK=` 披露项已评审
 - 发布建议已明确（Go/Conditional/No-Go），适用本地门禁通过，QA 回执绑定当前 base/head SHA。
 - 在 QA 回执和任务 state 中记录 `QA_VALIDATED` 结论
 - 详细验收清单见 Playbook §QA 验收检查清单
@@ -189,6 +205,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 
 ## QA 模板
 - 复制 `/docs/data/templates/qa/QA-TEMPLATE.md` 到 `/docs/QA.md` 作为总纲，并按 `/docs/qa-modules/MODULE-TEMPLATE.md` 为每个功能域生成模块 QA。
+- 业务测试自动化：复制 `/docs/data/templates/qa/PATHS-TEMPLATE.md` 到 `/docs/qa-modules/{domain}/PATHS.md`（`{domain}` 与 `/docs/prd-modules/{domain}/` 同名）。
 
 ## ADR 触发规则（QA 阶段）
 - 发现重要质量取舍（如：测试策略变更、NFR 指标调整、发布标准修订）→ 新增 ADR；状态 `Proposed/Accepted`。
@@ -196,3 +213,4 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 ## 参考资源
 - Handbook: /AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md（详尽流程、模板与指标请查阅 Handbook）
 - Module template: /docs/qa-modules/MODULE-TEMPLATE.md
+- 业务测试自动化：Playbook §业务测试自动化（预言机、路径推导、覆盖准则、用例预算、阻断码速查）

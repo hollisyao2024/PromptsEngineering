@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-06：[ADR 038](038-arch-business-test-automation.md)，业务测试采用创作期推导、脚本期确定性判定：原子 AC、路径模型与 JUnit/AC 标识绑定的结果证据，`qa verify` 业务门禁默认关闭。
+
 - 2026-10-06：[ADR 037](037-arch-ui-design-contract.md)，根目录 DESIGN.md 作为项目所有的界面视觉契约，骨架由作业包提供，仅在专家阶段按需点读。
 
 - 2026-10-04：[ADR 036](036-arch-fixed-commit-merge-evidence.md)，默认严格、显式固定提交集成、逐记录语义指纹与独立发布判定。

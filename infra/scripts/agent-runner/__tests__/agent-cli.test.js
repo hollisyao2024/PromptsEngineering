@@ -98,6 +98,36 @@ test('unified agent CLI routes tdd commit to the GH_TOKEN-identity commit entry 
   assert.match(lines.join('\n'), /tdd <sync\|push\|commit\|finish\|guard>/u);
 });
 
+test('AC-BIZTEST-001-01 / TC-BIZTEST-001: unified agent CLI routes qa paths and qa run to the business-test entries and lists them in help', () => {
+  const { main } = require('../agent-cli');
+  assert.deepEqual(resolveCommand(['qa', 'paths']), {
+    script: 'infra/scripts/qa-tools/qa-paths.js',
+    args: [],
+  });
+  assert.deepEqual(resolveCommand(['qa', 'run']), {
+    script: 'infra/scripts/qa-tools/qa-run.js',
+    args: [],
+  });
+  assert.deepEqual(resolveCommand(['--', 'qa', 'run', '--help']), {
+    script: 'infra/scripts/qa-tools/qa-run.js',
+    args: ['--help'],
+  });
+  assert.deepEqual(resolveCommand(['qa', 'verify']), {
+    script: 'infra/scripts/qa-tools/qa-verify.js',
+    args: [],
+  });
+
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    assert.equal(main(['--help']), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.match(lines.join('\n'), /qa <plan\|paths\|run\|verify\|merge>/u);
+});
+
 test('private service shortcut only accepts lifecycle actions', () => {
   assert.throws(() => resolveCommand(['private', 'unknown']), /private requires/u);
 });

@@ -554,6 +554,46 @@ pnpm run qa:check-defect-blockers
    /docs/data/qa-reports/release-gate-2025-11-06.md
 ```
 
+### 7. 业务测试自动化（`qa paths` / `qa run` / 业务验收门禁）
+
+面向有页面或客户端界面的功能域：PRD 原子 AC 表是唯一规格来源，界面状态、操作路径与用例由模型在创建阶段推导和编写，脚本只做确定性的校验、运行、绑定与把关。预言机来源、路径推导、覆盖准则、用例预算与刷新策略见 [QA Playbook「业务测试自动化」](../../AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md)。
+
+```bash
+# 只读：校验原子 AC 表与 docs/qa-modules/<domain>/PATHS.md，输出 AC/路径追溯矩阵
+pnpm agent -- qa paths
+
+# 运行 agent.config.json 的 qa.business.suites，把 JUnit XML 报告绑定到 AC/TC/路径
+pnpm agent -- qa run
+```
+
+说明：
+- `qa paths` 不创建目录、不运行测试；存在违规时 `STATUS=BLOCKED` 且退出码非零，逐条输出 `VIOLATION=<code>|<位置>|<说明>`，并给出 `MATRIX_AC=`、`MATRIX_PATH=` 追溯行。
+- `qa run` 逐个套件运行命令（在仓库根目录经 shell 执行），读取各套件的 JUnit XML；测试名须携带 AC/TC 标识才能绑定到原子 AC。结果写入容器 `tmp/qa-business-results/<工作区标识>/ac-results.json`，绑定当前 HEAD、配置摘要与报告 SHA256，并输出 `SUITE=` 行与 `RESULTS_FILE=`。该命令不受 `qa.business.enabled` 影响。
+- 须在最后一次提交之后运行，且工作区干净：报告、截图等驱动产物请加入 `.gitignore`，否则门禁报 `RESULTS_DIRTY_WORKTREE`；运行之后再提交则报 `RESULTS_STALE_HEAD`。
+- `qa.business.enabled=true`（默认 `false`）时，`qa verify` 在测试范围校验之后、签发回执之前运行业务验收门禁：输出 `BUSINESS_GATE=PASS|BLOCKED`，阻断项为 `BUSINESS_BLOCK=`，风险项为 `BUSINESS_RISK=`；阻断时不签发回执。官方息壤源自身不启用该门禁。
+
+配置示例（写入项目 `agent.config.json`，只保存与默认值不同的键）：
+
+```json
+{
+  "qa": {
+    "business": {
+      "enabled": true,
+      "requiredPriorities": ["P0"],
+      "suites": [
+        {
+          "name": "web-e2e",
+          "platform": "web",
+          "command": "pnpm exec playwright test",
+          "report": "reports/business/web-e2e.xml",
+          "timeoutSeconds": 900
+        }
+      ]
+    }
+  }
+}
+```
+
 ---
 
 ## 📋 所有可用命令
@@ -566,6 +606,12 @@ pnpm run qa:check-defect-blockers
 | `pnpm run qa:sync-prd-qa-ids` | PRD ↔ QA ID 同步验证 | ⭐⭐⭐ |
 | `pnpm run qa:check-defect-blockers` | 缺陷阻塞检查 | ⭐⭐⭐ |
 | `pnpm run qa:generate-test-report` | 测试报告生成 | ⭐⭐⭐ |
+
+### 业务测试自动化（可选，启用 `qa.business` 时）
+| 命令 | 说明 | 优先级 |
+|------|------|--------|
+| `pnpm agent -- qa paths` | 校验原子 AC 表与 `PATHS.md`，输出 AC/路径追溯矩阵（只读） | ⭐⭐ |
+| `pnpm agent -- qa run` | 运行 `qa.business.suites`，把报告绑定到原子 AC/TC/路径并写入结果文件 | ⭐⭐ |
 
 ---
 
@@ -604,6 +650,8 @@ pnpm agent -- qa merge
 
 `qa verify` 通过后会在当前电脑原子写入绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执。`qa merge` 会重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；任一 SHA 漂移、冲突或主干非快进拒绝都会停止合并并保留恢复状态。回执不跨电脑共享：换电脑合并时，在该电脑重新执行 `qa verify` 即可，不需要专用 QA 电脑或账号。
 
+启用 `qa.business` 的项目在 `qa verify` 之前依次运行 `pnpm agent -- qa paths` 与 `pnpm agent -- qa run`（见上文第 7 节）；业务验收门禁同样只在本机运行，结果不跨电脑共享，换电脑后须重新 `qa run`。
+
 ---
 
 ## 📊 脚本状态
@@ -615,6 +663,12 @@ pnpm agent -- qa merge
 | sync-prd-qa-ids.js | ✅ 已实现 | v1.0 | PRD ↔ QA ID 同步验证 |
 | generate-test-report.js | ✅ 已实现 | v1.0 | 测试报告生成 |
 | check-defect-blockers.js | ✅ 已实现 | v1.0 | 缺陷阻塞检查 |
+| business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用） |
+| qa-paths.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa paths`：规格校验与追溯矩阵 |
+| business-config.js | ✅ 已实现 | v1.0 | 解析并校验 `qa.business` 配置 |
+| qa-run.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa run`：运行套件、解析 JUnit XML、写入结果 |
+| business-results.js | ✅ 已实现 | v1.0 | 把用例绑定到 AC/TC/路径并判定验收 |
+| qa-business-gate.js | ✅ 已实现 | v1.0 | `qa verify` 的业务验收门禁 |
 
 ---
 
@@ -725,6 +779,12 @@ chmod +x infra/scripts/qa-tools/*.js
 - 关键 NFR 未达标（性能、安全）
 - P0 用例通过率 < 100%
 - 总体通过率 < 90%
+
+### Q8: 业务验收门禁报 `RESULTS_DIRTY_WORKTREE` 或 `RESULTS_STALE_HEAD`？
+**A**: 结果文件绑定运行时的 HEAD 与工作区状态：
+1. `RESULTS_DIRTY_WORKTREE`：`qa run` 时工作区有未提交改动，常见原因是报告被跟踪或未忽略。把报告输出路径加入 `.gitignore`（已跟踪的先 `git rm --cached`），提交其余改动后重新运行 `pnpm agent -- qa run`
+2. `RESULTS_STALE_HEAD`：运行之后又有新提交，在最后一次提交之后重新运行 `pnpm agent -- qa run`
+3. 其余阻断码与风险码的含义和处理见 QA Playbook「业务测试自动化」一章的速查表
 
 ---
 

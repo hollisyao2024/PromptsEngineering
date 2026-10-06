@@ -31,6 +31,7 @@ const {
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
 const { verifyTestScopeEvidence } = require('./qa-test-scope');
+const { verifyBusinessAcceptance } = require('./qa-business-gate');
 const { exitOnHelp } = require('../shared/cli-help');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
@@ -610,6 +611,18 @@ function runSessionVerify(args) {
   return summary.exitCode;
 }
 
+// 业务验收门禁：qa.business 启用时复验 `qa run` 写出的结果，阻断则返回 false（调用方不得签发回执）；
+// 未启用时什么都不读、不输出。
+function passesBusinessGate({ config, mainRoot, headSha }) {
+  const gate = verifyBusinessAcceptance({ repoRoot, mainRoot, config, headSha });
+  if (!gate.enabled) return true;
+  for (const line of gate.lines) {
+    log(line, line.startsWith('BUSINESS_RISK=') ? 'yellow' : gate.blocked ? 'red' : 'green');
+  }
+  if (gate.blocked) log('业务验收未通过，回执未签发。', 'red');
+  return !gate.blocked;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -642,18 +655,21 @@ function main() {
       });
       if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
       else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
+      if (!passesBusinessGate({ config, mainRoot, headSha: receipt.head_sha })) exitCode = 1;
     }
-    const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
-    log(`QA_RECEIPT=${receiptPath}`, 'green');
-    log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
-    log(`BASE_SHA=${receipt.base_sha}`, 'gray');
-    log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
+    if (exitCode === 0) {
+      const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
+      log(`QA_RECEIPT=${receiptPath}`, 'green');
+      log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
+      log(`BASE_SHA=${receipt.base_sha}`, 'gray');
+      log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
+    }
   }
   process.exit(exitCode);
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name>]\n\nRun QA verification and write the local base/head SHA receipt.');
+  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name>]\n\nRun QA verification and write the local base/head SHA receipt.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.');
   try {
     main();
   } catch (error) {

@@ -12,3 +12,4 @@
 | 多端 Monorepo 与 Prisma | @template-maintainers | [ARCH.md](monorepo-platform/ARCH.md) | 已定义 | [PRD.md](../prd-modules/monorepo-platform/PRD.md) |
 | Drizzle 数据访问 | @template-maintainers | [ARCH.md](drizzle/ARCH.md) | 已定义 | [PRD.md](../prd-modules/drizzle/PRD.md) |
 | 数据语义约定 | @template-maintainers | [ARCH.md](data-semantics/ARCH.md) | 已定义 | [PRD.md](../prd-modules/data-semantics/PRD.md) |
+| 业务测试自动化 | @template-maintainers | [ARCH.md](business-testing/ARCH.md) | 已定义 | [PRD.md](../prd-modules/business-testing/PRD.md) |
