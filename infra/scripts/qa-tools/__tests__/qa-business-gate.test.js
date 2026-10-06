@@ -922,6 +922,20 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时按启用处
   }
 });
 
+test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 开关键拼错时（合并默认值后 enabled 仍为 false）按启用处理并阻断，不会悄悄关闭门禁', (t) => {
+  const s = scenarioFor(t);
+  prepare(s);
+
+  for (const [key, patch] of [['enable', { enable: true }], ['requiredPriority', { requiredPriority: ['P0', 'P1'] }]]) {
+    const result = verifyBusinessAcceptance(verifyOptions(s, { config: withBusiness(s, { enabled: false, ...patch }) }));
+    assert.equal(result.enabled, true, key);
+    assert.equal(result.blocked, true, key);
+    const [invalid] = blocksOf(result.outcome, 'CONFIG_INVALID');
+    assert.ok(invalid, result.lines.join('\n'));
+    assert.equal(invalid.subject, `qa.business.${key}`);
+  }
+});
+
 test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 入参不合法或读取配置出错时接入函数按阻断处理（GATE_ERROR），不抛出异常', () => {
   const gateError = (result) => {
     assert.equal(result.enabled, true);

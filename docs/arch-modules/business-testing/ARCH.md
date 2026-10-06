@@ -332,7 +332,7 @@ AC ID | Story | 优先级 | 验证 | 端 | Given | When | Then | TC
 
 | 键 | 默认 | 约束 |
 | --- | --- | --- |
-| `enabled` | `false` | 仅布尔，非布尔值按开启处理并报 `CONFIG_INVALID`；只控制 `qa verify` 门禁，`qa run` 不受其影响 |
+| `enabled` | `false` | 仅布尔；非布尔值，或 `qa.business` 下出现未知键（如拼错的 `enable`）时按开启处理并报 `CONFIG_INVALID`——配置合并模板默认值后 `enabled` 恒为 `false`，无法区分显式关闭与缺省，未知键一律不能当作关闭；只控制 `qa verify` 门禁，`qa run` 不受其影响 |
 | `requiredPriorities` | `["P0"]` | `P0`–`P3` 的非空子集，去重并排序 |
 | `suites[].name` | 必填 | `[a-z][a-z0-9-]*`，套件间唯一 |
 | `suites[].platform` | `-` | `-` 或单个端标签 |
@@ -342,7 +342,7 @@ AC ID | Story | 优先级 | 验证 | 端 | Given | When | Then | TC
 
 配置摘要为 `sha256:` 加 `requiredPriorities` 与 `suites`（含全部字段，键序规范化）的 JSON 摘要，不含 `enabled`。命令中不应写入密钥；跨平台输出路径建议配置在驱动自己的配置文件里，而不是在命令里内联环境变量赋值。
 
-套件含未知键、套件名重复均报 `CONFIG_INVALID`；`report` 路径不要求互不相同，因为每个套件运行后立即读取其报告。
+`qa.business` 或套件含未知键、套件名重复均报 `CONFIG_INVALID`；`report` 路径不要求互不相同，因为每个套件运行后立即读取其报告。
 
 ## 5. 数据设计
 

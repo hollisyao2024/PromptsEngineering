@@ -228,3 +228,14 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时 qa verify �
   assert.ok(has(verify, /^BUSINESS_BLOCK=CONFIG_INVALID\|qa\.business\.enabled\|/u), verify.text);
   assert.equal(fs.existsSync(receiptPath(s)), false);
 });
+
+test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 开关键拼错（enable）时 qa verify 按启用处理并阻断（CONFIG_INVALID），不会悄悄跳过门禁并签发回执', (t) => {
+  const s = scenarioFor(t);
+  // 项目配置里只有拼错的 enable、没有 enabled（JSON 序列化会丢弃 undefined）；加载配置时模板默认值把 enabled 补成 false。
+  readyForVerify(s, { business: { enabled: undefined, enable: true }, run: false });
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  assert.ok(has(verify, /^BUSINESS_BLOCK=CONFIG_INVALID\|qa\.business\.enable\|/u), verify.text);
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});

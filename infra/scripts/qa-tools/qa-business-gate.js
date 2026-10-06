@@ -530,7 +530,8 @@ function formatBusinessGate(outcome) {
 
 // qa.business 缺省或 enabled=false 时返回静默结果：不读规格与结果，也不产生任何输出行，行为同接入前一致。
 // 启用后复验并返回可直接打印的 BUSINESS_* 输出行与判定（blocked 为 true 时调用方不得签发回执）。
-// enabled 不是布尔值按启用处理（由 CONFIG_INVALID 阻断）；入参不合法、配置不可读等内部错误一律是 GATE_ERROR，不向调用方抛出。
+// enabled 不是布尔值，或 qa.business 下出现未知键（如拼错的 enable），按启用处理（由 CONFIG_INVALID 阻断）；
+// 入参不合法、配置不可读等内部错误一律是 GATE_ERROR，不向调用方抛出。
 function verifyBusinessAcceptance(options) {
   try {
     if (!isObject(options)) throw new TypeError('verifyBusinessAcceptance 需要选项对象 { repoRoot, config, headSha }');

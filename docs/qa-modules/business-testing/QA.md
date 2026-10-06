@@ -34,7 +34,7 @@ Node v24.19.0、pnpm 10.18.3、git 2.50.1；macOS arm64（Darwin 25.5.0）。零
 | US-BIZTEST-003 / AC-BIZTEST-003-04 | TC-BIZTEST-010 | P1 | 每条 AC 按端分别记录；声明的端没有套件时记为缺失 | business-results | Pass |
 | US-BIZTEST-004 / AC-BIZTEST-004-01 | TC-BIZTEST-011 | P0 | 无绑定用例、失败或仅有跳过，均 `AC_NOT_PROVEN`；`qa verify` 阻断且不签发回执 | qa-business-gate、qa-verify-business | Pass |
 | US-BIZTEST-004 / AC-BIZTEST-004-02 | TC-BIZTEST-012 | P0 | 结果缺失、HEAD 漂移、脏工作区、配置漂移、报告被篡改、聚合不符，均阻断并提示重新 `qa run` | qa-business-gate、qa-verify-business、business-config | Pass |
-| US-BIZTEST-004 / AC-BIZTEST-004-03 | TC-BIZTEST-013 | P0 | 默认关闭时输出、退出码与回执同接入前，不读取结果目录；模板源仓库跳过 | qa-verify-business、qa-business-gate、business-config | Pass |
+| US-BIZTEST-004 / AC-BIZTEST-004-03 | TC-BIZTEST-013 | P0 | 默认关闭时输出、退出码与回执同接入前，不读取结果目录；模板源仓库跳过；`enabled` 非布尔或 `qa.business` 下出现未知键（如拼错的 `enable`）时按开启处理并 `CONFIG_INVALID` 阻断，不静默跳过 | qa-verify-business、qa-business-gate、business-config | Pass |
 | US-BIZTEST-004 / AC-BIZTEST-004-04 | TC-BIZTEST-014 | P1 | 低于必需优先级与 `manual` 仅作风险披露；`requiredPriorities` 可配置 | qa-business-gate、business-config | Pass |
 | US-BIZTEST-004 / AC-BIZTEST-004-05 | TC-BIZTEST-015 | P1 | 声明的每个端须各自通过且无失败，否则阻断 | qa-business-gate、business-results | Pass |
 | US-BIZTEST-004 / AC-BIZTEST-004-06 | TC-BIZTEST-016 | P1 | 声明的覆盖准则须由通过的路径满足，否则 `PATH_COVERAGE_GAP` | qa-business-gate | Pass |
@@ -45,13 +45,13 @@ Node v24.19.0、pnpm 10.18.3、git 2.50.1；macOS arm64（Darwin 25.5.0）。零
 | US-BIZTEST-006 / AC-BIZTEST-006-01 | TC-BIZTEST-021 | P0 | 闭环：基线全绿，逐个破坏后变红并给出对应错误码且不签发回执，恢复后重新变绿；伪造被识破；确定性；500 AC/2000 用例规模；安全；本仓 PRD 自检 | business-closed-loop | Pass |
 | US-BIZTEST-006 / AC-BIZTEST-006-02 | TC-BIZTEST-022 | P0 | 新增模板自有文件均登记所有权策略；项目自有目录仅 MODULE-TEMPLATE 例外；应用到既有项目只新增模板文件并收敛 | business-templates、business-closed-loop | Pass |
 
-边界：缺列、空字段、重复与非法 ID、未知引用、不衔接路径、空路径、覆盖缺口；无绑定、仅跳过、失败、无标识与规格外标识用例；超时、无法启动、缺报告、报告路径逃逸与符号链接、DOCTYPE 与外部实体；结果缺失、HEAD 漂移、脏工作区、配置漂移、报告被篡改；功能关闭与模板源仓库。
+边界：缺列、空字段、重复与非法 ID、未知引用、不衔接路径、空路径、覆盖缺口；无绑定、仅跳过、失败、无标识与规格外标识用例；超时、无法启动、缺报告、报告路径逃逸与符号链接、DOCTYPE 与外部实体；结果缺失、HEAD 漂移、脏工作区、配置漂移、报告被篡改；功能关闭与模板源仓库；开关键拼错。
 
 ## 4. 功能与兼容结果
 
 | 验证 | 结果 | 范围 |
 | --- | --- | --- |
-| 业务测试 10 个文件 | 415 项 Pass | business-spec 55、qa-paths 29、business-config 49、business-results 122、qa-run 35、qa-business-gate 51、qa-verify-business 10、business-closed-loop 28、business-templates 14、business-guidance 22 |
+| 业务测试 10 个文件 | 420 项 Pass | business-spec 55、qa-paths 29、business-config 52、business-results 122、qa-run 35、qa-business-gate 52、qa-verify-business 11、business-closed-loop 28、business-templates 14、business-guidance 22 |
 | 接线与既有 qa 回归 | agent-cli 7、qa-verify 8、qa-verification-state 3，全部 Pass | `qa paths`/`qa run` 路由、门禁接入、回执签发 |
 | 模板与协议守卫 | template-surface 49、agent-state-removed 4、multi-host-policy 4、rules-context-contract 3、workflow-continuation 9，全部 Pass | 篇幅上限、既有措辞、禁用 GitHub CI 口径、所有权清单 |
 | 受影响范围回归 | 全部 Pass | qa-tools、agent-runner、setup、shared、tdd-tools 既有套件与模板分发守卫；命令、范围与退出码见任务证据中的 TEST_SCOPE_RESULT |
@@ -59,7 +59,7 @@ Node v24.19.0、pnpm 10.18.3、git 2.50.1；macOS arm64（Darwin 25.5.0）。零
 | 本仓自检 | `qa paths` 返回 `STATUS=OK` | 本模块 PRD 的 22 条原子 AC 与 22 个用例逐条可查 |
 | 版本一致 | 模板 3.9.0 | package.json、agent/manifest.json 与 template.manifest.json 三处一致 |
 
-各行为独立文件的实测数，415 仅指业务测试 10 个文件；变异抽查为手工执行，不属于模板分发的常规套件。变异抽查中曾存活的变异体已通过加强断言消除，复查后全部被杀死。
+各行为独立文件的实测数，420 仅指业务测试 10 个文件；变异抽查为手工执行，不属于模板分发的常规套件。变异抽查中曾存活的变异体已通过加强断言消除，复查后全部被杀死。
 
 ## 5. 非功能与安全
 

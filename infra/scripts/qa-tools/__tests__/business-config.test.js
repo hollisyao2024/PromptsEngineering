@@ -173,7 +173,13 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 门禁关闭时其余字段的问题�
   assert.deepEqual(fields(resolved), ['qa.business.suites[0].name']);
 });
 
-for (const [label, business] of [['enabled 不是布尔', { enabled: 'false' }], ['qa.business 不是对象', 'off']]) {
+// 加载配置时模板默认值已补上 enabled=false，开关键拼错（enable）后 enabled 不会缺省，所以未知键本身就要触发 fail-closed。
+for (const [label, business] of [
+  ['enabled 不是布尔', { enabled: 'false' }],
+  ['qa.business 不是对象', 'off'],
+  ['开关键拼错（合并默认值后 enabled=false 且多出 enable）', { enabled: false, enable: true }],
+  ['其他字段拼错（requiredPriority）', { enabled: false, requiredPriority: ['P0', 'P1'] }],
+]) {
   test(`AC-BIZTEST-004-01 / TC-BIZTEST-011: 无法判读开关时按开启处理（fail-closed）← ${label}`, () => {
     const resolved = resolveBusinessConfig(configWith(business));
 
@@ -181,6 +187,14 @@ for (const [label, business] of [['enabled 不是布尔', { enabled: 'false' }],
     assert.equal(resolved.enabled, true);
   });
 }
+
+test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 显式关闭且键名都合法时，其余字段的问题仍不改变 enabled=false', () => {
+  const resolved = resolveBusinessConfig(configWith({ enabled: false, requiredPriorities: 'P0', suites: 'x' }));
+
+  assert.equal(resolved.ok, false);
+  assert.equal(resolved.enabled, false);
+  assert.deepEqual(fields(resolved).sort(), ['qa.business.requiredPriorities', 'qa.business.suites']);
+});
 
 test('AC-BIZTEST-003-01 / TC-BIZTEST-007: report 路径规范化为 POSIX 相对路径，等价写法摘要一致', () => {
   const plain = resolveBusinessConfig(configWith({ suites: [{ ...SUITE, report: 'out/junit.xml' }] }));

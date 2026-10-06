@@ -105,7 +105,8 @@ function digestOf(requiredPriorities, suites) {
 
 // 返回 { ok, enabled, requiredPriorities, suites, digest, errors:[{field,message}] }。
 // ok=false 时 requiredPriorities/suites 为默认空值、digest 为 null，调用方不得据此运行；
-// enabled 始终独立判读，无法判读（非布尔或 qa.business 非对象）时按 true 处理（fail-closed）。
+// enabled 始终独立判读，无法判读（非布尔、qa.business 非对象，或 qa.business 下出现未知键）时按 true 处理（fail-closed）。
+// 未知键也算无法判读：loadConfig 合并模板默认值后 enabled 恒为 false，开关键拼错（如 enable）不会让 enabled 缺省，只能靠未知键本身触发。
 function resolveBusinessConfig(config) {
   const qa = isObject(config) ? config.qa : undefined;
   const raw = isObject(qa) ? qa.business : undefined;
@@ -132,7 +133,9 @@ function resolveBusinessConfig(config) {
       }
     }
     for (const key of Object.keys(raw)) {
-      if (!BUSINESS_KEYS.includes(key)) fail(`${FIELD}.${key}`, `未知配置项，仅支持 ${BUSINESS_KEYS.join('、')}`);
+      if (BUSINESS_KEYS.includes(key)) continue;
+      fail(`${FIELD}.${key}`, `未知配置项，仅支持 ${BUSINESS_KEYS.join('、')}（可能是拼写错误；存在未知配置项时 qa verify 按已开启处理并阻断）`);
+      enabled = true;
     }
   }
 
