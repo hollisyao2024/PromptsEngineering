@@ -357,6 +357,9 @@ test('lookupGitHubCommitIdentity throws a clear Chinese error and never falls ba
     { result: { status: 0, stdout: 'not json at all' }, expect: /无法解析/u },
     { result: { status: 0, stdout: `${JSON.stringify({ ok: true, name: 'Octo Cat' })}\n` }, expect: /无法解析/u },
     { result: { error: new Error('spawn EACCES'), status: null }, expect: /无法启动/u },
+    { result: { status: 3, stdout: '', stderr: 'boom: probe crashed\n' }, expect: /异常退出（退出码 3）：boom: probe crashed$/u },
+    { result: { status: 1, stdout: '', stderr: `fatal: bad ${TOKEN} here` }, expect: /异常退出（退出码 1）：fatal: bad \*\*\* here$/u },
+    { result: { status: null, signal: 'SIGKILL', stdout: '', stderr: '' }, expect: /异常退出（信号 SIGKILL）$/u },
   ];
 
   for (const { result, expect } of failures) {
