@@ -25,7 +25,7 @@ function fixture(t) {
   return { root, source, target, cacheRoot };
 }
 
-test('TC-LAZYARCH-004 source is content pinned, cache hits are offline, missing cache can be reconstructed', t => {
+test('source is content pinned, cache hits are offline, missing cache can be reconstructed', t => {
   const f = fixture(t), descriptor = describeSource(f.source).descriptor;
   const first = resolveSource({ ...f, descriptor }); assert.equal(first.cacheStatus, 'PREPARED');
   assert.ok(!fs.existsSync(path.join(f.target, 'architecture')));
@@ -38,7 +38,7 @@ test('TC-LAZYARCH-004 source is content pinned, cache hits are offline, missing 
   assert.deepEqual(describeSource(rebuilt.sourceRoot).descriptor, descriptor);
 });
 
-test('TC-LAZYARCH-004 corrupt cache and mismatched source block without fallback or project writes', t => {
+test('corrupt cache and mismatched source block without fallback or project writes', t => {
   const f = fixture(t), descriptor = describeSource(f.source).descriptor, cached = resolveSource({ ...f, descriptor });
   fs.appendFileSync(path.join(cached.sourceRoot, 'tooling/xirang/example.js'), '// corrupt\n');
   assert.throws(() => resolveSource({ ...f, source: undefined, descriptor, fetchSnapshot() { assert.fail('must not hide corruption'); } }), /mismatch/);
@@ -47,7 +47,7 @@ test('TC-LAZYARCH-004 corrupt cache and mismatched source block without fallback
   assert.deepEqual(fs.readdirSync(f.target), []);
 });
 
-test('TC-LAZYARCH-004 source and cache symlinks and project-local cache are rejected', t => {
+test('source and cache symlinks and project-local cache are rejected', t => {
   const f = fixture(t), descriptor = describeSource(f.source).descriptor;
   assert.throws(() => resolveSource({ ...f, descriptor, cacheRoot: path.join(f.target, '.cache') }), /outside/);
   fs.symlinkSync(f.target, f.cacheRoot, process.platform === 'win32' ? 'junction' : 'dir');
@@ -57,7 +57,7 @@ test('TC-LAZYARCH-004 source and cache symlinks and project-local cache are reje
   assert.deepEqual(fs.readdirSync(f.target), []);
 });
 
-test('TC-LAZYARCH-004 anonymous transport fetches only pinned official SHA without inherited credentials', t => {
+test('anonymous transport fetches only pinned official SHA without inherited credentials', t => {
   const f = fixture(t), descriptor = { ...describeSource(f.source).descriptor, commit: 'a'.repeat(40) }, calls = [];
   fetchPinnedSnapshot({ directory: path.join(f.root, 'download'), descriptor, run(command, args, options) {
     calls.push(args); assert.equal(command, 'git'); assert.equal(options.shell, false);
@@ -71,7 +71,7 @@ test('TC-LAZYARCH-004 anonymous transport fetches only pinned official SHA witho
   assert.throws(() => fetchPinnedSnapshot({ directory: path.join(f.root, 'broken'), descriptor, run: () => ({ status: 1 }) }), /no fallback/);
 });
 
-test('TC-LAZYARCH-004 active cache writer blocks a second fill and interrupted preparation is retryable', t => {
+test('active cache writer blocks a second fill and interrupted preparation is retryable', t => {
   const f = fixture(t), descriptor = describeSource(f.source).descriptor;
   const lockDir = path.join(f.cacheRoot, 'locks', descriptor.integrity); fs.mkdirSync(lockDir, { recursive: true });
   withMutex(lockDir, () => assert.throws(() => resolveSource({ ...f, descriptor }), /another xirang writer/));
@@ -80,7 +80,7 @@ test('TC-LAZYARCH-004 active cache writer blocks a second fill and interrupted p
   assert.equal(resolveSource({ ...f, descriptor }).cacheStatus, 'PREPARED');
 });
 
-test('TC-LAZYARCH-004 a linked worktree resolves the shared container cache from the main repository', t => {
+test('a linked worktree resolves the shared container cache from the main repository', t => {
   const f = fixture(t), main = path.join(f.root, 'repo'), linked = path.join(f.root, 'worktrees/task'); fs.mkdirSync(main);
   function git(args) { const r = spawnSync('git', args, { cwd: main, encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); }
   git(['init', '--quiet']); git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '--quiet', '-m', 'fixture']);
@@ -89,7 +89,7 @@ test('TC-LAZYARCH-004 a linked worktree resolves the shared container cache from
   assert.throws(() => resolveSource({ ...f, target: linked, descriptor: describeSource(f.source).descriptor, cacheRoot: path.join(main, '.cache') }), /outside/);
 });
 
-test('TC-LAZYARCH-004 a non-Git target never resolves cache relative to the source tool checkout', t => {
+test('a non-Git target never resolves cache relative to the source tool checkout', t => {
   const f = fixture(t);
   assert.equal(containerPath(f.target, 'cache'), path.join(f.root, 'cache'));
   assert.equal(cacheLocation(f.target, describeSource(f.source).descriptor, f.root).root, f.root);

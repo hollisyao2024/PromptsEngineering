@@ -38,7 +38,7 @@ beforeEach(async()=>{await db.delete(tasks);});
 after(async()=>{if(server)await new Promise(resolve=>server.close(resolve));store.engine==='sqlite'?db.$client.close():await db.$client.end();});
 
 // Local single-concurrency smoke only; not a production capacity benchmark.
-test('TC-DRIZZLE-005 local API latency smoke preserves CRUD results',async t=>{
+test('local API latency smoke preserves CRUD results',async t=>{
  const crud=[],reads=[];
  const cycle=async i=>{const row=await client.create({title:'smoke-'+i,status:'todo'});const page=await client.list({pageSize:50});assert.ok(page.items.some(x=>x.id===row.id));const updated=await client.update(row.id,{title:row.title,status:'done',version:row.version});assert.equal(updated.version,row.version+1);assert.equal((await client.remove([row.id])).count,1);};
  for(let i=0;i<5;i++)await cycle(i);

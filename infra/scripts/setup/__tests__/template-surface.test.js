@@ -174,7 +174,7 @@ function headingBody(text, heading) {
   return lines.slice(start + 1, stop === -1 ? lines.length : stop).join('\n');
 }
 
-test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the accessibility targets', () => {
+test('DESIGN skeleton is compact, spec-shaped and carries the accessibility targets', () => {
   assert.ok(lineCount(DESIGN_TEMPLATE) <= 80, 'skeleton stays within 80 lines');
   const { data, rest, text } = parseDesignTemplate();
   assert.deepEqual(
@@ -193,7 +193,7 @@ test('TC-ARCHPLAT-015 DESIGN skeleton is compact, spec-shaped and carries the ac
   assert.doesNotMatch(text, TOUCH_TARGET_MISLABEL);
 });
 
-test('TC-ARCHPLAT-015 DESIGN skeleton tokens match the shadcn defaults and resolve their references', () => {
+test('DESIGN skeleton tokens match the shadcn defaults and resolve their references', () => {
   const { data, text } = parseDesignTemplate();
   assertComponentValuesAreStrings(data.components);
   const resolve = (ref) => ref.split('.').reduce((node, key) => (node && typeof node === 'object' ? node[key] : undefined), data);
@@ -220,14 +220,14 @@ test('TC-ARCHPLAT-015 DESIGN skeleton tokens match the shadcn defaults and resol
   assert.equal(data.typography.body.fontFamily, /font-family:\s*([^;]+);/u.exec(tokens)[1].trim());
 });
 
-test('TC-ARCHPLAT-015 unquoted token references are rejected', () => {
+test('unquoted token references are rejected', () => {
   const skeleton = read(DESIGN_TEMPLATE);
   const unquoted = skeleton.replace(/"(\{[A-Za-z0-9_.-]+\})"/gu, '$1');
   assert.notEqual(unquoted, skeleton, 'skeleton quotes its token references');
   assert.throws(() => assertComponentValuesAreStrings(parseDesignTemplate(unquoted).data.components), /is a string/u);
 });
 
-test('TC-ARCHPLAT-016 DESIGN skeleton is template-owned while the root DESIGN.md stays project-owned', () => {
+test('DESIGN skeleton is template-owned while the root DESIGN.md stays project-owned', () => {
   const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
   assert.deepEqual(
     manifest.rules.find((entry) => entry.path === DESIGN_TEMPLATE),
@@ -242,7 +242,7 @@ test('TC-ARCHPLAT-016 DESIGN skeleton is template-owned while the root DESIGN.md
   assert.match(readme, /根目录 `DESIGN\.md` 属项目文件/u);
 });
 
-test('TC-ARCHPLAT-016 UX, PRD and module templates point to DESIGN.md instead of repeating its values', () => {
+test('UX, PRD and module templates point to DESIGN.md instead of repeating its values', () => {
   const ux = read('docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md');
   assert.match(ux, /`DESIGN\.md`/u);
   for (const repeated of ['色彩系统', '排版系统', '间距系统', '其他视觉 Token', '--color-primary', '--space-md', '--radius-sm', '#XXXXXX', 'Mobile S', '4.5:1', '44×44']) {
@@ -261,7 +261,7 @@ test('TC-ARCHPLAT-016 UX, PRD and module templates point to DESIGN.md instead of
   for (const text of [prdTemplate, moduleTemplate, playbook]) assert.ok(!text.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
 });
 
-// AC-ARCHPLAT-015-03：PRD 负责建立；ARCH、TDD、QA 仅在根 DESIGN.md 存在且含 YAML front matter 时点读，否则回退 UX 规范 §5 与 styles.css
+// PRD 负责建立；ARCH、TDD、QA 仅在根 DESIGN.md 存在且含 YAML front matter 时点读，否则回退 UX 规范 §5 与 styles.css
 const DESIGN_BUILDERS = ['AgentRoles/PRD-WRITER-EXPERT.md', 'AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md'];
 const DESIGN_CONSUMERS = [
   'AgentRoles/Handbooks/ARCHITECTURE-WRITER-EXPERT.playbook.md',
@@ -274,7 +274,7 @@ const DESIGN_GATE = /存在[^\n]{0,8}YAML front matter/u;
 const DESIGN_FALLBACK = /回退 UX 规范 §5[^\n]*`styles\.css`/u;
 const ACCESSIBILITY_FALLBACK = /Accessibility[^\n]*WCAG 2\.1 AA 默认阈值/u;
 
-test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility', () => {
+test('DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility', () => {
   for (const file of DESIGN_BUILDERS) assert.ok(read(file).includes('DESIGN.md'), `${file} builds DESIGN.md`);
   assert.match(read('AgentRoles/PRD-WRITER-EXPERT.md'), /DESIGN-TEMPLATE\.md/u);
   for (const file of DESIGN_CONSUMERS) {
@@ -294,7 +294,7 @@ test('TC-ARCHPLAT-017 DESIGN.md is routed to PRD, ARCH, TDD and QA with their ow
   assert.match(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md'), /UI 实现约定/u);
 });
 
-test('TC-ARCHPLAT-017 accessibility targets keep a fallback when DESIGN.md is absent', () => {
+test('accessibility targets keep a fallback when DESIGN.md is absent', () => {
   for (const file of [
     'AgentRoles/QA-TESTING-EXPERT.md',
     'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
@@ -302,7 +302,7 @@ test('TC-ARCHPLAT-017 accessibility targets keep a fallback when DESIGN.md is ab
   ]) assert.match(read(file), ACCESSIBILITY_FALLBACK, `${file} falls back to WCAG 2.1 AA default thresholds without DESIGN.md`);
 });
 
-test('TC-ARCHPLAT-017 DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules', () => {
+test('DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules', () => {
   for (const file of [
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md',

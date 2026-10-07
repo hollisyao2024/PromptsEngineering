@@ -1,6 +1,6 @@
 'use strict';
 
-// 业务测试闭环（TASK-BIZTEST-011，AC-BIZTEST-006-01 / TC-BIZTEST-021）。
+// 业务测试闭环。
 //
 // 这里不再单测某个脚本，而是把整条链路当作黑盒：临时 Git 项目里放好 PRD 原子 AC 表、PATHS.md 和会产出
 // JUnit 报告的桩套件；真实的 `qa run` 写结果，真实的 `qa verify`（cwd 为该项目）读结果并判定。
@@ -178,7 +178,7 @@ async function cycleOf(t, s, observed, name, { breakIt, expect, allow = [], reco
 // 1. 闭环：基线全绿 → 逐个破坏 → 变红 → 恢复 → 变绿
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 闭环——基线全绿，逐个破坏后门禁变红并给出对应错误码、不签发回执，恢复后重新变绿', async (t) => {
+test('闭环——基线全绿，逐个破坏后门禁变红并给出对应错误码、不签发回执，恢复后重新变绿', async (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
   const observed = new Set();
@@ -298,7 +298,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 闭环——基线全绿，逐个破�
   });
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 伪造——改写聚合结果或替换报告副本都被门禁识破，不会被当作通过', async (t) => {
+test('伪造——改写聚合结果或替换报告副本都被门禁识破，不会被当作通过', async (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
   const greenResults = JSON.parse(fs.readFileSync(s.resultsFile, 'utf8'));
@@ -355,7 +355,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 伪造——改写聚合结果或替�
 // 2. 确定性：同样的仓库状态与报告，输出逐字一致（时间字段除外）
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——同一状态重复运行 qa run，结果文件、报告副本与输出除耗时与生成时间外逐字一致', (t) => {
+test('确定性——同一状态重复运行 qa run，结果文件、报告副本与输出除耗时与生成时间外逐字一致', (t) => {
   const s = scenarioFor(t);
   configureBaseline(s);
 
@@ -378,7 +378,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——同一状态重复运�
   assert.deepEqual(third, first);
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——重复运行 qa verify 与门禁评估，通过与多项阻断两种状态下的输出都逐字一致', (t) => {
+test('确定性——重复运行 qa verify 与门禁评估，通过与多项阻断两种状态下的输出都逐字一致', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
 
@@ -404,7 +404,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——重复运行 qa verify 
   assert.deepEqual(evaluateBusinessGate(options), evaluated);
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——用例顺序、套件顺序与 PRD 行序不同，聚合结果的各段逐字一致（套件清单按配置顺序记录）', (t) => {
+test('确定性——用例顺序、套件顺序与 PRD 行序不同，聚合结果的各段逐字一致（套件清单按配置顺序记录）', (t) => {
   const forward = shopProject();
   const reversed = shopProject({ [PRD_FILE]: prdDocument([...SHOP_ACS].reverse()) });
   t.after(() => {
@@ -458,7 +458,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 确定性——用例顺序、套件�
 // 3. 规模：500 条 AC、2000 个用例
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 规模——500 条 AC、2000 个用例的校验、绑定与判定在 5 秒内完成', (t) => {
+test('规模——500 条 AC、2000 个用例的校验、绑定与判定在 5 秒内完成', (t) => {
   const model = syntheticProject();
   assert.equal(model.acs.length, 500);
   assert.equal(model.caseCount, 2000);
@@ -485,7 +485,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 规模——500 条 AC、2000 个用�
   assert.ok(elapsed < BUDGET_MS, `校验 + 绑定 + 判定耗时 ${Math.round(elapsed)}ms，应当不超过 ${BUDGET_MS}ms`);
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 规模——真实 qa run 与门禁在 500 条 AC / 2000 个用例上放行，除套件自身耗时外都不超过 5 秒', (t) => {
+test('规模——真实 qa run 与门禁在 500 条 AC / 2000 个用例上放行，除套件自身耗时外都不超过 5 秒', (t) => {
   const model = syntheticProject();
   const s = scenarioFor(t, { shop: false, files: model.files });
   s.configure([
@@ -518,7 +518,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 规模——真实 qa run 与门禁在
 // 4. 安全负例：报告路径逃逸、XML 实体、命令注入样式文本、环境变量值
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——报告路径越出仓库根或指向 .git 时 qa run 在启动任何套件前阻断，也不会在别处写文件', (t) => {
+test('安全——报告路径越出仓库根或指向 .git 时 qa run 在启动任何套件前阻断，也不会在别处写文件', (t) => {
   const s = scenarioFor(t);
   const marker = path.join(s.aux, 'markers.log');
   const outside = path.join(s.aux, 'outside.xml');
@@ -539,7 +539,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——报告路径越出仓库�
   }
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——带 DOCTYPE 与外部实体的报告被拒绝：实体不展开、不读取目标文件，门禁按套件硬失败阻断', (t) => {
+test('安全——带 DOCTYPE 与外部实体的报告被拒绝：实体不展开、不读取目标文件，门禁按套件硬失败阻断', (t) => {
   const s = scenarioFor(t);
   const secret = path.join(s.aux, 'xxe-target.txt');
   const canary = 'XXE-CANARY-7f3a91';
@@ -592,7 +592,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——带 DOCTYPE 与外部实�
   assert.equal(everything.includes(canary), false, '外部实体指向的文件内容不得出现在任何输出、结果或副本里');
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——PRD、PATHS 与报告里的命令注入样式文本只被当作数据：不执行、不改变判定', (t) => {
+test('安全——PRD、PATHS 与报告里的命令注入样式文本只被当作数据：不执行、不改变判定', (t) => {
   const s = scenarioFor(t);
   const pwned = (name) => path.join(s.aux, `pwned-${name}`);
   const payload = (name) => `$(touch ${pwned(name)}) \`touch ${pwned(name)}\` ; touch ${pwned(name)} && touch ${pwned(name)}`;
@@ -623,7 +623,7 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——PRD、PATHS 与报告里�
   assert.deepEqual(fs.readdirSync(s.aux).filter((name) => name.startsWith('pwned-')), []);
 });
 
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——环境变量的值不进入输出、结果与报告副本；命令字符串按配置原样记录', (t) => {
+test('安全——环境变量的值不进入输出、结果与报告副本；命令字符串按配置原样记录', (t) => {
   const s = scenarioFor(t);
   const token = 'canary-9d2c61';
   const probe = path.join(s.aux, `${token}.txt`);

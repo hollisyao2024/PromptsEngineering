@@ -98,7 +98,7 @@ test('unified agent CLI routes tdd commit to the GH_TOKEN-identity commit entry 
   assert.match(lines.join('\n'), /tdd <sync\|push\|commit\|finish\|guard>/u);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: unified agent CLI routes qa paths and qa run to the business-test entries and lists them in help', () => {
+test('unified agent CLI routes qa paths and qa run to the business-test entries and lists them in help', () => {
   const { main } = require('../agent-cli');
   assert.deepEqual(resolveCommand(['qa', 'paths']), {
     script: 'infra/scripts/qa-tools/qa-paths.js',

@@ -20,7 +20,7 @@ const fields = (resolved) => resolved.errors.map((error) => error.field);
 
 // ---------------------------------------------------------------- 默认值
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 模板默认配置关闭业务门禁且没有套件', () => {
+test('模板默认配置关闭业务门禁且没有套件', () => {
   assert.deepEqual(DEFAULT_CONFIG.qa.business, {
     enabled: false,
     requiredPriorities: ['P0'],
@@ -36,7 +36,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 模板默认配置关闭业务门禁�
 });
 
 for (const [label, config] of [['空对象', {}], ['缺少 business', { qa: {} }], ['undefined', undefined]]) {
-  test(`AC-BIZTEST-004-03 / TC-BIZTEST-013: qa.business 缺省（${label}）等同默认值`, () => {
+  test(`qa.business 缺省（${label}）等同默认值`, () => {
     const resolved = resolveBusinessConfig(config);
 
     assert.equal(resolved.ok, true);
@@ -46,7 +46,7 @@ for (const [label, config] of [['空对象', {}], ['缺少 business', { qa: {} }
   });
 }
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: agent.config.json 的 qa.business 覆盖默认值，数组整体替换', () => {
+test('agent.config.json 的 qa.business 覆盖默认值，数组整体替换', () => {
   const project = createProject({
     'agent.config.json': JSON.stringify({ qa: { business: { enabled: true, suites: [SUITE] } } }),
   });
@@ -65,7 +65,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: agent.config.json 的 qa.business 覆�
 
 // ---------------------------------------------------------------- 规范化
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 合法配置被规范化，缺省 platform 为 -，缺省超时 900 秒', () => {
+test('合法配置被规范化，缺省 platform 为 -，缺省超时 900 秒', () => {
   const resolved = resolveBusinessConfig(configWith({
     enabled: true,
     requiredPriorities: ['P0', 'P1'],
@@ -86,7 +86,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 合法配置被规范化，缺省 plat
   assert.match(resolved.digest, /^sha256:[0-9a-f]{64}$/u);
 });
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: requiredPriorities 去重并按优先级排序，等价写法摘要一致', () => {
+test('requiredPriorities 去重并按优先级排序，等价写法摘要一致', () => {
   const a = resolveBusinessConfig(configWith({ requiredPriorities: ['P1', 'P0', 'P0'], suites: [SUITE] }));
   const b = resolveBusinessConfig(configWith({ requiredPriorities: ['P0', 'P1'], suites: [SUITE] }));
 
@@ -94,7 +94,7 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: requiredPriorities 去重并按优先�
   assert.equal(a.digest, b.digest);
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: timeoutSeconds 边界值 1 与 7200 合法', () => {
+test('timeoutSeconds 边界值 1 与 7200 合法', () => {
   for (const timeoutSeconds of [1, 7200]) {
     const resolved = resolveBusinessConfig(configWith({ suites: [{ ...SUITE, timeoutSeconds }] }));
     assert.equal(resolved.ok, true, JSON.stringify(resolved.errors));
@@ -141,7 +141,7 @@ const INVALID_CASES = [
 ];
 
 for (const [label, business, field] of INVALID_CASES) {
-  test(`AC-BIZTEST-003-01 / TC-BIZTEST-007: 非法配置逐项报告 ← ${label}`, () => {
+  test(`非法配置逐项报告 ← ${label}`, () => {
     const resolved = resolveBusinessConfig(configWith(business));
 
     assert.equal(resolved.ok, false);
@@ -151,7 +151,7 @@ for (const [label, business, field] of INVALID_CASES) {
   });
 }
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 多处非法时全部列出，而不是只报告第一处', () => {
+test('多处非法时全部列出，而不是只报告第一处', () => {
   const resolved = resolveBusinessConfig(configWith({
     enabled: 'yes',
     suites: [{ ...SUITE, name: 'Bad' }, { ...SUITE, name: 'ok', timeoutSeconds: 0 }],
@@ -165,7 +165,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 多处非法时全部列出，而不�
   ]);
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 门禁关闭时其余字段的问题不改变 enabled，仍然报告', () => {
+test('门禁关闭时其余字段的问题不改变 enabled，仍然报告', () => {
   const resolved = resolveBusinessConfig(configWith({ enabled: false, suites: [{ ...SUITE, name: 'Bad' }] }));
 
   assert.equal(resolved.ok, false);
@@ -180,7 +180,7 @@ for (const [label, business] of [
   ['开关键拼错（合并默认值后 enabled=false 且多出 enable）', { enabled: false, enable: true }],
   ['其他字段拼错（requiredPriority）', { enabled: false, requiredPriority: ['P0', 'P1'] }],
 ]) {
-  test(`AC-BIZTEST-004-01 / TC-BIZTEST-011: 无法判读开关时按开启处理（fail-closed）← ${label}`, () => {
+  test(`无法判读开关时按开启处理（fail-closed）← ${label}`, () => {
     const resolved = resolveBusinessConfig(configWith(business));
 
     assert.equal(resolved.ok, false);
@@ -188,7 +188,7 @@ for (const [label, business] of [
   });
 }
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 显式关闭且键名都合法时，其余字段的问题仍不改变 enabled=false', () => {
+test('显式关闭且键名都合法时，其余字段的问题仍不改变 enabled=false', () => {
   const resolved = resolveBusinessConfig(configWith({ enabled: false, requiredPriorities: 'P0', suites: 'x' }));
 
   assert.equal(resolved.ok, false);
@@ -196,7 +196,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 显式关闭且键名都合法时，�
   assert.deepEqual(fields(resolved).sort(), ['qa.business.requiredPriorities', 'qa.business.suites']);
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: report 路径规范化为 POSIX 相对路径，等价写法摘要一致', () => {
+test('report 路径规范化为 POSIX 相对路径，等价写法摘要一致', () => {
   const plain = resolveBusinessConfig(configWith({ suites: [{ ...SUITE, report: 'out/junit.xml' }] }));
   const dotted = resolveBusinessConfig(configWith({ suites: [{ ...SUITE, report: './out/../out//junit.xml' }] }));
   const windows = resolveBusinessConfig(configWith({ suites: [{ ...SUITE, report: 'out\\junit.xml' }] }));
@@ -210,7 +210,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: report 路径规范化为 POSIX 相对
 
 // ---------------------------------------------------------------- 配置摘要
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 仅切换 enabled 不改变配置摘要', () => {
+test('仅切换 enabled 不改变配置摘要', () => {
   const off = resolveBusinessConfig(configWith({ enabled: false, suites: [SUITE] }));
   const on = resolveBusinessConfig(configWith({ enabled: true, suites: [SUITE] }));
 
@@ -218,7 +218,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 仅切换 enabled 不改变配置摘�
   assert.equal(off.digest, on.digest);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 摘要与键顺序、无关配置项无关，与命令、报告路径、优先级、套件顺序有关', () => {
+test('摘要与键顺序、无关配置项无关，与命令、报告路径、优先级、套件顺序有关', () => {
   const base = resolveBusinessConfig(configWith({ suites: [SUITE] })).digest;
   const reordered = resolveBusinessConfig({
     other: { value: 1 },

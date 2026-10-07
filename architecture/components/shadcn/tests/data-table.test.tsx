@@ -8,7 +8,7 @@ type Item = { id: string; name: string; value: number };
 const data: Item[] = Array.from({ length: 12 }, (_, index) => ({ id: String(index + 1), name: `Row ${String(index + 1).padStart(2,'0')}`, value: index + 1 }));
 const getRowId = (row: Item) => row.id;
 const columns: ColumnDef<Item>[] = [{ accessorKey: 'name', header: 'Name' }, { accessorKey: 'value', header: 'Value', meta: { filterVariant: 'range' } }];
-describe('TC-ARCHPLAT-005 common table', () => {
+describe('common table', () => {
   it('paginates first/last, filters raw values, and sorts numerically', async () => {
     const user=userEvent.setup();render(<DataTable data={data} columns={columns} getRowId={getRowId} />);
     expect(screen.getByText('Row 01')).toBeVisible();expect(screen.queryByText('Row 12')).toBeNull();
@@ -65,7 +65,7 @@ describe('TC-ARCHPLAT-005 common table', () => {
     expect(()=>render(<DataTable data={data} columns={columns} getRowId={getRowId} mode="server" />)).toThrow(/Server DataTable/);
   });
 });
-it('TC-ARCHPLAT-012 table combines controlled date and multi-select filters and clears them', async () => {
+it('table combines controlled date and multi-select filters and clears them', async () => {
   const user=userEvent.setup(), changed=vi.fn();
   type D={id:string;status:string;date:string};const rows:D[]=[{id:'a',status:'active',date:'2026-09-09'},{id:'b',status:'paused',date:'2026-09-09'},{id:'c',status:'active',date:'2026-09-20'}];
   const cols:ColumnDef<D>[]=[{accessorKey:'id',header:'ID',enableColumnFilter:false},{accessorKey:'status',header:'状态',meta:{filterVariant:'multi-select',filterOptions:[{value:'active',label:'启用'},{value:'paused',label:'暂停'}]}},{accessorKey:'date',header:'日期',meta:{filterVariant:'date-range'}}];

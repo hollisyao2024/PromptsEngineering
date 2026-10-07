@@ -32,18 +32,18 @@ function withProject(files, run) {
 
 // ---------------------------------------------------------------- 原子 AC 表
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 表头常量与 ARCH 约定逐列一致', () => {
+test('表头常量与 ARCH 约定逐列一致', () => {
   assert.deepEqual(spec.AC_TABLE_HEADER, AC_COLUMNS);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: splitTableRow 按未转义竖线切分并还原 \\|', () => {
+test('splitTableRow 按未转义竖线切分并还原 \\|', () => {
   assert.deepEqual(spec.splitTableRow('| a | b\\|c | d |'), ['a', 'b|c', 'd']);
   assert.deepEqual(spec.splitTableRow('| a | |'), ['a', '']);
   assert.equal(spec.splitTableRow('不是表格行'), null);
   assert.equal(spec.splitTableRow('| 缺少收尾竖线'), null);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 合法原子 AC 表解析出全部 AC 与字段', () => {
+test('合法原子 AC 表解析出全部 AC 与字段', () => {
   const content = prdDocument();
   const result = spec.parseAcTables(content, { file: PRD_FILE });
 
@@ -70,7 +70,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 合法原子 AC 表解析出全部 AC 
   assert.deepEqual(result.acs[3].tcs, []);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 转义竖线被还原，TC 与端列表接受多种分隔符', () => {
+test('转义竖线被还原，TC 与端列表接受多种分隔符', () => {
   const content = prdDocument([
     { then: '显示 a\\|b 选项', tc: 'TC-SHOP-001, TC-SHOP-002', platform: 'web, ios' },
     { id: 'AC-SHOP-001-02', tc: 'TC-SHOP-001、TC-SHOP-002' },
@@ -84,7 +84,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 转义竖线被还原，TC 与端列�
   for (const ac of result.acs) assert.deepEqual(ac.tcs, ['TC-SHOP-001', 'TC-SHOP-002']);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 表头不符的表与围栏代码块内的表一律不识别', () => {
+test('表头不符的表与围栏代码块内的表一律不识别', () => {
   const legacy = mdTable(['AC ID', '描述'], [['AC-SHOP-009-01', '旧写法']]);
   const missingColumn = mdTable(spec.AC_TABLE_HEADER.slice(0, 8), [acRowCells().slice(0, 8)]);
   const fenced = `${'```'}text\n${prdDocument()}${'```'}\n\n~~~\n${prdDocument()}~~~\n`;
@@ -95,7 +95,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 表头不符的表与围栏代码块�
   assert.deepEqual(result.violations, []);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 同一文件内多张原子 AC 表合并，行号逐行对应', () => {
+test('同一文件内多张原子 AC 表合并，行号逐行对应', () => {
   const content = [
     prdDocument([SHOP_ACS[0]]),
     '## 另一节\n\n正文。\n',
@@ -132,7 +132,7 @@ const VIOLATION_CASES = [
 ];
 
 for (const { code, row } of VIOLATION_CASES) {
-  test(`AC-BIZTEST-001-01 / TC-BIZTEST-001: ${code} ← ${JSON.stringify(row)}`, () => {
+  test(`${code} ← ${JSON.stringify(row)}`, () => {
     const content = prdDocument([row]);
     const result = spec.parseAcTables(content, { file: PRD_FILE });
 
@@ -144,7 +144,7 @@ for (const { code, row } of VIOLATION_CASES) {
   });
 }
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 一行多处违规逐项列出且按列顺序', () => {
+test('一行多处违规逐项列出且按列顺序', () => {
   const content = prdDocument([{ priority: 'P9', verification: 'semi', platform: 'Web', given: '' }]);
   const result = spec.parseAcTables(content, { file: PRD_FILE });
 
@@ -156,7 +156,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 一行多处违规逐项列出且按�
   ]);
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: ROW_COLUMNS 列数与表头不符的行被报告且不产出 AC', () => {
+test('ROW_COLUMNS 列数与表头不符的行被报告且不产出 AC', () => {
   const short = acRowCells().slice(0, 8);
   const long = [...acRowCells({ id: 'AC-SHOP-001-02', tc: 'TC-SHOP-002' }), '多余'];
   const content = prdDocument([short, long]);
@@ -172,7 +172,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: ROW_COLUMNS 列数与表头不符的�
 
 // ---------------------------------------------------------------- loadBusinessSpec
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: loadBusinessSpec 只读取 docs/prd-modules/<domain>/ 的直接子级 Markdown', () => {
+test('loadBusinessSpec 只读取 docs/prd-modules/<domain>/ 的直接子级 Markdown', () => {
   withProject({
     'docs/prd-modules/MODULE-TEMPLATE.md': prdDocument([{ id: 'AC-TPL-001-01', story: 'US-TPL-001', tc: 'TC-TPL-001' }]),
     'docs/prd-modules/shop/PRD.md': prdDocument([SHOP_ACS[0]]),
@@ -192,7 +192,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: loadBusinessSpec 只读取 docs/prd-mo
   });
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: AC_ID_DUPLICATE 跨模块与同文件重复均被报告，指向首次位置', () => {
+test('AC_ID_DUPLICATE 跨模块与同文件重复均被报告，指向首次位置', () => {
   withProject({
     'docs/prd-modules/shop/PRD.md': prdDocument([SHOP_ACS[0], SHOP_ACS[0]]),
     'docs/prd-modules/cart/PRD.md': prdDocument([SHOP_ACS[0]]),
@@ -205,7 +205,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: AC_ID_DUPLICATE 跨模块与同文件�
   });
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 缺少 docs 目录时返回空规格而不抛错', () => {
+test('缺少 docs 目录时返回空规格而不抛错', () => {
   withProject({}, (project) => {
     const loaded = spec.loadBusinessSpec({ repoRoot: project.repo });
 
@@ -217,7 +217,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: 缺少 docs 目录时返回空规格�
   });
 });
 
-test('AC-BIZTEST-001-01 / TC-BIZTEST-001: loadBusinessSpec 的输出与文件创建顺序无关', () => {
+test('loadBusinessSpec 的输出与文件创建顺序无关', () => {
   const files = {
     'docs/prd-modules/shop/PRD.md': prdDocument(SHOP_ACS),
     'docs/prd-modules/cart/PRD.md': prdDocument([
@@ -238,7 +238,7 @@ test('AC-BIZTEST-001-01 / TC-BIZTEST-001: loadBusinessSpec 的输出与文件创
   ]);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: loadBusinessSpec 读取 docs/qa-modules/<domain>/PATHS.md 并合并语法违规', () => {
+test('loadBusinessSpec 读取 docs/qa-modules/<domain>/PATHS.md 并合并语法违规', () => {
   withProject({
     [PRD_FILE]: prdDocument(),
     [PATHS_FILE]: pathsDocument(shopPaths((model) => { model.screens[0][0] = 'SCR-1'; })),
@@ -253,7 +253,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: loadBusinessSpec 读取 docs/qa-module
 
 // ---------------------------------------------------------------- PATHS.md
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: PATHS.md 的界面、状态、转移、路径与覆盖准则被解析', () => {
+test('PATHS.md 的界面、状态、转移、路径与覆盖准则被解析', () => {
   const content = pathsDocument();
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -305,7 +305,7 @@ const SEQUENCE_CASES = [
 ];
 
 for (const [label, sequence] of SEQUENCE_CASES) {
-  test(`AC-BIZTEST-002-01 / TC-BIZTEST-003: 转移序列接受分隔符 ${label}`, () => {
+  test(`转移序列接受分隔符 ${label}`, () => {
     const content = pathsDocument(shopPaths((model) => { model.paths[0][1] = sequence; }));
     const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -314,7 +314,7 @@ for (const [label, sequence] of SEQUENCE_CASES) {
   });
 }
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 关联 AC 与关联 TC 接受逗号、顿号与空格，- 表示无', () => {
+test('关联 AC 与关联 TC 接受逗号、顿号与空格，- 表示无', () => {
   const content = pathsDocument(shopPaths((model) => {
     model.transitions[0][5] = 'AC-SHOP-001-01、AC-SHOP-001-02';
     model.transitions[1][5] = '-';
@@ -330,7 +330,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 关联 AC 与关联 TC 接受逗号、
   assert.deepEqual(doc.paths[1].tcs, []);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 覆盖准则缺省为 none，可逗号组合，接受全角与半角冒号', () => {
+test('覆盖准则缺省为 none，可逗号组合，接受全角与半角冒号', () => {
   const missing = spec.parsePathsDocument(pathsDocument(shopPaths((model) => { delete model.criterion; })), { file: PATHS_FILE });
   assert.deepEqual(missing.violations, []);
   assert.deepEqual(missing.criteria, ['none']);
@@ -350,7 +350,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 覆盖准则缺省为 none，可逗号
   assert.deepEqual(ascii.criteria, ['all-states']);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 覆盖准则的取值允许用反引号包裹，全角逗号等同逗号', () => {
+test('覆盖准则的取值允许用反引号包裹，全角逗号等同逗号', () => {
   const content = pathsDocument(shopPaths((model) => { model.criterion = '`all-transitions`，`all-states`'; }));
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -358,7 +358,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 覆盖准则的取值允许用反引�
   assert.deepEqual(doc.criteria, ['all-transitions', 'all-states']);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: CRITERION_INVALID ← 覆盖准则声明了两次，指向第二处', () => {
+test('CRITERION_INVALID ← 覆盖准则声明了两次，指向第二处', () => {
   const content = pathsDocument(shopPaths(), { extra: '覆盖准则：all-states\n' });
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -367,7 +367,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: CRITERION_INVALID ← 覆盖准则声�
   assert.deepEqual(doc.criteria, ['all-transitions']);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 围栏代码块内的覆盖准则声明不生效', () => {
+test('围栏代码块内的覆盖准则声明不生效', () => {
   const content = pathsDocument(shopPaths((model) => { delete model.criterion; }), {
     extra: '```text\n覆盖准则：all-states\n```\n',
   });
@@ -379,7 +379,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 围栏代码块内的覆盖准则声�
 });
 
 for (const [label, criterion] of [['未知取值', 'all-things'], ['空取值', ''], ['none 与其他并存', 'none, all-states']]) {
-  test(`AC-BIZTEST-002-01 / TC-BIZTEST-003: CRITERION_INVALID ← ${label}`, () => {
+  test(`CRITERION_INVALID ← ${label}`, () => {
     const content = pathsDocument(shopPaths((model) => { model.criterion = criterion; }));
     const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -388,7 +388,7 @@ for (const [label, criterion] of [['未知取值', 'all-things'], ['空取值', 
   });
 }
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: PATHS_TABLE_MISSING 缺少任一张表即报告，且不连带产生其他违规', () => {
+test('PATHS_TABLE_MISSING 缺少任一张表即报告，且不连带产生其他违规', () => {
   const missingOne = spec.parsePathsDocument(pathsDocument(shopPaths(), { omit: ['transitions'] }), { file: PATHS_FILE });
   assert.deepEqual(codes(missingOne.violations), ['PATHS_TABLE_MISSING']);
   assert.match(missingOne.violations[0].message, /转移/);
@@ -397,7 +397,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: PATHS_TABLE_MISSING 缺少任一张表
   assert.deepEqual(codes(missingTwo.violations), ['PATHS_TABLE_MISSING', 'PATHS_TABLE_MISSING']);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 表头列顺序不符的表不被识别，视为缺表', () => {
+test('表头列顺序不符的表不被识别，视为缺表', () => {
   const content = pathsDocument().replace('| ID | 转移序列 | 关联 TC | 说明 |', '| ID | 关联 TC | 转移序列 | 说明 |');
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -405,7 +405,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 表头列顺序不符的表不被识�
   assert.match(doc.violations[0].message, /路径/);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 表格按表头识别，不依赖标题', () => {
+test('表格按表头识别，不依赖标题', () => {
   const content = pathsDocument().replace(/^## .*$/gmu, '');
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -422,7 +422,7 @@ const ID_INVALID_CASES = [
 ];
 
 for (const [label, mutate, needle] of ID_INVALID_CASES) {
-  test(`AC-BIZTEST-002-01 / TC-BIZTEST-003: ID_INVALID ← ${label}`, () => {
+  test(`ID_INVALID ← ${label}`, () => {
     const content = pathsDocument(shopPaths(mutate));
     const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -431,7 +431,7 @@ for (const [label, mutate, needle] of ID_INVALID_CASES) {
   });
 }
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: ID_DUPLICATE 同一文件内重复的标识在后出现的行报告', () => {
+test('ID_DUPLICATE 同一文件内重复的标识在后出现的行报告', () => {
   const content = pathsDocument(shopPaths((model) => { model.states[3][0] = 'STA-SHOP-002'; }));
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -439,7 +439,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: ID_DUPLICATE 同一文件内重复的�
   assert.equal(doc.violations[0].line, lineOf(content, 'STA-SHOP-002', 2));
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: TC_INVALID 路径的关联 TC 格式非法', () => {
+test('TC_INVALID 路径的关联 TC 格式非法', () => {
   const content = pathsDocument(shopPaths((model) => { model.paths[0][2] = 'TC-SHOP-001, TC-2'; }));
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
@@ -447,7 +447,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: TC_INVALID 路径的关联 TC 格式�
   assert.equal(doc.violations[0].line, lineOf(content, 'PTH-SHOP-001'));
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: ROW_COLUMNS 列数不符的行被报告且不产出条目', () => {
+test('ROW_COLUMNS 列数不符的行被报告且不产出条目', () => {
   const content = pathsDocument(shopPaths((model) => {
     model.paths[1] = ['PTH-SHOP-002', 'TRN-SHOP-001 → TRN-SHOP-003', 'TC-SHOP-003'];
   }));

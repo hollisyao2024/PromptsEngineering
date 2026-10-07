@@ -9,7 +9,7 @@ import {
 } from "@/components/selectors/date-picker";
 import type { DateRangeValue } from "@/components/selectors/date-value";
 for (const Panel of [FormDialog, FormSheet])
-  it(`TC-ARCHPLAT-012 nested dates in ${Panel.name} preserve the form until explicit submit`, async () => {
+  it(`nested dates in ${Panel.name} preserve the form until explicit submit`, async () => {
     const user = userEvent.setup(),
       close = vi.fn(),
       save = vi.fn();

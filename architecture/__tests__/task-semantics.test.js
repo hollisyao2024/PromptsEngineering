@@ -9,7 +9,7 @@ const plan=(f,config)=>project.createArchitecturePlan({source,target:f.target,co
 const blueprint=(engine,orm)=>project.expandBlueprint('admin-api',{source,database:engine,orm});
 const legacy=engine=>fs.readFileSync(path.join(source,'architecture/stacks/data-access/task-model/legacy/'+(engine==='sqlite'?'sqlite':engine==='postgres'?'postgres':'mysql')+'.sql'),'utf8');
 
-test('TC-DATA-004 fresh Prisma stores generate the semantic task model for every database',t=>{
+test('fresh Prisma stores generate the semantic task model for every database',t=>{
  for(const engine of ['postgres','mysql','mariadb','sqlite']){
   const f=fixture(t),config=blueprint(engine,'prisma'),p=plan(f,config);assert.deepEqual(p.conflicts,[],engine);applyPlan(p,{runRoot:f.runRoot});
   const schema=read(f,store+'/prisma/schema.prisma');
@@ -24,7 +24,7 @@ test('TC-DATA-004 fresh Prisma stores generate the semantic task model for every
  }
 });
 
-test('TC-DATA-004 fresh Drizzle stores generate the semantic schema and soft-delete service',t=>{
+test('fresh Drizzle stores generate the semantic schema and soft-delete service',t=>{
  for(const engine of ['postgres','mysql','sqlite']){
   const f=fixture(t),config=blueprint(engine,'drizzle'),p=plan(f,config);assert.deepEqual(p.conflicts,[],engine);applyPlan(p,{runRoot:f.runRoot});
   const schema=read(f,store+'/src/schema/tasks.ts');
@@ -35,7 +35,7 @@ test('TC-DATA-004 fresh Drizzle stores generate the semantic schema and soft-del
  }
 });
 
-test('TC-DATA-004 installed stores keep the original Task example bytes and do not conflict',t=>{
+test('installed stores keep the original Task example bytes and do not conflict',t=>{
  for(const engine of ['postgres','mysql','sqlite']){
   const f=fixture(t),config=blueprint(engine,'prisma');
   put(f,init,legacy(engine));

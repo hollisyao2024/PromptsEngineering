@@ -43,9 +43,9 @@ function runCli(project, args = []) {
   });
 }
 
-// ---------------------------------------------------------------- TC-BIZTEST-003 结构
+// ---------------------------------------------------------------- 结构
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 合法路径模型解析出界面、状态、转移与路径', () => {
+test('合法路径模型解析出界面、状态、转移与路径', () => {
   const { analysis } = analyzeShop();
 
   assert.equal(analysis.status, 'OK');
@@ -58,7 +58,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 合法路径模型解析出界面、�
   assert.deepEqual(doc.criteria, ['all-transitions']);
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 缺少一张表时只报告 PATHS_TABLE_MISSING，不连带引用违规', () => {
+test('缺少一张表时只报告 PATHS_TABLE_MISSING，不连带引用违规', () => {
   const project = shopProject({ [PATHS_FILE]: pathsDocument(shopPaths(), { omit: ['states'] }) });
   try {
     const analysis = analyzeSpec({ repoRoot: project.repo });
@@ -70,7 +70,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 缺少一张表时只报告 PATHS_TABL
   }
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: ID 重复被报告并使 STATUS=BLOCKED', () => {
+test('ID 重复被报告并使 STATUS=BLOCKED', () => {
   const { analysis, content } = analyzeShop((model) => { model.transitions[2][0] = 'TRN-SHOP-002'; });
 
   assert.equal(analysis.status, 'BLOCKED');
@@ -80,7 +80,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: ID 重复被报告并使 STATUS=BLOCKE
   assert.equal(duplicate.line, lineOf(content, 'TRN-SHOP-002', 2));
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 没有任何原子 AC 表时 NO_ATOMIC_AC 阻断', () => {
+test('没有任何原子 AC 表时 NO_ATOMIC_AC 阻断', () => {
   const project = createProject({ 'docs/prd-modules/shop/PRD.md': '# 旧写法\n\n暂无原子 AC。\n' });
   try {
     const analysis = analyzeSpec({ repoRoot: project.repo });
@@ -93,7 +93,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 没有任何原子 AC 表时 NO_ATOMIC
   }
 });
 
-test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 原子 AC 表自身的违规一并出现在 qa paths 结果中', () => {
+test('原子 AC 表自身的违规一并出现在 qa paths 结果中', () => {
   const prd = prdDocument([{ priority: 'P9' }]);
   const { analysis } = analyzeShop(undefined, { prd });
 
@@ -101,7 +101,7 @@ test('AC-BIZTEST-002-01 / TC-BIZTEST-003: 原子 AC 表自身的违规一并出�
   assert.ok(codes(analysis).includes('PRIORITY_INVALID'));
 });
 
-// ---------------------------------------------------------------- TC-BIZTEST-004 引用与衔接
+// ---------------------------------------------------------------- 引用与衔接
 
 // expected 是按“文件、行号”排序后的完整违规代码：根因之外只允许真实的连带违规，
 // 引用未定义时不得再冒出 PATH_DISCONNECTED 这类噪声。
@@ -114,7 +114,7 @@ const REF_CASES = [
 ];
 
 for (const [label, mutate, rowNeedle, unknown, expected] of REF_CASES) {
-  test(`AC-BIZTEST-002-02 / TC-BIZTEST-004: REF_UNKNOWN ← ${label}`, () => {
+  test(`REF_UNKNOWN ← ${label}`, () => {
     const { analysis, content } = analyzeShop(mutate);
 
     assert.equal(analysis.status, 'BLOCKED');
@@ -126,7 +126,7 @@ for (const [label, mutate, rowNeedle, unknown, expected] of REF_CASES) {
   });
 }
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 违规按文件、行号排序，输出与发现顺序无关', () => {
+test('违规按文件、行号排序，输出与发现顺序无关', () => {
   const { analysis } = analyzeShop((model) => {
     model.paths.pop();
     model.states[0][1] = 'SCR-SHOP-099';
@@ -137,7 +137,7 @@ test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 违规按文件、行号排序，输�
   assert.deepEqual(codes(analysis), ['REF_UNKNOWN', 'COVERAGE_GAP']);
 });
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 多个 PATHS.md 的 AC 引用跨模块查找', () => {
+test('多个 PATHS.md 的 AC 引用跨模块查找', () => {
   const cartPrd = prdDocument([{ id: 'AC-CART-001-01', story: 'US-CART-001', tc: 'TC-CART-001' }]);
   const cartPaths = pathsDocument(shopPaths((model) => {
     model.criterion = 'none';
@@ -160,7 +160,7 @@ test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 多个 PATHS.md 的 AC 引用跨模块
   }
 });
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 不同 PATHS.md 重复定义同一标识报告 ID_DUPLICATE，指向首次位置', () => {
+test('不同 PATHS.md 重复定义同一标识报告 ID_DUPLICATE，指向首次位置', () => {
   // 复制路径模型到新域却没改标识：按域排序后 cart 为首次，shop 中的 11 个标识都是重复。
   const project = shopProject({
     'docs/prd-modules/cart/PRD.md': prdDocument([{ id: 'AC-CART-001-01', story: 'US-CART-001', tc: 'TC-CART-001' }]),
@@ -179,7 +179,7 @@ test('AC-BIZTEST-002-02 / TC-BIZTEST-004: 不同 PATHS.md 重复定义同一标�
   }
 });
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: PATH_DISCONNECTED 相邻转移首尾状态不衔接', () => {
+test('PATH_DISCONNECTED 相邻转移首尾状态不衔接', () => {
   const { analysis, content } = analyzeShop((model) => {
     model.paths[0][1] = 'TRN-SHOP-002 → TRN-SHOP-001';
   });
@@ -190,7 +190,7 @@ test('AC-BIZTEST-002-02 / TC-BIZTEST-004: PATH_DISCONNECTED 相邻转移首尾�
 });
 
 for (const [label, sequence] of [['减号占位', '-'], ['空单元格', '']]) {
-  test(`AC-BIZTEST-002-02 / TC-BIZTEST-004: PATH_EMPTY ← ${label}`, () => {
+  test(`PATH_EMPTY ← ${label}`, () => {
     const { analysis, content } = analyzeShop((model) => {
       model.criterion = 'none';
       model.paths[1][1] = sequence;
@@ -202,7 +202,7 @@ for (const [label, sequence] of [['减号占位', '-'], ['空单元格', '']]) {
   });
 }
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: CLI 在违规时 STATUS=BLOCKED、非零退出并逐项输出 VIOLATION', () => {
+test('CLI 在违规时 STATUS=BLOCKED、非零退出并逐项输出 VIOLATION', () => {
   const content = pathsDocument(shopPaths((model) => { model.transitions[1][1] = 'STA-SHOP-099'; }));
   const project = shopProject({ [PATHS_FILE]: content }, { git: true });
   try {
@@ -218,9 +218,9 @@ test('AC-BIZTEST-002-02 / TC-BIZTEST-004: CLI 在违规时 STATUS=BLOCKED、非�
   }
 });
 
-// ---------------------------------------------------------------- TC-BIZTEST-005 覆盖准则
+// ---------------------------------------------------------------- 覆盖准则
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: all-transitions 下未被路径覆盖的转移报告 COVERAGE_GAP', () => {
+test('all-transitions 下未被路径覆盖的转移报告 COVERAGE_GAP', () => {
   const { analysis, content } = analyzeShop((model) => { model.paths.pop(); });
 
   assert.equal(analysis.status, 'BLOCKED');
@@ -229,7 +229,7 @@ test('AC-BIZTEST-002-03 / TC-BIZTEST-005: all-transitions 下未被路径覆盖�
   assert.ok(analysis.violations[0].message.includes('TRN-SHOP-003'));
 });
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: all-states 下未被覆盖的状态报告 COVERAGE_GAP', () => {
+test('all-states 下未被覆盖的状态报告 COVERAGE_GAP', () => {
   const { analysis, content } = analyzeShop((model) => {
     model.criterion = 'all-states';
     model.paths.shift();
@@ -240,7 +240,7 @@ test('AC-BIZTEST-002-03 / TC-BIZTEST-005: all-states 下未被覆盖的状态报
   assert.equal(analysis.violations[0].line, lineOf(content, 'STA-SHOP-003'));
 });
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 两种准则组合时分别报告缺口', () => {
+test('两种准则组合时分别报告缺口', () => {
   const { analysis } = analyzeShop((model) => {
     model.criterion = 'all-transitions, all-states';
     model.paths.shift();
@@ -249,7 +249,7 @@ test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 两种准则组合时分别报告缺�
   assert.deepEqual(codes(analysis), ['COVERAGE_GAP', 'COVERAGE_GAP']);
 });
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 覆盖准则为 none 时不检查覆盖缺口与 AC 关联', () => {
+test('覆盖准则为 none 时不检查覆盖缺口与 AC 关联', () => {
   const { analysis } = analyzeShop((model) => {
     model.criterion = 'none';
     model.paths = [];
@@ -260,7 +260,7 @@ test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 覆盖准则为 none 时不检查覆�
   assert.deepEqual(analysis.violations, []);
 });
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 声明覆盖准则时未被任何转移关联的 P0 自动化 AC 报告 AC_UNLINKED', () => {
+test('声明覆盖准则时未被任何转移关联的 P0 自动化 AC 报告 AC_UNLINKED', () => {
   const prd = prdDocument();
   const { analysis } = analyzeShop((model) => { model.transitions[1][5] = '-'; }, { prd });
 
@@ -270,14 +270,14 @@ test('AC-BIZTEST-002-03 / TC-BIZTEST-005: 声明覆盖准则时未被任何转�
   assert.equal(analysis.violations[0].line, lineOf(prd, 'AC-SHOP-001-02'));
 });
 
-test('AC-BIZTEST-002-03 / TC-BIZTEST-005: P1 与 manual 的 AC 不要求被转移关联', () => {
+test('P1 与 manual 的 AC 不要求被转移关联', () => {
   const { analysis } = analyzeShop((model) => { model.transitions[2][5] = '-'; });
 
   assert.equal(analysis.status, 'OK');
   assert.deepEqual(analysis.violations, []);
 });
 
-// ---------------------------------------------------------------- TC-BIZTEST-006 矩阵与输出
+// ---------------------------------------------------------------- 矩阵与输出
 
 const SHOP_MATRIX_LINES = [
   'MODULES=1',
@@ -291,7 +291,7 @@ const SHOP_MATRIX_LINES = [
   'MATRIX_PATH=PTH-SHOP-002|TRN-SHOP-001,TRN-SHOP-003|TC-SHOP-003',
 ];
 
-test('AC-BIZTEST-002-04 / TC-BIZTEST-006: 合法模型输出 STATUS=OK、计数与覆盖矩阵', () => {
+test('合法模型输出 STATUS=OK、计数与覆盖矩阵', () => {
   const { analysis } = analyzeShop();
   const lines = formatPathsReport(analysis);
 
@@ -301,7 +301,7 @@ test('AC-BIZTEST-002-04 / TC-BIZTEST-006: 合法模型输出 STATUS=OK、计数�
   assert.deepEqual(lines.slice(3), SHOP_MATRIX_LINES);
 });
 
-test('AC-BIZTEST-002-04 / TC-BIZTEST-006: 违规时仍输出计数与矩阵，并在其后逐行输出 VIOLATION', () => {
+test('违规时仍输出计数与矩阵，并在其后逐行输出 VIOLATION', () => {
   const { analysis } = analyzeShop((model) => { model.paths.pop(); });
   const lines = formatPathsReport(analysis);
 
@@ -313,7 +313,7 @@ test('AC-BIZTEST-002-04 / TC-BIZTEST-006: 违规时仍输出计数与矩阵，�
   assert.equal(lines.indexOf(violationLines[0]), lines.length - 1);
 });
 
-test('AC-BIZTEST-002-04 / TC-BIZTEST-006: formatViolation 输出带位置的单行 VIOLATION，无行号时只写文件，消息中的换行被压平', () => {
+test('formatViolation 输出带位置的单行 VIOLATION，无行号时只写文件，消息中的换行被压平', () => {
   assert.equal(
     formatViolation({ code: 'REF_UNKNOWN', file: PATHS_FILE, line: 12, message: '引用了不存在的状态' }),
     `VIOLATION=REF_UNKNOWN|${PATHS_FILE}:12|引用了不存在的状态`,
@@ -329,7 +329,7 @@ test('AC-BIZTEST-002-04 / TC-BIZTEST-006: formatViolation 输出带位置的单�
   );
 });
 
-test('AC-BIZTEST-002-04 / TC-BIZTEST-006: CLI 合法模型 STATUS=OK、退出码 0 且输出与目录创建顺序无关', () => {
+test('CLI 合法模型 STATUS=OK、退出码 0 且输出与目录创建顺序无关', () => {
   const first = shopProject({}, { git: true });
   const second = createProject({
     [PATHS_FILE]: pathsDocument(),
@@ -350,7 +350,7 @@ test('AC-BIZTEST-002-04 / TC-BIZTEST-006: CLI 合法模型 STATUS=OK、退出码
   }
 });
 
-test('AC-BIZTEST-002-04 / TC-BIZTEST-006: qa paths 只读，不创建 tmp 等目录也不改动工作区', () => {
+test('qa paths 只读，不创建 tmp 等目录也不改动工作区', () => {
   const project = shopProject({}, { git: true });
   try {
     const before = runGit(project.repo, ['status', '--porcelain']);
@@ -365,7 +365,7 @@ test('AC-BIZTEST-002-04 / TC-BIZTEST-006: qa paths 只读，不创建 tmp 等目
   }
 });
 
-test('AC-BIZTEST-002-02 / TC-BIZTEST-004: CLI 在没有原子 AC 表的仓库 STATUS=BLOCKED 并给出 NO_ATOMIC_AC', () => {
+test('CLI 在没有原子 AC 表的仓库 STATUS=BLOCKED 并给出 NO_ATOMIC_AC', () => {
   const project = createProject({ 'README.md': '# 空项目\n' }, { git: true });
   try {
     const result = runCli(project);

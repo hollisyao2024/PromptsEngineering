@@ -298,7 +298,7 @@ function expectUntouched(scenario) {
 
 // ---------------------------------------------------------------- 门禁前置：阻断且无副作用
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 配置非法时 BLOCKED(CONFIG_INVALID)，不运行套件也不写任何文件', () => {
+test('配置非法时 BLOCKED(CONFIG_INVALID)，不运行套件也不写任何文件', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('Bad Name', { platform: 'web', cases: WEB_CASES })]);
@@ -313,7 +313,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 配置非法时 BLOCKED(CONFIG_INVALID
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 没有配置任何套件时 BLOCKED(NO_SUITES)', () => {
+test('没有配置任何套件时 BLOCKED(NO_SUITES)', () => {
   const s = createScenario();
   try {
     expectBlocked(runCli(s.project), 'NO_SUITES');
@@ -325,7 +325,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 没有配置任何套件时 BLOCKED(NO
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 规格违规时 BLOCKED(SPEC_INVALID)，保留上一次结果且不再启动套件', () => {
+test('规格违规时 BLOCKED(SPEC_INVALID)，保留上一次结果且不再启动套件', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -351,7 +351,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 规格违规时 BLOCKED(SPEC_INVALID)�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 仓库里没有任何原子 AC 时 BLOCKED(SPEC_INVALID)', () => {
+test('仓库里没有任何原子 AC 时 BLOCKED(SPEC_INVALID)', () => {
   const s = createScenario({ shop: false });
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -366,7 +366,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 仓库里没有任何原子 AC 时 BLO
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 仓库还没有任何提交时 BLOCKED(NO_HEAD)', () => {
+test('仓库还没有任何提交时 BLOCKED(NO_HEAD)', () => {
   const s = createScenario({ git: false });
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -381,7 +381,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 仓库还没有任何提交时 BLOCKED
 
 // ---------------------------------------------------------------- 正常运行与结果绑定
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 全部套件正常时 STATUS=OK，结果落在容器 tmp 并绑定 HEAD、配置摘要与 AC/TC/路径', () => {
+test('全部套件正常时 STATUS=OK，结果落在容器 tmp 并绑定 HEAD、配置摘要与 AC/TC/路径', () => {
   const s = createScenario();
   try {
     const head = s.configure([
@@ -433,7 +433,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 全部套件正常时 STATUS=OK，结�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 记录套件退出码、报告 SHA256 与字节数，并保存逐字节相同的报告副本', () => {
+test('记录套件退出码、报告 SHA256 与字节数，并保存逐字节相同的报告副本', () => {
   const s = createScenario();
   try {
     const entry = s.suite('web', { platform: 'web', cases: WEB_CASES });
@@ -460,7 +460,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 记录套件退出码、报告 SHA256 
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件非零退出但报告有效时仍绑定用例，运行以 FAILED(SUITE_FAILED) 报告', () => {
+test('套件非零退出但报告有效时仍绑定用例，运行以 FAILED(SUITE_FAILED) 报告', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, code: 3 })]);
@@ -482,7 +482,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件非零退出但报告有效时�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告里有失败用例时 FAILED 并列出未通过的 AC，即使套件退出码为 0', () => {
+test('报告里有失败用例时 FAILED 并列出未通过的 AC，即使套件退出码为 0', () => {
   // 报告目录按约定写入 .gitignore，否则第二次 configure 的提交会把第一次运行留下的报告纳入版本控制。
   const s = createScenario({ files: { '.gitignore': 'reports/\n' } });
   try {
@@ -508,7 +508,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告里有失败用例时 FAILED 并
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告里出现不属于规格的标识时汇总为 UNKNOWN_IDS，不阻断运行', () => {
+test('报告里出现不属于规格的标识时汇总为 UNKNOWN_IDS，不阻断运行', () => {
   const s = createScenario();
   try {
     const cases = [...WEB_CASES, { name: 'AC-SHOP-009-09 / TC-SHOP-099 拼写错误的标识', status: 'passed' }];
@@ -525,7 +525,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告里出现不属于规格的标�
 
 // ---------------------------------------------------------------- 多端绑定
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 声明了端的 AC 按端绑定，任一端失败都出现在 AC_OPEN', () => {
+test('声明了端的 AC 按端绑定，任一端失败都出现在 AC_OPEN', () => {
   const s = createScenario();
   try {
     s.configure([
@@ -545,7 +545,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 声明了端的 AC 按端绑定，任�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 声明的端没有套件提供时按 missing 列入 AC_OPEN，但不改变运行状态', () => {
+test('声明的端没有套件提供时按 missing 列入 AC_OPEN，但不改变运行状态', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -567,7 +567,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 声明的端没有套件提供时按 m
 
 // ---------------------------------------------------------------- 硬失败：套件不会掩盖，后续套件继续
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件无法启动时记录 spawn_error 并仍写出结果', async () => {
+test('套件无法启动时记录 spawn_error 并仍写出结果', async () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -596,7 +596,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件无法启动时记录 spawn_erro
 
 // 真实计时器、走 CLI：桩套件的启动延迟长于超时窗口，所以它在写出 pid 文件之前就被终止。
 // 用例因此不依赖桩套件的启动速度，快机器和慢机器上的行为一致；进程树的终止由下面持有计时器的用例验证。
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后记录 timeout，后续套件继续运行', () => {
+test('套件超时后记录 timeout，后续套件继续运行', () => {
   const s = createScenario();
   const pidFile = path.join(s.aux, 'slow.pids');
   try {
@@ -626,7 +626,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后记录 timeout，后续
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树，记录 timeout', async (t) => {
+test('套件超时后终止整棵进程树，记录 timeout', async (t) => {
   const s = createScenario();
   let hung = null;
   try {
@@ -647,7 +647,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件忽略 SIGTERM 时升级为强制终止，整棵进程树仍被清理', async (t) => {
+test('套件忽略 SIGTERM 时升级为强制终止，整棵进程树仍被清理', async (t) => {
   const s = createScenario();
   let hung = null;
   try {
@@ -664,7 +664,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件忽略 SIGTERM 时升级为强�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件没有产出报告时记录 report_missing，后续套件继续运行', () => {
+test('套件没有产出报告时记录 report_missing，后续套件继续运行', () => {
   const s = createScenario();
   try {
     s.configure([
@@ -696,7 +696,7 @@ const INVALID_REPORTS = [
 ];
 
 for (const [label, xml] of INVALID_REPORTS) {
-  test(`AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告无效（${label}）时记录 report_invalid，不绑定任何用例，后续套件继续运行`, () => {
+  test(`报告无效（${label}）时记录 report_invalid，不绑定任何用例，后续套件继续运行`, () => {
     const s = createScenario();
     try {
       s.configure([
@@ -720,7 +720,7 @@ for (const [label, xml] of INVALID_REPORTS) {
   });
 }
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: DOCTYPE 报告里“通过”的用例不会让 AC 通过', () => {
+test('DOCTYPE 报告里“通过”的用例不会让 AC 通过', () => {
   const s = createScenario();
   try {
     const xml = INVALID_REPORTS[1][1];
@@ -736,7 +736,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: DOCTYPE 报告里“通过”的用例
 
 // ---------------------------------------------------------------- 陈旧产物与路径安全
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前删除旧报告，套件看不到上一次留下的文件，被忽略的旧报告不弄脏工作区', () => {
+test('运行前删除旧报告，套件看不到上一次留下的文件，被忽略的旧报告不弄脏工作区', () => {
   const s = createScenario({ files: { '.gitignore': 'reports/\n', 'reports/web.xml': junitReport(WEB_CASES, { suite: 'stale' }) } });
   try {
     s.configure([s.suite('web', { platform: 'web' })]);
@@ -754,7 +754,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前删除旧报告，套件看�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 多个套件共用同一报告路径时，每个套件前都重新删除旧报告', () => {
+test('多个套件共用同一报告路径时，每个套件前都重新删除旧报告', () => {
   const s = createScenario();
   try {
     s.configure([
@@ -771,7 +771,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 多个套件共用同一报告路径�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前删除旧的 ac-results.json，运行后写出新的', () => {
+test('运行前删除旧的 ac-results.json，运行后写出新的', () => {
   const s = createScenario({ files: { '.gitignore': 'reports/\n' } });
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -801,7 +801,7 @@ function expectReportPathInvalid(s, name, reportPath, pattern) {
   expectUntouched(s);
 }
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径本身是符号链接时 BLOCKED(REPORT_PATH_INVALID)，不删除链接目标', (t) => {
+test('报告路径本身是符号链接时 BLOCKED(REPORT_PATH_INVALID)，不删除链接目标', (t) => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -820,7 +820,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径本身是符号链接时 B
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径的祖先目录是符号链接时 BLOCKED(REPORT_PATH_INVALID)', (t) => {
+test('报告路径的祖先目录是符号链接时 BLOCKED(REPORT_PATH_INVALID)', (t) => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, report: 'out-link/web.xml' })]);
@@ -837,7 +837,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径的祖先目录是符号�
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径指向目录时 BLOCKED(REPORT_PATH_INVALID)', () => {
+test('报告路径指向目录时 BLOCKED(REPORT_PATH_INVALID)', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -851,7 +851,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径指向目录时 BLOCKED(RE
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告已被 git 跟踪时 BLOCKED(REPORT_PATH_INVALID)，提示 git rm --cached 且不删除文件', () => {
+test('报告已被 git 跟踪时 BLOCKED(REPORT_PATH_INVALID)，提示 git rm --cached 且不删除文件', () => {
   const s = createScenario({ files: { 'reports/web.xml': '已提交的旧报告\n' } });
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -864,7 +864,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告已被 git 跟踪时 BLOCKED(REP
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径的中间段是普通文件时 BLOCKED(REPORT_PATH_INVALID)', () => {
+test('报告路径的中间段是普通文件时 BLOCKED(REPORT_PATH_INVALID)', () => {
   const s = createScenario({ files: { 'package.json': '{}\n' } });
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, report: 'package.json/report.xml' })]);
@@ -879,7 +879,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 报告路径的中间段是普通文�
 
 // ---------------------------------------------------------------- 工作区状态
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前工作区干净时 WORKTREE_CLEAN=true 且没有警告', () => {
+test('运行前工作区干净时 WORKTREE_CLEAN=true 且没有警告', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -895,7 +895,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前工作区干净时 WORKTREE_C
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前工作区不干净时照常运行，但记录 worktree_clean=false 并给出 .gitignore 提示', () => {
+test('运行前工作区不干净时照常运行，但记录 worktree_clean=false 并给出 .gitignore 提示', () => {
   const s = createScenario();
   try {
     const head = s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -917,7 +917,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行前工作区不干净时照常�
 
 // ---------------------------------------------------------------- 运行环境与输出
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件在仓库根运行，PATH 首项是当前 node 所在目录', () => {
+test('套件在仓库根运行，PATH 首项是当前 node 所在目录', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -933,7 +933,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件在仓库根运行，PATH 首项
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件自己的输出只进 stderr，stdout 只含结构化的 KEY=value 行', () => {
+test('套件自己的输出只进 stderr，stdout 只含结构化的 KEY=value 行', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, prefix: 'echo NOISE-FROM-SUITE && ' })]);
@@ -949,7 +949,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件自己的输出只进 stderr，s
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: qa.business.enabled 为 false 时 qa run 仍然运行套件', () => {
+test('qa.business.enabled 为 false 时 qa run 仍然运行套件', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })], { enabled: false });
@@ -964,7 +964,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: qa.business.enabled 为 false 时 qa r
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: --help 打印用法并以 0 退出，不运行任何套件', () => {
+test('--help 打印用法并以 0 退出，不运行任何套件', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
@@ -981,7 +981,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: --help 打印用法并以 0 退出，�
 
 // ---------------------------------------------------------------- 中断
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启动后续套件', async () => {
+test('运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启动后续套件', async () => {
   const s = createScenario();
   let pids = null;
   try {

@@ -8,7 +8,7 @@ const require=createRequire(import.meta.url),source=path.resolve(import.meta.dir
 if(!legacy||JSON.parse(fs.readFileSync(path.join(legacy,'package.json'))).version!=='3.2.0')throw Error('Extracted v3.2.0 source required');
 const old=require(path.join(legacy,'architecture/scripts/project.js')),current=require('../scripts/project.js');
 const {createTemplatePlan}=require('../../tooling/xirang/template.js'),{applyPlan}=require('../../tooling/xirang/engine.js');
-test('TC-OSSKIT-008 real v3.2 upgrade preserves custom schema, SQL, UI and accepts explicit capability adoption',t=>{
+test('real v3.2 upgrade preserves custom schema, SQL, UI and accepts explicit capability adoption',t=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'xirang-33-')),target=path.join(root,'repo'),runRoot=path.join(root,'runs');fs.mkdirSync(target);t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const config=old.expandBlueprint('admin-api',{source:legacy,database:'sqlite'});applyPlan(old.createArchitecturePlan({source:legacy,target,config}),{runRoot});
  const before=new Map();for(const file of ['packages/database/main/prisma/schema.prisma','packages/ui/src/ui/button.tsx','apps/api/src/server.ts']){const p=path.join(target,file);fs.appendFileSync(p,'\n// Preserve project customization\n');before.set(file,fs.readFileSync(p,'utf8'));}

@@ -27,7 +27,7 @@ function fingerprint(root) {
   walk(root); return hash(json(files));
 }
 
-test('TC-LAZYARCH-002/003/004 published CLI survives cold cache, corruption and recovery', () => {
+test('published CLI survives cold cache, corruption and recovery', () => {
   assert.match(process.env.XIRANG_RELEASE_COMMIT || '', /^[a-f0-9]{40}$/, 'set XIRANG_RELEASE_COMMIT to a published source commit');
   const parent = path.join(tmp, 'architecture-on-demand');
   fs.mkdirSync(parent, { recursive: true });

@@ -15,7 +15,7 @@ function fixture(t) {
 const read = (f,p) => fs.readFileSync(path.join(f.target,p),'utf8');
 const put = (f,p,v) => {fs.mkdirSync(path.dirname(path.join(f.target,p)),{recursive:true});fs.writeFileSync(path.join(f.target,p),v);};
 function plan(f,config) {return project.createArchitecturePlan({source,target:f.target,config,includeRuntime:false});}
-test('TC-MONOPLAT-001/008 four blueprints generate shared workspace once and converge', t => {
+test('four blueprints generate shared workspace once and converge', t => {
   for (const id of ['admin-api','fullstack','web-desktop','local-private']) {
     const f=fixture(t), config=project.expandBlueprint(id,{source,database:'sqlite'});
     const p=plan(f,config); assert.deepEqual(p.conflicts,[]); applyPlan(p,{runRoot:f.runRoot});
@@ -34,7 +34,7 @@ test('TC-MONOPLAT-001/008 four blueprints generate shared workspace once and con
     assert.equal(plan(f,config).changes.length,0);
   }
 });
-test('TC-MONOPLAT-009 workspace merge retains project YAML and schema customizations', t=>{
+test('workspace merge retains project YAML and schema customizations', t=>{
   const f=fixture(t),config=project.expandBlueprint('admin-api',{source});
   put(f,'pnpm-workspace.yaml','# Project catalog\npackages:\n  - custom/*\ncatalog:\n  lodash: 4.17.21\n');
   put(f,'package.json',JSON.stringify({private:true,scripts:{custom:'echo custom'}}));
@@ -48,7 +48,7 @@ test('TC-MONOPLAT-009 workspace merge retains project YAML and schema customizat
   assert.equal(read(f,'packages/database/main/prisma/schema.prisma'),schema);
   assert.equal(JSON.parse(read(f,'package.json')).scripts.custom,'echo custom');
 });
-test('TC-MONOPLAT-002 v2 rejects Prisma browser/native consumers and incompatible stacks',t=>{
+test('v2 rejects Prisma browser/native consumers and incompatible stacks',t=>{
   const f=fixture(t);
   for(const consumer of ['admin','desktop']) {
     const config=project.expandBlueprint(consumer==='desktop'?'web-desktop':'admin-api',{source});
@@ -59,11 +59,11 @@ test('TC-MONOPLAT-002 v2 rejects Prisma browser/native consumers and incompatibl
   config.workspace.packageManager='npm@11.0.0';
   assert.throws(()=>project.validateConfig(config,{source,target:f.target}),/pnpm/);
 });
-test('TC-MONOPLAT-008 unknown blueprint and unsupported database fail before mutation',()=>{
+test('unknown blueprint and unsupported database fail before mutation',()=>{
   assert.throws(()=>project.expandBlueprint('unknown',{source}),/blueprint/);
   assert.throws(()=>project.expandBlueprint('admin-api',{source,database:'oracle'}),/database/);
 });
-test('TC-MONOPLAT-001 minimal workspace and provider-specific install scripts remain valid',t=>{
+test('minimal workspace and provider-specific install scripts remain valid',t=>{
   const f=fixture(t),config={schemaVersion:2,workspace:{packageManager:'pnpm@10.18.3'},applications:[],datastores:[],modules:[]};
   const p=plan(f,config);assert.deepEqual(p.conflicts,[]);applyPlan(p,{runRoot:f.runRoot});
   const yaml=require('../../tooling/xirang/vendor/yaml/lib');

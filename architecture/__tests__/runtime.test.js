@@ -15,7 +15,7 @@ function fixture(t) {
   const target = path.join(root, 'repo'); fs.mkdirSync(target);
   return { root, target, runRoot: path.join(root, 'runs') };
 }
-test('TC-LAZYARCH-002 explicit kit installs lightweight metadata and CLI without unselected source', t => {
+test('explicit kit installs lightweight metadata and CLI without unselected source', t => {
   const f = fixture(t), plan = createTemplatePlan({ source, target: f.target, include: ['architecture'] });
   assert.deepEqual(plan.conflicts, []); applyPlan(plan, f);
   const files = walk(path.join(f.target, 'architecture'));
@@ -29,7 +29,7 @@ test('TC-LAZYARCH-002 explicit kit installs lightweight metadata and CLI without
   assert.equal(catalog.status, 0, catalog.stderr); assert.equal(JSON.parse(catalog.stdout).id, 'architecture');
   assert.equal(createTemplatePlan({ source, target: f.target }).changes.length, 0);
 });
-test('TC-LAZYARCH-003 standalone init creates only chosen application and lightweight runtime', t => {
+test('standalone init creates only chosen application and lightweight runtime', t => {
   const f = fixture(t), config = { schemaVersion: 1, applications: [{ id: 'api', path: 'apps/api', stack: 'node' }] };
   applyPlan(createArchitecturePlan({ source, target: f.target, config }), f);
   assert.ok(fs.existsSync(path.join(f.target, 'apps/api/src/server.mjs')));
@@ -37,7 +37,7 @@ test('TC-LAZYARCH-003 standalone init creates only chosen application and lightw
   assert.ok(!fs.existsSync(path.join(f.target, 'architecture/stacks')));
   assert.ok(!fs.existsSync(path.join(f.target, 'packages')));
 });
-test('TC-LAZYARCH-005 legacy runtime shrink protects customized and unknown files', t => {
+test('legacy runtime shrink protects customized and unknown files', t => {
   const f = fixture(t);
   applyPlan(createTemplatePlan({ source, target: f.target, scope: 'agent' }), f);
   const legacy = ['architecture/manifest.json', 'architecture/scripts/cli.js', 'architecture/modules/unused.ts'];
@@ -51,7 +51,7 @@ test('TC-LAZYARCH-005 legacy runtime shrink protects customized and unknown file
   assert.equal(read(f.target, '.xirang/baselines/' + hash('// original runtime\n'), true), null);
   assert.equal(createTemplatePlan({ source, target: f.target }).changes.length, 0);
 });
-test('TC-LAZYARCH-005 retired baselines are removed only after last reference and recover after lock publication', t => {
+test('retired baselines are removed only after last reference and recover after lock publication', t => {
   const f = fixture(t), old = 'shared old baseline\n';
   const asset = p => ({ path: p, content: old, owner: p.startsWith('architecture/') ? 'architecture:runtime' : 'other', version: '1', strategy: 'overwrite' });
   applyPlan(planUpdate({ target: f.target, assets: [asset('architecture/a.js'), asset('packages/a.js')] }), f);
@@ -64,7 +64,7 @@ test('TC-LAZYARCH-005 retired baselines are removed only after last reference an
   assert.equal(read(f.target, '.xirang/baselines/' + hash(old), true), null);
   assert.deepEqual(readLock(f.target).files, {});
 });
-test('TC-LAZYARCH-001/006 agent scope leaves installed architecture pointer and choices unchanged', t => {
+test('agent scope leaves installed architecture pointer and choices unchanged', t => {
   const f = fixture(t); applyPlan(createTemplatePlan({ source, target: f.target, include: ['architecture'] }), f);
   const before = read(f.target, 'architecture/runtime.json');
   const plan = createTemplatePlan({ source, target: f.target, scope: 'agent' });
@@ -72,7 +72,7 @@ test('TC-LAZYARCH-001/006 agent scope leaves installed architecture pointer and 
   assert.equal(read(f.target, 'architecture/runtime.json'), before);
 });
 
-test('TC-LAZYARCH-003/004 installed standalone CLI executes pinned generator, frozen apply and checks', t => {
+test('installed standalone CLI executes pinned generator, frozen apply and checks', t => {
   const f = fixture(t), config = { schemaVersion: 1, applications: [{ id: 'api', path: 'apps/api', stack: 'node' }] };
   const plan = createArchitecturePlan({ source, target: f.target, config }); preparePlanSource(plan, source); applyPlan(plan, f);
   function cli(args) { const r = spawnSync(process.execPath, ['architecture/scripts/cli.js', ...args], { cwd: f.target, encoding: 'utf8', timeout: 60000 }); assert.equal(r.status, 0, r.stdout + r.stderr); return r; }
@@ -92,7 +92,7 @@ test('TC-LAZYARCH-003/004 installed standalone CLI executes pinned generator, fr
   assert.notEqual(rejected.status, 0); assert.match(rejected.stderr, /modified architecture runtime pointer/);
 });
 
-test('TC-LAZYARCH-004/005 CLI resume completes a frozen update with a pointer written before the lock', t => {
+test('CLI resume completes a frozen update with a pointer written before the lock', t => {
   const f = fixture(t), config = { schemaVersion: 1, applications: [{ id: 'api', path: 'apps/api', stack: 'node' }] };
   f.runRoot = path.join(f.root, 'tmp', 'xirang-runs');
   applyPlan(createArchitecturePlan({ source, target: f.target, config }), f);

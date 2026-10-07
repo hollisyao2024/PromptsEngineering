@@ -22,7 +22,7 @@ function evaluate(access,engine,sql,kinds,extra={}){
 }
 const comments=()=>import(path.join(source,'architecture/stacks/data-access/drizzle/migration-comments.mjs'));
 
-test('TC-DATA-008/009 semantic Prisma module SQL passes the required gate on every engine',()=>{
+test('semantic Prisma module SQL passes the required gate on every engine',()=>{
  for(const engine of ['postgres','mysql','mariadb','sqlite'])for(const kind of ['auth','files'])for(const partial of [true,false]){
   const sql=mm.moduleSQL(kind,engine,{partial}),r=evaluate('prisma',engine,sql,[kind]);
   assert.deepEqual(r.errors,[],`${engine}/${kind}/${partial}`);assert.deepEqual(r.warnings,[]);
@@ -35,7 +35,7 @@ test('TC-DATA-008/009 semantic Prisma module SQL passes the required gate on eve
  assert.doesNotMatch(mm.moduleSQL('auth','sqlite'),/xirang:hard-delete (user|organization|member|invitation) /);
 });
 
-test('TC-DATA-007 Drizzle migrations receive schema comments and hard-delete markers idempotently',async()=>{
+test('Drizzle migrations receive schema comments and hard-delete markers idempotently',async()=>{
  const {collectComments,annotateMigration}=await comments();
  const schema=mm.drizzleModuleSchema('auth','postgres');const tables=collectComments([schema]);
  assert.equal(tables.get('session').hardDelete.startsWith('会话到期'),true);assert.equal(tables.get('user').hardDelete,'');assert.equal(tables.get('user').columns.get('email'),'登录邮箱，未删除用户内唯一');
@@ -54,7 +54,7 @@ test('TC-DATA-007 Drizzle migrations receive schema comments and hard-delete mar
  const generated=mm.drizzleModuleSchema('files','postgres');assert.match(generated,/export const fileObject=pgTable\('file_object'/);
 });
 
-test('TC-DATA-007/008/009 generated Drizzle migrations satisfy the gate only after annotation',async()=>{
+test('generated Drizzle migrations satisfy the gate only after annotation',async()=>{
  const {collectComments,annotateMigration}=await comments();
  // Minimal drizzle-kit shaped SQL derived from the module tables; the real drizzle-kit 0.31 run is recorded as task evidence.
  for(const [engine,dialect] of [['postgres','postgresql'],['mysql','mysql'],['sqlite','sqlite']]){
@@ -66,7 +66,7 @@ test('TC-DATA-007/008/009 generated Drizzle migrations satisfy the gate only aft
  }
 });
 
-test('TC-DATA-008/009 fresh installs choose semantic modules and respect Prisma partial-index support',t=>{
+test('fresh installs choose semantic modules and respect Prisma partial-index support',t=>{
  assert.deepEqual(database.moduleGeneration(null,{path:'x',access:'prisma'},'auth'),{generation:'semantic',partial:true});
  const f=fixture(t),store={path:'packages/database/main',access:'prisma'};
  assert.deepEqual(database.moduleGeneration(f.target,store,'auth'),{generation:'semantic',partial:true});
@@ -86,7 +86,7 @@ test('TC-DATA-008/009 fresh installs choose semantic modules and respect Prisma 
  }
 });
 
-test('TC-DATA-010 installed legacy modules keep original bytes, stay exempt and converge',t=>{
+test('installed legacy modules keep original bytes, stay exempt and converge',t=>{
  for(const access of ['prisma','drizzle']){
   const f=fixture(t),config=selection('postgres',access),db='packages/database/main';
   if(access==='prisma'){
@@ -109,7 +109,7 @@ test('TC-DATA-010 installed legacy modules keep original bytes, stay exempt and 
  }
 });
 
-test('TC-DATA-008 audit adapter soft-deletes identities, hard-deletes credentials with secret-free audit rows',async t=>{
+test('audit adapter soft-deletes identities, hard-deletes credentials with secret-free audit rows',async t=>{
  const f=fixture(t),dir=path.join(f.root,'audit');fs.mkdirSync(path.join(dir,'node_modules/@better-auth/core'),{recursive:true});
  fs.writeFileSync(path.join(dir,'package.json'),'{"type":"module"}\n');
  fs.writeFileSync(path.join(dir,'node_modules/@better-auth/core/package.json'),JSON.stringify({name:'@better-auth/core',type:'module',exports:{'./context':'./context.js'}}));
@@ -143,7 +143,7 @@ test('TC-DATA-008 audit adapter soft-deletes identities, hard-deletes credential
  const plugin=xirangAudit();assert.equal(plugin.id,'xirang-audit');assert.ok(plugin.schema.authAuditLog.fields.actor.required);assert.equal(plugin.schema.session.fields.deletedAt,undefined);assert.ok(plugin.schema.member.fields.updatedAt.onUpdate);
 });
 
-test('TC-DATA-010 data dictionary documents every semantic module column',()=>{
+test('data dictionary documents every semantic module column',()=>{
  const index=gate.parseDictionary(src('docs/data/dictionary.md'));
  for(const m of ['auth','files'].flatMap(k=>mm.tables(k))){
   const documented=index.get(m.table);assert.ok(documented,m.table);

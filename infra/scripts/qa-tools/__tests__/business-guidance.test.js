@@ -1,10 +1,10 @@
 /*
- * TASK-BIZTEST-010：业务测试自动化的专家指引与命令面同步。
+ * 业务测试自动化的专家指引与命令面同步。
  *
- * AC-BIZTEST-005-01 / TC-BIZTEST-017  预言机只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约
- * AC-BIZTEST-005-02 / TC-BIZTEST-018  路径推导、覆盖准则、测试设计技术、用例预算与数据驱动约定
- * AC-BIZTEST-005-03 / TC-BIZTEST-019  刷新只新增或提出差异，不覆盖已评审用例
- * AC-BIZTEST-005-04 / TC-BIZTEST-020  命令表与完成定义同步原子 AC、qa paths、qa run、测试名携带 AC/TC 标识
+ * - 预言机只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约
+ * - 路径推导、覆盖准则、测试设计技术、用例预算与数据驱动约定
+ * - 刷新只新增或提出差异，不覆盖已评审用例
+ * - 命令表与完成定义同步原子 AC、qa paths、qa run、测试名携带 AC/TC 标识
  *
  * 本文件随 qa-tools 一并分发到实际项目，因此只读取模板自有文件：专家文件、CONVENTIONS、
  * PATHS 模板、默认配置、qa-tools 源码与 README，不读取息壤源独有的模块文档。
@@ -153,14 +153,14 @@ function scanViolationCodes() {
   return [...found].sort();
 }
 
-test('AC-BIZTEST-005-01 / TC-BIZTEST-017: 预言机规则逐字出现在 QA 手册业务测试章与 PRD/ARCH/TDD/QA 四个角色文件', () => {
+test('预言机规则逐字出现在 QA 手册业务测试章与 PRD/ARCH/TDD/QA 四个角色文件', () => {
   const targets = { [`${PLAYBOOK}「${CHAPTER}」`]: chapter() };
   for (const rel of Object.values(ROLES)) targets[rel] = read(rel);
   const lacking = Object.entries(targets).filter(([, text]) => !text.includes(ORACLE_RULE)).map(([name]) => name);
   assert.deepEqual(lacking, [], `以下文件缺少预言机规则「${ORACLE_RULE}」`);
 });
 
-test('AC-BIZTEST-005-01 / TC-BIZTEST-017: 预言机小节列出允许的来源、禁止项与歧义回流', () => {
+test('预言机小节列出允许的来源、禁止项与歧义回流', () => {
   const body = sub('预言机');
   assertIncludes('预言机小节', body, [
     'PRD 原子 AC',
@@ -175,7 +175,7 @@ test('AC-BIZTEST-005-01 / TC-BIZTEST-017: 预言机小节列出允许的来源�
   ]);
 });
 
-test('AC-BIZTEST-005-01 / TC-BIZTEST-017: 四个角色文件各按职责说明预言机', () => {
+test('四个角色文件各按职责说明预言机', () => {
   const focus = {
     PRD: ['预言机', '可断言'],
     ARCH: ['预言机', '接口契约', '可断言'],
@@ -188,7 +188,7 @@ test('AC-BIZTEST-005-01 / TC-BIZTEST-017: 四个角色文件各按职责说明�
   assert.deepEqual(lacking, [], '角色文件缺少与自身职责对应的预言机表述');
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 业务测试章按固定顺序给出十个小节', () => {
+test('业务测试章按固定顺序给出十个小节', () => {
   const titles = headings(chapter()).filter((heading) => heading.level === 3).map((heading) => heading.title);
   let from = 0;
   const lacking = [];
@@ -200,7 +200,7 @@ test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 业务测试章按固定顺序给出�
   assert.deepEqual(lacking, [], `小节缺失或顺序不符，实际小节：${titles.join(' | ')}`);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 路径推导给出界面、状态、转移、覆盖准则、路径与 qa paths 校验六步', () => {
+test('路径推导给出界面、状态、转移、覆盖准则、路径与 qa paths 校验六步', () => {
   const body = sub('路径推导');
   const leads = body
     .split('\n')
@@ -216,26 +216,26 @@ test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 路径推导给出界面、状态、�
   assertIncludes('路径推导小节', body, ['PATHS.md', 'pnpm agent -- qa paths', 'STATUS=OK', 'VIOLATION', 'MATRIX_PATH', '评审']);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 覆盖准则逐一说明三种取值与声明方式', () => {
+test('覆盖准则逐一说明三种取值与声明方式', () => {
   const body = sub('覆盖准则');
   assertRows('覆盖准则', body, CRITERIA, 3);
   assertIncludes('覆盖准则小节', body, ['覆盖准则：', '通过的路径']);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 测试设计技术覆盖等价类、边界值、判定表、状态迁移与两两组合，且只产生数据行', () => {
+test('测试设计技术覆盖等价类、边界值、判定表、状态迁移与两两组合，且只产生数据行', () => {
   const body = sub('测试设计技术');
   assertRows('测试设计技术', body, ['等价类', '边界值', '判定表', '状态迁移', '两两组合'], 3);
   assertIncludes('测试设计技术小节', body, [TECHNIQUE_RULE, '守卫']);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 用例预算按优先级给出预算，并说明 requiredPriorities 默认值', () => {
+test('用例预算按优先级给出预算，并说明 requiredPriorities 默认值', () => {
   const body = sub('用例预算');
   assertRows('用例预算', body, PRIORITIES, 3);
   const defaults = JSON.stringify(JSON.parse(read(CONFIG_EXAMPLE)).qa.business.requiredPriorities);
   assertIncludes('用例预算小节', body, ['requiredPriorities', defaults, 'RISK_LOWER_PRIORITY']);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 数据驱动约定一行数据一个 testcase、同路径共用 TC、任一失败即失败，并给出带标识的命名示例', () => {
+test('数据驱动约定一行数据一个 testcase、同路径共用 TC、任一失败即失败，并给出带标识的命名示例', () => {
   const body = sub('数据驱动');
   assertIncludes('数据驱动小节', body, [NAME_RULE, '一行数据', 'testcase', '共用', '任一', '失败', 'RISK_UNLABELLED_CASES']);
   const tcPattern = new RegExp(TEST_CASE_ID_SOURCE, 'u');
@@ -244,7 +244,7 @@ test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 数据驱动约定一行数据一个 t
   assert.ok(example, '数据驱动小节应给出同时携带 TC 与 AC 标识的测试名示例');
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 驱动产物与报告说明 JUnit 契约、忽略产物、脏工作区处理与跨平台路径', () => {
+test('驱动产物与报告说明 JUnit 契约、忽略产物、脏工作区处理与跨平台路径', () => {
   const body = sub('驱动产物与报告');
   assertIncludes('驱动产物与报告小节', body, [
     'JUnit XML',
@@ -257,7 +257,7 @@ test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 驱动产物与报告说明 JUnit 契�
   ]);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 配置与使用顺序逐项说明 qa.business 配置键、默认值与 paths → run → verify 顺序', () => {
+test('配置与使用顺序逐项说明 qa.business 配置键、默认值与 paths → run → verify 顺序', () => {
   const body = sub('配置与使用顺序');
   const businessKeys = Object.keys(JSON.parse(read(CONFIG_EXAMPLE)).qa.business);
   assertRows('qa.business 配置键', body, [...businessKeys, ...SUITE_KEYS], 2);
@@ -272,31 +272,31 @@ test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 配置与使用顺序逐项说明 qa.b
   assertOrdered('使用顺序', body, ['pnpm agent -- qa paths', 'pnpm agent -- qa run', 'pnpm agent -- qa verify']);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 漂移守卫——qa paths 违规码速查覆盖脚本中的全部违规码', () => {
+test('漂移守卫——qa paths 违规码速查覆盖脚本中的全部违规码', () => {
   const body = section(sub('阻断码与风险码速查'), 4, 'qa paths 违规码');
   assert.ok(body, '速查小节缺少「qa paths 违规码」（#### 标题）');
   assertRows('qa paths 违规码', body, scanViolationCodes(), 2);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 漂移守卫——qa verify 阻断码速查覆盖 BLOCK_CODES，且每行给出含义与处理', () => {
+test('漂移守卫——qa verify 阻断码速查覆盖 BLOCK_CODES，且每行给出含义与处理', () => {
   const body = section(sub('阻断码与风险码速查'), 4, 'qa verify 阻断码');
   assert.ok(body, '速查小节缺少「qa verify 阻断码」（#### 标题）');
   assertRows('qa verify 阻断码', body, [...BLOCK_CODES], 3);
 });
 
-test('AC-BIZTEST-005-02 / TC-BIZTEST-018: 漂移守卫——风险披露码速查覆盖 RISK_CODES', () => {
+test('漂移守卫——风险披露码速查覆盖 RISK_CODES', () => {
   const body = section(sub('阻断码与风险码速查'), 4, '风险披露码');
   assert.ok(body, '速查小节缺少「风险披露码」（#### 标题）');
   assertRows('风险披露码', body, [...RISK_CODES], 2);
 });
 
-test('AC-BIZTEST-005-03 / TC-BIZTEST-019: 刷新策略规定新增、修改、删除 AC 与应用改版的处理，且不覆盖已评审用例', () => {
+test('刷新策略规定新增、修改、删除 AC 与应用改版的处理，且不覆盖已评审用例', () => {
   const body = sub('刷新策略');
   assertIncludes('刷新策略小节', body, [REFRESH_RULE, '/qa plan', 'PATHS.md', '追加', '提案', '评审']);
   assertRows('刷新策略', body, ['新增 AC', '修改 AC', '删除 AC', '应用改版'], 3);
 });
 
-test('AC-BIZTEST-005-03 / TC-BIZTEST-019: /qa plan 保留策略、QA 角色文件与 PATHS 模板口径一致，且不再声明无条件覆盖', () => {
+test('/qa plan 保留策略、QA 角色文件与 PATHS 模板口径一致，且不再声明无条件覆盖', () => {
   const playbook = read(PLAYBOOK);
   const retention = section(playbook, 3, '更新现有 QA.md 的保留策略');
   assert.ok(retention, 'QA 手册缺少「更新现有 QA.md 的保留策略」小节');
@@ -306,7 +306,7 @@ test('AC-BIZTEST-005-03 / TC-BIZTEST-019: /qa plan 保留策略、QA 角色文�
   assert.ok(/不覆盖已评审/u.test(read(PATHS_TEMPLATE)), 'PATHS 模板缺少不覆盖已评审条目的约定');
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: 四个角色文件同步原子 AC、qa paths、qa run 与测试命名约定', () => {
+test('四个角色文件同步原子 AC、qa paths、qa run 与测试命名约定', () => {
   const needles = ['原子 AC', 'pnpm agent -- qa paths', 'pnpm agent -- qa run', NAME_RULE];
   const lacking = Object.entries(ROLES)
     .map(([key, rel]) => [key, needles.filter((needle) => !read(rel).includes(needle))])
@@ -314,7 +314,7 @@ test('AC-BIZTEST-005-04 / TC-BIZTEST-020: 四个角色文件同步原子 AC、qa
   assert.deepEqual(lacking, [], '角色文件缺少业务测试自动化的同步内容');
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: 四个角色文件的完成定义同步原子 AC 与业务测试门槛', () => {
+test('四个角色文件的完成定义同步原子 AC 与业务测试门槛', () => {
   const dod = {
     PRD: ['完成定义', ['原子 AC', 'qa paths']],
     ARCH: ['完成定义', ['原子 AC', '预言机']],
@@ -334,7 +334,7 @@ test('AC-BIZTEST-005-04 / TC-BIZTEST-020: 四个角色文件的完成定义同�
   assert.deepEqual(problems, [], '完成定义未同步业务测试自动化');
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: QA 命令表登记 /qa paths 与 /qa run 并说明业务验收门禁', () => {
+test('QA 命令表登记 /qa paths 与 /qa run 并说明业务验收门禁', () => {
   const qa = read(ROLES.QA);
   assertIncludes('QA 命令表', qa, [
     '| `/qa paths` | `pnpm agent -- qa paths` |',
@@ -344,7 +344,7 @@ test('AC-BIZTEST-005-04 / TC-BIZTEST-020: QA 命令表登记 /qa paths 与 /qa r
   assert.ok(verify && verify.includes('qa.business'), '`/qa verify` 的命令说明应提到启用 qa.business 时的业务验收门禁');
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: CONVENTIONS 命令面登记 qa paths 与 qa run，交付章节说明业务验收门禁', () => {
+test('CONVENTIONS 命令面登记 qa paths 与 qa run，交付章节说明业务验收门禁', () => {
   const conventions = read(CONVENTIONS);
   const surface = section(conventions, 2, '7. 命令面');
   const delivery = section(conventions, 2, '8. TDD、QA 与交付');
@@ -353,11 +353,11 @@ test('AC-BIZTEST-005-04 / TC-BIZTEST-020: CONVENTIONS 命令面登记 qa paths �
   assertIncludes('CONVENTIONS §8', delivery, ['qa.business', '最后一次提交']);
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: qa-tools README 说明业务测试命令、门禁与配置', () => {
+test('qa-tools README 说明业务测试命令、门禁与配置', () => {
   assertIncludes('qa-tools README', read(README), ['pnpm agent -- qa paths', 'pnpm agent -- qa run', 'qa.business', 'RESULTS_DIRTY_WORKTREE']);
 });
 
-test('AC-BIZTEST-005-04 / TC-BIZTEST-020: QA 手册的用例生成步骤引用原子 AC，常用命令包含业务测试命令，PRD 手册检查原子 AC', () => {
+test('QA 手册的用例生成步骤引用原子 AC，常用命令包含业务测试命令，PRD 手册检查原子 AC', () => {
   const playbook = read(PLAYBOOK);
   const generation = section(playbook, 4, '第二步：测试用例生成');
   assert.ok(generation, 'QA 手册缺少「第二步：测试用例生成」小节');
