@@ -182,3 +182,5 @@ Drizzle 与常见数据库：[模块 ARCH](arch-modules/drizzle/ARCH.md)。
 数据语义约定与 Schema 变更门禁：[模块 ARCH](arch-modules/data-semantics/ARCH.md)，[ADR-034](adr/034-arch-data-semantic-conventions.md)、[ADR-035](adr/035-arch-data-semantic-enforcement.md)。
 
 业务测试自动化：[模块 ARCH](arch-modules/business-testing/ARCH.md)，[ADR-038](adr/038-arch-business-test-automation.md)。模型在创作期把 PRD 原子 AC 推导为界面、状态、转移与路径模型及数据驱动用例；`qa paths`、`qa run` 与 `qa verify` 业务门禁由脚本确定性校验、运行、按 AC/TC 标识绑定并判定，驱动无关（JUnit XML），默认关闭。
+
+业务测试驱动脚手架（可选 `e2e` 模块）：[模块 ARCH](arch-modules/open-source-components/ARCH.md)，[ADR-039](adr/039-arch-e2e-driver-scaffold.md)。仅对接 JUnit XML、AC/TC 标识与平台标签三项契约，按 UI 应用生成 Playwright 配置与示例用例；不改写 `agent.config.json`、不下载浏览器、默认不重试。

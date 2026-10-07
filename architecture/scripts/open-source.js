@@ -1,12 +1,21 @@
 const {json,readLock}=require('../../tooling/xirang/engine');
-const moduleIds=['auth','auth-client','authorization','jobs','i18n','logging','telemetry','api-mocks'];
+const moduleIds=['auth','auth-client','authorization','jobs','i18n','logging','telemetry','api-mocks','e2e'];
 const browserIds=['auth-client','i18n','api-mocks'];
-function validateModules(config){
+// Web-layer dev server per UI stack; {port} is filled by playwright.config.ts (ADR-039).
+const e2eDevCommands={'react-vite':'run dev --port {port} --strictPort','react-next':'run dev -p {port}',tauri:'run dev:web --port {port} --strictPort'};
+function validateE2e(config,cat){
+ const ui=config.applications.filter(a=>cat.stacks[a.stack]?.ui);
+ if(!ui.length)throw new Error('e2e requires a UI application');
+ const unsupported=ui.find(a=>!e2eDevCommands[a.stack]);if(unsupported)throw new Error('e2e has no dev server command for stack: '+unsupported.stack);
+ if(config.applications.some(a=>a.modules?.includes('e2e')))throw new Error('e2e is a private root; applications cannot declare it');
+}
+function validateModules(config,cat){
  for(const m of config.modules){
   if(!moduleIds.includes(m.id)){if(m.options!==undefined)throw new Error('Module does not accept options: '+m.id);continue;}
   if(config.schemaVersion!==2)throw new Error('Open-source modules require a v2 workspace');
   const allowed=['auth','authorization'].includes(m.id)?['datastore']:m.id==='jobs'?['provider','backend']:[];
   if(m.options!==undefined&&(!m.options||Array.isArray(m.options)||typeof m.options!=='object'||Object.keys(m.options).some(k=>!allowed.includes(k))))throw new Error('Invalid module options: '+m.id);
+  if(m.id==='e2e'){validateE2e(config,cat);continue;}
   if(['auth','authorization'].includes(m.id)){
    const db=config.datastores.find(d=>d.id===m.options?.datastore&&['prisma','drizzle'].includes(d.access));
    if(!db)throw new Error(m.id+' requires an ORM datastore');
@@ -17,6 +26,17 @@ function validateModules(config){
   if(m.id==='auth-client'&&!config.modules.some(x=>x.id==='auth'))throw new Error('auth-client requires the auth module');
  }
 }
+// The driver is a private root: no exports, and no test/build/generate script so workspace aggregate commands never start a browser.
+function buildE2e({config,m,owner,add,copy,readSource,deps}){
+ const apps=config.applications.filter(a=>e2eDevCommands[a.stack]).map(a=>({id:a.id,stack:a.stack,command:'pnpm --filter @project/'+a.id+' '+e2eDevCommands[a.stack]}));
+ copy('architecture/modules/open-source/e2e',m.path,owner,{modulePath:m.path});
+ add(m.path+'/src/apps.ts','export interface E2EApp {\n  id: string;\n  stack: string;\n  command: string;\n}\nexport const apps: E2EApp[] = '+JSON.stringify(apps,null,2)+';\n','update',owner);
+ for(const a of apps)add(m.path+'/tests/'+a.id+'/sample.spec.ts',readSource('architecture/modules/open-source/e2e-sample/sample.spec.ts'),'init-if-missing',owner);
+ const compiler={...require('./monorepo').tsconfig(false),include:['src','tests','playwright.config.ts']};Object.assign(compiler.compilerOptions,{lib:['ES2022','DOM'],noEmit:true,declaration:false,rootDir:'.'});
+ add(m.path+'/package.json',json({name:'@project/e2e',private:true,type:'module',engines:deps.engines,scripts:{'type-check':'tsc --noEmit',e2e:'playwright test'},devDependencies:{'@playwright/test':deps.modules.e2e['@playwright/test'],typescript:deps.frontendDev.typescript,'@types/node':deps.frontendDev['@types/node']}}),'merge-json',owner);
+ add(m.path+'/tsconfig.json',json(compiler),'merge-json',owner);
+ add(m.path+'/.gitignore','node_modules/\nreports/\ntest-results/\nplaywright-report/\n','append-lines',owner);
+}
 function buildModules({config,source,target,add,copy,owned,readSource,deps,selected,registration}){
  const change=(p,fn)=>{const item=owned.get(p);if(item)item.content=fn(item.content);};
  for(const m of config.modules.filter(m=>moduleIds.includes(m.id))){
@@ -24,6 +44,7 @@ function buildModules({config,source,target,add,copy,owned,readSource,deps,selec
   const old=readLock(target).packages?.[owner]?.selection;
   if(old&&!require('node:util').isDeepStrictEqual(old.options||{},m.options||{}))throw new Error('Module option change requires explicit project migration/adoption: '+m.id);
   registration(owner,m);
+  if(m.id==='e2e'){buildE2e({config,m,owner,add,copy,readSource,deps});continue;}
   const db=config.datastores.find(d=>d.id===m.options?.datastore);
   const values={datastore:db?.id||'',provider:db?require('./database').specs[db.engine].provider:'sqlite',drizzleProvider:db?.engine==='postgres'?'pg':['mysql','mariadb'].includes(db?.engine)?'mysql':'sqlite',backend:m.options?.backend||''};
   // Installed legacy auth stores keep the original adapter wiring and receive no audit wrapper (ADR-035).

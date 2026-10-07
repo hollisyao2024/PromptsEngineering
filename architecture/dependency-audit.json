@@ -564,6 +564,15 @@
       "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
     },
     {
+      "name": "@playwright/test",
+      "latest": "1.63.0",
+      "selected": "1.62.1",
+      "license": "Apache-2.0",
+      "registry": "https://registry.npmjs.org/%40playwright%2Ftest",
+      "checkedAt": "2026-10-07",
+      "reason": "Pinned to 1.62.1, the @playwright/test release exercised offline from the local pnpm store with real Google Chrome 154.0.8037.98; npm latest 1.63.0 was not exercised because only its playwright-core is cached locally. The generated config and sample specs ran against stand-in dev servers, not real react-vite or react-next servers; the template downloads no browser."
+    },
+    {
       "name": "pg-boss",
       "latest": "12.30.0",
       "selected": "12.30.0",

@@ -6,13 +6,13 @@
 
 实际项目的大模型在创作期把 PRD 的原子验收标准（AC）推导为“界面—状态—转移—路径”的业务操作路径模型，再按覆盖准则与测试设计技术生成数据驱动用例；脚本负责校验路径模型、运行测试套件、按用例名中的 AC/TC 标识绑定结果，并在 `qa verify` 门禁判定。执行与判定不经过模型，期望值只来自规格，不来自被测代码的当前输出。
 
-覆盖端：Web 页面与 mac、win、ios、android 客户端。统一接口只有三项：JUnit XML 报告、用例名携带 AC/TC 标识、套件的 `platform` 标签；具体驱动（Playwright、Maestro、XCUITest、Espresso 等）由项目选择，模板不绑定。
+覆盖端：Web 页面与 mac、win、ios、android 客户端。统一接口只有三项：JUnit XML 报告、用例名携带 AC/TC 标识、套件的 `platform` 标签；具体驱动（Playwright、Maestro、XCUITest、Espresso 等）由项目选择，模板不绑定；Web 端可选用 architecture 包的 `e2e` 模块生成 Playwright 驱动脚手架（见 [开源公共能力 PRD](../open-source-components/PRD.md) US-OSSKIT-009）。
 
 ## 2. 范围与约束
 
 范围：规格契约（原子 AC 清单、TC 标识统一）、业务操作路径模型及其校验（`qa paths`）、套件执行与结果绑定（`qa run`）、业务验收门禁（`qa verify` 增量）、QA 生成指引与四个角色文件同步、闭环验证夹具。
 
-非范围：脚本调用任何 LLM API；E2E/客户端驱动脚手架与初始化（后续由 architecture 包提供）；突变测试、断言质量 lint、flaky 重试策略；性能与安全专项自动化；真实云服务与身份提供方验收（属项目自有）；manual 类 AC 的验收记录门禁（本期只披露风险）。
+非范围：脚本调用任何 LLM API；iOS、Android 与原生桌面的驱动脚手架与初始化（Web 端脚手架已由 architecture 包的可选 `e2e` 模块提供，见 US-OSSKIT-009）；突变测试、断言质量 lint、flaky 重试策略；性能与安全专项自动化；真实云服务与身份提供方验收（属项目自有）；manual 类 AC 的验收记录门禁（本期只披露风险）。
 
 约束：默认关闭，既有 `qa verify` 行为与输出不变；脚本只读规格文档与测试报告，套件命令仅来自受信配置；运行产物写入容器 `tmp`，不进入 tracked 目录；模板源自身无业务应用，闭环以夹具验证。
 
@@ -88,7 +88,7 @@
 | --- | --- | --- |
 | P1 最小闭环（本次） | 原子 AC 与 `TC-` 统一、路径模型模板、`qa paths`、`qa run`、`qa verify` 增量、QA 指引与角色文件、夹具验证 | 定向测试与夹具反例通过，模板收敛 dry-run 无差异 |
 | P2 | `qa plan` 生成 TC 骨架与覆盖矩阵、断言质量检查 | 另行立项 |
-| P3 | architecture 包提供 Playwright 与客户端驱动脚手架及所有权登记 | 另行立项 |
+| P3 | architecture 包提供 Playwright 驱动脚手架及所有权登记 | 已交付（Web 端）：可选 `e2e` 模块，见 [开源公共能力 PRD](../open-source-components/PRD.md) US-OSSKIT-009 与 [ADR-039](../../adr/039-arch-e2e-driver-scaffold.md)；iOS、Android 与原生桌面驱动仍由项目自带，未立项 |
 | P4 | flaky 策略、突变抽样、人工验收记录、性能与安全专项 | 另行立项 |
 
 按 PRD → ARCH → TASK → TDD → QA 交付。

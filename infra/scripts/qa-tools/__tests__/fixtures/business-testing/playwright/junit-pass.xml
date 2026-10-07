@@ -1,0 +1,14 @@
+<testsuites id="" name="" tests="3" failures="0" skipped="0" errors="0" time="8.356107">
+<testsuite name="tests/admin/sample.spec.ts" timestamp="2026-10-07T04:26:40.384Z" hostname="admin" tests="1" failures="0" skipped="0" time="0.972" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/admin/sample.spec.ts" time="0.972">
+</testcase>
+</testsuite>
+<testsuite name="tests/site/sample.spec.ts" timestamp="2026-10-07T04:26:40.384Z" hostname="site" tests="1" failures="0" skipped="0" time="0.771" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/site/sample.spec.ts" time="0.771">
+</testcase>
+</testsuite>
+<testsuite name="tests/desktop/sample.spec.ts" timestamp="2026-10-07T04:26:40.384Z" hostname="desktop" tests="1" failures="0" skipped="0" time="0.678" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/desktop/sample.spec.ts" time="0.678">
+</testcase>
+</testsuite>
+</testsuites>

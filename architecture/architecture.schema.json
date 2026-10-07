@@ -180,7 +180,8 @@
               "i18n",
               "logging",
               "telemetry",
-              "api-mocks"
+              "api-mocks",
+              "e2e"
             ]
           },
           "path": {

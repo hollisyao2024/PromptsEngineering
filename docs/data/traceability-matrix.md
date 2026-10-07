@@ -132,6 +132,10 @@ US-CMDSURF-009 的 TC-CMDSURF-022~026 已完成 QA：定向、setup、完整模�
 | US-OSSKIT-006 | AC-OSSKIT-006-01 | TC-OSSKIT-006 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
 | US-OSSKIT-007 | AC-OSSKIT-007-01 | TC-OSSKIT-007 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
 | US-OSSKIT-008 | AC-OSSKIT-008-01 | TC-OSSKIT-008 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-009 | AC-OSSKIT-009-01 | TC-OSSKIT-009 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-009 | AC-OSSKIT-009-02 | TC-OSSKIT-010 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-009 | AC-OSSKIT-009-03 | TC-OSSKIT-011 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
+| US-OSSKIT-009 | AC-OSSKIT-009-04 | TC-OSSKIT-012 | Pass | [QA](../qa-modules/open-source-components/QA.md) |
 
 ## 架构按需获取
 

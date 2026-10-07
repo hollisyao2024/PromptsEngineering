@@ -4,7 +4,7 @@
 > **关联 PRD 模块**：[PRD.md](../../prd-modules/business-testing/PRD.md)  
 > **关联 ARCH 模块**：[ARCH.md](../../arch-modules/business-testing/ARCH.md)  
 > **关联 ADR**：[ADR-038](../../adr/038-arch-business-test-automation.md)  
-> **状态**：P1 最小闭环 `TASK-BIZTEST-001~011` 已完成，验收通过 / Go；P2~P4 另行立项
+> **状态**：P1 最小闭环 `TASK-BIZTEST-001~011` 已完成，验收通过 / Go；P3 的 Web 端脚手架已由开源公共能力模块交付（`TASK-OSSKIT-008~011`）；P2、P4 另行立项
 > **Task state Gate**：`TASK_PLANNED` → `TDD_DONE` → `QA_VALIDATED`
 > **Story→Task ID**：`US-BIZTEST-001~006` / `TASK-BIZTEST-001~011` / `TC-BIZTEST-001~022`；主 TASK 对应 §2 模块任务索引与 §7 相关文档
 > **负责团队**：@template-maintainers  
@@ -16,7 +16,7 @@
 让实际项目中的大模型依据 PRD 推导页面或客户端的业务操作路径与测试用例，再由脚本确定性地完成路径校验、套件运行、结果绑定与 `qa verify` 门禁判定。本模块交付 PRD 里程碑 P1 最小闭环：在 `infra/scripts/qa-tools/` 新增 6 个零第三方依赖的脚本，接入 `agent-cli.js` 与 `qa-verify.js`，并随模板更新传播 PRD/QA 模板、`PATHS-TEMPLATE.md`、QA 指引与四个角色文件的约束（ADR-038）。
 
 - 范围：`US-BIZTEST-001~006`；组件 `BIZTEST-SVC-001~008` 与 `BIZTEST-API-001`。
-- 非范围：PRD 里程碑 P2（`qa plan` 生成 TC 骨架、断言质量检查）、P3（架构包 Playwright 与客户端驱动脚手架）、P4（flaky 策略、变异抽样、人工验收记录、性能与安全测试）另行立项，本计划不为其设置 Task ID。
+- 非范围：PRD 里程碑 P2（`qa plan` 生成 TC 骨架、断言质量检查）、P4（flaky 策略、变异抽样、人工验收记录、性能与安全测试）另行立项；P3（架构包驱动脚手架）的 Web 端已由 [开源公共能力 TASK](../open-source-components/TASK.md) 的 `TASK-OSSKIT-008~011` 交付，iOS、Android 与原生桌面驱动未立项；本计划不为这些里程碑设置 Task ID。
 - 方法：创作期由模型按指引推导路径与用例；脚本期只做解析、校验、运行、绑定与判定，不调用模型与网络，不依赖模型自述。
 - 顺序：每个实现任务先写失败的定向测试（RED），再实现（GREEN）；任务 001 冻结夹具与规格层、配置层 RED，其余任务在各自开头补写本层 RED。
 - 治理关系：PRD、ARCH 已完成；收尾流水线（`tdd sync` → `tdd push` → `qa plan` → `qa verify` → `qa merge`）由 task state 步骤承担，不作为 WBS 任务。
@@ -205,7 +205,7 @@
 
 ## 9. 技术债务与约束
 
-- P2（`qa plan` 生成 TC 骨架与断言质量检查）、P3（架构包驱动脚手架）、P4（flaky 策略、变异抽样、人工验收记录、性能与安全测试）另行立项，不在本计划。
+- P2（`qa plan` 生成 TC 骨架与断言质量检查）、P4（flaky 策略、变异抽样、人工验收记录、性能与安全测试）另行立项，不在本计划；P3 的 Web 端驱动脚手架已由架构包 `e2e` 模块交付（[ADR-039](../../adr/039-arch-e2e-driver-scaffold.md)），iOS、Android 与原生桌面驱动仍由项目自带。
 - 脚本零第三方依赖，不调用模型与网络，不执行文档或报告中的内容；解析与判定为可注入 HEAD、工作区状态与结果目录的纯函数。
 - `qa paths` 与门禁只读；仅 `qa run` 创建容器 `tmp` 下的结果目录；门禁关闭时不读取规格与结果、不产生输出。
 - QA 回执结构不变；模板源不执行业务门禁，只对实际项目生效。

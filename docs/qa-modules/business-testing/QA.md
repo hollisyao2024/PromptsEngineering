@@ -8,7 +8,7 @@
 
 验证“PRD 原子 AC 表 → 页面状态与操作路径模型 → 带标识符的自动化测试 → 机器可校验的验收证据”这条链：原子 AC 解析、`qa paths` 路径模型校验、`qa run` 套件执行与结果绑定、`qa verify` 业务验收门禁、各专家与模板的指导同步，以及分发与闭环。功能默认关闭（`qa.business.enabled=false`），关闭时 `qa verify` 的输出、退出码与回执和接入前一致。
 
-不在范围：真实浏览器或原生客户端驱动（模板只定义 JUnit XML、AC/TC 标识符与 `platform` 标签三项契约，驱动由项目自带）；`qa plan` 骨架与断言质量、架构包驱动、flaky 策略、变异抽样、手工验收记录、性能与安全专项（P2～P4 另行立项）；生产环境与真实网络。
+不在范围：真实浏览器或原生客户端驱动（模板只定义 JUnit XML、AC/TC 标识符与 `platform` 标签三项契约，驱动由项目自带；Web 端可选的 Playwright 脚手架及其真实驱动取证见 [开源公共能力 QA](../open-source-components/QA.md) 的 US-OSSKIT-009）；`qa plan` 骨架与断言质量、flaky 策略、变异抽样、手工验收记录、性能与安全专项（P2、P4 另行立项）；生产环境与真实网络。
 
 高风险：共享 QA 门禁（阻断回执签发）、CLI 入口、文件写入与删除（报告副本与结果文件）、进程执行（项目配置的套件命令）、路径包含（符号链接与路径穿越）。Review-Class 为 REQUIRED；缓存、数据库、外部 API、schema、部署为 N/A。Codex review skipped by policy；语义核查结论记录在任务状态。
 
@@ -77,12 +77,12 @@ Node v24.19.0、pnpm 10.18.3、git 2.50.1；macOS arm64（Darwin 25.5.0）。零
 
 限制：
 
-1. 模板不提供界面或客户端驱动，契约为 JUnit XML、AC/TC 标识符与 `platform` 标签，驱动由项目自带；真实浏览器与原生客户端运行不在本次验收内。
+1. 模板不提供界面或客户端驱动，契约为 JUnit XML、AC/TC 标识符与 `platform` 标签，驱动由项目自带；真实浏览器与原生客户端运行不在本次验收内。其后交付的 Web 端 `e2e` 模块（US-OSSKIT-009）已用真实 Playwright 对该契约做回归取证，见开源公共能力 QA；iOS、Android 与原生桌面驱动仍未验证。
 2. 套件命令经 shell 执行，来自项目自己的 `agent.config.json`，信任边界即项目配置。
 3. 模板源仓库跳过业务验收门禁，门禁只在启用该功能的实际项目生效。
 4. 同一 worktree 禁止并行 `qa run`；交错运行时报告副本哈希重算不符，门禁 BLOCKED，重新执行 `qa run` 即恢复。
 5. Windows 的整树终止走 `taskkill` 分支，仅做逻辑核对，未在 Windows 实机运行。
-6. P2～P4（`qa plan` 骨架与断言质量、架构包驱动、flaky 策略、变异抽样、手工验收记录、性能与安全专项）另行立项。
+6. P2、P4（`qa plan` 骨架与断言质量、flaky 策略、变异抽样、手工验收记录、性能与安全专项）另行立项；P3 的 Web 端驱动脚手架已由架构包 `e2e` 模块交付（US-OSSKIT-009），其他端驱动未立项。
 
 仓库级既有失败，本次前后一致、与本模块无关且未在此修复：`prd:lint`、`task:sync`、`sync-prd-arch-ids`、`qa:sync-prd-qa-ids`、`qa:check-defect-blockers`，以及 `qa:lint` 对 data-semantics 缺少 QA 报告的提示。
 

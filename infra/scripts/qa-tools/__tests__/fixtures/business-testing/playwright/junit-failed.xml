@@ -1,0 +1,126 @@
+<testsuites id="" name="" tests="7" failures="2" skipped="2" errors="1" time="15.263493">
+<testsuite name="tests/admin/sample.spec.ts" timestamp="2026-10-07T04:28:32.107Z" hostname="admin" tests="1" failures="1" skipped="0" time="7.584" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/admin/sample.spec.ts" time="7.584">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/sample-AC-EXAMPLE-001-01-应用首页可达-TC-EXAMPLE-001-首页返回成功响应并渲染页面-admin/error-context.md]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [admin] › tests/admin/sample.spec.ts:6:3 › AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('body')
+    Expected: visible
+    Received: hidden
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('body')
+        13 × locator resolved to <body></body>
+           - unexpected value "hidden"
+
+
+       7 |     const response = await page.goto('/');
+       8 |     expect(response?.ok()).toBe(true);
+    >  9 |     await expect(page.locator('body')).toBeVisible();
+         |                                        ^
+      10 |   });
+      11 | });
+      12 |
+        at /workspace/packages/e2e/tests/admin/sample.spec.ts:9:40
+
+    Error Context: test-results/sample-AC-EXAMPLE-001-01-应用首页可达-TC-EXAMPLE-001-首页返回成功响应并渲染页面-admin/error-context.md
+]]>
+</failure>
+</testcase>
+</testsuite>
+<testsuite name="tests/site/real-shapes.spec.ts" timestamp="2026-10-07T04:28:32.107Z" hostname="site" tests="4" failures="1" skipped="2" time="3.272" errors="1">
+<testcase name="AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-002 断言失败时报告失败用例" classname="tests/site/real-shapes.spec.ts" time="3.269">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/real-shapes-AC-EXAMPLE-002-4ec59--TC-EXAMPLE-002-断言失败时报告失败用例-site/error-context.md]]
+]]>
+</system-out>
+<failure message="expect(locator).toHaveText(expected) failed" type="expect.toHaveText">
+<![CDATA[  [site] › tests/site/real-shapes.spec.ts:5:3 › AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-002 断言失败时报告失败用例
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('h1')
+    Expected: "不存在的标题"
+    Received: "@project/site 首页"
+    Timeout:  1000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 1000ms
+      - waiting for locator('h1')
+        9 × locator resolved to <h1>@project/site 首页</h1>
+          - unexpected value "@project/site 首页"
+
+
+       5 |   test('TC-EXAMPLE-002 断言失败时报告失败用例', async ({ page }) => {
+       6 |     await page.goto('/');
+    >  7 |     await expect(page.locator('h1')).toHaveText('不存在的标题', { timeout: 1000 });
+         |                                      ^
+       8 |   });
+       9 |
+      10 |   test.skip('TC-EXAMPLE-003 声明为跳过的用例', async () => {});
+        at /workspace/packages/e2e/tests/site/real-shapes.spec.ts:7:38
+
+    Error Context: test-results/real-shapes-AC-EXAMPLE-002-4ec59--TC-EXAMPLE-002-断言失败时报告失败用例-site/error-context.md
+]]>
+</failure>
+</testcase>
+<testcase name="AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-003 声明为跳过的用例" classname="tests/site/real-shapes.spec.ts">
+<properties>
+<property name="skip" value="">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-004 运行时条件跳过的用例" classname="tests/site/real-shapes.spec.ts">
+<properties>
+<property name="skip" value="前置条件不满足">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-005 失败信息含 CDATA 结束符与标签" classname="tests/site/real-shapes.spec.ts" time="0.001">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/real-shapes-AC-EXAMPLE-002-d05a5-MPLE-005-失败信息含-CDATA-结束符与标签-site/error-context.md]]
+]]>
+</system-out>
+<error message="payload ]]&gt; end &amp; &lt;tag attr=&quot;x&quot;&gt; done" type="Error">
+<![CDATA[  [site] › tests/site/real-shapes.spec.ts:16:3 › AC-EXAMPLE-002-01 真实失败与跳过形态 › TC-EXAMPLE-005 失败信息含 CDATA 结束符与标签
+
+    Error: payload ]]&gt; end & <tag attr="x"> done
+
+      15 |
+      16 |   test('TC-EXAMPLE-005 失败信息含 CDATA 结束符与标签', async () => {
+    > 17 |     throw new Error('payload ]]&gt; end & <tag attr="x"> done');
+         |           ^
+      18 |   });
+      19 | });
+      20 |
+        at /workspace/packages/e2e/tests/site/real-shapes.spec.ts:17:11
+
+    Error Context: test-results/real-shapes-AC-EXAMPLE-002-d05a5-MPLE-005-失败信息含-CDATA-结束符与标签-site/error-context.md
+]]>
+</error>
+</testcase>
+</testsuite>
+<testsuite name="tests/site/sample.spec.ts" timestamp="2026-10-07T04:28:32.107Z" hostname="site" tests="1" failures="0" skipped="0" time="2.037" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/site/sample.spec.ts" time="2.037">
+</testcase>
+</testsuite>
+<testsuite name="tests/desktop/sample.spec.ts" timestamp="2026-10-07T04:28:32.107Z" hostname="desktop" tests="1" failures="0" skipped="0" time="2.265" errors="0">
+<testcase name="AC-EXAMPLE-001-01 应用首页可达 › TC-EXAMPLE-001 首页返回成功响应并渲染页面" classname="tests/desktop/sample.spec.ts" time="2.265">
+</testcase>
+</testsuite>
+</testsuites>

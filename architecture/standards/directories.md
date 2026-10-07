@@ -51,4 +51,4 @@ v2 Monorepo 默认共享 UI，单根 workspace/lock；数据库包使用 package
 
 ## 可选开源模块
 
-身份、授权、任务、存储、国际化、日志、追踪与 Mock 的复用实现进入 packages/<模块>/src；apps/<应用> 负责业务路由和启动接线。共享 shadcn UI 的 advanced、feedback、data-table 与 ui 同级；components.advanced 可显式映射。配置事实源仍为 architecture.config.json，目录不强制技术选择。
+身份、授权、任务、存储、国际化、日志、追踪与 Mock 的复用实现进入 packages/<模块>/src；apps/<应用> 负责业务路由和启动接线。共享 shadcn UI 的 advanced、feedback、data-table 与 ui 同级；components.advanced 可显式映射。配置事实源仍为 architecture.config.json，目录不强制技术选择。业务测试驱动 e2e 是私有根包：Playwright 配置、各应用的用例与运行报告留在 packages/e2e，不导出 API，也不进入应用的 modules。

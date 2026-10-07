@@ -139,6 +139,10 @@
     {
       "id": "api-mocks",
       "path": "packages/api-mocks"
+    },
+    {
+      "id": "e2e",
+      "path": "packages/e2e"
     }
   ],
   "example": {

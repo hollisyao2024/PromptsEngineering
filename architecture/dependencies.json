@@ -146,6 +146,9 @@
     },
     "api-mocks": {
       "msw": "2.15.0"
+    },
+    "e2e": {
+      "@playwright/test": "1.62.1"
     }
   },
   "jobs": {
