@@ -126,7 +126,7 @@ plan 不写入项目目标；缓存缺失时可能先准备固定源码缓存。
 | --- | --- |
 | 多端 Monorepo、4 种蓝图、Node/Prisma PostgreSQL 与 SQLite、契约和 API client | [Monorepo 指南](architecture/guides/monorepo.md) |
 | shadcn 基础控件、公共 DataTable、表单、选择器、状态与高级交互 | [组件说明](architecture/components/shadcn/README.md) |
-| 身份、权限、任务、国际化、日志、追踪、API Mock | [开源能力指南](architecture/guides/open-source-components.md) |
+| 身份、权限、任务、国际化、日志、追踪、API Mock、业务测试驱动（Playwright） | [开源能力指南](architecture/guides/open-source-components.md) |
 | 本地、S3、阿里云 OSS、腾讯云 COS 及多存储路由 | [文件存储指南](architecture/guides/file-storage.md) |
 | 每项组件的实现状态、采用条件与备选方案 | [完整组件目录](architecture/open-source-catalog.json) |
 

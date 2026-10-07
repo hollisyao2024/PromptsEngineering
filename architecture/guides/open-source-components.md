@@ -21,6 +21,7 @@
 | 日志 | Pino 10.3.1 | JSON、请求上下文、嵌套敏感字段脱敏；消息采用固定文本，原始请求体/个人资料不作为日志输入 |
 | 追踪 | OpenTelemetry API 1.9.1 / SDK 0.222.0 | 显式注册、导出端点与退出 flush；当前封装提供追踪，指标/日志后端由项目另行接入 |
 | API Mock | MSW 2.15.0 | 浏览器开发与 Node 测试适配；不会因导入模块而自动启动 |
+| 业务测试驱动 | Playwright 1.62.1 | 为每个 UI 应用启动开发服务器并输出 JUnit，供 qa run 绑定 AC/TC；retries 为 0，不下载浏览器。Tauri 只测 Web 层，iOS、Android 另配驱动；1.63.0 已发布但未验证 |
 
 既有 shadcn、DataTable、TanStack Table/Query、React Hook Form、Zod、Prisma、OpenAPI、AppShell 与 Tauri 端口继续保留。DataTable 仍用兼容项目 ColumnDef 接口的 TanStack Table 8；不会以“最新版”为由破坏既有接口。Prisma 继续使用验证过的 7.10.0，8.0 RC 不作为稳定默认。
 
@@ -40,12 +41,15 @@ Better Auth 的可选 Vitest peer 当前为 2/3/4，UI 测试为 Vitest 5。因�
     {"id":"i18n","path":"packages/i18n"},
     {"id":"logging","path":"packages/logging"},
     {"id":"telemetry","path":"packages/telemetry"},
-    {"id":"api-mocks","path":"packages/api-mocks"}
+    {"id":"api-mocks","path":"packages/api-mocks"},
+    {"id":"e2e","path":"packages/e2e"}
   ]
 }
 ```
 
 服务端 applications.modules 声明 auth、authorization、jobs、logging、telemetry；React 应用声明 auth-client、i18n、api-mocks。auth/authorization 绑定的 Prisma datastore 必须被同一服务端应用消费。共享服务源码进入 packages/<module>/src，应用组合、监听端口与启动/停止位于 apps/<app>。
+
+e2e 是私有根：不接受 options，任何应用都不能声明它，并要求至少一个 UI 应用（react-vite、react-next 或 Tauri）；它由 UI 应用列表生成，不由应用依赖。
 
 队列可改为 {"provider":"bullmq","backend":"redis"} 或 {"provider":"bullmq","backend":"postgres"}。SQLite 是业务库选项，无法替代队列要求的 PostgreSQL/Redis。Go 服务不会被隐式安装 Node 身份或队列；多语言选择见第 7 节。
 
@@ -107,7 +111,7 @@ pg-boss 的 enqueueInTransaction(tx,definition,payload,id) 使用同一个 Postg
 
 取消只作用于队列可取消状态；正在执行的外部副作用需要业务自己的取消协议和补偿。JobStatus 只展示服务器已授权状态，模板不开放按任意 jobId 读取数据的公共接口。
 
-## 5. 国际化、日志、追踪与 Mock
+## 5. 国际化、日志、追踪、Mock 与业务测试驱动
 
 createI18n(language,resources) 返回独立实例，使用 I18nextProvider 包裹应用。resources.ts 是项目词条；Next 服务端按请求创建实例，向客户端传入可序列化词条，不传实例或服务端对象。
 
@@ -116,6 +120,10 @@ Pino 的 createLogger(service,destination)、withRequestContext(logger,callback,
 OpenTelemetry 由应用唯一入口调用 startTelemetry({serviceName,endpoint}) 或传入自定义 exporter；不自动读取任意导出端点、不自动采集 HTTP 内容、不在 import 时发送数据。traced(name,operation) 提供手动 span；应用退出 await handle.shutdown()，同一进程只创建一次生命周期。
 
 MSW 使用 @project/api-mocks/node 的 createMockServer，在测试显式 listen/resetHandlers/close。浏览器先在实际项目生成 worker：在 api-mocks 包运行 pnpm exec msw init <应用的 public 绝对目录>。仅在开发条件下调用 @project/api-mocks/browser 的 startMockWorker({enabled,serviceWorkerUrl})；不要在生产入口开启。handlers.ts 归项目维护。
+
+e2e 是业务验收自动化的 Web 驱动，位于 packages/e2e：每个 UI 应用对应一个 Playwright project 与一个开发服务器，端口从 E2E_BASE_PORT（默认 4310）起依次递增，reuseExistingServer 为 false、retries 为 0，JUnit 写入 packages/e2e/reports/junit.xml，该目录已被 .gitignore 忽略。模板不下载浏览器：首次运行前执行 pnpm --filter @project/e2e exec playwright install chromium，或设置 E2E_BROWSER_CHANNEL=chrome 使用本机浏览器；E2E_SKIP_WEBSERVER=1 测试已在运行的应用。运行命令是 pnpm --filter @project/e2e run e2e。
+
+它不写 agent.config.json；README 提供可直接合并的 qa.business.suites 片段（platform 为 web，report 与驱动配置里的 outputFile 一致）。包内不定义 test、build、generate 脚本，工作区聚合命令不会启动浏览器。Tauri 只覆盖 dev:web 的 Web 层，iOS、Android 与原生壳需另配驱动；任何驱动只要产出 JUnit 并在用例名里带 AC/TC 编号，就能接入同一门禁。
 
 ## 6. 初始化与升级
 
@@ -130,7 +138,7 @@ pnpm test:workspace
 
 可从 [完整配置示例](../examples/open-source-monorepo.json) 按需求裁减，示例默认本地文件与 SQLite 业务库，队列另用 Redis。单模块更新会带上必要应用与数据源配置，确保依赖闭包完整。
 
-公共封装、组件、测试走 update；package.json/tsconfig/workspace 结构合并；policy/resources/handlers/业务接线及 Schema 使用 init-if-missing；迁移 append；项目配置与 RULES.md 保留。改队列后端、数据库绑定或已存在存储 provider 是迁移，不自动切换。无法确定三方基线时阻断。
+公共封装、组件、测试走 update；package.json/tsconfig/workspace 结构合并；policy/resources/handlers/业务接线、e2e 的示例用例（tests/<应用 id>/sample.spec.ts）及 Schema 使用 init-if-missing；e2e 的 playwright.config.ts、src/apps.ts 与 README 走 update；迁移 append；项目配置与 RULES.md 保留。改队列后端、数据库绑定或已存在存储 provider 是迁移，不自动切换。无法确定三方基线时阻断。
 
 ## 7. 保留的备选
 
@@ -141,3 +149,5 @@ MinIO JS SDK 保留备选，当前默认用官方 AWS SDK。Unstorage 面向 KV/
 ## 8. 验证范围
 
 源生成/所有权测试位于 architecture/__tests__，真实消费测试位于 architecture/tests/open-source.integration.mjs 与 jobs.integration.mjs；UI 交互测试按 set 生成。PG/SQLite、Redis、Node SDK 协议夹具与 Go 编译/本地协议分别验证。真实云、企业 IdP、邮件/短信、触摸设备和原生登录没有由这些本地测试覆盖，需要项目自己的验收。
+
+e2e 的生成、所有权与边界拒绝由 architecture/__tests__/e2e-driver.test.js 验证；真实 Playwright 1.62.1 与系统 Chrome 对生成配置和示例用例的运行，以及 qa paths、qa run、qa verify 的放行与阻断，记录在开源公共能力 QA。没有启动真实 react-vite、react-next 开发服务器（取证用替身服务器模仿其端口参数处理），真实开发服务器对端口参数的处理由实际项目首次运行确认；Playwright 1.63.0 未验证。

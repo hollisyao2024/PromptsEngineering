@@ -84,7 +84,7 @@ function validateConfig(raw, { target = process.cwd(), source = DEFAULT_SOURCE }
     componentRoots.push({ path: lower, kind });
   }
   require('./storage').validateStorage(config, target);
-  require('./open-source').validateModules(config);
+  require('./open-source').validateModules(config, cat);
   require('./monorepo').validateWorkspaceConfig(config, cat);
   return config;
 }

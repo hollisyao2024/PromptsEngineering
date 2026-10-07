@@ -1,6 +1,6 @@
 # 息壤（Xirang）模板任务计划（总纲）
 
-日期：2026-10-07　版本：v1.8
+日期：2026-10-07　版本：v1.9
 
 ## 1. 项目概述
 
@@ -10,7 +10,7 @@
 
 架构按需获取：[模块 TASK](task-modules/architecture-on-demand/TASK.md)，依赖固定来源缓存与所有权引擎，3.4 功能验收通过（2026-09-10）。
 
-开源公共能力：[模块 TASK](task-modules/open-source-components/TASK.md)，与文件存储一起完成全组件组合验收和交付。
+开源公共能力：[模块 TASK](task-modules/open-source-components/TASK.md)，与文件存储一起完成全组件组合验收和交付；TASK-OSSKIT-008～011 承担 US-OSSKIT-009 业务测试驱动脚手架（可选 `e2e` 模块，[ADR-039](adr/039-arch-e2e-driver-scaffold.md)），依赖既有生成器与业务测试自动化契约，串行交付。
 
 统一文件存储：[模块 TASK](task-modules/file-storage/TASK.md)，覆盖四适配、上传与元数据、消费者和升级验证。
 
@@ -22,7 +22,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 模板命令面 | @template-maintainers | [TASK.md](task-modules/template-command-surface/TASK.md) | ✅ 官方匿名获取回归通过 | Agent CLI、GitHub auth、template apply、worktree lifecycle、固定官方源 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-06 |
 | 环境文件初始化 | @template-maintainers | [TASK.md](task-modules/environment-file-initialization/TASK.md) | 兼容回归通过 / Go | template manifest、update-template、gitignore merge | [story-task-mapping.md](data/story-task-mapping.md) | 2026-09-11 |
-| 业务测试自动化 | @template-maintainers | [TASK.md](task-modules/business-testing/TASK.md) | 验收通过 / Go；P2~P4 另行立项 | qa verify 本地门禁、governance-ids、容器目录初始化器、template manifest 所有权 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-10-07 |
+| 业务测试自动化 | @template-maintainers | [TASK.md](task-modules/business-testing/TASK.md) | 验收通过 / Go；P3 Web 端已由开源公共能力 `e2e` 模块交付，P2、P4 另行立项 | qa verify 本地门禁、governance-ids、容器目录初始化器、template manifest 所有权 | [story-task-mapping.md](data/story-task-mapping.md) | 2026-10-07 |
 
 ## 3. 全局里程碑（跨模块）
 
@@ -37,12 +37,13 @@
 | M7-MULTI-HOST | 无 CI 多电脑同权 Git 安全 | 2026-09-05 | 远端恢复、QA 双 SHA 回执、精确合并、三 clone 模拟 | TC-CMDSURF-016~021、模板收敛与 QA merge 通过 | ✅ QA 验证通过 |
 | M8-XIRANG-SYNC | 息壤官方模板自更新 | 2026-09-06 | 模板身份、自然语言路由、`template sync`、固定 SHA 自举与传播验证 | TC-CMDSURF-022~026、全量回归、目标副本收敛与 QA merge 通过 | ✅ QA 通过 |
 | M9-BIZTEST | 业务测试自动化 P1 | 2026-10-06 | 规格解析、路径校验、套件运行、结果绑定、业务验收门禁、模板与指引 | TC-BIZTEST-001~022、默认关闭兼容回归、模板收敛 dry-run 与 QA merge 通过 | TC-BIZTEST-001~022 验收通过；回执及合并以运行态为准 |
+| M10-E2E | 业务测试驱动脚手架（`e2e` 模块） | 2026-10-07 | 模块模板、生成器钩子、`workspace-check` 私有根、元数据同步、真实驱动取证与指引 | TC-OSSKIT-009~012、`architecture/__tests__` 无回归、真实 Playwright 1.62.1 取证、模板收敛 dry-run 与 QA merge 通过 | 规划完成；以 QA 记录为准 |
 
 既有命令面和环境能力的状态依据 [命令面 QA](qa-modules/template-command-surface/QA.md) 与 [环境 QA](qa-modules/environment-file-initialization/QA.md)；业务测试自动化的状态依据 [业务测试 QA](qa-modules/business-testing/QA.md)。实际业务项目的接入验收单独记录，消费者回归不替代小懒或其他真实项目的同步与验收。
 
 ## 4. 跨模块依赖关系
 
-两个模块无业务运行时依赖，均依赖模板 apply 生命周期；环境文件模块可独立交付。业务测试自动化依赖既有 `qa verify` 本地门禁、`governance-ids` 标识解析与容器目录初始化器，不引入新的外部服务，默认关闭，不改变其他模块行为。详见 [task-dependency-matrix.md](data/task-dependency-matrix.md)。
+两个模块无业务运行时依赖，均依赖模板 apply 生命周期；环境文件模块可独立交付。业务测试自动化依赖既有 `qa verify` 本地门禁、`governance-ids` 标识解析与容器目录初始化器，不引入新的外部服务，默认关闭，不改变其他模块行为。业务测试驱动脚手架（`e2e` 模块）依赖既有生成器、`workspace-check` 与业务测试自动化的 JUnit、AC/TC 标识和平台标签契约，不改变这些契约。详见 [task-dependency-matrix.md](data/task-dependency-matrix.md)。
 
 ## 5. 全局关键路径（CPM）
 
@@ -91,9 +92,12 @@ flowchart LR
   B8 --> B10[Guidance and role sync]
   B9 --> B10
   B10 --> B11[Closed loop and NFR QA]
+  O1[e2e RED] --> O2[e2e templates and generator]
+  O2 --> O3[Real driver evidence]
+  O3 --> O4[Docs and release]
 ```
 
-关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。业务测试自动化链路中 003/005 与 006/007 为等长并行替代，004 与 009 有浮动时间，关键路径约 6 人日。
+关键路径无可并行跳过项；模板源未合并前不得向目标项目应用未确定版本。业务测试自动化链路中 003/005 与 006/007 为等长并行替代，004 与 009 有浮动时间，关键路径约 6 人日。`e2e` 驱动脚手架为串行四步（O1～O4），约 3.5 人日，无并行项。
 
 ## 6. 全局风险与缓解
 
@@ -114,6 +118,8 @@ flowchart LR
 - 业务测试默认关闭兼容风险：`qa.business.enabled` 缺省时 `qa verify` 输出与退出码必须与既有逐字节一致，由回归测试守护。
 - 业务验收证据可信度风险：结果绑定 HEAD、配置摘要与报告 SHA256 并在门禁重算比对，陈旧或被改动即阻断；信任边界与既有本地门禁一致，只做篡改可见。
 - 预言机污染风险：用例期望只能来自 PRD AC、数据字典、UX 规范与 ARCH 契约；闭环夹具故意破坏后门禁必须变红，以证明可证伪。
+- 驱动脚手架验证边界风险：`e2e` 模块固定 Playwright 1.62.1，1.63.0 未运行；真实 react-vite、react-next 开发服务器对端口参数的处理未用真实依赖验证；两者在 QA 如实披露，升级须重跑真实驱动证据。
+- 驱动脚手架误运行与误提交风险：包内不定义 `test`、`build`、`generate`，避免根聚合命令启动浏览器；报告目录写入模块 `.gitignore`，且 `qa run` 拒绝已跟踪的报告路径。
 
 ## 7. 模块同步与相关文档
 
@@ -127,6 +133,8 @@ flowchart LR
 - [业务测试自动化 PRD](prd-modules/business-testing/PRD.md)
 - [业务测试自动化 ARCH](arch-modules/business-testing/ARCH.md)
 - [业务测试自动化 QA](qa-modules/business-testing/QA.md)
+- [ADR-039 业务测试驱动脚手架](adr/039-arch-e2e-driver-scaffold.md)
+- [开源公共能力 TASK](task-modules/open-source-components/TASK.md)
 
 模块状态、里程碑和 Gate 结果由模块 TASK 维护并在 TDD/QA 阶段同步。
 
@@ -144,4 +152,4 @@ Drizzle 数据访问：[模块 TASK](task-modules/drizzle/TASK.md)，依赖 Mono
 
 ## 业务测试自动化
 
-[模块任务与依赖](task-modules/business-testing/TASK.md)：TASK-BIZTEST-001~011，覆盖 US-BIZTEST-001~006，依赖既有 `qa verify` 本地门禁、治理标识解析与容器目录初始化器。P1 验收通过 / Go，证据见 [业务测试自动化 QA](qa-modules/business-testing/QA.md)。PRD 里程碑 P2~P4（用例骨架与断言质量、驱动脚手架、flaky 策略与人工验收记录）另行立项，不在本轮。
+[模块任务与依赖](task-modules/business-testing/TASK.md)：TASK-BIZTEST-001~011，覆盖 US-BIZTEST-001~006，依赖既有 `qa verify` 本地门禁、治理标识解析与容器目录初始化器。P1 验收通过 / Go，证据见 [业务测试自动化 QA](qa-modules/business-testing/QA.md)。PRD 里程碑 P3 的 Web 端驱动脚手架已由开源公共能力的 `e2e` 模块交付（TASK-OSSKIT-008～011，[ADR-039](adr/039-arch-e2e-driver-scaffold.md)）；P2（用例骨架与断言质量）、P4（flaky 策略与人工验收记录等）另行立项，不在本轮。

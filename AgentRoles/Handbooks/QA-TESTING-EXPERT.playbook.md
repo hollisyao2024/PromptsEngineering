@@ -326,6 +326,7 @@ TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不�
 - **跨平台路径**：报告输出路径写在驱动自己的配置里（例如 `playwright.config.ts` 的 `reporter`），不要在 `command` 里内联环境变量赋值（`FOO=bar cmd` 在 Windows shell 中无效）；`report` 使用相对仓库根、以 `/` 分隔的路径。
 - **不自动重试**：不要在驱动层开启失败重试（如 Playwright 的 `retries`），重试会把不稳定的用例洗成「偶尔通过」；先修等待条件与数据隔离，让失败如实暴露。
 - **失败如实**：失败、超时、缺报告都是真实结果；不要删除或手改报告，不要把失败改成跳过来换取通过；`command` 中不放密钥。
+- **Web 驱动脚手架**：采用架构包且至少有一个 UI 应用的项目，可在 `architecture.config.json` 的 `modules` 加入可选的 `e2e` 后执行 `architecture plan/init`，得到满足上述全部约定的 Playwright 配置与示例用例；其 README 给出可合并进 `agent.config.json` 的套件片段（`platform` 为 `web`），浏览器由项目自行安装。只覆盖 Web 与 Tauri 的 Web 层，iOS、Android 与原生桌面驱动仍由项目自带。
 
 ### 配置与使用顺序
 

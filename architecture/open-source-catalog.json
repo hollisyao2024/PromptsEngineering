@@ -328,6 +328,25 @@
       ]
     },
     {
+      "id": "e2e",
+      "status": "implemented",
+      "selection": [
+        "e2e"
+      ],
+      "defaultPaths": "packages/e2e",
+      "boundary": "Web 层业务测试驱动，输出 JUnit 供 qa run 绑定；不下载浏览器，Tauri 仅覆盖 Web 层，iOS、Android 需另配驱动",
+      "sources": [
+        "https://playwright.dev/docs/test-reporters",
+        "https://playwright.dev/docs/test-webserver"
+      ],
+      "packages": [
+        {
+          "name": "@playwright/test",
+          "version": "1.62.1"
+        }
+      ]
+    },
+    {
       "id": "storage-s3",
       "status": "implemented",
       "selection": [
@@ -1021,11 +1040,23 @@
         "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
       },
       "integrity": "sha512-SStWf8bYdTgAquYqG4Pi2+d1XimQKoCIJ94H3jsm0D6UA0yqffvWuvUzrrQ4idewFWq8BSPpahnmLVosJIAs6g=="
+    },
+    {
+      "name": "@playwright/test",
+      "selected": "1.62.1",
+      "latest": "1.63.0",
+      "license": "Apache-2.0",
+      "repository": {
+        "url": "git+https://github.com/microsoft/playwright.git",
+        "type": "git"
+      },
+      "integrity": "sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ=="
     }
   ],
   "verification": {
     "tests": [
       "__tests__/open-source.test.js",
+      "__tests__/e2e-driver.test.js",
       "__tests__/storage.test.js",
       "tests/open-source.integration.mjs",
       "tests/jobs.integration.mjs",

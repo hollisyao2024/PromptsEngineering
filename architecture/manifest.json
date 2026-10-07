@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "architecture",
-  "version": "3.5.5",
+  "version": "3.6.0",
   "description": "Selectable application architecture assets; apps and stores are instantiated only from project choices.",
   "stacks": {
     "react-vite": {
@@ -140,6 +140,10 @@
     },
     "api-mocks": {
       "template": "modules/open-source/api-mocks",
+      "requiresWorkspace": true
+    },
+    "e2e": {
+      "template": "modules/open-source/e2e",
       "requiresWorkspace": true
     }
   },

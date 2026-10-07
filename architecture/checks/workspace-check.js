@@ -2,6 +2,8 @@ const fs=require('node:fs'),path=require('node:path');
 const {createRequire}=require('node:module');
 const {parseDocument}=require('../../tooling/xirang/yaml');
 const {read,parseJson,hash,readLock,safePath}=require('../../tooling/xirang/engine');
+// Server-side or tooling-only module roots that browser/shared code must never import (e2e is the browser-test driver, ADR-039).
+const privateModuleIds=['config','observability','auth','authorization','jobs','logging','telemetry','e2e'];
 function checkWorkspace(target,config,{syntax=true}={}) {
   const failures=[],checks=[],fail=(name,reason)=>failures.push({name,reason});
   const uiApps=config.applications.filter(a=>a.components);
@@ -58,7 +60,7 @@ function checkWorkspace(target,config,{syntax=true}={}) {
   const {walk}=require('../scripts/project');
   const publicModules=new Set(['domain','contracts','api-client','query','platform','auth-client','i18n','api-mocks']);
   const roots=[...config.applications.map(a=>({root:a.path+'/'+a.sourceDir,app:a,browser:!!a.components})),...config.modules.map(m=>({root:m.path+'/src',browser:publicModules.has(m.id)})),...uiRoots.map(p=>({root:p+'/src',browser:true}))];
-  const privateRoots=[...(config.fileStorage?[{path:config.fileStorage.path}]:[]),...config.datastores,...config.modules.filter(m=>['config','observability','auth','authorization','jobs','logging','telemetry'].includes(m.id))].map(m=>path.resolve(target,m.path)+path.sep);
+  const privateRoots=[...(config.fileStorage?[{path:config.fileStorage.path}]:[]),...config.datastores,...config.modules.filter(m=>privateModuleIds.includes(m.id))].map(m=>path.resolve(target,m.path)+path.sep);
   const visited=new Set(),options=new Map(),native=new Set(['button','input','select','option','textarea','dialog','details','summary','table']);
   function visitFile(file,context) {
     const key=(context.app?.id||'shared')+':'+context.browser+':'+file;if(visited.has(key))return;visited.add(key);
@@ -93,4 +95,4 @@ function checkWorkspace(target,config,{syntax=true}={}) {
   checks.push('workspace:source-boundaries');
   return {checks,failures};
 }
-module.exports={checkWorkspace};
+module.exports={checkWorkspace,privateModuleIds};

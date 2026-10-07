@@ -2,9 +2,11 @@
 
 状态：Passed / Go。负责人：模板维护者。版本：3.3.0。日期：2026-09-09。受测提交以本地 QA receipt 为准，合并状态由交付门禁确认。
 
+US-OSSKIT-009（业务测试驱动脚手架，可选 `e2e` 模块）为后续增量：架构包 3.6.0、源发布 3.10.0，验证日期 2026-10-07，验收见 §4 第 009 行与 §8；其余内容仍是 3.3.0 的验收记录。
+
 ## 1. 验收范围
 
-依据 [PRD](../../prd-modules/open-source-components/PRD.md)、[ARCH](../../arch-modules/open-source-components/ARCH.md)、[TASK](../../task-modules/open-source-components/TASK.md)。全部推荐组件均验证生成与真实消费；备选不标为可初始化实现。文件范围见 [文件 QA](../file-storage/QA.md)。仅更新息壤源码，未更新实际业务项目、云资源或生产数据库。
+依据 [PRD](../../prd-modules/open-source-components/PRD.md)、[ARCH](../../arch-modules/open-source-components/ARCH.md)、[TASK](../../task-modules/open-source-components/TASK.md)。全部推荐组件均验证生成与真实消费；备选不标为可初始化实现。文件范围见 [文件 QA](../file-storage/QA.md)。仅更新息壤源码，未更新实际业务项目、云资源或生产数据库。US-OSSKIT-009 的真实驱动取证全部在临时目录与临时 Git 仓库完成，未启动任何实际项目的服务。
 
 ## 2. 风险与策略
 
@@ -35,8 +37,9 @@ macOS arm64、Node 26.7、pnpm 10.18.3、Go 1.26.4、Chrome/Playwright 1.63；SQ
 | 006 | 国际化实例隔离、Pino 请求上下文/递归脱敏、OTel 显式导出和退出 flush | 两种消费者各 5 项中的相关断言 | Pass |
 | 007 | MSW 未默认启用、Node 拦截真实 fetch、浏览器入口独立 | MSW 集成、类型及公开包边界检查 | Pass |
 | 008 | 原始 3.2 升级、定制和迁移不丢、双向采用作业/架构、根文件分 scope 更新、零差异 | 旧版集成 + root upgrades 5/5 + 生成器测试 | Pass |
+| 009 | 每个 UI 应用一个 project 与 webServer、报告路径被忽略、可粘贴套件片段与 P1 契约一致、二次 plan 零变更、后加应用只补自己的示例用例；无 UI 应用、应用声明 `e2e`、带 `options`、v1 配置、`E2E_BASE_PORT` 非法、陈旧服务器占端口均明确拒绝；真实 JUnit 的失败、抛错、跳过与含 `]]>` 的形态判定正确；真实驱动经 `qa paths`、`qa run`、`qa verify` 放行一次、故意改坏后阻断一次、恢复后再放行 | `architecture/__tests__/e2e-driver.test.js` 8 项、`infra/scripts/qa-tools/__tests__/business-real-driver.test.js` 9 项、真实 Playwright 1.62.1 + Chrome 运行日志（§8） | Pass |
 
-每个后缀映射 US-OSSKIT-xxx / AC-OSSKIT-xxx-01 / TC-OSSKIT-xxx。浏览器包含四组连续旅程，并非把每个断言虚报为独立测试；非 UI 能力使用 CLI/协议/数据库完整路径，不虚构浏览器用例数。
+每个后缀映射 US-OSSKIT-xxx / AC-OSSKIT-xxx-01 / TC-OSSKIT-xxx；009 有四条 AC，AC-OSSKIT-009-01～04 依次对应 TC-OSSKIT-009～012（生成与元数据、契约、边界、真实驱动取证）。浏览器包含四组连续旅程，并非把每个断言虚报为独立测试；非 UI 能力使用 CLI/协议/数据库完整路径，不虚构浏览器用例数。
 
 ## 5. 非功能与安全
 
@@ -59,4 +62,25 @@ Semgrep 1.176.1 定向规则扫描 47 个匹配语言文件，0 finding / 0 pars
 
 ## 7. 发布建议
 
-功能验收 Go。最终提交仍须全量回归、QA receipt、PR 合并、main 双 SHA 一致和 completion guard。真实云、外部 OAuth/邮件/企业 SSO、原生回调、触摸设备和生产负载由实际项目继续验收；这些项目在目录中明确标记，不能当作本轮测试通过。
+功能验收 Go。最终提交仍须全量回归、QA receipt、PR 合并、main 双 SHA 一致和 completion guard（本段沿用 3.3.0 的发布建议；US-OSSKIT-009 随 3.10.0 增量交付，回归范围按 `docs/CONVENTIONS.md` 的测试范围规则界定为定向回归，验证边界见 §8）。真实云、外部 OAuth/邮件/企业 SSO、原生回调、触摸设备和生产负载由实际项目继续验收；这些项目在目录中明确标记，不能当作本轮测试通过。
+
+## 8. 业务测试驱动脚手架（US-OSSKIT-009）真实驱动验证
+
+环境：macOS arm64、Node v24.19.0、pnpm 11.22.0、`@playwright/test` 1.62.1（离线从 pnpm store 安装，未下载浏览器）、系统 Google Chrome 154.0.8037.98（`E2E_BROWSER_CHANNEL=chrome`）。与 §3 中 3.3.0 验收所用的 Node、pnpm、Playwright 版本不同，两者互不替代。
+
+已验证：
+
+- 生成物：生成的 `tsconfig.json` 下 `tsc --noEmit` 通过，故意写错类型的反例会报错；webServer 命令经 pnpm 透传 `--port <n> --strictPort`（react-vite、tauri 的 `dev:web`）与 `-p <n>`（react-next），验证时设 `E2E_BASE_PORT=4400`，三个应用依次取 4400、4401、4402；`E2E_BASE_PORT` 取 `abc`、`80`、`65535`、`1.5` 时报错退出；`E2E_SKIP_WEBSERVER=1` 直接测已在运行的服务；`reuseExistingServer:false` 遇到陈旧服务器报端口已占用；`retries` 为 0。
+- 真实 JUnit：通过与失败两份报告固化为夹具（`infra/scripts/qa-tools/__tests__/fixtures/business-testing/playwright/`），含断言失败、抛错、跳过与含 `]]>` 的错误信息；`business-real-driver.test.js` 断言 P1 的解析、AC/TC 绑定、聚合与门禁判定，并用 `qa run`、`qa verify` 回放两份报告。
+- 闭环：临时 Git 仓库（本地裸 origin）按 README 里的片段配置套件，`qa paths` 通过；页面正常时 `qa run` 退出 0、`BUSINESS_GATE=PASS` 并签发回执；admin 首页改为空白后 `qa run` 退出 1，`BUSINESS_GATE=BLOCKED`（`AC_NOT_PROVEN`、`PATH_COVERAGE_GAP`），不签发回执；恢复后再次放行。
+
+边界与未验证项：
+
+1. 开发服务器使用模仿 vite、next 端口参数处理的替身；未启动真实 react-vite、react-next 开发服务器，真实 vite、next 对 `--port`、`--strictPort`、`-p` 的处理未验证。
+2. 只验证了 `@playwright/test` 1.62.1。npm 最新为 1.63.0，本机 store 只有 `playwright-core@1.63.0`，没有用它运行生成的配置与 JUnit 报告器，所以固定 1.62.1；升级须重跑本节的真实驱动取证。
+3. Tauri 只覆盖 web 层（`dev:web`），不启动原生壳；iOS、Android 与原生桌面驱动不由模板提供，也未验证。
+4. 闭环中的 `qa verify` 运行在临时仓库的夹具任务状态上，不是息壤源自身的门禁（模板源跳过业务验收门禁）。
+5. 通过报告与 Playwright 原始输出逐字节一致；失败报告相对原始输出只做两处脱敏（本机绝对路径前缀换为 `/workspace`，三处 CDATA 标题行的行尾空格删除以通过 `git diff --check`），其余字节不变。
+6. 浏览器获取（`playwright install`）按设计留给项目，模板与本次验证都没有执行。
+
+无未关闭缺陷。运行日志与 sha256 索引保存在任务证据目录（容器 `tmp`，不入库）；入库的永久证据是上述夹具与两个测试文件。

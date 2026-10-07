@@ -18,7 +18,7 @@
 ### 非目标
 
 - 脚本不调用任何模型 API，不联网，不引入随机。
-- 不内置 Playwright、Maestro、XCUITest、Espresso 等驱动或脚手架（后续由 architecture 包提供）。
+- 业务测试模块自身不内置 Playwright、Maestro、XCUITest、Espresso 等驱动；Web 端 Playwright 脚手架由 architecture 包的可选 `e2e` 模块提供（[ADR-039](../../adr/039-arch-e2e-driver-scaffold.md)，仅对接三项契约），其余端的驱动由项目自带。
 - 不做 flaky 重试、突变抽样、断言质量 lint、性能与安全专项、manual AC 的验收记录门禁。
 - 不跨电脑共享结果；换电脑须在该电脑重新 `qa run`。
 
@@ -62,7 +62,7 @@ flowchart LR
 
 ### 不负责
 
-- 不选择、安装或配置驱动；不生成被测应用的页面或测试脚本代码。
+- 不选择、安装或配置驱动（Web 端可选的 Playwright 脚手架归 architecture 包的 `e2e` 模块）；不生成被测应用的页面或测试脚本代码。
 - 不证明被测系统本身正确，只证明“规格中的验收被带标识的通过用例覆盖”；用例与路径的质量由评审与指引保证。
 - 不处理 manual AC 的验收记录，只披露风险。
 
