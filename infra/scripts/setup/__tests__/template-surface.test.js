@@ -1083,6 +1083,8 @@ test('agent config is initialized sparsely instead of merged with every default'
 
 // 息壤源仓是模板，不是实际项目：功能域详情、总纲与派生矩阵由实际项目维护，不进入源仓。
 // 本文件随 infra/scripts 分发到项目，这些文档在项目里合法存在，所以下面的断言只在息壤源执行。
+// 这条规则的文字落点是 docs/CONVENTIONS.md §4；下面三条用例失败时把它连同出处带进失败信息，换电脑或换人开发也能读到。
+const SOURCE_BOUNDARY_HINT = 'The Xirang source is a template, not a project: do not add PRD/ARCH/TASK/QA documents for it without asking the user first (docs/CONVENTIONS.md §4)';
 const PROJECT_GOVERNANCE_DOCS = [
   'docs/PRD.md',
   'docs/ARCH.md',
@@ -1128,14 +1130,14 @@ test('template source keeps only the template-owned module skeletons', () => {
       .filter((name) => !name.startsWith('.'))
       .map((name) => `${dir}/${name}`)
       .sort();
-    assert.deepEqual(kept, expected, `${dir} holds only template-owned skeletons`);
+    assert.deepEqual(kept, expected, `${dir} holds only template-owned skeletons. ${SOURCE_BOUNDARY_HINT}`);
   }
 });
 
 test('template source carries no project governance outlines or derived matrices', () => {
   if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
   const present = PROJECT_GOVERNANCE_DOCS.filter((file) => fs.existsSync(path.join(ROOT, file)));
-  assert.deepEqual(present, [], 'these documents belong to actual projects');
+  assert.deepEqual(present, [], `these documents belong to actual projects: ${present.join(', ')}. ${SOURCE_BOUNDARY_HINT}`);
 });
 
 test('source-owned documents do not link into project governance docs the source does not keep', () => {
@@ -1162,5 +1164,5 @@ test('source-owned documents do not link into project governance docs the source
       if (intoRemovedDocs) dangling.push(`${file} -> ${target}`);
     }
   }
-  assert.deepEqual(dangling, []);
+  assert.deepEqual(dangling, [], `source-owned documents link to project governance docs the source does not keep; write the reference as plain text, not a link: ${dangling.join('; ')}. ${SOURCE_BOUNDARY_HINT}`);
 });
