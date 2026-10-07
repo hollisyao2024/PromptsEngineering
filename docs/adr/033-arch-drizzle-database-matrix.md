@@ -14,7 +14,7 @@ Prisma 7.10.0 与 Drizzle ORM 0.45.3/Kit 0.31.11 并列支持 postgres/mysql/mar
 
 ## 依据
 
-版本固定在 dependencies/audit；真实隔离数据库、消费者编译与恢复验证见 [模块 QA](../qa-modules/drizzle/QA.md)。
+版本固定在 dependencies/audit；真实隔离数据库、消费者编译与恢复验证见模块 QA `drizzle`（息壤源仓已不保留，见 git 历史）。
 
 PostgreSQL 隔离 PoC：稳定 Kit 为 pgTable 外键输出显式 public 引用，不能仅靠 search_path 迁移到其他 schema。Drizzle 默认采用 worktree 独立数据库，连接中的非 public schema 在生成包装入口明确阻断；自定义 pgSchema 必须由项目独立集成并验证。Prisma 的 schema 隔离不变。SQLite Drizzle 另以实际数据库路径的排他锁协调跨 worktree 迁移；失败后同时保留包内 .migration-running.json 与数据库旁的 -xirang-migration-lock.json，先核对状态再解除。status 对不存在的 SQLite 文件仅报告 pending，不创建数据库；迁移拒绝内存数据库。
 

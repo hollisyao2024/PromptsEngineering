@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-09-09
-- 关联：US-ARCHPLAT-010～014；[模块架构](../arch-modules/architecture-platform/ARCH.md#8-四组公共-ui-与按需组件集31)
+- 关联：US-ARCHPLAT-010～014；模块架构 `architecture-platform` §8 四组公共 UI 与按需组件集（息壤源仓已不保留，见 git 历史）
 
 组件进入源目录后需要按项目需要安装，同时保证单独安装可用。采用显式 componentSets、Registry 依赖闭包和目录映射；省略选择保留既有 DataTable 默认，空选择仅保留基础控件，旧文件不因取消选择被删除。
 

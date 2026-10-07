@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-10-06
-- 关联：US-ARCHPLAT-015，TC-ARCHPLAT-015~017；[模块架构](../arch-modules/architecture-platform/ARCH.md#9-界面视觉契约-designmd38)
+- 关联：US-ARCHPLAT-015，TC-ARCHPLAT-015~017；模块架构 `architecture-platform` §9 界面视觉契约（息壤源仓已不保留，见 git 历史）
 
 界面取值与无障碍目标原先分散在 UX 规范 §5～§7、PRD 与模块模板和各专家手册中，同一数值多处复述容易漂移，TDD 阶段也没有统一入口。采用项目根目录 `DESIGN.md`（YAML front matter 加固定顺序的八个二级章节，形态对齐 Google DESIGN.md alpha 规范）作为唯一视觉契约。作业包只在 `docs/data/templates/prd/DESIGN-TEMPLATE.md` 提供模板所有（`overwrite`）的骨架；根 `DESIGN.md` 不登记任何 manifest，因而属于项目，`template sync` 与 `template update` 永不写入。
 

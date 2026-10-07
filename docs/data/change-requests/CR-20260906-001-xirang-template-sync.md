@@ -44,5 +44,5 @@
 
 ## 6. 相关链接
 
-- 模块 PRD：[`template-command-surface`](../../prd-modules/template-command-surface/PRD.md)
-- 追溯矩阵：[`traceability-matrix.md`](../traceability-matrix.md)
+- 模块 PRD：`template-command-surface`（息壤源仓已不保留，见 git 历史）
+- 追溯矩阵：`traceability-matrix.md`（息壤源仓已不保留，见 git 历史）
