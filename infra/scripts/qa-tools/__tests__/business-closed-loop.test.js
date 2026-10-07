@@ -18,7 +18,6 @@ const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 
 const { aggregateResults, judgeAc, parseJunitReport } = require('../business-results');
-const { loadBusinessSpec } = require('../business-spec');
 const { BLOCK_CODES, evaluateBusinessGate } = require('../qa-business-gate');
 const { analyzeSpec } = require('../qa-paths');
 const {
@@ -651,62 +650,4 @@ test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 安全——环境变量的值不进�
     ...filesUnder(s.project.tmp).map((file) => fs.readFileSync(file, 'utf8')),
   ].join('\n');
   assert.equal(everything.includes(token), false, '环境变量的值不得出现在输出与容器 tmp 的任何文件里');
-});
-
-// ---------------------------------------------------------------------------
-// 5. 自检：息壤自己的业务测试 PRD 通过自家校验（仅模板源仓库；实际项目没有这份 PRD）
-// ---------------------------------------------------------------------------
-
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
-const OWN_MODULE_DIR = 'docs/prd-modules/business-testing/';
-
-// 息壤自己的 22 条原子 AC：优先级与对应的用例编号（TASK.md 的追溯关系）。
-const OWN_ACS = {
-  'AC-BIZTEST-001-01': ['P0', 'TC-BIZTEST-001'],
-  'AC-BIZTEST-001-02': ['P0', 'TC-BIZTEST-002'],
-  'AC-BIZTEST-002-01': ['P0', 'TC-BIZTEST-003'],
-  'AC-BIZTEST-002-02': ['P0', 'TC-BIZTEST-004'],
-  'AC-BIZTEST-002-03': ['P0', 'TC-BIZTEST-005'],
-  'AC-BIZTEST-002-04': ['P1', 'TC-BIZTEST-006'],
-  'AC-BIZTEST-003-01': ['P0', 'TC-BIZTEST-007'],
-  'AC-BIZTEST-003-02': ['P0', 'TC-BIZTEST-008'],
-  'AC-BIZTEST-003-03': ['P0', 'TC-BIZTEST-009'],
-  'AC-BIZTEST-003-04': ['P1', 'TC-BIZTEST-010'],
-  'AC-BIZTEST-004-01': ['P0', 'TC-BIZTEST-011'],
-  'AC-BIZTEST-004-02': ['P0', 'TC-BIZTEST-012'],
-  'AC-BIZTEST-004-03': ['P0', 'TC-BIZTEST-013'],
-  'AC-BIZTEST-004-04': ['P1', 'TC-BIZTEST-014'],
-  'AC-BIZTEST-004-05': ['P1', 'TC-BIZTEST-015'],
-  'AC-BIZTEST-004-06': ['P1', 'TC-BIZTEST-016'],
-  'AC-BIZTEST-005-01': ['P0', 'TC-BIZTEST-017'],
-  'AC-BIZTEST-005-02': ['P0', 'TC-BIZTEST-018'],
-  'AC-BIZTEST-005-03': ['P1', 'TC-BIZTEST-019'],
-  'AC-BIZTEST-005-04': ['P0', 'TC-BIZTEST-020'],
-  'AC-BIZTEST-006-01': ['P0', 'TC-BIZTEST-021'],
-  'AC-BIZTEST-006-02': ['P0', 'TC-BIZTEST-022'],
-};
-
-function isTemplateSource() {
-  try {
-    const config = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, CONFIG_FILE), 'utf8'));
-    return Boolean(config.template && config.template.role === 'source');
-  } catch {
-    return false;
-  }
-}
-
-const ownSpecAvailable = isTemplateSource() && fs.existsSync(path.join(REPO_ROOT, OWN_MODULE_DIR, 'PRD.md'));
-
-test('AC-BIZTEST-006-01 / TC-BIZTEST-021: 息壤自身的业务测试 PRD 通过自家校验，22 条原子 AC 与用例编号逐条可查', { skip: ownSpecAvailable ? false : '仅在息壤模板源仓库运行（实际项目没有这份 PRD）' }, () => {
-  const spec = loadBusinessSpec({ repoRoot: REPO_ROOT });
-  assert.deepEqual(spec.violations.filter((item) => String(item.file).startsWith(OWN_MODULE_DIR)), []);
-
-  const byId = new Map(spec.acs.map((ac) => [ac.id, ac]));
-  for (const [id, [priority, tc]] of Object.entries(OWN_ACS)) {
-    const ac = byId.get(id);
-    assert.ok(ac, `${id} 应在原子 AC 表中`);
-    assert.equal(ac.priority, priority, id);
-    assert.equal(ac.verification, 'auto', id);
-    assert.deepEqual(ac.tcs, [tc], id);
-  }
 });

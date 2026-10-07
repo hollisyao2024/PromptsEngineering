@@ -1080,3 +1080,87 @@ test('agent config is initialized sparsely instead of merged with every default'
   assert.doesNotMatch(configSource, /const DEFAULT_CONFIG\s*=\s*\{/u);
   assert.match(configSource, /templates', 'agent', 'config\.example\.json/u);
 });
+
+// 息壤源仓是模板，不是实际项目：功能域详情、总纲与派生矩阵由实际项目维护，不进入源仓。
+// 本文件随 infra/scripts 分发到项目，这些文档在项目里合法存在，所以下面的断言只在息壤源执行。
+const PROJECT_GOVERNANCE_DOCS = [
+  'docs/PRD.md',
+  'docs/ARCH.md',
+  'docs/TASK.md',
+  'docs/QA.md',
+  'docs/data/traceability-matrix.md',
+  'docs/data/task-dependency-matrix.md',
+  'docs/data/test-priority-matrix.md',
+  'docs/data/test-risk-matrix.md',
+  'docs/data/test-strategy-matrix.md',
+  'docs/data/arch-prd-traceability.md',
+  'docs/data/story-task-mapping.md',
+  'docs/data/component-dependency-graph.md',
+  'docs/data/global-dependency-graph.md',
+];
+
+function moduleSkeletons() {
+  const manifest = JSON.parse(read('infra/templates/agent/template.manifest.json'));
+  return new Set(manifest.rules
+    .filter((entry) => entry.strategy === 'overwrite' && /^docs\/(?:prd|arch|task|qa)-modules\/[^/]+$/u.test(entry.path))
+    .map((entry) => entry.path));
+}
+
+function relativeLinks(markdown) {
+  const prose = markdown
+    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gmu, '')
+    .replace(/`[^`\n]*`/gu, '');
+  const targets = [
+    ...[...prose.matchAll(/!?\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/gu)].map((match) => match[1]),
+    ...[...prose.matchAll(/^\s{0,3}\[[^\]\n]+\]:\s*<?(\S+?)>?(?:\s+.*)?$/gmu)].map((match) => match[1]),
+  ];
+  return targets.filter((target) => !/^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/iu.test(target));
+}
+
+test('template source keeps only the template-owned module skeletons', () => {
+  if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
+  const skeletons = moduleSkeletons();
+  for (const kind of ['prd', 'arch', 'task', 'qa']) {
+    const dir = `docs/${kind}-modules`;
+    const expected = [...skeletons].filter((file) => file.startsWith(`${dir}/`)).sort();
+    assert.ok(expected.length > 0, `${dir} has a template-owned skeleton in the manifest`);
+    const kept = fs.readdirSync(path.join(ROOT, dir))
+      .filter((name) => !name.startsWith('.'))
+      .map((name) => `${dir}/${name}`)
+      .sort();
+    assert.deepEqual(kept, expected, `${dir} holds only template-owned skeletons`);
+  }
+});
+
+test('template source carries no project governance outlines or derived matrices', () => {
+  if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
+  const present = PROJECT_GOVERNANCE_DOCS.filter((file) => fs.existsSync(path.join(ROOT, file)));
+  assert.deepEqual(present, [], 'these documents belong to actual projects');
+});
+
+test('source-owned documents do not link into project governance docs the source does not keep', () => {
+  if (JSON.parse(read('agent.config.json')).template?.role !== 'source') return;
+  const skeletons = moduleSkeletons();
+  // 模板自有的 README 与 *-TEMPLATE 文档带项目侧链接，不在范围内
+  const markdownIn = (dir) => fs.readdirSync(path.join(ROOT, dir))
+    .filter((name) => name.endsWith('.md') && name !== 'README.md' && !name.endsWith('-TEMPLATE.md'))
+    .map((name) => `${dir}/${name}`);
+  const sourceOwned = [
+    'README.md',
+    'CHANGELOG.md',
+    'docs/data/ERD.md',
+    'docs/data/dictionary.md',
+    ...['docs/adr', 'docs/data/change-requests', 'docs/data/scrs'].flatMap(markdownIn),
+  ];
+  const dangling = [];
+  for (const file of sourceOwned) {
+    for (const target of relativeLinks(read(file))) {
+      const bare = target.split(/[?#]/u)[0];
+      const resolved = path.posix.normalize(bare.startsWith('/') ? bare.slice(1) : path.posix.join(path.posix.dirname(file), bare));
+      const intoRemovedDocs = PROJECT_GOVERNANCE_DOCS.includes(resolved)
+        || (/^docs\/(?:prd|arch|task|qa)-modules\/[^/]/u.test(resolved) && !skeletons.has(resolved));
+      if (intoRemovedDocs) dangling.push(`${file} -> ${target}`);
+    }
+  }
+  assert.deepEqual(dangling, []);
+});
