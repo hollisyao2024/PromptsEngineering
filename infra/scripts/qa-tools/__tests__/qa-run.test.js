@@ -31,8 +31,14 @@ const SUITES = path.join(__dirname, 'fixtures', 'business-testing', 'suites');
 const EMIT = path.join(SUITES, 'emit.js');
 const HANG = path.join(SUITES, 'hang.js');
 const PATHS_FILE = 'docs/qa-modules/shop/PATHS.md';
-// 超时用例要求桩套件在限时内完成启动并写出 pid 文件；窗口留足余量，避免机器负载下进程启动变慢造成偶发误判。
-const HANG_TIMEOUT_SECONDS = 5;
+// 走 CLI 的超时用例使用真实计时器；窗口只用来验证“超时被记录”，用例不依赖桩套件能在窗口内启动完成。
+const HANG_TIMEOUT_SECONDS = 1;
+// 桩套件的启动延迟，比窗口长半秒：确定性地模拟“机器负载高、套件启动慢于时限”（全量并发下进程启动实测可达 20 秒以上）。
+const SLOW_START_MS = HANG_TIMEOUT_SECONDS * 1000 + 500;
+// 进程内用例持有库的超时计时器，真实计时不会触发；按延迟值识别库的计时器，所以这个名义超时刻意不同于任何等待上限。
+const HELD_TIMEOUT_SECONDS = 90;
+// 等待类条件的兜底上限：条件成立立即返回，只有失败时才会用满；实测全量并发下桩套件启动最长约 24 秒，留出数倍余量。
+const WAIT_CEILING_MS = 120000;
 
 const quote = (value) => JSON.stringify(String(value));
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -80,8 +86,25 @@ async function assertAllDead(pids) {
 
 function readPids(file) {
   if (!fs.existsSync(file)) return null;
-  const pids = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(Number);
+  const text = fs.readFileSync(file, 'utf8');
+  if (!text.endsWith('\n')) return null; // 还没写完整
+  const pids = text.split('\n').filter(Boolean).map(Number);
   return pids.length === 2 && pids.every(Number.isInteger) ? pids : null;
+}
+
+// 等待桩套件写出 pid 文件；超时给出明确原因，而不是笼统的 waitFor 报错。
+function waitForPids(pidFile) {
+  return waitFor(() => readPids(pidFile), { timeoutMs: WAIT_CEILING_MS })
+    .catch(() => { throw new Error(`桩套件在 ${WAIT_CEILING_MS}ms 内没有写出 pid 文件：${pidFile}`); });
+}
+
+// 在兜底上限内等待 promise；超过上限以 message 失败，让用例的 finally 有机会回收进程，而不是无限挂起。
+function withinCeiling(promise, message) {
+  let timer = null;
+  const expired = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${message}（等待超过 ${WAIT_CEILING_MS}ms）`)), WAIT_CEILING_MS);
+  });
+  return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
 }
 
 function reap(pids) {
@@ -92,6 +115,30 @@ function reap(pids) {
       // 已经退出
     }
   }
+}
+
+// 截获库为套件创建的超时计时器：计时器不真正计时，调用 fire() 才触发超时回调。
+// 只截获延迟恰为 timeoutSeconds 秒的第一个计时器，轮询、宽限等待等其他计时器照常工作；用例结束后由 t.mock 还原。
+function holdSuiteTimeout(t, timeoutSeconds) {
+  const realSetTimeout = globalThis.setTimeout;
+  let captured = false;
+  let held = null;
+  t.mock.method(globalThis, 'setTimeout', (callback, delay, ...args) => {
+    if (captured || delay !== timeoutSeconds * 1000) return realSetTimeout(callback, delay, ...args);
+    captured = true;
+    held = callback;
+    // 库在套件结束时会 clearTimeout 它拿到的句柄，所以返回一个真实但不会触发的占位计时器。
+    return realSetTimeout(() => {}, 2 ** 31 - 1).unref();
+  });
+  return {
+    get armed() { return captured; },
+    // 可以重复调用，只有第一次触发回调；用例的 finally 用它兜底，避免遗留挂起的套件。
+    fire() {
+      const callback = held;
+      held = null;
+      if (callback) callback();
+    },
+  };
 }
 
 function runCli(project, args = []) {
@@ -168,9 +215,9 @@ function createScenario({ files = {}, shop = true, git = true } = {}) {
 
     // 启动孙进程后一直挂起的套件，用来验证超时与中断。
     hang(name, {
-      platform = '-', pidFile, ignoreTerm = false, report = `reports/${name}.xml`, timeoutSeconds = HANG_TIMEOUT_SECONDS,
+      platform = '-', pidFile, ignoreTerm = false, startupDelayMs = 0, report = `reports/${name}.xml`, timeoutSeconds = HANG_TIMEOUT_SECONDS,
     } = {}) {
-      const args = [HANG, pidFile, ...(ignoreTerm ? ['ignore-term'] : [])];
+      const args = [HANG, pidFile, ...(ignoreTerm ? ['ignore-term'] : []), ...(startupDelayMs ? [`delay=${startupDelayMs}`] : [])];
       return { name, platform, command: `${quote(process.execPath)} ${args.map(quote).join(' ')}`, report, timeoutSeconds };
     },
 
@@ -201,6 +248,36 @@ function createScenario({ files = {}, shop = true, git = true } = {}) {
 
     cleanup() {
       project.cleanup();
+    },
+  };
+}
+
+// 进程内运行单个挂起套件并持有库的超时计时器：用例先用 ready() 等桩套件写出 pid 文件、确认进程树存活，
+// 再用 timeout() 触发超时。超时不依赖真实计时，所以不受“机器负载高、套件启动变慢”的影响。
+function startHungSuite(t, scenario, { startupDelayMs, ignoreTerm, killGraceMs } = {}) {
+  const held = holdSuiteTimeout(t, HELD_TIMEOUT_SECONDS);
+  const pidFile = path.join(scenario.aux, 'hung.pids');
+  scenario.configure([
+    scenario.hang('hung', { platform: 'web', pidFile, startupDelayMs, ignoreTerm, timeoutSeconds: HELD_TIMEOUT_SECONDS }),
+  ]);
+  const running = runBusinessSuites(scenario.libraryOptions(killGraceMs === undefined ? {} : { killGraceMs }));
+  let pids = null;
+  return {
+    async ready() {
+      pids = await waitForPids(pidFile);
+      assert.ok(held.armed, '库应该已经为套件创建了超时计时器');
+      assert.ok(pids.every(isAlive), '触发超时之前整棵进程树应该存活');
+      return pids;
+    },
+    timeout() {
+      held.fire();
+      return withinCeiling(running, '库在触发超时后没有结束套件运行');
+    },
+    // 无论用例成败都要调用：触发超时让库终止进程组，再强杀已知的 pid，并等库返回，避免遗留挂起的套件。
+    async dispose() {
+      held.fire();
+      reap(pids);
+      await withinCeiling(running, '库没有结束套件运行').catch(() => {});
     },
   };
 }
@@ -517,18 +594,18 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件无法启动时记录 spawn_erro
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树，记录 timeout，后续套件继续运行', async () => {
+// 真实计时器、走 CLI：桩套件的启动延迟长于超时窗口，所以它在写出 pid 文件之前就被终止。
+// 用例因此不依赖桩套件的启动速度，快机器和慢机器上的行为一致；进程树的终止由下面持有计时器的用例验证。
+test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后记录 timeout，后续套件继续运行', () => {
   const s = createScenario();
-  let pids = null;
+  const pidFile = path.join(s.aux, 'slow.pids');
   try {
-    const pidFile = path.join(s.aux, 'slow.pids');
     s.configure([
-      s.hang('slow', { platform: 'web', pidFile }),
+      s.hang('slow', { platform: 'web', pidFile, startupDelayMs: SLOW_START_MS }),
       s.suite('after', { platform: 'web', cases: WEB_CASES }),
     ]);
 
     const result = runCli(s.project);
-    pids = readPids(pidFile);
 
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.equal(fieldOf(result.stdout, 'STATUS'), 'FAILED');
@@ -536,8 +613,6 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树�
     const [slow, after] = fieldsOf(result.stdout, 'SUITE');
     assert.match(slow, new RegExp(`^slow\\|web\\|timeout\\|exit=-\\|\\d+ms\\|0 cases\\|sha256=-\\|运行超过 ${HANG_TIMEOUT_SECONDS} 秒被终止$`, 'u'));
     assert.match(after, /^after\|web\|ok\|exit=0\|/u);
-    assert.ok(pids, '桩套件应该已经写出 pid 文件');
-    await assertAllDead(pids);
     const results = s.results().results;
     assert.deepEqual(results.suites.map((suite) => suite.status), ['timeout', 'ok']);
     assert.ok(
@@ -546,26 +621,45 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树�
     );
     assert.equal(results.suites[0].exit_code, null);
   } finally {
-    reap(pids);
+    reap(readPids(pidFile));
     s.cleanup();
   }
 });
 
-test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件忽略 SIGTERM 时升级为强制终止，整棵进程树仍被清理', async () => {
+test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件超时后终止整棵进程树，记录 timeout', async (t) => {
   const s = createScenario();
-  let pids = null;
+  let hung = null;
   try {
-    const pidFile = path.join(s.aux, 'stubborn.pids');
-    s.configure([s.hang('stubborn', { platform: 'web', pidFile, ignoreTerm: true })]);
+    // 启动延迟模拟套件启动很慢：用例必须等到进程树出现才触发超时，而不是赌套件够快。
+    hung = startHungSuite(t, s, { startupDelayMs: SLOW_START_MS });
+    const pids = await hung.ready();
 
-    const outcome = await runBusinessSuites(s.libraryOptions({ killGraceMs: 200 }));
-    pids = readPids(pidFile);
+    const outcome = await hung.timeout();
 
-    assert.equal(outcome.results.suites[0].status, 'timeout');
-    assert.ok(pids, '桩套件应该已经写出 pid 文件');
+    const [suite] = outcome.results.suites;
+    assert.equal(suite.status, 'timeout');
+    assert.equal(suite.exit_code, null);
+    assert.match(suite.detail, new RegExp(`运行超过 ${HELD_TIMEOUT_SECONDS} 秒被终止`, 'u'));
     await assertAllDead(pids);
   } finally {
-    reap(pids);
+    await hung?.dispose();
+    s.cleanup();
+  }
+});
+
+test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 套件忽略 SIGTERM 时升级为强制终止，整棵进程树仍被清理', async (t) => {
+  const s = createScenario();
+  let hung = null;
+  try {
+    hung = startHungSuite(t, s, { ignoreTerm: true, killGraceMs: 200 });
+    const pids = await hung.ready();
+
+    const outcome = await hung.timeout();
+
+    assert.equal(outcome.results.suites[0].status, 'timeout');
+    await assertAllDead(pids);
+  } finally {
+    await hung?.dispose();
     s.cleanup();
   }
 });
@@ -898,7 +992,7 @@ test('AC-BIZTEST-003-01 / TC-BIZTEST-007: 运行中收到 SIGINT 时终止整棵
     ]);
 
     const run = startCli(s.project);
-    pids = await waitFor(() => readPids(pidFile));
+    pids = await waitForPids(pidFile);
     run.child.kill('SIGINT');
     const done = await run.closed;
 
