@@ -10,7 +10,7 @@ import {
   formatDateValue,
   validDateRange,
 } from "@/components/selectors/date-value";
-it("TC-ARCHPLAT-012 calendar strings preserve local date and reject impossible/out of order ranges", () => {
+it("calendar strings preserve local date and reject impossible/out of order ranges", () => {
   for (const date of ["2024-02-29", "2026-01-01", "2026-12-31"])
     expect(formatDateValue(parseDateValue(date)!)).toBe(date);
   for (const date of [
@@ -26,7 +26,7 @@ it("TC-ARCHPLAT-012 calendar strings preserve local date and reject impossible/o
     validDateRange({ from: "2026-09-09", to: "2026-09-10" }, "2026-09-10"),
   ).toBe(false);
 });
-it("TC-ARCHPLAT-012 date range rejects incomplete/reversed/out-of-bound input, applies preset and clears", async () => {
+it("date range rejects incomplete/reversed/out-of-bound input, applies preset and clears", async () => {
   const user = userEvent.setup(),
     change = vi.fn();
   render(
@@ -58,7 +58,7 @@ it("TC-ARCHPLAT-012 date range rejects incomplete/reversed/out-of-bound input, a
   await user.click(screen.getByRole("button", { name: "清除日期" }));
   expect(change).toHaveBeenLastCalledWith(undefined);
 });
-it("TC-ARCHPLAT-012 single date uses valid manual input", async () => {
+it("single date uses valid manual input", async () => {
   const user = userEvent.setup(),
     change = vi.fn();
   render(<DatePicker label="发布日期" onChange={change} />);

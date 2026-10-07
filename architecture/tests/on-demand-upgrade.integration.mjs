@@ -17,7 +17,7 @@ const { applyPlan, readLock } = require('../../tooling/xirang/engine.js');
 function files(root) { return fs.readdirSync(root, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(path.join(root, e.name)).map(p => `${e.name}/${p}`) : [e.name]); }
 function size(root) { return files(root).reduce((sum, p) => sum + fs.statSync(path.join(root, p)).size, 0); }
 
-for (const adopted of [false, true]) test(`TC-LAZYARCH-005/006 original 3.3 ${adopted ? 'adopted workspace' : 'inert full kit'} shrinks without losing customizations`, t => {
+for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted workspace' : 'inert full kit'} shrinks without losing customizations`, t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-34-upgrade-')), target = path.join(root, 'repo'), runRoot = path.join(root, 'runs'); fs.mkdirSync(target);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   oldEngine.applyPlan(oldTemplate.createTemplatePlan({ source: legacy, target, include: ['architecture'] }), { runRoot });

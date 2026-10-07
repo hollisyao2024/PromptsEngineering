@@ -9,7 +9,7 @@ const legacy=process.env.XIRANG_LEGACY_SOURCE;
 if(!legacy||JSON.parse(fs.readFileSync(path.join(legacy,'package.json'))).version!=='3.1.0')throw new Error('XIRANG_LEGACY_SOURCE must point to an extracted v3.1.0 source snapshot');
 const current=require('../scripts/project.js'),old=require(path.join(legacy,'architecture/scripts/project.js'));
 const {createTemplatePlan}=require('../../tooling/xirang/template.js'),{applyPlan}=require('../../tooling/xirang/engine.js');
-test('TC-MONOPLAT-009 real v3.1.0 consumer retains SQL history, UI and project-owned customization',t=>{
+test('real v3.1.0 consumer retains SQL history, UI and project-owned customization',t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'xirang-legacy-upgrade-')),target=path.join(root,'repo'),runRoot=path.join(root,'runs');
   fs.mkdirSync(target);t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const config={schemaVersion:1,applications:[{id:'web',stack:'react-vite',path:'apps/web'},{id:'api',stack:'node',path:'apps/server'}],datastores:[{id:'main',engine:'postgres',path:'packages/database',consumers:['api']}],modules:[{id:'observability',path:'packages/logging'}]};

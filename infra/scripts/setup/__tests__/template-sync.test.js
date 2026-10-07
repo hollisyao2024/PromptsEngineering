@@ -409,7 +409,7 @@ test('sync refuses the main worktree and the template source role', (t) => {
   assert.equal(git(sourceTarget.linkedRoot, ['status', '--porcelain']), '');
 });
 
-test('TC-CMDSURF-038 sync initializes missing RULES and later preserves project customization', t => {
+test('sync initializes missing RULES and later preserves project customization', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-sync-rules-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { upstream } = createUpstream(root, { initializeRules: true, unified: true });

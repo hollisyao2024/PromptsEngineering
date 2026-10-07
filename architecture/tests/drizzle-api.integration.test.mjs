@@ -36,7 +36,7 @@ before(async()=>{
 });
 beforeEach(async()=>{await db.delete(tasks);});
 after(async()=>{if(server)await new Promise(resolve=>server.close(resolve));store.engine==='sqlite'?db.$client.close():await db.$client.end();});
-test('TC-MONOPLAT-002/004/005 real API client CRUD, server paging, filters, sorting and optimistic update',async()=>{
+test('real API client CRUD, server paging, filters, sorting and optimistic update',async()=>{
   for(let i=0;i<14;i++)await client.create({title:'task-'+String(i).padStart(2,'0'),status:i%2?'doing':'todo'});
   const page=await client.list({page:1,pageSize:5,sort:'title',direction:'asc'});
   assert.equal(page.total,14);assert.equal(page.items.length,5);assert.equal(page.items[0].title,'task-05');
@@ -50,13 +50,13 @@ test('TC-MONOPLAT-002/004/005 real API client CRUD, server paging, filters, sort
   assert.equal((await client.remove([original.id])).count,1);
   assert.equal((await client.list()).total,13);
 });
-test('TC-MONOPLAT-005 ordered multi-column sort survives the API boundary',async()=>{
+test('ordered multi-column sort survives the API boundary',async()=>{
   for(const [title,status]of [['alpha','todo'],['omega','todo'],['first','done']])await client.create({title,status});
   const page=await client.list({sorts:'status:asc,title:desc'});
   assert.deepEqual(page.items.map(x=>x.title),['first','omega','alpha']);
   for(const sorts of ['unknown:asc','title:sideways','title:asc,title:desc','title:asc,status:desc,createdAt:asc,title:asc'])await assert.rejects(client.list({sorts}),e=>e.status===400);
 });
-test('TC-MONOPLAT-002 actual database transaction rollback and atomic batch delete',async()=>{
+test('actual database transaction rollback and atomic batch delete',async()=>{
   const existing=await client.create({title:'preserve','status':'todo'});
   await assert.rejects(client.remove([existing.id,randomUUID()]),e=>e.status===409);
   assert.equal((await db.select().from(tasks).where(eq(tasks.id,existing.id))).length,1);
@@ -64,7 +64,7 @@ test('TC-MONOPLAT-002 actual database transaction rollback and atomic batch dele
   await assert.rejects(db.transaction(async tx=>{await tx.insert(tasks).values({id,title:'first'});await tx.insert(tasks).values({id,title:'duplicate'});}));
   assert.equal((await db.select().from(tasks).where(eq(tasks.id,id))).length,0);
 });
-test('TC-MONOPLAT-004/007 invalid input, auth, production reads and response contracts fail closed',async()=>{
+test('invalid input, auth, production reads and response contracts fail closed',async()=>{
   await assert.rejects(anonymous.create({title:'no auth',status:'todo'}),e=>e.status===401);
   await assert.rejects(createApiClient({baseUrl,token:()=>'incorrect'}).create({title:'bad',status:'todo'}),e=>e.status===403);
   for(const body of [{title:'',status:'todo'},{title:'x',status:'invalid'},{title:'x',status:'todo',extra:true},{title:'x'}])await assert.rejects(client.create(body),e=>e.status===400);
@@ -82,7 +82,7 @@ test('TC-MONOPLAT-004/007 invalid input, auth, production reads and response con
   const redacted=JSON.stringify(redact({token:'hidden',databaseUrl:'postgresql://user:secret@localhost/test',nested:{password:'hidden'}}));
   assert.ok(!redacted.includes('hidden')&&!redacted.includes('secret'));
 });
-test('TC-MONOPLAT-004 JSON Schema 2020 tuples, nested objects and formats are enforced',async()=>{
+test('JSON Schema 2020 tuples, nested objects and formats are enforced',async()=>{
   const {validate,createContractValidator}=await load('packages/contracts/dist/index.js');
   const task={id:randomUUID(),title:'valid',status:'todo',version:1,createdAt:'not-a-date',updatedAt:new Date().toISOString()};
   assert.equal(validate('Task',task),false);
@@ -91,13 +91,13 @@ test('TC-MONOPLAT-004 JSON Schema 2020 tuples, nested objects and formats are en
   assert.equal(check('Envelope',{coordinates:['bad',2]}),false);
   assert.equal(check('Envelope',{coordinates:[1,2,3]}),false);
 });
-test('TC-MONOPLAT-005 export honors filter/selection and neutralizes CSV formulas',async()=>{
+test('export honors filter/selection and neutralizes CSV formulas',async()=>{
   const row=await client.create({title:'=FORMULA()',status:'todo'});await client.create({title:'other',status:'done'});
   const selected=await client.export({},'selected',[row.id]);assert.equal(selected.count,1);assert.match(selected.csv,/'=FORMULA/);assert.ok(!selected.csv.includes('other'));
   const filtered=await client.export({status:'done'},'filtered');assert.equal(filtered.count,1);assert.ok(filtered.csv.includes('other'));
   await assert.rejects(anonymous.export({},'filtered'),e=>e.status===401);
 });
-test('TC-MONOPLAT-001/006/007 source boundaries, generation freshness and host degradation',async()=>{
+test('source boundaries, generation freshness and host degradation',async()=>{
   const require=createRequire(import.meta.url),{checkProject}=require('../checks/project-check.js');
   assert.equal(checkProject(target,config).status,'OK',JSON.stringify(checkProject(target,config).failures));
   const publicFile=path.join(target,'packages/api-client/src/forbidden.ts');
@@ -110,4 +110,4 @@ test('TC-MONOPLAT-001/006/007 source boundaries, generation freshness and host d
   assert.equal((await platform.createBrowserPlatform().readTextFile()).reason,'unsupported');
   assert.throws(()=>platform.externalUrl('javascript:alert(1)'),/Unsupported/);
 });
-test('TC-DRIZZLE-001 literal LIKE search and request cancellation',async()=>{await client.create({title:'literal %_!',status:'todo'});await client.create({title:'ordinary',status:'todo'});assert.equal((await client.list({search:'%_!'})).total,1);const controller=new AbortController();controller.abort();await assert.rejects(client.list({},controller.signal),e=>e.name==='AbortError');});
+test('literal LIKE search and request cancellation',async()=>{await client.create({title:'literal %_!',status:'todo'});await client.create({title:'ordinary',status:'todo'});assert.equal((await client.list({search:'%_!'})).total,1);const controller=new AbortController();controller.abort();await assert.rejects(client.list({},controller.signal),e=>e.name==='AbortError');});

@@ -33,7 +33,7 @@ const config = (componentSets) => ({
     },
   ],
 });
-test("TC-ARCHPLAT-014 explicit empty selection keeps baseline UI without table or optional libraries", (t) => {
+test("explicit empty selection keeps baseline UI without table or optional libraries", (t) => {
   const f = fixture(t),
     built = buildArchitectureAssets({ ...f, config: config([]) });
   assert.ok(built.assets.some((a) => a.path.endsWith("/ui/button.tsx")));
@@ -53,7 +53,7 @@ test("TC-ARCHPLAT-014 explicit empty selection keeps baseline UI without table o
       .content.includes("DataTable"),
   );
 });
-test("TC-ARCHPLAT-014 default table brings multi/date filters and feedback, but forms stay opt-in", (t) => {
+test("default table brings multi/date filters and feedback, but forms stay opt-in", (t) => {
   const { assets } = buildArchitectureAssets({
     ...fixture(t),
     config: config(),
@@ -71,7 +71,7 @@ test("TC-ARCHPLAT-014 default table brings multi/date filters and feedback, but 
     );
   assert.ok(!assets.some((a) => a.path.endsWith("/form-panel.tsx")));
 });
-test("TC-ARCHPLAT-014 form-only and RHF selections have different dependencies", (t) => {
+test("form-only and RHF selections have different dependencies", (t) => {
   const f = fixture(t);
   const forms = buildArchitectureAssets({
     ...f,
@@ -91,7 +91,7 @@ test("TC-ARCHPLAT-014 form-only and RHF selections have different dependencies",
   for (const name of ["react-hook-form", "@hookform/resolvers", "zod"])
     assert.match(pkg.dependencies[name], /^\d+\.\d+\.\d+$/);
 });
-test("TC-ARCHPLAT-014 rejects unknown/duplicate sets, backend UI and overlapping paths", (t) => {
+test("rejects unknown/duplicate sets, backend UI and overlapping paths", (t) => {
   const f = fixture(t);
   for (const value of [["unknown"], ["forms", "forms"], "forms", null])
     assert.throws(() => validateConfig(config(value), f), /componentSets/);
@@ -104,7 +104,7 @@ test("TC-ARCHPLAT-014 rejects unknown/duplicate sets, backend UI and overlapping
   };
   assert.throws(() => validateConfig(overlap, f), /overlap|separate/);
 });
-test("TC-ARCHPLAT-014 shared consumers union dependencies and infer composed directories", (t) => {
+test("shared consumers union dependencies and infer composed directories", (t) => {
   const f = fixture(t),
     c = config(["data-table"]);
   c.applications[0].components = {
@@ -134,7 +134,7 @@ test("TC-ARCHPLAT-014 shared consumers union dependencies and infer composed dir
     assets.some((a) => a.path === "packages/ui/src/selectors/date-picker.tsx"),
   );
 });
-test("TC-ARCHPLAT-014 adding a set preserves project examples/utils and second plan converges", (t) => {
+test("adding a set preserves project examples/utils and second plan converges", (t) => {
   const f = fixture(t),
     c = config([]);
   applyPlan(createArchitecturePlan({ ...f, config: c }), {
@@ -161,7 +161,7 @@ test("TC-ARCHPLAT-014 adding a set preserves project examples/utils and second p
   );
   assert.equal(createArchitecturePlan({ ...f, config: c }).changes.length, 0);
 });
-test("TC-ARCHPLAT-014 deselection retains installed files, dependencies and their future updates", (t) => {
+test("deselection retains installed files, dependencies and their future updates", (t) => {
   const f = fixture(t),
     c = config(["forms", "data-table"]);
   applyPlan(createArchitecturePlan({ ...f, config: c }), {
@@ -186,7 +186,7 @@ test("TC-ARCHPLAT-014 deselection retains installed files, dependencies and thei
   assert.ok(pkg.dependencies["@tanstack/react-table"]);
   assert.ok(pkg.dependencies.cmdk);
 });
-test("TC-ARCHPLAT-014 shared components cannot resolve their dependencies into app source", (t) => {
+test("shared components cannot resolve their dependencies into app source", (t) => {
   const f = fixture(t),
     c = config(["forms"]);
   c.applications[0].components = {
@@ -199,7 +199,7 @@ test("TC-ARCHPLAT-014 shared components cannot resolve their dependencies into a
     /Shared component.*app/,
   );
 });
-test("TC-ARCHPLAT-014 scoped table upgrade includes filters, feedback and consumer dependencies", (t) => {
+test("scoped table upgrade includes filters, feedback and consumer dependencies", (t) => {
   const f = fixture(t);
   const { assets } = buildArchitectureAssets({
     ...f,

@@ -99,7 +99,7 @@ const NO_CRITERION = { [PATHS_FILE]: pathsDocument(shopPaths((model) => { model.
 // 放行与披露
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 必需 AC 都有通过的用例时放行，并披露人工验收项', (t) => {
+test('必需 AC 都有通过的用例时放行，并披露人工验收项', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   const outcome = evaluate(s);
@@ -119,10 +119,10 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 必需 AC 都有通过的用例时放�
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-011：必需 AC 未被证明
+// 必需 AC 未被证明
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: P0 自动化 AC 没有绑定用例时阻断并列出该 AC', (t) => {
+test('P0 自动化 AC 没有绑定用例时阻断并列出该 AC', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: WEB_CASES.filter((item) => !item.name.includes('AC-SHOP-001-01')) });
   const outcome = evaluate(s);
@@ -141,7 +141,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: P0 自动化 AC 没有绑定用例时�
   assert.ok(lines.some((line) => /^BUSINESS_NEXT_ACTION=\S/u.test(line)));
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 绑定用例失败时阻断，且套件退出码非零只作为风险披露', (t) => {
+test('绑定用例失败时阻断，且套件退出码非零只作为风险披露', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed'), webCode: 1 });
   const outcome = evaluate(s);
@@ -155,7 +155,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 绑定用例失败时阻断，且套�
   assert.ok(codesOf(outcome.risks).includes('RISK_SUITE_EXIT_NONZERO'), show(outcome));
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 绑定用例只有跳过时同样不算通过', (t) => {
+test('绑定用例只有跳过时同样不算通过', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'AC-SHOP-001-01', 'skipped') });
   const outcome = evaluate(s);
@@ -166,7 +166,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 绑定用例只有跳过时同样不�
   assert.match(unproven[0].detail, /^P0 skipped: .*web/u);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 报告有效、套件退出码非零但 AC 全部通过时放行并披露（不以退出码单独阻断）', (t) => {
+test('报告有效、套件退出码非零但 AC 全部通过时放行并披露（不以退出码单独阻断）', (t) => {
   const s = scenarioFor(t);
   prepare(s, { webCode: 3 });
   const outcome = evaluate(s);
@@ -179,10 +179,10 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 报告有效、套件退出码非零�
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-012：结果缺失、陈旧或被改动
+// 结果缺失、陈旧或被改动
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果文件缺失时阻断，提示先运行 qa run，且不创建任何目录', (t) => {
+test('结果文件缺失时阻断，提示先运行 qa run，且不创建任何目录', (t) => {
   const s = scenarioFor(t);
   s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
   const outcome = evaluate(s);
@@ -193,7 +193,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果文件缺失时阻断，提示�
   assert.equal(fs.existsSync(s.project.tmp), false, '门禁是只读的，不得创建容器 tmp');
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果文件无法解析、版本未知或副本路径越界时判为 RESULTS_INVALID', (t) => {
+test('结果文件无法解析、版本未知或副本路径越界时判为 RESULTS_INVALID', (t) => {
   const s = scenarioFor(t);
   prepare(s);
 
@@ -211,7 +211,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果文件无法解析、版本未�
   assert.match(escaped.nextAction, /qa run/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: HEAD 与结果不一致时只报告 RESULTS_STALE_HEAD，不给出依据旧数据的 AC 清单', (t) => {
+test('HEAD 与结果不一致时只报告 RESULTS_STALE_HEAD，不给出依据旧数据的 AC 清单', (t) => {
   const s = scenarioFor(t);
   // 报告里有失败用例：若不跳过后续判定，会误导地列出 AC_NOT_PROVEN。
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
@@ -226,7 +226,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: HEAD 与结果不一致时只报告 RE
   assert.match(outcome.nextAction, /qa run/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 调用方传入的 HEAD 与结果中的 head_sha 比较', (t) => {
+test('调用方传入的 HEAD 与结果中的 head_sha 比较', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   const outcome = evaluate(s, { headSha: HEAD_FOREIGN });
@@ -235,7 +235,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 调用方传入的 HEAD 与结果中�
   assert.match(outcome.blocks[0].detail, new RegExp(HEAD_FOREIGN.slice(0, 12), 'u'));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 运行时工作区不洁净则结果不可信，并提示 .gitignore 或提交', (t) => {
+test('运行时工作区不洁净则结果不可信，并提示 .gitignore 或提交', (t) => {
   const s = scenarioFor(t);
   s.configure([
     s.suite('web', { platform: 'web', cases: WEB_CASES }),
@@ -252,7 +252,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 运行时工作区不洁净则结果�
   assert.match(outcome.nextAction, /qa run/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 配置在运行后变化（摘要漂移）时阻断，未提交的配置修改也算', (t) => {
+test('配置在运行后变化（摘要漂移）时阻断，未提交的配置修改也算', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   s.project.write({
@@ -267,7 +267,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 配置在运行后变化（摘要漂�
   assert.match(outcome.nextAction, /qa run/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 新鲜度三项同时不满足时按固定顺序全部列出', (t) => {
+test('新鲜度三项同时不满足时按固定顺序全部列出', (t) => {
   const s = scenarioFor(t);
   const suites = [
     s.suite('web', { platform: 'web', cases: WEB_CASES }),
@@ -286,7 +286,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 新鲜度三项同时不满足时按�
 // 套件硬失败
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 套件没产出报告或报告不可解析是硬失败，逐个列出且跳过后续判定', (t) => {
+test('套件没产出报告或报告不可解析是硬失败，逐个列出且跳过后续判定', (t) => {
   const s = scenarioFor(t);
   s.configure([
     s.suite('ios', { platform: 'ios' }),
@@ -310,7 +310,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 套件没产出报告或报告不可�
 // 完整性：报告副本与重算
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本被改动时阻断为 REPORT_TAMPERED，并提示重新运行 qa run', (t) => {
+test('报告副本被改动时阻断为 REPORT_TAMPERED，并提示重新运行 qa run', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   fs.appendFileSync(s.copyFile('web'), '\n<!-- 事后追加 -->\n');
@@ -322,7 +322,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本被改动时阻断为 REPO
   assert.match(outcome.nextAction, /qa run/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本缺失、被换成目录或符号链接时同样阻断', (t) => {
+test('报告副本缺失、被换成目录或符号链接时同样阻断', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   const copy = s.copyFile('web');
@@ -344,7 +344,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本缺失、被换成目录�
   assert.deepEqual(codesOf(evaluate(s).blocks), ['REPORT_TAMPERED'], '副本被换成符号链接');
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 仓库内报告文件被改动不影响判定，门禁只信任容器里的副本', (t) => {
+test('仓库内报告文件被改动不影响判定，门禁只信任容器里的副本', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   fs.writeFileSync(path.join(s.project.repo, 'reports', 'web.xml'), '<被改过的报告');
@@ -353,7 +353,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 仓库内报告文件被改动不影�
   assert.equal(outcome.status, 'PASS', show(outcome));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 只改结果里的派生字段会被重算发现（RESULTS_MISMATCH），伪造的通过不放行', (t) => {
+test('只改结果里的派生字段会被重算发现（RESULTS_MISMATCH），伪造的通过不放行', (t) => {
   const s = scenarioFor(t);
   // 套件退出码为 0，但报告里 AC-SHOP-001-02 失败；结果如实记录时门禁必须阻断。
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
@@ -373,7 +373,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 只改结果里的派生字段会被�
   assert.deepEqual(outcome.risks, []);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 同时改副本并重写 SHA256 与字节数，但派生字段不动，仍被重算发现', (t) => {
+test('同时改副本并重写 SHA256 与字节数，但派生字段不动，仍被重算发现', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
   const copy = s.copyFile('web');
@@ -391,7 +391,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 同时改副本并重写 SHA256 与字
   assert.deepEqual([...new Set(codesOf(outcome.blocks))], ['RESULTS_MISMATCH']);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 副本被换成无法解析的内容且摘要同步重写时，以 RESULTS_MISMATCH 阻断', (t) => {
+test('副本被换成无法解析的内容且摘要同步重写时，以 RESULTS_MISMATCH 阻断', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   const broken = '<testsuites><未闭合';
@@ -407,7 +407,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 副本被换成无法解析的内容�
   assert.match(outcome.blocks[0].detail, /无法再次解析/u);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果里少了一个已配置的套件，即使派生字段被一并重算，也以 RESULTS_MISMATCH 阻断', (t) => {
+test('结果里少了一个已配置的套件，即使派生字段被一并重算，也以 RESULTS_MISMATCH 阻断', (t) => {
   const s = scenarioFor(t);
   // ios 套件失败；伪造者把它的记录整个删掉，并按“只有 web 运行过”重算 tcs/acs/paths/summary，
   // 逐字段重算已无差异——只有“已配置套件与结果记录的套件是否一致”这一项能发现它。
@@ -431,7 +431,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果里少了一个已配置的套�
   assert.deepEqual(outcome.risks, []);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 运行后又改了 PRD（未提交）会因规格变化被重算发现', (t) => {
+test('运行后又改了 PRD（未提交）会因规格变化被重算发现', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   s.project.write({
@@ -444,7 +444,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 运行后又改了 PRD（未提交）�
   assert.ok(outcome.blocks.some((block) => /AC-SHOP-001-03/u.test(block.subject)), show(outcome));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 差异很多时只列前 10 项，并给出未列出的数量', (t) => {
+test('差异很多时只列前 10 项，并给出未列出的数量', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   s.editResults((results) => {
@@ -464,10 +464,10 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 差异很多时只列前 10 项，并�
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-014：优先级
+// 优先级
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 低于必需优先级的自动化 AC 未通过只披露为 RISK_LOWER_PRIORITY', (t) => {
+test('低于必需优先级的自动化 AC 未通过只披露为 RISK_LOWER_PRIORITY', (t) => {
   const s = scenarioFor(t, { files: NO_CRITERION });
   prepare(s, { web: withStatus(WEB_CASES, 'AC-SHOP-001-03', 'failed') });
   const outcome = evaluate(s);
@@ -479,7 +479,7 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 低于必需优先级的自动化 AC �
   assert.match(risk.detail, /failed/u);
 });
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 必需优先级可配置，加入 P1 后该 AC 未通过即阻断', (t) => {
+test('必需优先级可配置，加入 P1 后该 AC 未通过即阻断', (t) => {
   const s = scenarioFor(t, { files: NO_CRITERION });
   prepare(s, { web: withStatus(WEB_CASES, 'AC-SHOP-001-03', 'failed'), business: { requiredPriorities: ['P0', 'P1'] } });
   const outcome = evaluate(s);
@@ -491,7 +491,7 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 必需优先级可配置，加入 P1 �
   assert.equal(codesOf(outcome.risks).includes('RISK_LOWER_PRIORITY'), false);
 });
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 验证方式为 manual 的 AC 只在必需优先级内披露为 RISK_MANUAL_AC', (t) => {
+test('验证方式为 manual 的 AC 只在必需优先级内披露为 RISK_MANUAL_AC', (t) => {
   const manualP1 = {
     id: 'AC-SHOP-002-02', story: 'US-SHOP-002', priority: 'P1', verification: 'manual', platform: '-',
     given: '用户在设置页', when: '切换语言', then: '文案经运营确认', tc: '-',
@@ -516,10 +516,10 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 验证方式为 manual 的 AC 只在�
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-015：多端
+// 多端
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明的端没有任何套件提供结果时，该端为 missing 并阻断', (t) => {
+test('声明的端没有任何套件提供结果时，该端为 missing 并阻断', (t) => {
   const s = scenarioFor(t);
   prepare(s, { ios: null });
   const outcome = evaluate(s);
@@ -530,7 +530,7 @@ test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明的端没有任何套件提供�
   assert.match(outcome.blocks[0].detail, /^P0 missing: .*ios: missing/u);
 });
 
-test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明的端上有失败时阻断，即使其他端通过', (t) => {
+test('声明的端上有失败时阻断，即使其他端通过', (t) => {
   const s = scenarioFor(t);
   prepare(s, { ios: withStatus(IOS_CASES, 'AC-SHOP-001-02', 'failed'), iosCode: 1 });
   const outcome = evaluate(s);
@@ -542,7 +542,7 @@ test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明的端上有失败时阻断，�
   assert.ok(codesOf(outcome.risks).includes('RISK_SUITE_EXIT_NONZERO'));
 });
 
-test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 未声明的端上出现失败同样阻断，额外的通过端不影响放行', (t) => {
+test('未声明的端上出现失败同样阻断，额外的通过端不影响放行', (t) => {
   const failing = scenarioFor(t);
   prepare(failing, {
     extra: [failing.suite('android', {
@@ -566,7 +566,7 @@ test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 未声明的端上出现失败同样�
   assert.equal(allowed.status, 'PASS', show(allowed));
 });
 
-test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明端为 - 的 AC 以总体状态判定，任一套件通过且无失败即可', (t) => {
+test('声明端为 - 的 AC 以总体状态判定，任一套件通过且无失败即可', (t) => {
   const s = scenarioFor(t);
   // AC-SHOP-001-03 声明为 -：由哪个端的套件证明都行，但出现失败即阻断。
   prepare(s, {
@@ -583,10 +583,10 @@ test('AC-BIZTEST-004-05 / TC-BIZTEST-015: 声明端为 - 的 AC 以总体状态�
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-016：路径覆盖
+// 路径覆盖
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 all-transitions 下，失败路径独占的转移失去覆盖，阻断并指出含该转移的路径', (t) => {
+test('准则 all-transitions 下，失败路径独占的转移失去覆盖，阻断并指出含该转移的路径', (t) => {
   const s = scenarioFor(t);
   // AC-SHOP-001-03 是 P1，不触发 AC_NOT_PROVEN，只有路径覆盖会拦住它。
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-003', 'failed') });
@@ -600,7 +600,7 @@ test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 all-transitions 下，失败路
   assert.ok(codesOf(outcome.risks).includes('RISK_LOWER_PRIORITY'), '路径阻断时仍披露 AC 层面的风险');
 });
 
-test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 all-states 下，失败路径独占的状态失去覆盖', (t) => {
+test('准则 all-states 下，失败路径独占的状态失去覆盖', (t) => {
   const s = scenarioFor(t, {
     files: { [PATHS_FILE]: pathsDocument(shopPaths((model) => { model.criterion = 'all-states'; })) },
   });
@@ -612,7 +612,7 @@ test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 all-states 下，失败路径�
   assert.equal(outcome.blocks[0].subject, 'STA-SHOP-004');
 });
 
-test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 none 时不检查路径覆盖，路径失败不阻断', (t) => {
+test('准则 none 时不检查路径覆盖，路径失败不阻断', (t) => {
   const s = scenarioFor(t, { files: NO_CRITERION });
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-003', 'failed') });
   const outcome = evaluate(s);
@@ -620,7 +620,7 @@ test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 准则 none 时不检查路径覆盖�
   assert.equal(outcome.status, 'PASS', show(outcome));
 });
 
-test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 路径关联的 TC 没有任何用例时路径不算通过，并指出缺失', (t) => {
+test('路径关联的 TC 没有任何用例时路径不算通过，并指出缺失', (t) => {
   const s = scenarioFor(t);
   // AC-SHOP-001-03 是 P1：没有它的用例不触发 AC_NOT_PROVEN，只有路径覆盖会拦住 TRN-SHOP-003。
   prepare(s, { web: WEB_CASES.filter((item) => !item.name.includes('TC-SHOP-003')) });
@@ -637,7 +637,7 @@ test('AC-BIZTEST-004-06 / TC-BIZTEST-016: 路径关联的 TC 没有任何用例�
 // 其余风险披露
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 无标识的用例与引用了不存在标识的用例只披露，不阻断', (t) => {
+test('无标识的用例与引用了不存在标识的用例只披露，不阻断', (t) => {
   const s = scenarioFor(t);
   prepare(s, {
     web: [
@@ -656,7 +656,7 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 无标识的用例与引用了不存�
   assert.match(outcome.risks[2].detail, /TC-SHOP-099/u);
 });
 
-test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 没有原子 AC 表的模块其验收不受门禁约束，披露为 RISK_MODULE_WITHOUT_TABLE', (t) => {
+test('没有原子 AC 表的模块其验收不受门禁约束，披露为 RISK_MODULE_WITHOUT_TABLE', (t) => {
   const s = scenarioFor(t, {
     files: { 'docs/prd-modules/legacy/PRD.md': '# 旧模块 PRD\n\n只有叙述性的验收说明，没有原子 AC 表。\n' },
   });
@@ -673,7 +673,7 @@ test('AC-BIZTEST-004-04 / TC-BIZTEST-014: 没有原子 AC 表的模块其验收�
 // 配置与规格（第 1、2 步）
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 配置非法时第一步阻断，逐项报告字段，不读取规格与结果', (t) => {
+test('配置非法时第一步阻断，逐项报告字段，不读取规格与结果', (t) => {
   const s = scenarioFor(t);
   s.configure([{ name: 'Bad Name', platform: 'web', command: 'true', report: 'reports/x.xml' }]);
   const outcome = evaluate(s);
@@ -687,7 +687,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 配置非法时第一步阻断，逐�
   assert.equal(fs.existsSync(s.project.tmp), false);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 开启业务测试但没有配置任何套件时同样按配置非法处理', (t) => {
+test('开启业务测试但没有配置任何套件时同样按配置非法处理', (t) => {
   const s = scenarioFor(t);
   s.configure([]);
   const outcome = evaluate(s);
@@ -696,7 +696,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 开启业务测试但没有配置任�
   assert.equal(outcome.blocks[0].subject, 'qa.business.suites');
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: enabled 无法判读时按已开启并阻断（失败即关闭）', (t) => {
+test('enabled 无法判读时按已开启并阻断（失败即关闭）', (t) => {
   const s = scenarioFor(t);
   const outcome = evaluate(s, { config: { qa: { business: { enabled: 'yes', suites: [] } } } });
 
@@ -704,7 +704,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: enabled 无法判读时按已开启并
   assert.ok(outcome.blocks.some((block) => block.code === 'CONFIG_INVALID' && block.subject === 'qa.business.enabled'), show(outcome));
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 项目没有任何原子 AC 表时阻断为 NO_ATOMIC_AC，不再追问结果文件', (t) => {
+test('项目没有任何原子 AC 表时阻断为 NO_ATOMIC_AC，不再追问结果文件', (t) => {
   const s = scenarioFor(t, { shop: false });
   s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
   const outcome = evaluate(s);
@@ -714,7 +714,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 项目没有任何原子 AC 表时阻�
   assert.equal(fs.existsSync(s.project.tmp), false);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 路径模型违规时阻断为 SPEC_INVALID，附原始违规代码与位置', (t) => {
+test('路径模型违规时阻断为 SPEC_INVALID，附原始违规代码与位置', (t) => {
   const s = scenarioFor(t, {
     files: {
       [PATHS_FILE]: pathsDocument(shopPaths((model) => { model.paths[0][1] = 'TRN-SHOP-001 → TRN-SHOP-099'; })),
@@ -730,7 +730,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 路径模型违规时阻断为 SPEC_IN
   assert.match(unknown.subject, /^docs\/qa-modules\/shop\/PATHS\.md(:\d+)?$/u);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 运行后规格被改坏时，SPEC_INVALID 先于结果比对阻断', (t) => {
+test('运行后规格被改坏时，SPEC_INVALID 先于结果比对阻断', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   s.project.write({
@@ -745,7 +745,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 运行后规格被改坏时，SPEC_INV
 // 输出契约、确定性、只读与失败即关闭
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 判定结果与输出文本在重复调用时逐字节一致', (t) => {
+test('判定结果与输出文本在重复调用时逐字节一致', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed'), webCode: 1 });
   const first = evaluate(s);
@@ -755,7 +755,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 判定结果与输出文本在重复�
   assert.equal(formatBusinessGate(second).join('\n'), formatBusinessGate(first).join('\n'));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 门禁是只读的：不创建、不修改任何文件（含阻断与放行两种结果）', (t) => {
+test('门禁是只读的：不创建、不修改任何文件（含阻断与放行两种结果）', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
   const before = snapshot(s.project.root);
@@ -770,7 +770,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 门禁是只读的：不创建、不�
   assert.deepEqual(snapshot(clean.project.root), cleanBefore);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 输出行不会被多行文本、竖线或控制字符破坏，超长说明被截断', () => {
+test('输出行不会被多行文本、竖线或控制字符破坏，超长说明被截断', () => {
   const lines = formatBusinessGate({
     status: 'BLOCKED',
     summary: '阻断 1 项\nBUSINESS_GATE=PASS',
@@ -797,7 +797,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 输出行不会被多行文本、竖�
   assert.ok(lines.includes('BUSINESS_RISK=RISK_MANUAL_AC|a b c'), lines.join('\n'));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 入参不合法或内部出错时按阻断处理（GATE_ERROR），不抛出异常', (t) => {
+test('入参不合法或内部出错时按阻断处理（GATE_ERROR），不抛出异常', (t) => {
   const s = scenarioFor(t);
   prepare(s);
 
@@ -835,7 +835,7 @@ function withBusiness(s, patch) {
 
 const SILENT = Object.freeze({ enabled: false, blocked: false, lines: [], outcome: null });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa.business 未启用时接入函数不读规格与结果、不输出任何行', (t) => {
+test('qa.business 未启用时接入函数不读规格与结果、不输出任何行', (t) => {
   const absent = path.resolve('business-gate-nonexistent-root');
   const disabledConfigs = [
     {},
@@ -865,7 +865,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa.business 未启用时接入函数�
   assert.deepEqual(codesOf(enabled.outcome.blocks), ['RESULTS_INVALID']);
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后接入函数在必需 AC 都被证明时放行，返回可直接打印的输出行并披露风险', (t) => {
+test('启用后接入函数在必需 AC 都被证明时放行，返回可直接打印的输出行并披露风险', (t) => {
   const s = scenarioFor(t);
   prepare(s);
   const result = verifyBusinessAcceptance(verifyOptions(s));
@@ -878,7 +878,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后接入函数在必需 AC 都�
   assert.ok(result.lines.some((line) => /^BUSINESS_RISK=RISK_MANUAL_AC\|.*AC-SHOP-002-01/u.test(line)), result.lines.join('\n'));
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后接入函数在 AC 未被证明时阻断，输出行与门禁判定一致', (t) => {
+test('启用后接入函数在 AC 未被证明时阻断，输出行与门禁判定一致', (t) => {
   const s = scenarioFor(t);
   prepare(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
   const result = verifyBusinessAcceptance(verifyOptions(s));
@@ -892,7 +892,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后接入函数在 AC 未被证�
   assert.ok(result.lines.some((line) => line.startsWith('BUSINESS_NEXT_ACTION=')), result.lines.join('\n'));
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 启用后 HEAD 不符或结果缺失时接入函数阻断，并提示重新运行 qa run', (t) => {
+test('启用后 HEAD 不符或结果缺失时接入函数阻断，并提示重新运行 qa run', (t) => {
   const s = scenarioFor(t);
   prepare(s);
 
@@ -908,7 +908,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 启用后 HEAD 不符或结果缺失�
   assert.match(missing.lines.join('\n'), /^BUSINESS_NEXT_ACTION=.*qa run/mu);
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时按启用处理并阻断，不会悄悄关闭门禁', (t) => {
+test('enabled 不是布尔值时按启用处理并阻断，不会悄悄关闭门禁', (t) => {
   const s = scenarioFor(t);
   prepare(s);
 
@@ -922,7 +922,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时按启用处
   }
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 开关键拼错时（合并默认值后 enabled 仍为 false）按启用处理并阻断，不会悄悄关闭门禁', (t) => {
+test('开关键拼错时（合并默认值后 enabled 仍为 false）按启用处理并阻断，不会悄悄关闭门禁', (t) => {
   const s = scenarioFor(t);
   prepare(s);
 
@@ -936,7 +936,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 开关键拼错时（合并默认值�
   }
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 入参不合法或读取配置出错时接入函数按阻断处理（GATE_ERROR），不抛出异常', () => {
+test('入参不合法或读取配置出错时接入函数按阻断处理（GATE_ERROR），不抛出异常', () => {
   const gateError = (result) => {
     assert.equal(result.enabled, true);
     assert.equal(result.blocked, true);

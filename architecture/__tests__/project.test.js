@@ -13,7 +13,7 @@ function fixture(t) {
   return { target, runRoot: path.join(root, 'runs') };
 }
 const config = () => ({ schemaVersion: 1, applications: [{ id: 'web', stack: 'react-vite', path: 'apps/web', components: { ui: 'apps/web/src/components/ui', dataTable: 'apps/web/src/components/data-table' } }, { id: 'api', stack: 'node', path: 'apps/server' }], datastores: [{ id: 'platform', engine: 'postgres', path: 'packages/database', consumers: ['api'] }], modules: [] });
-test('TC-ARCHPLAT-002 selects per-application and per-store stacks with path mapping', t => {
+test('selects per-application and per-store stacks with path mapping', t => {
   const f = fixture(t), c = config();
   c.applications.push({ id: 'desktop', stack: 'tauri', path: 'apps/desktop', targets: ['mac-arm64', 'win-x64'] });
   c.datastores.push({ id: 'local', engine: 'sqlite', path: 'db/local', consumers: ['desktop'] });
@@ -26,7 +26,7 @@ test('TC-ARCHPLAT-002 selects per-application and per-store stacks with path map
   const badDb = config(); badDb.datastores[0].consumers = ['missing']; assert.throws(() => validateConfig(badDb, { target: f.target }), /consumer/);
   const badTarget = config(); badTarget.applications[0].targets = ['ios-arm64']; assert.throws(() => validateConfig(badTarget, { target: f.target }), /target/);
 });
-test('TC-ARCHPLAT-003 empty project generates selected stacks, standards, shared UI and converges', t => {
+test('empty project generates selected stacks, standards, shared UI and converges', t => {
   const f = fixture(t), c = config(); const plan = createArchitecturePlan({ source, target: f.target, config: c });
   assert.equal(plan.conflicts.length, 0); assert.equal(fs.readdirSync(f.target).length, 0);
   applyPlan(plan, { runRoot: f.runRoot });
@@ -36,7 +36,7 @@ test('TC-ARCHPLAT-003 empty project generates selected stacks, standards, shared
   const again = createArchitecturePlan({ source, target: f.target, config: c });
   assert.equal(again.conflicts.length, 0); assert.equal(again.changes.length, 0);
 });
-test('TC-ARCHPLAT-004 detection uses actual paths and existing shadcn aliases without mutation', t => {
+test('detection uses actual paths and existing shadcn aliases without mutation', t => {
   const f = fixture(t);
   fs.mkdirSync(path.join(f.target, 'apps/server'), { recursive: true }); fs.writeFileSync(path.join(f.target, 'apps/server/package.json'), JSON.stringify({ dependencies: { fastify: '5' } }));
   fs.mkdirSync(path.join(f.target, 'apps/web'), { recursive: true }); fs.writeFileSync(path.join(f.target, 'apps/web/package.json'), JSON.stringify({ dependencies: { next: '16' } }));
@@ -46,7 +46,7 @@ test('TC-ARCHPLAT-004 detection uses actual paths and existing shadcn aliases wi
   const web = found.applications.find(a => a.id === 'web'); assert.equal(web.stack, 'react-next'); assert.equal(web.components.ui, 'apps/web/src/components/ui');
   assert.equal(fs.existsSync(path.join(f.target, 'architecture.config.json')), false);
 });
-test('TC-ARCHPLAT-003 all declared stack/store generators create concrete assets', t => {
+test('all declared stack/store generators create concrete assets', t => {
   const f = fixture(t);
   for (const stack of Object.keys(catalog().stacks)) {
     const c = { schemaVersion: 1, applications: [{ id: stack, stack, path: `apps/${stack}` }], datastores: [], modules: [] };
@@ -55,7 +55,7 @@ test('TC-ARCHPLAT-003 all declared stack/store generators create concrete assets
   }
 });
 
-test('TC-ARCHPLAT-002 rejects mistyped fields and overlapping component ownership', t => {
+test('rejects mistyped fields and overlapping component ownership', t => {
   const f = fixture(t), c = config();
   c.applications[0].component = {};
   assert.throws(() => validateConfig(c, { target: f.target }), /unknown application field/);
@@ -64,17 +64,17 @@ test('TC-ARCHPLAT-002 rejects mistyped fields and overlapping component ownershi
   const overlap = config(); overlap.applications[0].components.ui = 'packages/database/ui';
   assert.throws(() => validateConfig(overlap, { target: f.target }), /component.*overlap/);
 });
-test('TC-ARCHPLAT-004 existing project choices must be edited explicitly before applying a different config', t => {
+test('existing project choices must be edited explicitly before applying a different config', t => {
   const f = fixture(t), c = config();
   applyPlan(createArchitecturePlan({ source, target: f.target, config: c, includeRuntime: false }), { runRoot: f.runRoot });
   c.applications[1].path = 'apps/api';
   assert.throws(() => createArchitecturePlan({ source, target: f.target, config: c }), /Project configuration differs/);
 });
-test('TC-ARCHPLAT-003 malformed CLI arguments fail before running any mutation', () => {
+test('malformed CLI arguments fail before running any mutation', () => {
   const { args } = require('../scripts/cli');
   for (const input of [['init','--target'], ['init','--config','--write'], ['init','--no-install=false'], ['init','--mystery']]) assert.throws(() => args(input));
 });
-test('TC-ARCHPLAT-005 registry payloads include pinned dependencies and the complete local UI closure', () => {
+test('registry payloads include pinned dependencies and the complete local UI closure', () => {
   const { buildRegistry } = require('../scripts/build-registry');
   const items = buildRegistry(source);
   assert.equal(items.length, 48);

@@ -75,7 +75,7 @@ function readSuite(target, modulePath = 'packages/e2e') {
   return resolved.suites[0];
 }
 
-test('TC-OSSKIT-009 e2e is registered consistently in schema, manifest, dependencies, audit, catalog, guide and example', () => {
+test('e2e is registered consistently in schema, manifest, dependencies, audit, catalog, guide and example', () => {
   const root = path.join(source, 'architecture');
   const schema = readJson(root, 'architecture.schema.json');
   assert.ok(schema.properties.modules.items.properties.id.enum.includes('e2e'), 'schema module id enum');
@@ -109,7 +109,7 @@ test('TC-OSSKIT-009 e2e is registered consistently in schema, manifest, dependen
   assert.ok(example.modules.some((m) => m.id === 'e2e' && m.path === 'packages/e2e'));
 });
 
-test('TC-OSSKIT-009 generates one project and web server per UI app under e2e ownership and converges', (t) => {
+test('generates one project and web server per UI app under e2e ownership and converges', (t) => {
   const { request, target, plan } = install(t);
   const mine = plan.entries.filter((entry) => entry.owner === owner);
   assert.deepEqual(Object.fromEntries(mine.map((entry) => [entry.path, entry.strategy])), {
@@ -139,7 +139,7 @@ test('TC-OSSKIT-009 generates one project and web server per UI app under e2e ow
   assert.equal(createArchitecturePlan(request).changes.length, 0);
 });
 
-test('TC-OSSKIT-009 a UI app added later updates the app list and adds only its own sample spec', (t) => {
+test('a UI app added later updates the app list and adds only its own sample spec', (t) => {
   const { request, target, config } = install(t);
   const admin = config.applications.find((app) => app.id === 'admin');
   config.applications.push({
@@ -165,7 +165,7 @@ test('TC-OSSKIT-009 a UI app added later updates the app list and adds only its 
   assert.equal(createArchitecturePlan(request).changes.length, 0);
 });
 
-test('TC-OSSKIT-009/010 honours a project-chosen module path in generated files and the pasteable suite', (t) => {
+test('honours a project-chosen module path in generated files and the pasteable suite', (t) => {
   const { target } = install(t, selection('packages/browser-e2e'));
   assert.ok(fs.existsSync(path.join(target, 'packages/browser-e2e/playwright.config.ts')));
   assert.equal(fs.existsSync(path.join(target, 'packages/e2e')), false);
@@ -174,7 +174,7 @@ test('TC-OSSKIT-009/010 honours a project-chosen module path in generated files 
   assert.equal(suite.command, 'pnpm --filter @project/e2e run e2e');
 });
 
-test('TC-OSSKIT-010 follows the business-testing contract and nothing more', (t) => {
+test('follows the business-testing contract and nothing more', (t) => {
   const { target, plan } = install(t);
   assert.equal(fs.existsSync(path.join(target, 'agent.config.json')), false, 'the module must not write agent.config.json');
   assert.ok(
@@ -220,7 +220,7 @@ test('TC-OSSKIT-010 follows the business-testing contract and nothing more', (t)
   }
 });
 
-test('TC-OSSKIT-011 rejects unsupported e2e selections with explicit errors before writing anything', (t) => {
+test('rejects unsupported e2e selections with explicit errors before writing anything', (t) => {
   const declaredBy = (appId) => {
     const config = selection();
     config.applications.find((app) => app.id === appId).modules.push('e2e');
@@ -252,14 +252,14 @@ test('TC-OSSKIT-011 rejects unsupported e2e selections with explicit errors befo
   }
 });
 
-test('TC-OSSKIT-011 workspace-check treats e2e as a private root alongside the existing private modules', () => {
+test('workspace-check treats e2e as a private root alongside the existing private modules', () => {
   assert.ok(Array.isArray(privateModuleIds), 'workspace-check must export privateModuleIds');
   for (const id of ['config', 'observability', 'auth', 'authorization', 'jobs', 'logging', 'telemetry', 'e2e']) {
     assert.ok(privateModuleIds.includes(id), id);
   }
 });
 
-test('TC-OSSKIT-011 e2e is a private package that exports nothing and that aggregate scripts never run', (t) => {
+test('e2e is a private package that exports nothing and that aggregate scripts never run', (t) => {
   const { target, config } = install(t);
   const pkg = readJson(target, 'packages/e2e/package.json');
   assert.equal(pkg.name, '@project/e2e');

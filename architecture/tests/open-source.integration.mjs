@@ -15,7 +15,7 @@ const load=p=>import(pathToFileURL(path.join(target,p))),modulePath=id=>config.m
 const {createDatabase}=await load(store.path+'/dist/index.js'),db=createDatabase(url);
 before(()=>{const scoped='DATABASE_'+store.id.toUpperCase().replaceAll('-','_')+'_URL',r=spawnSync(process.execPath,['migrate.mjs','deploy'],{cwd:path.join(target,store.path),env:{...process.env,DATABASE_URL:url,[scoped]:url},encoding:'utf8',timeout:60000});assert.equal(r.status,0,r.stderr);});
 after(()=>db.$disconnect());
-test('TC-OSSKIT-001/002 Better Auth sessions, organization isolation, CASL conditional writes and deny-all',async()=>{
+test('Better Auth sessions, organization isolation, CASL conditional writes and deny-all',async()=>{
  const {createAuth}=await load(modulePath('auth')+'/dist/index.js'),baseURL='http://127.0.0.1:43291',auth=createAuth({database:db,secret:randomBytes(32).toString('hex'),baseURL,trustedOrigins:[baseURL],allowSignUp:true});
  const password=randomBytes(24).toString('hex'),suffix=randomUUID(),email='owner-'+suffix+'@example.invalid';
  const request=(route,body,cookie='',headers={})=>auth.handler(new Request(baseURL+'/api/auth/'+route,{method:body===undefined?'GET':'POST',headers:{origin:baseURL,'content-type':'application/json',cookie,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})}));
@@ -36,7 +36,7 @@ test('TC-OSSKIT-001/002 Better Auth sessions, organization isolation, CASL condi
  const denied=createAbility(rulesForActor({userId:userA.user.id,roles:[]}));assert.deepEqual(await scoped.task.findMany({where:whereAuthorized(denied,'read','Task')}),[]);
  await db.task.deleteMany({where:{id:{in:ids}}});
 });
-test('TC-STORAGE-003/005 Prisma metadata persists, enforces CAS and keeps immutable completed objects',async()=>{
+test('Prisma metadata persists, enforces CAS and keeps immutable completed objects',async()=>{
  const {FileService,StorageRouter,createLocalProvider,createPrismaFileRepository}=await load(config.fileStorage.path+'/dist/index.js'),root=realpathSync(mkdtempSync(path.join(target,'storage-fixture-')));
  try{const provider=await createLocalProvider({directory:path.join(root,'objects')}),repository=createPrismaFileRepository(db.fileObject),router=new StorageRouter({local:provider},'local'),service=new FileService({router,repository});
  const upload=await service.createUpload('fixture-owner',{name:'hello.bin',size:4,contentType:'application/octet-stream'});await service.upload('fixture-owner',upload.file.id,Buffer.from([0,1,127,255]));await service.complete('fixture-owner',upload.file.id);
@@ -45,19 +45,19 @@ test('TC-STORAGE-003/005 Prisma metadata persists, enforces CAS and keeps immuta
  await service.delete('fixture-owner',upload.file.id);await service.delete('fixture-owner',upload.file.id);assert.equal((await service.info('fixture-owner',upload.file.id)).state,'deleted');
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('TC-OSSKIT-006 i18next instances and Pino request context stay isolated',async()=>{
+test('i18next instances and Pino request context stay isolated',async()=>{
  const {createI18n}=await load(modulePath('i18n')+'/src/index.ts');const [a,b]=await Promise.all([createI18n('zh-CN'),createI18n('en')]);assert.equal(a.t('common.save'),'保存');assert.equal(b.t('common.save'),'Save');await a.changeLanguage('en');assert.equal(b.language,'en');
  const {createLogger,withRequestContext,requestLogger,requestId}=await load(modulePath('logging')+'/dist/index.js'),lines=[],logger=createLogger('fixture',{write:chunk=>lines.push(chunk)});
  await Promise.all(['one','two'].map(id=>withRequestContext(logger,async()=>{await new Promise(r=>setTimeout(r,id==='one'?10:1));assert.equal(requestId(),id);requestLogger(logger).info({deep:{credentials:{secret:'private-value'},accessToken:'private-token'}},'fixture event');},id)));
  assert.equal(requestId(),undefined);assert.equal(lines.length,2);assert.equal(lines.some(v=>v.includes('private-')),false);assert.deepEqual(lines.map(v=>JSON.parse(v).requestId).sort(),['one','two']);
 });
-test('TC-OSSKIT-007 OpenTelemetry exports explicitly and shuts down once',async()=>{
+test('OpenTelemetry exports explicitly and shuts down once',async()=>{
  const root=modulePath('telemetry'),req=createRequire(path.join(target,root,'package.json')),{InMemorySpanExporter}=req('@opentelemetry/sdk-trace-base'),exporter=new InMemorySpanExporter(),{startTelemetry,traced}=await load(root+'/dist/index.js');
  assert.throws(()=>startTelemetry({serviceName:'fixture'}),/explicit/);const handle=startTelemetry({serviceName:'fixture',exporter});await traced('fixture.operation',async()=>42);assert.throws(()=>startTelemetry({serviceName:'duplicate',exporter}),/lifecycle/);
  // shutdown flushes the batch. Observe the exporter before it discards its in-memory records.
  let exported=0;const original=exporter.export.bind(exporter);exporter.export=(spans,callback)=>{exported+=spans.length;original(spans,callback);};await handle.shutdown();await handle.shutdown();assert.equal(exported,1);
 });
-test('TC-OSSKIT-007 MSW is opt-in and handles a real intercepted request',async()=>{
+test('MSW is opt-in and handles a real intercepted request',async()=>{
  const root=modulePath('api-mocks'),{createMockServer}=await load(root+'/src/node.ts'),{http,HttpResponse}=await load(root+'/src/index.ts'),server=createMockServer([http.get('https://fixture.invalid/data',()=>HttpResponse.json({ok:true}))]);
  server.listen({onUnhandledRequest:'error'});try{assert.deepEqual(await(await fetch('https://fixture.invalid/data')).json(),{ok:true});}finally{server.close();}
 });

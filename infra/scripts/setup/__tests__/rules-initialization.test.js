@@ -20,7 +20,7 @@ function fixture(t) {
   return { target, assets, runRoot: path.join(root, 'runs') };
 }
 
-test('TC-CMDSURF-038 initial template application creates missing rules and dry-run preserves the target', t => {
+test('initial template application creates missing rules and dry-run preserves the target', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rules-wrapper-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const target = path.join(root, 'project');
@@ -39,7 +39,7 @@ test('TC-CMDSURF-038 initial template application creates missing rules and dry-
 });
 
 for (const content of ['', '# 项目定制\r\n规则不变。\r\n']) {
-  test(`TC-CMDSURF-039 existing ${content ? 'custom' : 'empty'} rules survive initial apply and updates`, t => {
+  test(`existing ${content ? 'custom' : 'empty'} rules survive initial apply and updates`, t => {
     const f = fixture(t), file = path.join(f.target, 'RULES.md');
     const bytes = Buffer.from(content);
     fs.writeFileSync(file, bytes);
@@ -53,7 +53,7 @@ for (const content of ['', '# 项目定制\r\n规则不变。\r\n']) {
   });
 }
 
-test('TC-CMDSURF-040 update restores missing rules after an earlier install and preserves later project edits', t => {
+test('update restores missing rules after an earlier install and preserves later project edits', t => {
   const f = fixture(t), file = path.join(f.target, 'RULES.md');
   applyPlan(planUpdate({ target: f.target, assets: f.assets }), { runRoot: f.runRoot });
   fs.unlinkSync(file);

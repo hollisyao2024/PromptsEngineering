@@ -13,7 +13,7 @@ const options = [
   { value: "b", label: "香蕉" },
   { value: "c", label: "禁用", disabled: true },
 ];
-it("TC-ARCHPLAT-011 local search, disabled choices, controlled multi selection and clear", async () => {
+it("local search, disabled choices, controlled multi selection and clear", async () => {
   const user = userEvent.setup();
   function Demo() {
     const [value, setValue] = useState<string[]>([]);
@@ -45,7 +45,7 @@ it("TC-ARCHPLAT-011 local search, disabled choices, controlled multi selection a
     "请选择",
   );
 });
-it("TC-ARCHPLAT-011 empty optional props and keyboard single selection", async () => {
+it("empty optional props and keyboard single selection", async () => {
   const user = userEvent.setup(),
     change = vi.fn();
   const { rerender } = render(
@@ -59,7 +59,7 @@ it("TC-ARCHPLAT-011 empty optional props and keyboard single selection", async (
   await user.keyboard("{ArrowDown}{Enter}");
   expect(change).toHaveBeenCalled();
 });
-it("TC-ARCHPLAT-011 stale requests cannot replace new options and failures are retryable", async () => {
+it("stale requests cannot replace new options and failures are retryable", async () => {
   const user = userEvent.setup(),
     requests: {
       q: string;

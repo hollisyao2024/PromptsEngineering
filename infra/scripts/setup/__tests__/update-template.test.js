@@ -327,7 +327,7 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   assert.match(geminiSettings, /"model"\s*:\s*\{\s*"compressionThreshold"\s*:\s*0\.18\s*\}/u);
   assert.match(fs.readFileSync(path.join(linkedRoot, 'AGENTS.md'), 'utf8'), /更新息壤模板/u);
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'RULES.md'), 'utf8'), 'PROJECT_RULES_SENTINEL\n');
-  // TC-ARCHPLAT-016：骨架随模板交付，根目录 DESIGN.md 属项目文件，更新不改写
+  // 骨架随模板交付，根目录 DESIGN.md 属项目文件，更新不改写
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'DESIGN.md'), 'utf8'), 'PROJECT_DESIGN_SENTINEL\n');
   assert.equal(
     fs.readFileSync(path.join(linkedRoot, 'docs/data/templates/prd/DESIGN-TEMPLATE.md'), 'utf8'),

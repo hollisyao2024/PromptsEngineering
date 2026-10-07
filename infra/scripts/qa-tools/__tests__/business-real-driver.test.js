@@ -1,6 +1,6 @@
 'use strict';
 
-// TASK-OSSKIT-011 / US-OSSKIT-009：e2e 驱动的真实输出对业务验收契约的回归（AC-OSSKIT-009-04 / TC-OSSKIT-012）。
+// e2e 驱动的真实输出对业务验收契约的回归。
 //
 // 夹具取自 Playwright 1.62.1 + 本机 Google Chrome 对 e2e 模块生成物（配置与示例用例）的真实运行，不是手写的 XML：
 //   playwright/junit-pass.xml    三个应用的示例用例全部通过，与 Playwright 原始输出逐字节一致
@@ -96,7 +96,7 @@ function aggregateFixture(name, rows, keep = () => true) {
 // 解析：真实 JUnit 的各种形态
 // ---------------------------------------------------------------------------
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实通过报告解析为三个通过的用例，名称同时带 AC 与 TC 编号', () => {
+test('真实通过报告解析为三个通过的用例，名称同时带 AC 与 TC 编号', () => {
   const cases = parseFixture('junit-pass.xml');
   assert.deepEqual(cases.map(({ status }) => status), ['passed', 'passed', 'passed']);
   assert.deepEqual(cases.map(({ classname }) => classname), [
@@ -110,7 +110,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实通过报告解析为三个通过�
   }
 });
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实失败报告的七个用例逐项映射为失败、失败、跳过、跳过、异常、通过、通过', () => {
+test('真实失败报告的七个用例逐项映射为失败、失败、跳过、跳过、异常、通过、通过', () => {
   const xml = fixture('junit-failed.xml').toString('utf8');
   // 夹具自检：这份报告确实带着需要被正确跳过的结构，解析器不能被它们带偏。
   assert.match(xml, /<testsuites [^>]*tests="7"/u);
@@ -142,7 +142,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实失败报告的七个用例逐项�
   ]);
 });
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: Playwright 把断言失败写成 failure、把抛出的异常写成 error，两者分别是 failed 与 error', () => {
+test('Playwright 把断言失败写成 failure、把抛出的异常写成 error，两者分别是 failed 与 error', () => {
   const cases = parseFixture('junit-failed.xml');
   const byTc = (tc, index = 0) => cases.filter((item) => extractCaseLabels(item).tcs.includes(tc))[index];
   assert.equal(byTc('TC-EXAMPLE-002').status, 'failed');
@@ -156,7 +156,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: Playwright 把断言失败写成 failure
 // 套件结果：Playwright 的退出码与报告
 // ---------------------------------------------------------------------------
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 全部通过时退出码 0 为 ok；有失败时退出码 1 为 exit_nonzero，真实报告里的用例仍然绑定', () => {
+test('全部通过时退出码 0 为 ok；有失败时退出码 1 为 exit_nonzero，真实报告里的用例仍然绑定', () => {
   const evaluate = (name, exitCode) => evaluateSuiteOutcome({
     exitCode,
     reportBytes: fixture(name),
@@ -179,7 +179,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 全部通过时退出码 0 为 ok；有�
 // 聚合与判定：按 PRD 的 AC/TC 编号绑定
 // ---------------------------------------------------------------------------
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实通过报告使示例 AC 在 web 端通过，且被判定为已证明', () => {
+test('真实通过报告使示例 AC 在 web 端通过，且被判定为已证明', () => {
   const aggregate = aggregateFixture('junit-pass.xml', [HOME_AC]);
   assert.deepEqual(aggregate.tcs['TC-EXAMPLE-001'], {
     status: 'passed',
@@ -192,7 +192,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 真实通过报告使示例 AC 在 web �
   assert.deepEqual(aggregate.unknown_ids, []);
 });
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 同一 TC 在一个应用上失败，整条 AC 与 TC 即为失败，不被另外两个应用的通过抵消', () => {
+test('同一 TC 在一个应用上失败，整条 AC 与 TC 即为失败，不被另外两个应用的通过抵消', () => {
   const aggregate = aggregateFixture('junit-failed.xml', [HOME_AC, SHAPES_AC]);
   assert.deepEqual(aggregate.tcs['TC-EXAMPLE-001'].cases, { total: 3, passed: 2, failed: 1, error: 0, skipped: 0 });
   assert.equal(aggregate.tcs['TC-EXAMPLE-001'].status, 'failed');
@@ -202,7 +202,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 同一 TC 在一个应用上失败，整
   assert.equal(judgeAc(home).proven, false);
 });
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 一条 AC 同时绑定失败、跳过与异常用例时为失败；两种真实跳过形态单独出现时为跳过，不算通过', () => {
+test('一条 AC 同时绑定失败、跳过与异常用例时为失败；两种真实跳过形态单独出现时为跳过，不算通过', () => {
   const mixed = aggregateFixture('junit-failed.xml', [HOME_AC, SHAPES_AC]);
   assert.equal(mixed.acs['AC-EXAMPLE-002-01'].status, 'failed');
   assert.equal(mixed.tcs['TC-EXAMPLE-002'].status, 'failed');
@@ -218,7 +218,7 @@ test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 一条 AC 同时绑定失败、跳过与
   assert.equal(judgeAc(record).proven, false);
 });
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 报告里 PRD 没有登记的编号只作披露，不让已登记的 AC 被误判', () => {
+test('报告里 PRD 没有登记的编号只作披露，不让已登记的 AC 被误判', () => {
   const aggregate = aggregateFixture('junit-failed.xml', [HOME_AC]);
   assert.deepEqual(aggregate.unknown_ids, ['AC-EXAMPLE-002-01', 'TC-EXAMPLE-002', 'TC-EXAMPLE-003', 'TC-EXAMPLE-004', 'TC-EXAMPLE-005']);
   assert.equal(aggregate.acs['AC-EXAMPLE-001-01'].status, 'failed');
@@ -233,7 +233,7 @@ const blocksOf = (run) => run.lines
   .filter((line) => line.startsWith('BUSINESS_BLOCK='))
   .map((line) => line.slice('BUSINESS_BLOCK='.length).split('|').slice(0, 2).join('|'));
 
-test('AC-OSSKIT-009-04 / TC-OSSKIT-012: 回放闭环——真实失败报告让 qa verify 变红且不签发回执，换成真实通过报告后变绿', (t) => {
+test('回放闭环——真实失败报告让 qa verify 变红且不签发回执，换成真实通过报告后变绿', (t) => {
   const s = createScenario({
     shop: false,
     files: {

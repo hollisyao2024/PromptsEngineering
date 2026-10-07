@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/forms/form-field";
 import { FormDialog, FormSheet } from "@/components/forms/form-panel";
-it("TC-ARCHPLAT-010 fields associate labels, hints and errors", () => {
+it("fields associate labels, hints and errors", () => {
   render(
     <FormField label="名称" description="最多 20 字" error="名称必填">
       <Input />
@@ -16,7 +16,7 @@ it("TC-ARCHPLAT-010 fields associate labels, hints and errors", () => {
   expect(input).toHaveAccessibleDescription("最多 20 字 名称必填");
 });
 for (const Panel of [FormDialog, FormSheet])
-  it(`TC-ARCHPLAT-010 ${Panel.name} retains invalid/failed values and confirms dirty closure`, async () => {
+  it(`${Panel.name} retains invalid/failed values and confirms dirty closure`, async () => {
     const user = userEvent.setup(),
       save = vi
         .fn()
@@ -54,7 +54,7 @@ for (const Panel of [FormDialog, FormSheet])
     await user.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
-it("TC-ARCHPLAT-010 pending form blocks duplicate submission and Escape; discard callback runs only after confirmation", async () => {
+it("pending form blocks duplicate submission and Escape; discard callback runs only after confirmation", async () => {
   const user = userEvent.setup(),
     discard = vi.fn();
   let resolve!: () => void;
@@ -106,7 +106,7 @@ it("TC-ARCHPLAT-010 pending form blocks duplicate submission and Escape; discard
   await user.click(screen.getByRole("button", { name: "放弃修改" }));
   expect(discard).toHaveBeenCalledTimes(1);
 });
-it("TC-ARCHPLAT-010 closing a controlled form restores focus to its external opener", async () => {
+it("closing a controlled form restores focus to its external opener", async () => {
   const user = userEvent.setup();
   const { Button } = await import("@/components/ui/button");
   function Demo() {

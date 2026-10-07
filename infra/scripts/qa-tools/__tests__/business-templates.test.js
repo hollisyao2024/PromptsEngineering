@@ -1,6 +1,6 @@
 'use strict';
 
-// 业务测试模板（TASK-BIZTEST-009；AC-BIZTEST-001-02 / TC-BIZTEST-002，AC-BIZTEST-006-02 / TC-BIZTEST-022）。
+// 业务测试模板。
 //
 // 模板是模型写用例时照抄的样板：样板自相矛盾，所有继承它的项目都会带着这个矛盾。这里把模板当作输入文件，
 // 交给真实的解析器和分析器去检验——PRD 示例必须是一张合法的原子 AC 表，PATHS 模板必须是一份连通、
@@ -114,9 +114,9 @@ function projectFromTemplates({ paths = read(PATHS_TEMPLATE) } = {}) {
   });
 }
 
-// ───────────────────────── 内容：原子 AC 与统一的用例标识（TC-BIZTEST-002）─────────────────────────
+// ───────────────────────── 内容：原子 AC 与统一的用例标识 ─────────────────────────
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 示例是一张合法的原子 AC 表，Given/When/Then 各占独立一列', () => {
+test('PRD 示例是一张合法的原子 AC 表，Given/When/Then 各占独立一列', () => {
   const parsed = parseAcTables(read(PRD_EXAMPLE), { file: PRD_EXAMPLE });
 
   assert.deepEqual(parsed.violations, []);
@@ -138,7 +138,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 示例是一张合法的原子 AC 
   assert.ok(parsed.acs.some((ac) => ac.platforms.length > 1), '示例要展示一条 AC 声明多个端');
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 模块模板的附录 A 带有可直接填写的原子 AC 表', () => {
+test('PRD 模块模板的附录 A 带有可直接填写的原子 AC 表', () => {
   const appendix = appendixFence(read(PRD_TEMPLATE));
   const parsed = parseAcTables(appendix, { file: PRD_TEMPLATE });
 
@@ -150,12 +150,12 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 模块模板的附录 A 带有可�
   assert.ok(parsed.acs.some((ac) => ac.verification === 'manual' && ac.tcs.length === 0));
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 模板与示例不再把 Given/When/Then 拆成三个 AC', () => {
+test('模板与示例不再把 Given/When/Then 拆成三个 AC', () => {
   const splitAc = /AC-[A-Za-z0-9{}_-]+\s*\((?:Given|When|Then)\)/;
   assert.deepEqual(offendersOf(templateFiles(), splitAc), []);
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 测试用例标识统一为 TC-{MODULE}-NNN，不再有 QA-N', () => {
+test('测试用例标识统一为 TC-{MODULE}-NNN，不再有 QA-N', () => {
   const files = templateFiles();
   // 旧的 QA-N 编号（含 QA-{{N}} 占位）；不误伤 TASK-QA-001 这类以 QA 作为模块名的标识。
   const legacyCaseId = /(?<![A-Za-z0-9-])QA-(?:\{\{N\}\}|N(?![A-Za-z0-9])|\d)/;
@@ -169,14 +169,14 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 测试用例标识统一为 TC-{MODULE
   }
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 追溯矩阵模板不再允许用测试文件路径代替用例标识', () => {
+test('追溯矩阵模板不再允许用测试文件路径代替用例标识', () => {
   const text = read(TRACEABILITY_TEMPLATE);
 
   assert.equal(/按测试框架惯例/.test(text), false, '用例标识只有 TC-{MODULE}-NNN 一种写法');
   assert.equal(/\.test\.[jt]sx?::/.test(text), false, '用例标识不是 `文件::用例名` 路径');
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 模板里出现的每个用例标识，代入示例值后都是合法的 TC-{MODULE}-NNN', () => {
+test('模板里出现的每个用例标识，代入示例值后都是合法的 TC-{MODULE}-NNN', () => {
   const caseId = exactPattern(TEST_CASE_ID_SOURCE);
   // 占位符替换成示例值之后，必须是合法的用例标识。
   const filled = (token) => token
@@ -194,7 +194,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 模板里出现的每个用例标识�
   assert.deepEqual(invalid, []);
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 示例自洽——用例与需求使用同一个模块标记', () => {
+test('示例自洽——用例与需求使用同一个模块标记', () => {
   const mismatched = [];
 
   for (const file of templateFiles()) {
@@ -212,7 +212,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 示例自洽——用例与需求使�
   assert.deepEqual(mismatched, []);
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: QA 模块模板用 TC-{MODULE}-NNN 编号用例，并说明它与自动化测试名的关系', () => {
+test('QA 模块模板用 TC-{MODULE}-NNN 编号用例，并说明它与自动化测试名的关系', () => {
   const text = read(QA_TEMPLATE);
 
   assert.ok(/TC-\{\{MODULE_ID\}\}-001/.test(text), '用例表与用例详情应当用 TC-{{MODULE_ID}}-NNN');
@@ -222,7 +222,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: QA 模块模板用 TC-{MODULE}-NNN 编
 
 // ───────────────────────── 内容：PATHS 模板与示例的整体自洽 ─────────────────────────
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PATHS 模板是一份合法的路径模型，并声明覆盖准则', () => {
+test('PATHS 模板是一份合法的路径模型，并声明覆盖准则', () => {
   const parsed = parsePathsDocument(read(PATHS_TEMPLATE), { file: PATHS_TEMPLATE });
 
   assert.deepEqual(parsed.violations, []);
@@ -236,7 +236,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PATHS 模板是一份合法的路径�
   }
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 示例与 PATHS 模板放进同一个项目，qa paths 全部通过', (t) => {
+test('PRD 示例与 PATHS 模板放进同一个项目，qa paths 全部通过', (t) => {
   const project = projectFromTemplates();
   t.after(() => project.cleanup());
 
@@ -249,7 +249,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: PRD 示例与 PATHS 模板放进同一
   assert.ok(analysis.counts.paths >= 3);
 });
 
-test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 样板被改坏时 qa paths 会拦住，而不是静默通过', (t) => {
+test('样板被改坏时 qa paths 会拦住，而不是静默通过', (t) => {
   // 反例：把一条转移关联的 AC 改成不存在的编号——模板里的引用必须真的被校验，而不是摆设。
   const broken = read(PATHS_TEMPLATE).replace(/AC-USER-001-01/, 'AC-USER-999-01');
   assert.notEqual(broken, read(PATHS_TEMPLATE), '被改动的样板应当引用 AC-USER-001-01');
@@ -262,7 +262,7 @@ test('AC-BIZTEST-001-02 / TC-BIZTEST-002: 样板被改坏时 qa paths 会拦住�
   assert.ok(analysis.violations.some((item) => item.code === 'REF_UNKNOWN'), JSON.stringify(analysis.violations));
 });
 
-// ───────────────────────── 所有权：清单登记与收敛（TC-BIZTEST-022）─────────────────────────
+// ───────────────────────── 所有权：清单登记与收敛 ─────────────────────────
 
 function effectiveRule(rules, file) {
   return rules
@@ -270,7 +270,7 @@ function effectiveRule(rules, file) {
     .sort((left, right) => right.path.length - left.path.length)[0];
 }
 
-test('AC-BIZTEST-006-02 / TC-BIZTEST-022: 新增的模板文件登记为模板自有，项目自有文档保持项目自有', { skip: TEMPLATE_SOURCE_ONLY }, () => {
+test('新增的模板文件登记为模板自有，项目自有文档保持项目自有', { skip: TEMPLATE_SOURCE_ONLY }, () => {
   const { rules } = JSON.parse(read(MANIFEST_FILE));
 
   assert.deepEqual(rules.find((rule) => rule.path === PATHS_TEMPLATE), { path: PATHS_TEMPLATE, strategy: 'overwrite' });
@@ -291,7 +291,7 @@ test('AC-BIZTEST-006-02 / TC-BIZTEST-022: 新增的模板文件登记为模板�
   assert.equal(effectiveRule(rules, CONFIG_FILE).strategy, 'init-if-missing', 'agent.config.json 只在缺失时初始化');
 });
 
-test('AC-BIZTEST-006-02 / TC-BIZTEST-022: 分发给项目的资产里，只有模板文件落在项目自有目录之下', { skip: TEMPLATE_SOURCE_ONLY }, (t) => {
+test('分发给项目的资产里，只有模板文件落在项目自有目录之下', { skip: TEMPLATE_SOURCE_ONLY }, (t) => {
   const { buildAgentAssets } = require('../../../../tooling/xirang/template');
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-assets-'));
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
@@ -313,7 +313,7 @@ test('AC-BIZTEST-006-02 / TC-BIZTEST-022: 分发给项目的资产里，只有�
   assert.equal(byPath.get(CONFIG_FILE).strategy, 'init-if-missing');
 });
 
-test('AC-BIZTEST-006-02 / TC-BIZTEST-022: 把模板应用到已有项目文档的项目，只新增模板文件，项目文档原样保留并收敛', { skip: TEMPLATE_SOURCE_ONLY, timeout: 180000 }, (t) => {
+test('把模板应用到已有项目文档的项目，只新增模板文件，项目文档原样保留并收敛', { skip: TEMPLATE_SOURCE_ONLY, timeout: 180000 }, (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-apply-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const target = path.join(root, 'project');

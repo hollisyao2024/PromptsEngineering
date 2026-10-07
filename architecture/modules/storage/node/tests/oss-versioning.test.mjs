@@ -16,7 +16,7 @@ async function fixture(t,mode=''){
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
  const endpoint='http://127.0.0.1:'+server.address().port;return {state,requests,p:create({bucket:'fixture-bucket',region:'cn-shanghai',endpoint,allowHTTP:true,credentials:async()=>({accessKeyId:'fixture',secretAccessKey:'fixture'})})};
 }
-test('TC-STORAGE-009 OSS missing version header is explicit null; fixed reads never fall back',{skip:!create},async t=>{
+test('OSS missing version header is explicit null; fixed reads never fall back',{skip:!create},async t=>{
  const {p,requests}=await fixture(t);assert.equal((await p.head('files/a')).versionId,'null');
  assert.equal((await p.put('files/new',{body:'new',size:3,contentType:'text/plain'})).versionId,'null');
  const d=await p.getVersion('files/a','null');let body='';for await(const b of d.body)body+=b;assert.equal(body,'old');assert.equal(d.info.versionId,'null');
@@ -25,16 +25,16 @@ test('TC-STORAGE-009 OSS missing version header is explicit null; fixed reads ne
  const count=requests.length;await assert.rejects(p.getVersion('files/a','missing'),e=>e.code==='NOT_FOUND');assert.equal(requests.length,count+1);
  await assert.rejects(p.getVersion('files/a',''),e=>e.code==='INVALID_INPUT');
 });
-for(const mode of ['', 'Enabled','Suspended'])test('TC-STORAGE-009 OSS complete pagination '+(mode||'never enabled'),{skip:!create},async t=>{
+for(const mode of ['', 'Enabled','Suspended'])test('OSS complete pagination '+(mode||'never enabled'),{skip:!create},async t=>{
  const {p,requests}=await fixture(t,mode),first=await p.listVersions({prefix:'files/',limit:1});assert.equal(first.items[0].versionId,mode?'v1':'null');assert.ok(first.cursor);
  const second=await p.listVersions({prefix:'files/',limit:1,cursor:first.cursor});assert.equal(second.items[0].deleteMarker,!!mode);assert.equal(second.cursor,undefined);assert.equal(requests.filter(r=>r.query.has('versioning')).length,2);
 });
-test('TC-STORAGE-009 OSS listing fails closed on permissions, changed mode and invalid cursors',{skip:!create},async t=>{
+test('OSS listing fails closed on permissions, changed mode and invalid cursors',{skip:!create},async t=>{
  const {p,state,requests}=await fixture(t);const first=await p.listVersions({prefix:'files/',limit:1});
  await assert.rejects(p.listVersions({prefix:'other/',cursor:first.cursor}),e=>e.code==='INVALID_INPUT');
  state.mode='Enabled';await assert.rejects(p.listVersions({prefix:'files/',cursor:first.cursor}),e=>e.code==='CONFLICT');
  state.deny=true;const count=requests.length;await assert.rejects(p.listVersions({prefix:'files/'}),e=>e.code==='FORBIDDEN');assert.equal(requests.length,count+1);
 });
-test('TC-STORAGE-009 OSS unknown state and incomplete version cursor cannot report completion',{skip:!create},async t=>{
+test('OSS unknown state and incomplete version cursor cannot report completion',{skip:!create},async t=>{
  const {p,state}=await fixture(t,'Enabled');state.stall=true;await assert.rejects(p.listVersions({prefix:'files/',limit:1}),e=>e.code==='UNAVAILABLE');state.mode='Unknown';await assert.rejects(p.listVersions({prefix:'files/'}),e=>e.code==='UNAVAILABLE');
 });

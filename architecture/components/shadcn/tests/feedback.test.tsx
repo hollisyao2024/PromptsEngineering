@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { AsyncActionButton } from "@/components/feedback/async-action-button";
-it("TC-ARCHPLAT-013 confirmation blocks duplicate/escape, keeps errors and closes after retry", async () => {
+it("confirmation blocks duplicate/escape, keeps errors and closes after retry", async () => {
   const user = userEvent.setup();
   let reject!: (e: Error) => void;
   const action = vi
@@ -40,7 +40,7 @@ it("TC-ARCHPLAT-013 confirmation blocks duplicate/escape, keeps errors and close
   await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
   expect(action).toHaveBeenCalledTimes(2);
 });
-it("TC-ARCHPLAT-013 action button has pending feedback and recovers from rejection", async () => {
+it("action button has pending feedback and recovers from rejection", async () => {
   const user = userEvent.setup(),
     action = vi
       .fn()

@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { FormDialog } from "@/components/forms/form-panel";
 import { RHFField, submitForm } from "@/components/forms/react-hook-form";
-it("TC-ARCHPLAT-010 RHF validation keeps panel open and only submits valid values", async () => {
+it("RHF validation keeps panel open and only submits valid values", async () => {
   const user = userEvent.setup(),
     save = vi.fn();
   function Demo() {
@@ -38,7 +38,7 @@ it("TC-ARCHPLAT-010 RHF validation keeps panel open and only submits valid value
   await user.click(screen.getByRole("button", { name: "保存" }));
   expect(save).toHaveBeenCalledWith({ name: "新记录" });
 });
-it("TC-ARCHPLAT-010 Zod resolver transformations reach submit callbacks", async () => {
+it("Zod resolver transformations reach submit callbacks", async () => {
   const { z } = await import("zod");
   const { zodResolver } = await import("@hookform/resolvers/zod");
   const user = userEvent.setup(),

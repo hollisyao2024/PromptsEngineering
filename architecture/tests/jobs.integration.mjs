@@ -12,7 +12,7 @@ if(selection.options.backend==='postgres'){const u=new URL(url);if(u.hostname!==
 else if(!Number.isInteger(redisPort)||redisPort<1024||redisPort>65535)throw Error('Disposable Redis port required');
 const until=async check=>{const end=Date.now()+30000;while(Date.now()<end){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('Job completion timed out');};
 const name='fixture-'+randomUUID(),schema='fixture_'+randomUUID().replaceAll('-','').slice(0,16),definition={name,parse(value){if(!value||typeof value.id!=='string'||typeof value.retry!=='boolean')throw Error('Invalid job payload');return {id:value.id,retry:value.retry};}};
-test('TC-OSSKIT-003 selected queue validates, retries, deduplicates, cancels and reopens durable jobs',{timeout:90000},async t=>{
+test('selected queue validates, retries, deduplicates, cancels and reopens durable jobs',{timeout:90000},async t=>{
  const errors=[];let queue,worker;const done=new Set(),calls=new Map(),cancelled=randomUUID(),stable=randomUUID(),pending=randomUUID();
  const work=async data=>{calls.set(data.id,(calls.get(data.id)||0)+1);if(data.retry&&calls.get(data.id)===1)throw Error('intentional retry');done.add(data.id);};
  if(selection.options.provider==='pg-boss'){
@@ -31,7 +31,7 @@ test('TC-OSSKIT-003 selected queue validates, retries, deduplicates, cancels and
   await queue.close();queue=module.createJobs(definition,options);await queue.ready();await queue.enqueue({id:pending,retry:false},pending);await queue.close();queue=module.createJobs(definition,options);await queue.ready();worker=queue.work(work);await until(()=>done.has(pending));
  }
 });
-if(selection.options.provider==='pg-boss')test('TC-OSSKIT-003 pg-boss enqueue joins the same Prisma transaction',async t=>{
+if(selection.options.provider==='pg-boss')test('pg-boss enqueue joins the same Prisma transaction',async t=>{
  const store=config.datastores.find(d=>d.access==='prisma'),{createDatabase}=await import(pathToFileURL(path.join(target,store.path,'dist/index.js'))),db=createDatabase(url);t.after(()=>db.$disconnect());
  const options={connectionString:url,schema,onError:()=>{}},queue=await module.createJobs(options);t.after(()=>queue.close());await queue.define(definition);
  const req=createRequire(path.join(root,'package.json')),{PgBoss}=req('pg-boss'),inspector=new PgBoss({connectionString:url,schema,migrate:false});inspector.on('error',()=>{});await inspector.start();t.after(()=>inspector.stop());

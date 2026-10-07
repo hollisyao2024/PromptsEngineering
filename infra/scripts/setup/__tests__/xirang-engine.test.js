@@ -15,7 +15,7 @@ function fixture(t) {
 const asset = (content, strategy = 'update', file = 'apps/web/component.ts') => ({ path: file, content, strategy, owner: 'architecture:ui', version: '1.0.0' });
 function install(f, assets, options = {}) { const p = planUpdate({ target: f.target, assets, ...options }); applyPlan(p, { runRoot: f.runRoot }); return p; }
 
-test('TC-ARCHPLAT-006 three-way update preserves local and upstream disjoint edits; repeat converges', t => {
+test('three-way update preserves local and upstream disjoint edits; repeat converges', t => {
   const f = fixture(t), base = 'first\nunchanged\nlast\n';
   install(f, [asset(base)]);
   f.put('apps/web/component.ts', 'local\nunchanged\nlast\n');
@@ -35,7 +35,7 @@ test('Gemini workspace compression preference survives a repeated template sync'
   assert.match(f.get(file), /"compressionThreshold": 0\.42/u);
   assert.equal(planUpdate({ target: f.target, assets: [asset(base, 'update', file)] }).changes.length, 0);
 });
-test('TC-ARCHPLAT-006 overwrite drift and overlapping update block entire batch before writes', t => {
+test('overwrite drift and overlapping update block entire batch before writes', t => {
   const f = fixture(t); install(f, [asset('base\n', 'overwrite')]); f.put('apps/web/component.ts', 'local\n');
   for (const strategy of ['overwrite', 'update']) {
     const p = planUpdate({ target: f.target, assets: [asset('new\n', strategy), asset('new file', 'update', 'new.txt')] });
@@ -64,7 +64,7 @@ test('adopted local overwrite stays protected while upstream is unchanged', t =>
   assert.equal(planUpdate({ target: f.target, assets: [asset('upstream\n', 'overwrite')] }).changes.length, 0);
   assert.ok(planUpdate({ target: f.target, assets: [asset('next\n', 'overwrite')] }).conflicts.length);
 });
-test('TC-ARCHPLAT-006 JSON fields merge while preserving project keys; stable append rejects rewritten IDs', t => {
+test('JSON fields merge while preserving project keys; stable append rejects rewritten IDs', t => {
   const f = fixture(t); const a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
   install(f, [a({ scripts: { build: 'old' }, dependencies: { a: '1' } })]);
   f.put('package.json', JSON.stringify({ name: 'my-app', scripts: { build: 'old', local: 'mine' }, dependencies: { a: '1', b: '2' } }));
@@ -75,20 +75,20 @@ test('TC-ARCHPLAT-006 JSON fields merge while preserving project keys; stable ap
   assert.equal(JSON.parse(f.get('entries.json')).length, 2);
   assert.ok(planUpdate({ target: f.target, assets: [b([{ id: 'a', value: 9 }])] }).conflicts.length);
 });
-test('TC-ARCHPLAT-006 append files immutable; init and project-owned preserve local content', t => {
+test('append files immutable; init and project-owned preserve local content', t => {
   const f = fixture(t); install(f, [asset('sql', 'append', 'migrations/001.sql')]);
   assert.ok(planUpdate({ target: f.target, assets: [asset('changed', 'append', 'migrations/001.sql')] }).conflicts.length);
   f.put('config.json', 'mine'); f.put('RULES.md', 'mine');
   install(f, [asset('upstream', 'init-if-missing', 'config.json'), asset('no', 'project-owned', 'RULES.md')]);
   assert.equal(f.get('config.json'), 'mine'); assert.equal(f.get('RULES.md'), 'mine');
 });
-test('TC-ARCHPLAT-004 unknown baseline requires explicit adoption and preserves files', t => {
+test('unknown baseline requires explicit adoption and preserves files', t => {
   const f = fixture(t); f.put('apps/web/component.ts', 'custom');
   assert.match(planUpdate({ target: f.target, assets: [asset('template')] }).conflicts[0].reason, /adopt/i);
   install(f, [asset('template')], { adopt: true }); assert.equal(f.get('apps/web/component.ts'), 'custom');
   assert.equal(planUpdate({ target: f.target, assets: [asset('template')] }).changes.length, 0);
 });
-test('TC-ARCHPLAT-007 frozen target/source/lock and content hashes are verified', t => {
+test('frozen target/source/lock and content hashes are verified', t => {
   const f = fixture(t); const p = planUpdate({ target: f.target, assets: [asset('new')] });
   f.put('apps/web/component.ts', 'appeared'); assert.throws(() => applyPlan(p, { runRoot: f.runRoot }), /drift/i);
   const p2 = planUpdate({ target: f.target, assets: [asset('appeared')] }); p2.entries[0].after = 'tampered';
@@ -97,13 +97,13 @@ test('TC-ARCHPLAT-007 frozen target/source/lock and content hashes are verified'
   const p3 = planUpdate({ target: f.target, assets: [], inputs: [{ path: src, hash: hash('before') }] });
   fs.writeFileSync(src, 'after'); assert.throws(() => applyPlan(p3, { runRoot: f.runRoot }), /source.*drift/i);
 });
-test('TC-ARCHPLAT-007 corrupted or missing baseline fails closed', t => {
+test('corrupted or missing baseline fails closed', t => {
   const f = fixture(t); install(f, [asset('base')]);
   const lock = readLock(f.target); const digest = lock.files['apps/web/component.ts'].base;
   f.put(`.xirang/baselines/${digest}`, 'corrupt');
   assert.throws(() => planUpdate({ target: f.target, assets: [asset('new')] }), /baseline/i);
 });
-test('TC-ARCHPLAT-007 path escape, symlink and duplicate ownership rejected without writes', t => {
+test('path escape, symlink and duplicate ownership rejected without writes', t => {
   const f = fixture(t);
   for (const name of ['../escape', '/tmp/escape', '.git/config', '.xirang/escape', 'xirang.lock.json', 'a/../b', 'a\\b']) {
     assert.throws(() => planUpdate({ target: f.target, assets: [asset('x', 'update', name)] }), /path|reserved/i);
@@ -112,7 +112,7 @@ test('TC-ARCHPLAT-007 path escape, symlink and duplicate ownership rejected with
   assert.throws(() => planUpdate({ target: f.target, assets: [asset('x', 'update', 'link/x')] }), /symlink/i);
   assert.throws(() => planUpdate({ target: f.target, assets: [asset('a'), asset('b')] }), /duplicate/i);
 });
-test('TC-ARCHPLAT-007 interrupted writes resume by before/after hashes and never reapply changed files', t => {
+test('interrupted writes resume by before/after hashes and never reapply changed files', t => {
   const f = fixture(t), assets = [asset('A', 'update', 'a.txt'), asset('B', 'update', 'b.txt')];
   const p = planUpdate({ target: f.target, assets });
   assert.throws(() => applyPlan(p, { runRoot: f.runRoot, afterWrite() { throw new Error('power loss'); } }), /power loss/);
@@ -121,14 +121,14 @@ test('TC-ARCHPLAT-007 interrupted writes resume by before/after hashes and never
   assert.equal(f.get('a.txt'), 'A'); assert.equal(f.get('b.txt'), 'B');
   assert.equal(planUpdate({ target: f.target, assets }).changes.length, 0);
 });
-test('TC-ARCHPLAT-007 resume rejects user edits after interruption', t => {
+test('resume rejects user edits after interruption', t => {
   const f = fixture(t); const p = planUpdate({ target: f.target, assets: [asset('A', 'update', 'a.txt')] });
   assert.throws(() => applyPlan(p, { runRoot: f.runRoot, afterWrite() { throw new Error('stop'); } }), /stop/);
   f.put('a.txt', 'user edit'); assert.throws(() => resumePlan(f.target, { runRoot: f.runRoot }), /drift/i);
   assert.equal(f.get('a.txt'), 'user edit');
 });
 
-test('TC-ARCHPLAT-006 managed blocks preserve surrounding project text and reject overlapping edits', t => {
+test('managed blocks preserve surrounding project text and reject overlapping edits', t => {
   const f = fixture(t), a = body => ({ ...asset(body, 'managed-block', '.gitignore'), marker: 'xirang' });
   f.put('.gitignore', '# project\nlocal/\n');
   install(f, [a('node_modules/\n')]);
@@ -141,7 +141,7 @@ test('TC-ARCHPLAT-006 managed blocks preserve surrounding project text and rejec
   assert.ok(p.conflicts.length);
   assert.throws(() => applyPlan(p, { runRoot: f.runRoot }), /conflict/);
 });
-test('TC-ARCHPLAT-007 lock drift during a batch must not be overwritten at commit', t => {
+test('lock drift during a batch must not be overwritten at commit', t => {
   const f = fixture(t);
   const p = planUpdate({ target: f.target, assets: [asset('A', 'update', 'a.txt')] });
   const concurrent = JSON.stringify({ schemaVersion: 1, files: {}, packages: { concurrent: { version: '1' } } });

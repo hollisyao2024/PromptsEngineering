@@ -65,10 +65,10 @@ const indexOfLine = (run, prefix) => run.lines.findIndex((line) => line.startsWi
 const readReceiptFile = (s) => JSON.parse(fs.readFileSync(receiptPath(s), 'utf8'));
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-013：默认关闭，行为不变
+// 默认关闭，行为不变
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa.business 默认关闭时 qa verify 的输出、退出码与回执同接入前一致，且不碰结果目录', (t) => {
+test('qa.business 默认关闭时 qa verify 的输出、退出码与回执同接入前一致，且不碰结果目录', (t) => {
   const s = scenarioFor(t);
   attachOrigin(s);
   pushBranch(s);
@@ -86,7 +86,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa.business 默认关闭时 qa verify 
   assert.equal(receipt.head_sha, s.head());
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 为 false 时即使套件已配置、结果文件已损坏，qa verify 也同接入前一致', (t) => {
+test('enabled 为 false 时即使套件已配置、结果文件已损坏，qa verify 也同接入前一致', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s, { business: { enabled: false }, run: false });
   const corrupt = '损坏的结果文件，未启用时不得被读取';
@@ -100,7 +100,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 为 false 时即使套件已�
   assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), RECEIPT_KEYS);
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 模板源仓库不运行业务验收门禁，即使 qa.business 已启用', (t) => {
+test('模板源仓库不运行业务验收门禁，即使 qa.business 已启用', (t) => {
   const s = scenarioFor(t);
   attachOrigin(s);
   const config = {
@@ -118,7 +118,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 模板源仓库不运行业务验收�
   assert.ok(fs.existsSync(receiptPath(s)));
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa verify --help 说明业务验收门禁由 qa.business 控制', (t) => {
+test('qa verify --help 说明业务验收门禁由 qa.business 控制', (t) => {
   const s = scenarioFor(t);
   const help = runVerify(s, { args: ['--help'] });
 
@@ -128,10 +128,10 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: qa verify --help 说明业务验收门
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-011：启用后必需 AC 未被证明即阻断
+// 启用后必需 AC 未被证明即阻断
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后必需 AC 都被证明时 qa verify 放行：先打印门禁与风险披露，再签发回执', (t) => {
+test('启用后必需 AC 都被证明时 qa verify 放行：先打印门禁与风险披露，再签发回执', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
 
@@ -153,7 +153,7 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后必需 AC 都被证明时 qa 
   assert.equal(receipt.head_sha, s.head());
 });
 
-test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后 P0 AC 的用例失败时 qa verify 阻断：列出该 AC、非零退出、不签发回执', (t) => {
+test('启用后 P0 AC 的用例失败时 qa verify 阻断：列出该 AC、非零退出、不签发回执', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
 
@@ -168,10 +168,10 @@ test('AC-BIZTEST-004-01 / TC-BIZTEST-011: 启用后 P0 AC 的用例失败时 qa 
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-012：结果缺失、陈旧或被改动
+// 结果缺失、陈旧或被改动
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 启用后没有结果文件时 qa verify 阻断，并提示先运行 qa run', (t) => {
+test('启用后没有结果文件时 qa verify 阻断，并提示先运行 qa run', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s, { run: false });
 
@@ -182,7 +182,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 启用后没有结果文件时 qa veri
   assert.equal(fs.existsSync(receiptPath(s)), false);
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果之后又有新提交时 qa verify 阻断（RESULTS_STALE_HEAD），重新运行 qa run 后放行', (t) => {
+test('结果之后又有新提交时 qa verify 阻断（RESULTS_STALE_HEAD），重新运行 qa run 后放行', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
   advanceHead(s);
@@ -200,7 +200,7 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 结果之后又有新提交时 qa veri
   assert.equal(readReceiptFile(s).head_sha, s.head());
 });
 
-test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本被改动时 qa verify 阻断（REPORT_TAMPERED），此前签发的回执随之失效', (t) => {
+test('报告副本被改动时 qa verify 阻断（REPORT_TAMPERED），此前签发的回执随之失效', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
 
@@ -216,10 +216,10 @@ test('AC-BIZTEST-004-02 / TC-BIZTEST-012: 报告副本被改动时 qa verify 阻
 });
 
 // ---------------------------------------------------------------------------
-// TC-BIZTEST-013：配置不可信时失败即关闭
+// 配置不可信时失败即关闭
 // ---------------------------------------------------------------------------
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时 qa verify 按启用处理并阻断（CONFIG_INVALID）', (t) => {
+test('enabled 不是布尔值时 qa verify 按启用处理并阻断（CONFIG_INVALID）', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s, { business: { enabled: 'false' }, run: false });
 
@@ -229,7 +229,7 @@ test('AC-BIZTEST-004-03 / TC-BIZTEST-013: enabled 不是布尔值时 qa verify �
   assert.equal(fs.existsSync(receiptPath(s)), false);
 });
 
-test('AC-BIZTEST-004-03 / TC-BIZTEST-013: 开关键拼错（enable）时 qa verify 按启用处理并阻断（CONFIG_INVALID），不会悄悄跳过门禁并签发回执', (t) => {
+test('开关键拼错（enable）时 qa verify 按启用处理并阻断（CONFIG_INVALID），不会悄悄跳过门禁并签发回执', (t) => {
   const s = scenarioFor(t);
   // 项目配置里只有拼错的 enable、没有 enabled（JSON 序列化会丢弃 undefined）；加载配置时模板默认值把 enabled 补成 false。
   readyForVerify(s, { business: { enabled: undefined, enable: true }, run: false });
