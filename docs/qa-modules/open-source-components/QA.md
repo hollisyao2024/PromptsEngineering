@@ -62,7 +62,7 @@ Semgrep 1.176.1 定向规则扫描 47 个匹配语言文件，0 finding / 0 pars
 
 ## 7. 发布建议
 
-功能验收 Go（US-OSSKIT-009 的验证边界见 §8）。最终提交仍须全量回归、QA receipt、PR 合并、main 双 SHA 一致和 completion guard。真实云、外部 OAuth/邮件/企业 SSO、原生回调、触摸设备和生产负载由实际项目继续验收；这些项目在目录中明确标记，不能当作本轮测试通过。
+功能验收 Go。最终提交仍须全量回归、QA receipt、PR 合并、main 双 SHA 一致和 completion guard（本段沿用 3.3.0 的发布建议；US-OSSKIT-009 随 3.10.0 增量交付，回归范围按 `docs/CONVENTIONS.md` 的测试范围规则界定为定向回归，验证边界见 §8）。真实云、外部 OAuth/邮件/企业 SSO、原生回调、触摸设备和生产负载由实际项目继续验收；这些项目在目录中明确标记，不能当作本轮测试通过。
 
 ## 8. 业务测试驱动脚手架（US-OSSKIT-009）真实驱动验证
 
