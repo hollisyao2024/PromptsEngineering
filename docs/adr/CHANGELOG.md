@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 更正官方 lint 的门禁口径：规则 `broken-ref` 对未知的组件子属性只报警告、退出码仍为 0，门禁改为退出码为 0 且 `--format json` 输出中该规则的条数为 0；骨架 Components 节列出有效子属性清单。决策正文不变。
+
 - 2026-10-08：[ADR 038](038-arch-business-test-automation.md) 补充真实项目试验后的三处修正（`qa run` 在必需优先级 AC 未被证明时以 `FAILED` 非零退出、回执可选携带 `business` 摘要、`task exec` 放行逐词一致的已登记套件命令）与 QA 生成器对 PRD 表格的识别；第 6 条「回执结构不变」与取舍「本期不扩展回执结构」由补充节更正，其余决策不变。
 
 - 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 再补一次存量项目副本试验：25/25 的映射数据点，以及读取样式表实际生效取值的两处难点（两个 `:root` 块、`body` 字体族重复声明）；决策正文不变，漂移检查仍延后。

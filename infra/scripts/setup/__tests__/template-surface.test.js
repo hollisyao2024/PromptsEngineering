@@ -164,6 +164,18 @@ function assertComponentValuesAreStrings(components) {
   }
 }
 
+// 官方 lint（@google/design.md 0.4.0，包内 spec-config.yaml 的 component_sub_tokens）认可的组件子属性。其余属性只报 broken-ref 警告、退出码仍为 0，
+// 所以要在骨架里事先列明；升级官方 lint 后以其输出的 Valid sub-tokens 为准，核对后同步本清单与骨架 Components 节。
+const DESIGN_COMPONENT_SUB_TOKENS = ['backgroundColor', 'textColor', 'typography', 'rounded', 'padding', 'size', 'height', 'width'];
+
+function assertComponentSubTokensAreRecognised(components) {
+  for (const [component, props] of Object.entries(components)) {
+    for (const prop of Object.keys(props)) {
+      assert.ok(DESIGN_COMPONENT_SUB_TOKENS.includes(prop), `components.${component}.${prop} is not a recognised sub-token`);
+    }
+  }
+}
+
 function headingBody(text, heading) {
   const lines = text.split(/\r?\n/u);
   const isHeading = (line) => /^#{2,3} /u.test(line);
@@ -225,6 +237,23 @@ test('unquoted token references are rejected', () => {
   const unquoted = skeleton.replace(/"(\{[A-Za-z0-9_.-]+\})"/gu, '$1');
   assert.notEqual(unquoted, skeleton, 'skeleton quotes its token references');
   assert.throws(() => assertComponentValuesAreStrings(parseDesignTemplate(unquoted).data.components), /is a string/u);
+});
+
+test('DESIGN skeleton lists the component sub-tokens the official lint recognises and uses only those', () => {
+  const { data, rest } = parseDesignTemplate();
+  assertComponentSubTokensAreRecognised(data.components);
+  const components = headingBody(rest, 'Components');
+  const listed = /子属性仅限：([^。\n]*)。/u.exec(components);
+  assert.ok(listed, 'Components names the recognised sub-tokens');
+  assert.deepEqual([...listed[1].matchAll(/`([A-Za-z]+)`/gu)].map((match) => match[1]), DESIGN_COMPONENT_SUB_TOKENS);
+  assert.match(components, /`broken-ref`[^\n]*退出码仍为 0/u, 'an unknown sub-token is named as a broken-ref warning that leaves the exit code at 0');
+});
+
+test('unknown component sub-tokens are rejected', () => {
+  const skeleton = read(DESIGN_TEMPLATE);
+  const withMinHeight = skeleton.replace('    padding: "{spacing.md}"\n', '    padding: "{spacing.md}"\n    minHeight: 44px\n');
+  assert.notEqual(withMinHeight, skeleton, 'the probe adds a property to the example component');
+  assert.throws(() => assertComponentSubTokensAreRecognised(parseDesignTemplate(withMinHeight).data.components), /not a recognised sub-token/u);
 });
 
 test('DESIGN skeleton is template-owned while the root DESIGN.md stays project-owned', () => {
@@ -310,6 +339,10 @@ test('PRD playbook guides adopting DESIGN.md where styles already exist, and gat
   assert.match(ux, /已知偏差[^\n]*Do's and Don'ts/u, 'hard-coded deviations are recorded, not promoted to contract');
   assert.match(ux, /【待确认】/u, 'items the code cannot decide stay marked');
   assert.match(ux, /官方 lint[^\n]*退出码[^\n]*不以警告条数/u, 'the official lint gates on its exit code, not the warning count');
+  assert.match(ux, /官方 lint[^\n]*退出码[^\n]*`--format json`[^\n]*`broken-ref`[^\n]*条数为 0/u, 'the gate also reads the JSON output and requires zero broken-ref findings');
+  assert.match(ux, /未知[^\n]*子属性[^\n]*`broken-ref`[^\n]*退出码仍为 0/u, 'an unknown sub-token only warns while the exit code stays 0, so the exit code alone cannot gate it');
+  assert.match(ux, /清单见骨架 Components 节/u, 'the recognised sub-token list lives in the skeleton');
+  assert.ok(!ux.includes('backgroundColor'), 'the sub-token list is not duplicated in the playbook');
   assert.match(ux, /`orphaned-tokens`[^\n]*结构性噪声/u, 'orphaned-tokens on stylesheet-consumed tokens is not worth a fake component');
   assert.ok(!ux.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
 });

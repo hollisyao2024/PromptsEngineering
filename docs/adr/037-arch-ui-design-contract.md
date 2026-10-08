@@ -3,7 +3,7 @@
 - 状态：Accepted
 - 日期：2026-10-06
 - 关联：US-ARCHPLAT-015，TC-ARCHPLAT-015~017；模块架构 `architecture-platform` §9 界面视觉契约（息壤源仓已不保留，见 git 历史）
-- 后续补充：2026-10-08 增补官方 lint 对骨架的验证结论，以及漂移检查延后的触发条件与设计输入；同日再补一次存量项目副本试验的映射数据点与两处取值难点，见文末「后续补充（2026-10-08）」；上文决策不变。
+- 后续补充：2026-10-08 增补官方 lint 对骨架的验证结论，以及漂移检查延后的触发条件与设计输入；同日再补一次存量项目副本试验的映射数据点与两处取值难点，并更正官方 lint 的门禁口径（还须核对规则 `broken-ref` 的条数），见文末「后续补充（2026-10-08）」；上文决策不变。
 
 界面取值与无障碍目标原先分散在 UX 规范 §5～§7、PRD 与模块模板和各专家手册中，同一数值多处复述容易漂移，TDD 阶段也没有统一入口。采用项目根目录 `DESIGN.md`（YAML front matter 加固定顺序的八个二级章节，形态对齐 Google DESIGN.md alpha 规范）作为唯一视觉契约。作业包只在 `docs/data/templates/prd/DESIGN-TEMPLATE.md` 提供模板所有（`overwrite`）的骨架；根 `DESIGN.md` 不登记任何 manifest，因而属于项目，`template sync` 与 `template update` 永不写入。
 
@@ -30,3 +30,11 @@
 上文四处难点之外，读取「实际生效」的取值还有两处。一是这份样式表有两个 `:root` 块：前一块以 `oklch` 为主，后一块用 17 个十六进制值和一个 `--radius` 重新定义了其中 18 个名字；另有 `--popover-foreground`，后一块没有重定义它，但它在前一块写作 `var(--foreground)`，而 `--foreground` 已被后一块覆盖。所以只读第一处声明会拿到被覆盖的旧值，`var()` 也要先展开到最终值再比较。二是 `body` 的 `font-family` 声明了两次，`@layer base` 里的 `ui-sans-serif, system-ui, sans-serif` 被未分层的中文字体栈覆盖，实际生效的是后者。因此将来若实现漂移检查，要先解决「读哪一处声明」：同名属性后者覆盖前者，`@layer` 外的声明覆盖层内声明，`var()` 先展开，之后才是比较。这三条取值规则已写进 PRD 手册 §5 的存量项目补建指引，供专家补建 `DESIGN.md` 时遵守。
 
 这次是一次性副本，不算「真正采用」，上文延后的触发条件没有满足，漂移检查仍不实现。本小节只增补记录；同一次变更里的更新器与手册改动见 `CHANGELOG.md`。
+
+### 门禁口径更正（`broken-ref`）
+
+2026-10-08 在一个下游界面项目里，根 `DESIGN.md` 的示例组件带着一行 `minHeight: 44px`。`@google/design.md@0.4.0` 对它实跑：退出码 0，同时在 `--format json` 的输出里给出一条规则 `broken-ref` 的警告，消息写明 `minHeight` 不是认可的组件子属性并列出有效清单。按上文「应以退出码作门禁」，这一条会被放过。读包内 `dist/linter/spec-config.yaml` 的 `component_sub_tokens` 与规则实现后确认：`broken-ref` 同时覆盖两类问题，Token 引用无法解析（不带显式级别，按规则默认级别算错误，退出码 1）和未知的组件子属性（实现里显式标为 `warning`，退出码仍为 0）。所以上文的结论需要补充：门禁应是退出码为 0，且 `--format json` 输出中规则 `broken-ref` 的条数为 0；`orphaned-tokens` 等其他规则仍不以条数作门禁。v3.10.4、v3.10.5 的变更记录和当时的 PRD 手册只写了前半句，变更记录是历史，不改写。
+
+做法：骨架 `## Components` 节新增一行，列出 0.4.0 的 8 个有效子属性，点名 `minHeight`、`borderColor` 两个常见误用，并说明这类约束写进正文，不写进 front matter；PRD 手册 §5 的门禁句改为上面的口径，清单只写在骨架里，手册指向它而不重复。清单因此只有一处正文来源，另一份是 `template-surface.test.js` 里的常量，测试保证骨架列出的清单与该常量一致、骨架示例组件只用清单内的属性。常量不会随官方 lint 升级而自动更新：升级后要对照官方输出的 `Valid sub-tokens` 核对，再同步骨架与常量。
+
+实测（0.4.0，一台 macOS，Node v24.19.0，在解压目录里运行，没有装进本仓）：改后的骨架退出码 0，仍是 4 条 `orphaned-tokens` 警告，`broken-ref` 0 条；在其示例组件里加一行 `minHeight: 44px` 的副本退出码仍为 0，多出 1 条 `broken-ref` 警告；把 `backgroundColor` 的引用改成不存在的 Token 的副本退出码为 1，1 条 `broken-ref` 错误。没有做的：没有给作业包增加运行官方 lint 的脚本或检查，作业包不带该依赖，上文「不引入 `@google/design.md` 依赖」的决策不变，这条口径仍是给专家和下游项目的指引；`--format json` 的输出形状（`findings[].rule`、`severity`）只在 0.4.0 上确认过。本小节只增补记录，决策正文不变。
