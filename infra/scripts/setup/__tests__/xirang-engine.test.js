@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { planUpdate, applyPlan, resumePlan, readLock, hash } = require('../../../../tooling/xirang/engine');
+const { createTemplatePlan } = require('../../../../tooling/xirang/template');
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-engine-'));
@@ -74,6 +75,75 @@ test('JSON fields merge while preserving project keys; stable append rejects rew
   install(f, [b([{ id: 'a', value: 1 }])]); install(f, [b([{ id: 'a', value: 1 }, { id: 'b', value: 2 }])]);
   assert.equal(JSON.parse(f.get('entries.json')).length, 2);
   assert.ok(planUpdate({ target: f.target, assets: [b([{ id: 'a', value: 9 }])] }).conflicts.length);
+});
+// Merged JSON must read like the project's own file: existing keys keep their order, new keys are appended sorted.
+const pretty = value => `${JSON.stringify(value, null, 2)}\n`;
+const keysOf = value => Object.keys(value);
+test('merge-json keeps the project key order and appends new keys sorted; repeat converges', t => {
+  const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
+  install(f, [a({ scripts: { build: 'old' }, dependencies: { a: '1' } })]);
+  f.put('package.json', pretty({ name: 'my-app', scripts: { start: 's', build: 'old', 'init:platform': 'p', 'init:dev': 'd' }, dependencies: { b: '2', a: '1' } }));
+  const next = a({ scripts: { build: 'new', zeta: 'z', agent: 'a' }, dependencies: { a: '2', c: '3' }, engines: { node: '>=22' } });
+  install(f, [next]);
+  const merged = JSON.parse(f.get('package.json'));
+  assert.deepEqual(merged, { name: 'my-app', scripts: { start: 's', build: 'new', 'init:platform': 'p', 'init:dev': 'd', agent: 'a', zeta: 'z' }, dependencies: { b: '2', a: '2', c: '3' }, engines: { node: '>=22' } });
+  assert.deepEqual(keysOf(merged), ['name', 'scripts', 'dependencies', 'engines']);
+  assert.deepEqual(keysOf(merged.scripts), ['start', 'build', 'init:platform', 'init:dev', 'agent', 'zeta']);
+  assert.deepEqual(keysOf(merged.dependencies), ['b', 'a', 'c']);
+  assert.equal(planUpdate({ target: f.target, assets: [next] }).changes.length, 0);
+});
+test('merge-json keeps an already sorted object sorted when new keys arrive', t => {
+  const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
+  install(f, [a({ devDependencies: { a: '1' }, scripts: { build: 'b' } })]);
+  f.put('package.json', pretty({ devDependencies: { a: '1', c: '3' }, scripts: { build: 'b', test: 't' } }));
+  install(f, [a({ devDependencies: { a: '1', b: '2' }, scripts: { build: 'b', lint: 'l' } })]);
+  const merged = JSON.parse(f.get('package.json'));
+  assert.deepEqual(keysOf(merged), ['devDependencies', 'scripts']);
+  assert.deepEqual(keysOf(merged.devDependencies), ['a', 'b', 'c']);
+  assert.deepEqual(keysOf(merged.scripts), ['build', 'lint', 'test']);
+});
+test('merge-json adoption keeps the local key order and converges', t => {
+  const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
+  f.put('package.json', pretty({ scripts: { zz: 'mine', aa: 'mine' }, name: 'my-app' }));
+  const next = a({ scripts: { aa: 'upstream', bb: 'new' }, version: '1.0.0' });
+  install(f, [next], { adopt: true });
+  const adopted = JSON.parse(f.get('package.json'));
+  assert.deepEqual(adopted, { scripts: { zz: 'mine', aa: 'mine', bb: 'new' }, name: 'my-app', version: '1.0.0' });
+  assert.deepEqual(keysOf(adopted), ['scripts', 'name', 'version']);
+  assert.deepEqual(keysOf(adopted.scripts), ['zz', 'aa', 'bb']);
+  assert.equal(planUpdate({ target: f.target, assets: [next] }).changes.length, 0);
+});
+test('merge-json creates a missing file with sorted keys', t => {
+  const f = fixture(t);
+  install(f, [asset(JSON.stringify({ b: 1, a: { d: 1, c: 2 } }), 'merge-json', 'package.json')]);
+  assert.equal(f.get('package.json'), '{\n  "a": {\n    "c": 2,\n    "d": 1\n  },\n  "b": 1\n}\n');
+});
+test('merge-json never reorders order-significant keys inside project values', t => {
+  const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
+  install(f, [a({ marker: 1 })]);
+  const exportsMap = { '.': { types: './index.d.ts', import: './index.mjs', default: './index.js' } };
+  f.put('package.json', pretty({ marker: 1, exports: exportsMap, hooks: [{ type: 'command', command: 'x' }] }));
+  install(f, [a({ marker: 2 })]);
+  const merged = JSON.parse(f.get('package.json'));
+  assert.equal(merged.marker, 2);
+  assert.deepEqual(keysOf(merged.exports['.']), ['types', 'import', 'default']);
+  assert.deepEqual(keysOf(merged.hooks[0]), ['type', 'command']);
+});
+test('template sync of package.json scripts keeps the project script order and converges', t => {
+  const f = fixture(t), source = path.join(path.dirname(f.target), 'source');
+  const put = (file, text) => { fs.mkdirSync(path.dirname(path.join(source, file)), { recursive: true }); fs.writeFileSync(path.join(source, file), text); };
+  put('infra/templates/agent/template.manifest.json', pretty({ template: { id: 'xirang' }, templateVersion: '1', rules: [{ path: 'package.json', strategy: 'merge-package-scripts' }] }));
+  const release = scripts => put('package.json', pretty({ name: 'xirang', scripts }));
+  const sync = () => { const plan = createTemplatePlan({ source, target: f.target }); applyPlan(plan, { runRoot: f.runRoot }); return plan; };
+  release({ build: 'old', agent: 'a' });
+  sync();
+  f.put('package.json', pretty({ name: 'my-app', scripts: { start: 's', build: 'old', agent: 'a', 'init:platform': 'p', 'init:dev': 'd' } }));
+  release({ build: 'new', agent: 'a', lint: 'l' });
+  assert.deepEqual(sync().conflicts, []);
+  const merged = JSON.parse(f.get('package.json'));
+  assert.deepEqual(keysOf(merged), ['name', 'scripts']);
+  assert.deepEqual(Object.entries(merged.scripts), [['start', 's'], ['build', 'new'], ['agent', 'a'], ['init:platform', 'p'], ['init:dev', 'd'], ['lint', 'l']]);
+  assert.equal(createTemplatePlan({ source, target: f.target }).changes.length, 0);
 });
 test('append files immutable; init and project-owned preserve local content', t => {
   const f = fixture(t); install(f, [asset('sql', 'append', 'migrations/001.sql')]);

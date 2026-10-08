@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 再补一次存量项目副本试验：25/25 的映射数据点，以及读取样式表实际生效取值的两处难点（两个 `:root` 块、`body` 字体族重复声明）；决策正文不变，漂移检查仍延后。
+
 - 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 补充官方 lint 对骨架的验证结论、`DESIGN.md` 漂移检查延后的触发条件与设计输入，并更正「Token 名到 CSS 变量名的映射是难点」的判断；决策正文不变。
 
 - 2026-10-07：[ADR 039](039-arch-e2e-driver-scaffold.md)，业务测试驱动脚手架作为 architecture 包的可选 `e2e` 模块：仅对接 JUnit/AC 标识/平台标签三项契约，生成 Playwright 配置与示例，不改写 `agent.config.json`、不下载浏览器、不重试。
