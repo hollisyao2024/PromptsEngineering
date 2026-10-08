@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.3] - 2026-10-09
+
 - 更正：官方 lint（`@google/design.md`）的门禁口径。v3.10.4、v3.10.5 条目和 PRD 手册 §5（v3.10.5 起）写的是“以退出码为门禁，不以警告条数为门禁”，只对了一半。`@google/design.md@0.4.0` 的规则 `broken-ref` 同时覆盖两类问题：Token 引用无法解析（不带显式级别，按规则默认级别算错误，退出码 1），以及未知的组件子属性（实现里显式标为 `warning`，退出码仍为 0）。所以示例组件里多写一行 `minHeight: 44px`，退出码仍是 0，只在 `--format json` 的输出里多出一条 `broken-ref` 警告，单看退出码会放过它；一个下游界面项目的根 `DESIGN.md` 就带着这样一行。现在的口径是：退出码为 0，且 `--format json` 输出中规则 `broken-ref` 的条数为 0；`orphaned-tokens` 等其他规则仍不以条数作门禁。
 - 做法与取舍：骨架 `docs/data/templates/prd/DESIGN-TEMPLATE.md` 的 `## Components` 节新增一行，列出 0.4.0 认可的 8 个组件子属性（`backgroundColor`、`textColor`、`typography`、`rounded`、`padding`、`size`、`height`、`width`），点名 `minHeight`、`borderColor` 两个常见误用，并说明这类约束写进正文（如 Accessibility 的触控目标），不写进 front matter；PRD 手册 §5 的门禁句改为上面的口径并指向骨架的清单，不重复清单。没有采用：在作业包里加运行官方 lint 的脚本或检查（作业包不带该依赖，ADR 037「不引入 `@google/design.md` 依赖」的决策不变）；只改手册不改骨架（有界面的项目从骨架起步，写 front matter 的当下就该看到清单，而手册只在 PRD 阶段点读）。
 - 测试：`template-surface.test.js` 新增常量 `DESIGN_COMPONENT_SUB_TOKENS` 与 `assertComponentSubTokensAreRecognised`，新增 2 个用例——骨架列出的清单必须与常量逐项一致、示例组件只用清单内的属性、并写明未知子属性只报 `broken-ref` 警告而退出码仍为 0；向示例组件加一行 `minHeight` 必须被拒绝。既有的 PRD 手册用例补 4 条断言：门禁句要求用 `--format json` 核对 `broken-ref` 条数为 0、写明未知子属性只警告而退出码仍为 0、清单指向骨架、手册里不重复清单。常量不会随官方 lint 升级自动更新，升级后要对照官方输出的 `Valid sub-tokens` 核对（ADR 037 与测试注释都写了）。
