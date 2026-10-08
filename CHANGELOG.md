@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.1] - 2026-10-08
+
 - 修复：随模板分发的 `infra/scripts/agent-runner/__tests__/root-test-script-coverage.test.js` 在实际项目里不能用。该测试读取根 `package.json` 的 `scripts.test`，要求其通配符覆盖 `infra/scripts` 与 `architecture/__tests__` 下全部已跟踪单测，这是息壤源自己的约束；但 `infra/scripts/agent-runner` 是 `overwrite`，文件会原样分发，而实际项目通常没有 `scripts.test`（一个同步到 3.10.5 的下游项目即如此），`scripts.test.split` 抛出 `TypeError: Cannot read properties of undefined (reading 'split')`；项目若有自己的 `scripts.test`（例如 `vitest run`），则会把随模板分发的单测全部误报为“未覆盖”。
 - 方案与取舍：该测试改为只在 `agent.config.json` 的 `template.role` 为 `source` 时运行，其余情形（实际项目，不论有无 `scripts.test`）带原因跳过，沿用 `business-templates.test.js`、`template-surface.test.js` 已有的“仅息壤源”门控；息壤源内的覆盖断言原样保留，另把“根 `package.json` 没有 `scripts.test`”从 `TypeError` 改成明确断言 `template source package.json must define scripts.test`。没有采用“不再分发”：`exclude` 不会清理下游已装的副本，`remove` 对本地改过的副本会冲突，还得为源仓独有的测试逐个登记规则，也偏离仓库“源专属测试在原地门控”的既有做法。只以“缺少 `scripts.test`”作为跳过条件也不够，上面第二种情形（项目自带 `scripts.test`）仍会失败，所以按 `template.role` 门控。
 - 测试：新增 `root-test-script-coverage-distribution.test.js`，把该测试复制进临时项目根目录运行 6 个场景：3 个实际项目（无 `agent.config.json` 且无 scripts；已初始化配置但无 `scripts.test`；自带 `scripts.test` 为 `vitest run`）必须整体跳过且不出现 `TypeError`；3 个息壤源场景（覆盖完整时通过；存在未被 `scripts.test` 覆盖的已跟踪单测时失败并点名该文件；缺 `scripts.test` 时以明确信息失败）。`template-consumer-compat.test.js` 新增端到端回归：真实执行 `template-apply-engine.js --write` 应用到临时项目后，运行分发出去的该测试，要求 TAP 输出 `ok … # SKIP` 且退出码 0。新增的场景测试本身同样只在息壤源运行，实际项目跳过，不给下游增加耗时与失败面。
