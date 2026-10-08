@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.10.5] - 2026-10-08
+
 - 修复：`merge-json` 的合并输出不再重排项目文件的键序。`tooling/xirang/engine.js` 原先用 `canonical()` 输出 `merge-json` 的合并结果，把项目文件每一层的键都按字典序重排；`.claude/settings.json`、`package.json` 的 `scripts`（`merge-package-scripts`）以及架构包里应用、模块、存储的 `package.json` 与 `tsconfig.json` 都走这条路径。在一个真实下游项目（shadcn 栈）的一次性副本上做 3.7.8 → 3.10.4 试验时，其 `package.json`（27 个脚本，`init:platform` 排在 `init:dev` 之前，不是字典序）被计划为 `updated`，内容只是这两行换了位置（3 增 3 删），上游并没有改任何脚本。顺序有意义的值受害更重：`exports` 的条件按声明顺序匹配，测试里 `types`、`import`、`default` 被旧引擎排成 `default`、`import`、`types`，`default` 会先匹配。
 - 做法：新增 `orderLike` 与 `jsonLike`，合并结果按参照物（项目当前的文件；`--adopt` 时同样）的键序输出：已有的键保持项目的顺序，项目没有的新键按字典序追加；某个对象已有的键本身就是升序（pnpm、sort-package-json 排过序的映射）时，新键按字典序插入，仍保持有序；数组按下标对齐；没有参照物（新建文件）时与以前的 `canonical()` 输出相同。`xirang.lock.json`、plan id、journal、`append-json` 与新建文件仍用 `canonical()`；基线登记的是上游原文的哈希，所以计划哈希与基线不受影响。收敛仍然成立：第二次计划里基线等于上游，合并返回项目当前内容，按同一键序序列化，逐字节相同。已被旧版本排过序的文件保持现状，不会被还原。`merge-jsonc`（走文本 diff3）与 `merge-yaml`（就地补丁）本来就保序，没有改动。
 - 修复：`template update` 与 `template sync` 打印的 `NEXT_ACTION` 不再不论状态都是同一句。此前 dry-run、写入、收敛三次输出的都是 `Review conflicts and plan; files without baseline require explicit adopt or a reviewed legacy baseline`，没有冲突时也让人去处理冲突与基线。`tooling/xirang/template.js` 新增纯函数 `nextAction(plan, write)`，按「有冲突、无变更、已写入、仅计划」依次判断：冲突时仍是原来那句，其余分别是 `No changes required; the target already matches this template`、`Review the applied changes, then run a convergence dry-run; it should report no changes`、`Review the plan, then rerun with --write to apply it`。`update-template.js` 只在输出里检查 `conflicts=` 与 `manual-sync=` 两个字样，新文案不含，门禁判定不变。
