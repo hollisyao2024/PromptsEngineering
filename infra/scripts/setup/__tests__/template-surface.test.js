@@ -302,7 +302,7 @@ test('accessibility targets keep a fallback when DESIGN.md is absent', () => {
   ]) assert.match(read(file), ACCESSIBILITY_FALLBACK, `${file} falls back to WCAG 2.1 AA default thresholds without DESIGN.md`);
 });
 
-// 维小帮副本试验（2026-10-08）：styles.css 已存在时补建 DESIGN.md 的三个实际难点，以及官方 lint 的使用口径
+// 存量项目副本试验（2026-10-08）：styles.css 已存在时补建 DESIGN.md 的三个实际难点，以及官方 lint 的使用口径
 test('PRD playbook guides adopting DESIGN.md where styles already exist, and gating on the official lint', () => {
   const ux = headingBody(read('AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md'), '5. 用户体验设计（UX）');
   assert.match(ux, /存量项目[^\n]*`DESIGN\.md`/u, 'adoption in a project that already has styles is covered');
