@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 补充官方 lint 对骨架的验证结论、`DESIGN.md` 漂移检查延后的触发条件与设计输入，并更正「Token 名到 CSS 变量名的映射是难点」的判断；决策正文不变。
+
 - 2026-10-07：[ADR 039](039-arch-e2e-driver-scaffold.md)，业务测试驱动脚手架作为 architecture 包的可选 `e2e` 模块：仅对接 JUnit/AC 标识/平台标签三项契约，生成 Playwright 配置与示例，不改写 `agent.config.json`、不下载浏览器、不重试。
 
 - 2026-10-06：[ADR 038](038-arch-business-test-automation.md)，业务测试采用创作期推导、脚本期确定性判定：原子 AC、路径模型与 JUnit/AC 标识绑定的结果证据，`qa verify` 业务门禁默认关闭。
