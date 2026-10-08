@@ -39,7 +39,7 @@ UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS
 - 已有的硬编码色值、字号和偏离间距档位如实记为已知偏差，写入 Do's and Don'ts，不当作契约，也不在同一次变更里改样式。
 - 取值或意图无法从代码判定的条目标【待确认】，交项目负责人裁定，不自行猜测。
 
-项目接入官方 lint（`@google/design.md`）时，以退出码为门禁，不以警告条数为门禁；`orphaned-tokens` 对由样式表消费、没有组件引用的 Token（shadcn 风格）属结构性噪声，不为消除警告而虚构组件。
+项目接入官方 lint（`@google/design.md`）时，以退出码为门禁，不以警告条数为门禁，但还须用 `--format json` 核对规则 `broken-ref` 的条数为 0：未知的组件子属性（如 `minHeight`；清单见骨架 Components 节）只报 `broken-ref` 警告而退出码仍为 0，单看退出码会漏掉它；`orphaned-tokens` 对由样式表消费、没有组件引用的 Token（shadcn 风格）属结构性噪声，不为消除警告而虚构组件。
 
 纯后端项目可标注"不适用"并跳过。
 

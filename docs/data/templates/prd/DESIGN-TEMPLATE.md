@@ -48,6 +48,7 @@ components:
 圆角档位见 rounded：按钮与输入框用 md，卡片与面板用 lg；<图标风格与描边粗细>。
 ## Components
 button-primary 是示例，按项目补充其他组件与变体；各组件的状态覆盖矩阵（默认、悬停、聚焦、禁用、错误、加载、空状态）写在 UX 规范。
+组件子属性仅限：`backgroundColor`、`textColor`、`typography`、`rounded`、`padding`、`size`、`height`、`width`（官方 lint 0.4.0 的清单）。其他属性（如 `minHeight`、`borderColor`）只会得到 `broken-ref` 警告而退出码仍为 0，这类约束写进正文（如 Accessibility 的触控目标），不写进 front matter。
 ## Do's and Don'ts
 - 只引用 Token，不在业务页面硬编码色值、字号与间距。
 - 取值变更先改本文件再改样式文件，两者保持一致。
