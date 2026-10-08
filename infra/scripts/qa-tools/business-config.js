@@ -145,9 +145,18 @@ function resolveBusinessConfig(config) {
   return { ok: true, enabled, requiredPriorities, suites, digest: digestOf(requiredPriorities, suites), errors };
 }
 
+// 已登记套件的命令原文，按套件顺序返回，供 task exec 的测试范围护栏放行与登记一致的命令。
+// 与 enabled 无关（开关只决定 qa verify 是否启用门禁）；配置无效时整份 qa.business 都不可信，返回空数组，
+// 不让其中恰好有效的套件放行命令。
+function registeredSuiteCommands(config) {
+  const resolved = resolveBusinessConfig(config);
+  return resolved.ok ? resolved.suites.map((suite) => suite.command) : [];
+}
+
 module.exports = {
   DEFAULT_TIMEOUT_SECONDS,
   MAX_TIMEOUT_SECONDS,
   NO_PLATFORM,
+  registeredSuiteCommands,
   resolveBusinessConfig,
 };

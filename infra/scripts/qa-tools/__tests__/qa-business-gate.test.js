@@ -110,6 +110,12 @@ test('必需 AC 都有通过的用例时放行，并披露人工验收项', (t) 
   assert.match(outcome.risks[0].detail, /AC-SHOP-002-01/u);
   assert.equal(outcome.nextAction, null);
 
+  // 放行的判定自带回执要用的业务摘要：必需优先级、已证明的自动化 AC 条数、披露风险数，以及与 qa run 一致的配置摘要。
+  assert.deepEqual(outcome.requiredPriorities, ['P0']);
+  assert.equal(outcome.provenCount, SHOP_ACS.filter((ac) => ac.priority === 'P0' && ac.verification === 'auto').length);
+  assert.equal(outcome.riskCount, outcome.risks.length);
+  assert.equal(outcome.configDigest, JSON.parse(fs.readFileSync(s.resultsFile, 'utf8')).config_digest);
+
   const lines = formatBusinessGate(outcome);
   assert.equal(lines[0], 'BUSINESS_GATE=PASS');
   assert.match(lines[1], /^BUSINESS_SUMMARY=\S/u);
@@ -513,6 +519,13 @@ test('验证方式为 manual 的 AC 只在必需优先级内披露为 RISK_MANUA
   const manualBoth = both.risks.find((risk) => risk.code === 'RISK_MANUAL_AC');
   assert.match(manualBoth.detail, /AC-SHOP-002-01/u);
   assert.match(manualBoth.detail, /AC-SHOP-002-02/u);
+
+  // 业务摘要随必需优先级变化：条数只数必需优先级内的自动化 AC，manual 的不算已证明。
+  assert.deepEqual(onlyP0.requiredPriorities, ['P0']);
+  assert.equal(onlyP0.provenCount, 2);
+  assert.deepEqual(both.requiredPriorities, ['P0', 'P1']);
+  assert.equal(both.provenCount, 3);
+  assert.equal(both.riskCount, both.risks.length);
 });
 
 // ---------------------------------------------------------------------------

@@ -61,13 +61,31 @@ function hasFullApproval(command, state) {
     && decision.commands.includes(command.join(' '));
 }
 
-function assertTestCommandScope(command, state) {
+// 登记命令仅在每个词都是无需 shell 解释的普通参数时参与匹配；引号、变量、管道、重定向、通配符等一律不匹配。
+const SAFE_WORD = /^[\w@+,./:=-]+$/u;
+
+function registeredWords(entry) {
+  if (typeof entry !== 'string') return null;
+  const words = entry.replace(/^[ \t]+|[ \t]+$/gu, '').split(/[ \t]+/u);
+  return words.every((word) => SAFE_WORD.test(word)) ? words : null;
+}
+
+// qa run 本就无护栏地运行 qa.business.suites 登记的命令；task exec 逐词精确匹配后放行同一条，包装器与任何参数变体都不放行。
+function isRegisteredSuiteCommand(command, registeredCommands) {
+  if (!Array.isArray(registeredCommands)) return false;
+  return registeredCommands.some((entry) => {
+    const words = registeredWords(entry);
+    return words !== null && words.length === command.length && words.every((word, index) => word === command[index]);
+  });
+}
+
+function assertTestCommandScope(command, state, options) {
   const risk = commandRisk(command);
-  if (!risk || hasFullApproval(command, state)) return;
+  if (!risk || isRegisteredSuiteCommand(command, options && options.registeredCommands) || hasFullApproval(command, state)) return;
   const explanation = risk === 'aggregate'
     ? 'aggregate test command'
     : 'test runner needs an explicit test file';
-  throw new Error(`${explanation}; use pnpm agent -- test --file <file> -- <runner>, or record a matching TEST_SCOPE_DECISION with mode=full before task exec`);
+  throw new Error(`${explanation}; use pnpm agent -- test --file <file> -- <runner>, or record a matching TEST_SCOPE_DECISION with mode=full before task exec (a command registered under qa.business.suites is accepted when typed verbatim)`);
 }
 
 module.exports = { assertTestCommandScope, commandRisk };

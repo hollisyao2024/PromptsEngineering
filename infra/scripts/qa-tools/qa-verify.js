@@ -32,6 +32,7 @@ const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolch
 const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
 const { verifyTestScopeEvidence } = require('./qa-test-scope');
 const { verifyBusinessAcceptance } = require('./qa-business-gate');
+const { parsePrdStories } = require('./business-spec');
 const { exitOnHelp } = require('../shared/cli-help');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
@@ -432,7 +433,8 @@ function validateQaFile(filePath) {
     return result;
   }
 
-  const prdStories = uniqueMatches(prdContent, new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g'));
+  // 覆盖率分母是本模块自己的 Story（Story 表 + 原子 AC 表），横幅、依赖列等处提到的他模块 Story 不计入。
+  const prdStories = new Set(parsePrdStories(prdContent).stories);
   if (prdStories.size === 0) {
     result.warnings.push('模块 PRD 未检测到 Story ID，跳过覆盖率统计');
     return result;
@@ -611,16 +613,30 @@ function runSessionVerify(args) {
   return summary.exitCode;
 }
 
-// 业务验收门禁：qa.business 启用时复验 `qa run` 写出的结果，阻断则返回 false（调用方不得签发回执）；
-// 未启用时什么都不读、不输出。
-function passesBusinessGate({ config, mainRoot, headSha }) {
+// 业务验收门禁：qa.business 启用时复验 `qa run` 写出的结果。
+// 返回 { passed, business }：阻断时 passed 为 false（调用方不得签发回执）；放行且门禁已启用时 business 是写进回执的摘要。
+// 未启用时什么都不读、不输出，business 为 null，回执保持门禁接入前的结构。
+function checkBusinessGate({ config, mainRoot, headSha }) {
   const gate = verifyBusinessAcceptance({ repoRoot, mainRoot, config, headSha });
-  if (!gate.enabled) return true;
+  if (!gate.enabled) return { passed: true, business: null };
   for (const line of gate.lines) {
     log(line, line.startsWith('BUSINESS_RISK=') ? 'yellow' : gate.blocked ? 'red' : 'green');
   }
-  if (gate.blocked) log('业务验收未通过，回执未签发。', 'red');
-  return !gate.blocked;
+  if (gate.blocked) {
+    log('业务验收未通过，回执未签发。', 'red');
+    return { passed: false, business: null };
+  }
+  const { outcome } = gate;
+  return {
+    passed: true,
+    business: {
+      gate: 'PASS',
+      required_priorities: outcome.requiredPriorities,
+      acs_proven: outcome.provenCount,
+      risk_count: outcome.riskCount,
+      config_digest: outcome.configDigest,
+    },
+  };
 }
 
 function main() {
@@ -655,7 +671,9 @@ function main() {
       });
       if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
       else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
-      if (!passesBusinessGate({ config, mainRoot, headSha: receipt.head_sha })) exitCode = 1;
+      const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
+      if (!gate.passed) exitCode = 1;
+      else if (gate.business) receipt.business = gate.business;
     }
     if (exitCode === 0) {
       const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
