@@ -95,6 +95,11 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     ? require('./legacy-baseline').loadLegacyBaseline(target,legacyBaseline,selectedAssets) : undefined;
   return planUpdate({target,source:identity,assets:selectedAssets,inputs,packages,adopt,legacy});
 }
+function nextAction(plan,write) {
+  if(plan.conflicts.length)return 'Review conflicts and plan; files without baseline require explicit adopt or a reviewed legacy baseline';
+  if(!plan.changes.length)return 'No changes required; the target already matches this template';
+  return write?'Review the applied changes, then run a convergence dry-run; it should report no changes':'Review the plan, then rerun with --write to apply it';
+}
 function print(plan,write) {
   const counts={};
   console.log(`STATUS=${plan.conflicts.length?'BLOCKED':write?'UPDATED':'DRY_RUN'}\nPLAN_ID=${plan.id}`);
@@ -105,7 +110,7 @@ function print(plan,write) {
   });
   for(const p of plan.metadataChanges||[]){counts.updated=(counts.updated||0)+1;details.push(`updated\tmetadata\t${p}`);}
   console.log(`COUNTS=${JSON.stringify(counts)}\nDETAILS_START\n${details.join('\n')}\nDETAILS_END`);
-  console.log('NEXT_ACTION=Review conflicts and plan; files without baseline require explicit adopt or a reviewed legacy baseline');
+  console.log(`NEXT_ACTION=${nextAction(plan,write)}`);
 }
 function runTemplate(args,source,target) {
   validateSelectionOptions(args.scope, args.include);

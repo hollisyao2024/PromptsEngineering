@@ -34,6 +34,13 @@ UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS
 - WCAG 2.1 AA 无障碍合规（目标写入 `DESIGN.md` 的 Accessibility）
 - 响应式断点矩阵（写入 `DESIGN.md` 的 Layout）
 
+存量项目（样式已存在）补建 `DESIGN.md` 时：
+- 取值以样式表中实际生效的为准：同名属性后者覆盖前者，`@layer` 外的声明覆盖层内声明，`var()` 展开后再记录。
+- 已有的硬编码色值、字号和偏离间距档位如实记为已知偏差，写入 Do's and Don'ts，不当作契约，也不在同一次变更里改样式。
+- 取值或意图无法从代码判定的条目标【待确认】，交项目负责人裁定，不自行猜测。
+
+项目接入官方 lint（`@google/design.md`）时，以退出码为门禁，不以警告条数为门禁；`orphaned-tokens` 对由样式表消费、没有组件引用的 Token（shadcn 风格）属结构性噪声，不为消除警告而虚构组件。
+
 纯后端项目可标注"不适用"并跳过。
 
 ### 6. 实施计划

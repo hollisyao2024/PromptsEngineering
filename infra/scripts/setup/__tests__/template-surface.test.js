@@ -302,6 +302,18 @@ test('accessibility targets keep a fallback when DESIGN.md is absent', () => {
   ]) assert.match(read(file), ACCESSIBILITY_FALLBACK, `${file} falls back to WCAG 2.1 AA default thresholds without DESIGN.md`);
 });
 
+// 维小帮副本试验（2026-10-08）：styles.css 已存在时补建 DESIGN.md 的三个实际难点，以及官方 lint 的使用口径
+test('PRD playbook guides adopting DESIGN.md where styles already exist, and gating on the official lint', () => {
+  const ux = headingBody(read('AgentRoles/Handbooks/PRD-WRITER-EXPERT.playbook.md'), '5. 用户体验设计（UX）');
+  assert.match(ux, /存量项目[^\n]*`DESIGN\.md`/u, 'adoption in a project that already has styles is covered');
+  assert.match(ux, /实际生效[^\n]*(?:覆盖|`@layer`)/u, 'values come from what the stylesheet effectively applies');
+  assert.match(ux, /已知偏差[^\n]*Do's and Don'ts/u, 'hard-coded deviations are recorded, not promoted to contract');
+  assert.match(ux, /【待确认】/u, 'items the code cannot decide stay marked');
+  assert.match(ux, /官方 lint[^\n]*退出码[^\n]*不以警告条数/u, 'the official lint gates on its exit code, not the warning count');
+  assert.match(ux, /`orphaned-tokens`[^\n]*结构性噪声/u, 'orphaned-tokens on stylesheet-consumed tokens is not worth a fake component');
+  assert.ok(!ux.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
+});
+
 test('DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules', () => {
   for (const file of [
     'AgentRoles/TASK-PLANNING-EXPERT.md',

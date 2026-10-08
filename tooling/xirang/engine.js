@@ -105,6 +105,19 @@ function adoptJson(local, upstream) {
   }
   return local;
 }
+// Merged JSON keeps the project's own key order: keys follow the reference (the project's current file) and keys it
+// lacks are new, appended sorted. An object whose existing keys are already sorted stays sorted, so new keys land in
+// sorted position. Without a reference (a fresh file) the result is canonical.
+function orderLike(value, reference) {
+  if (Array.isArray(value)) return value.map((item, index) => orderLike(item, Array.isArray(reference) ? reference[index] : undefined));
+  if (!isObject(value)) return value;
+  const ref = isObject(reference) ? reference : {};
+  const known = Object.keys(ref).filter(key => Object.hasOwn(value, key));
+  const added = Object.keys(value).filter(key => !Object.hasOwn(ref, key)).sort();
+  const sorted = known.every((key, index) => index === 0 || known[index - 1] < key);
+  return Object.fromEntries((sorted ? [...known, ...added].sort() : [...known, ...added]).map(key => [key, orderLike(value[key], ref[key])]));
+}
+const jsonLike = (value, reference) => `${JSON.stringify(orderLike(value, reference), null, 2)}\n`;
 function appendJson(local, upstream, key = 'id') {
   if (!Array.isArray(local) || !Array.isArray(upstream)) throw new Error('append-json requires arrays');
   const map = new Map();
@@ -154,8 +167,9 @@ function decide(asset, local, base, record, adopt) {
   }
   if (asset.strategy === 'merge-yaml') return require('./yaml').mergeYaml(base, local, upstream, mergeJsonValue);
   if (asset.strategy === 'merge-json') {
-    if (adopt && base === undefined) return json(adoptJson(local === null ? undefined : parseJson(local, asset.path), parseJson(upstream, asset.path)));
-    return json(mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), local === null ? undefined : parseJson(local, asset.path), parseJson(upstream, asset.path)));
+    const localValue = local === null ? undefined : parseJson(local, asset.path), upstreamValue = parseJson(upstream, asset.path);
+    if (adopt && base === undefined) return jsonLike(adoptJson(localValue, upstreamValue), localValue);
+    return jsonLike(mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), localValue, upstreamValue), localValue);
   }
   if (local === upstream) return local;
   if (base === undefined) {

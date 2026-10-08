@@ -3,7 +3,7 @@
 - 状态：Accepted
 - 日期：2026-10-06
 - 关联：US-ARCHPLAT-015，TC-ARCHPLAT-015~017；模块架构 `architecture-platform` §9 界面视觉契约（息壤源仓已不保留，见 git 历史）
-- 后续补充：2026-10-08 增补官方 lint 对骨架的验证结论，以及漂移检查延后的触发条件与设计输入，见文末「后续补充（2026-10-08）」；上文决策不变。
+- 后续补充：2026-10-08 增补官方 lint 对骨架的验证结论，以及漂移检查延后的触发条件与设计输入；同日再补一次存量项目副本试验的映射数据点与两处取值难点，见文末「后续补充（2026-10-08）」；上文决策不变。
 
 界面取值与无障碍目标原先分散在 UX 规范 §5～§7、PRD 与模块模板和各专家手册中，同一数值多处复述容易漂移，TDD 阶段也没有统一入口。采用项目根目录 `DESIGN.md`（YAML front matter 加固定顺序的八个二级章节，形态对齐 Google DESIGN.md alpha 规范）作为唯一视觉契约。作业包只在 `docs/data/templates/prd/DESIGN-TEMPLATE.md` 提供模板所有（`overwrite`）的骨架；根 `DESIGN.md` 不登记任何 manifest，因而属于项目，`template sync` 与 `template update` 永不写入。
 
@@ -20,3 +20,13 @@
 漂移检查仍不实现，触发条件为二者之一：出现第一个真正采用 `DESIGN.md` 的下游界面项目；QA 手工抓到一次 `DESIGN.md` 与 `styles.css` 取值不一致。延后的理由是息壤源没有真实的根 `DESIGN.md` 与 `styles.css`，规则缺少真实输入可验证，而检查一旦随作业包分发，误报会直接阻断下游项目的检查。已经固定的是另一层：骨架与 `architecture/components/shadcn/tokens.css` 的取值一致（颜色、圆角、正文字体族），由 `template-surface.test.js` 里仅在息壤源运行的断言覆盖，不在延后范围内。上文提到的 TASK-ARCHPLAT-012 这一任务条目随 v3.10.1 清理源仓项目文档一并移除，上文与 v3.8.x 变更记录里的引用仅作历史；其中漂移检查部分的触发条件与设计输入改记在本节。
 
 触发后的设计输入：只覆盖 shadcn 技术栈；只比较归一化后的颜色、圆角和正文字体族，不比较暗色、间距与组件；先只告警不阻断；夹具测试放在架构包。此前认为难点在「Token 名到 CSS 变量名的映射约定」，实测后更正：官方 `export --format css-tailwind` 从骨架导出 18 个名字，其中 7 个颜色名和 3 个圆角名与 `tokens.css` 的 `@theme inline` 逐一同名，映射本身不难。真正的难点有四处。一是另外 8 个名字（`--font-body`、`--text-body`、`--font-weight-body` 和 `--spacing-xs` 至 `--spacing-xl`）在 `tokens.css` 里没有对应项，间距、字号层级与组件都没有 CSS 对应物，导出的 `--font-body` 还把整串字体栈包进了一对引号，所以正文字体族应读 `body` 的 `font-family` 声明，不读 `--font-body`。二是 `DESIGN.md` 没有暗色机制，而 `tokens.css` 有 12 处 `.dark` 覆盖，只能比较亮色。三是颜色写法要先归一化，导出会把 `oklch(.30 .08 260)` 换成 `#142c55`。四是圆角要先展开 `calc(var(--radius) - 4px)` 这类写法，`--radius: .625rem`（10px）才得到导出的 6px、8px、10px。本节只增补记录，没有代码、模板、测试或配置变化。
+
+### 存量项目副本试验
+
+2026-10-08 在一个已有 `styles.css` 的下游界面项目（shadcn 技术栈，装有 3.7.8 版作业包）的一次性副本上，先把作业包更新到 3.10.4，再补建根 `DESIGN.md`，用 `@google/design.md@0.4.0` 实跑官方 lint：退出码 0，0 个错误，6 条 `orphaned-tokens` 警告（`popover`、`accent-foreground`、`border`、`input`、`ring`、`sidebar-muted` 已定义但没有组件引用）和 1 条统计信息。副本没有提交、推送或合并，下游真实仓库和骨架都没有改动。这 6 条与上文骨架上的 4 条同类：Token 由样式表消费，没有组件引用，不为消除警告而虚构组件。
+
+映射数据点：25 个颜色 Token 加 `--` 前缀后，与 `styles.css` 里实际生效的 CSS 自定义属性逐一同名且取值一致（25/25）；圆角 8px、10px、12px 由 `--radius` 展开后一致；正文 14px、行高 1.6 和字体族也一致。这再次印证上文「映射本身不难」。
+
+上文四处难点之外，读取「实际生效」的取值还有两处。一是这份样式表有两个 `:root` 块：前一块用 `oklch`，后一块用 17 个十六进制值和一个 `--radius` 重新定义了其中 18 个名字，而 `--popover-foreground` 只在前一块定义，再经 `var()` 引用，所以只读第一处声明会拿到被覆盖的旧值。二是 `body` 的 `font-family` 声明了两次，`@layer base` 里的 `ui-sans-serif, system-ui, sans-serif` 被未分层的中文字体栈覆盖，实际生效的是后者。因此将来若实现漂移检查，要先解决「读哪一处声明」：同名属性后者覆盖前者，`@layer` 外的声明覆盖层内声明，`var()` 先展开，之后才是比较。这三条取值规则已写进 PRD 手册 §5 的存量项目补建指引，供专家补建 `DESIGN.md` 时遵守。
+
+这次是一次性副本，不算「真正采用」，上文延后的触发条件没有满足，漂移检查仍不实现。本小节只增补记录；同一次变更里的更新器与手册改动见 `CHANGELOG.md`。
