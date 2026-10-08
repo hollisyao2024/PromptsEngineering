@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { DEFAULT_CONFIG, loadConfig } = require('../../shared/config');
-const { resolveBusinessConfig } = require('../business-config');
+const { registeredSuiteCommands, resolveBusinessConfig } = require('../business-config');
 const { createProject } = require('./fixtures/business-testing/builders');
 
 const SUITE = {
@@ -243,4 +243,36 @@ test('摘要与键顺序、无关配置项无关，与命令、报告路径、�
     resolveBusinessConfig(configWith({ suites: [second, SUITE] })).digest,
   ];
   assert.notEqual(swapped[0], swapped[1]);
+});
+
+// ---------------------------------------------------------------- 已登记的套件命令
+
+test('registeredSuiteCommands 按套件顺序返回登记的命令，与 enabled 开关无关', () => {
+  const guarded = {
+    name: 'web-guarded',
+    platform: 'web',
+    command: 'node infra/scripts/test-tools/run-with-test-guards.js pnpm exec playwright test --project=web',
+    report: 'test-results/guarded.xml',
+  };
+  for (const enabled of [false, true]) {
+    assert.deepEqual(
+      registeredSuiteCommands(configWith({ enabled, suites: [SUITE, guarded] })),
+      [SUITE.command, guarded.command],
+    );
+  }
+});
+
+test('registeredSuiteCommands 在没有套件或配置无效时返回空数组而不抛错', () => {
+  for (const config of [DEFAULT_CONFIG, {}, undefined, configWith({ enabled: true })]) {
+    assert.deepEqual(registeredSuiteCommands(config), []);
+  }
+  // 任何一个套件无效，整份 qa.business 都不可信：其余套件的命令也不得被当作已登记
+  for (const business of [
+    { suites: [SUITE, { ...SUITE, report: 'out/dup.xml' }] },
+    { suites: [SUITE, { ...SUITE, name: 'blank', command: '   ' }] },
+    { suites: [SUITE, { ...SUITE, name: 'typo', cmd: 'pnpm exec vitest run' }] },
+    { suites: 'pnpm exec vitest run' },
+  ]) {
+    assert.deepEqual(registeredSuiteCommands(configWith(business)), [], JSON.stringify(business));
+  }
 });

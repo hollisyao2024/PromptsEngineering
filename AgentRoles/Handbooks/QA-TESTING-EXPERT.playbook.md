@@ -189,7 +189,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 
 ### 更新现有 QA.md 的保留策略
 `/qa plan` 刷新已有文档时按文档归属处理，已评审的业务测试资料不会被覆盖：
-- **生成器自有文档**：以 `<!-- QA-GENERATED: generate-qa.js -->` 标记开头的文档由 `/qa plan` 重新生成，内容以 PRD、ARCH、TASK 与追溯矩阵为准
+- **生成器自有文档**：以 `<!-- QA-GENERATED: generate-qa.js -->` 标记开头的文档由 `/qa plan` 重新生成，内容以 PRD、ARCH、TASK 与追溯矩阵为准；PRD 含原子 AC 表时，用例编号取 AC 表 `TC` 列、前缀取表内模块标识，`TC` 为 `-` 的 AC 与没有 AC 的 Story 列在「3.2 尚未登记用例的验收标准」，不替它们臆造编号
 - **手工维护文档**：没有该标记的 `docs/QA.md`、QA 模块清单与模块 QA 文档会被保留（日志提示「保留手工维护的…」），差异由 QA 专家评审后合并
 - **业务测试资料**：`PATHS.md`、业务测试套件与已评审的 TC 行从不由 `/qa plan` 生成或覆盖；刷新只新增或提出差异，不覆盖已评审用例，详见「业务测试自动化」一章的刷新策略
 - **建议操作**：刷新前先提交现有改动，刷新后用 `git diff` 审阅，再决定保留或回退
@@ -375,10 +375,12 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 1. `pnpm agent -- qa paths`，处理全部 `VIOLATION=` 直至 `STATUS=OK`；
 2. 编写并评审自动化用例，测试名携带 AC/TC 标识；
 3. 提交全部改动（用例、PATHS.md、`.gitignore`）；
-4. 在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；
-5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，阻断时输出原因、不签发回执。
+4. 在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；只有 `STATUS=OK` 才表示套件都正常完成且必需优先级的 `auto` AC 全部有通过的用例，否则 `STATUS=FAILED` 且退出码非零：`REASON=SUITE_FAILED`（套件失败，优先）或 `REASON=AC_NOT_PROVEN`（逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，缺用例、被跳过、声明的端没有套件覆盖）。两种 FAILED 都已写出结果；补用例或修复后重新提交、重跑，不要带着 FAILED 进入 `qa verify`；
+5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，阻断时输出原因、不签发回执；放行时回执附带 `business` 摘要（`gate`、`required_priorities`、`acs_proven`、`risk_count`、`config_digest`），仅作审计记录，`qa merge` 复验不读取它。
 
 套件命令退出码非零但报告有效时，以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`，不直接阻断；启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
+
+套件命令较长时，可用 `pnpm agent -- task exec --task <id> --name <名> -- <命令>` 把输出落成任务证据：与 `qa.business.suites[].command` 登记原文逐词相同的命令不受聚合测试护栏拦截；加了包装器、改了参数，或登记命令含引号、变量、管道、通配符的，仍按原规则处理（定向文件、或事先记录 `mode=full` 的 `TEST_SCOPE_DECISION`）。
 
 ### 阻断码与风险码速查
 
@@ -426,7 +428,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `SUITE_HARD_FAILURE` | 套件启动失败、超时、没有产生报告，或报告无法解析 | 先按原因修复套件命令或报告路径，再重新运行 `pnpm agent -- qa run` |
 | `REPORT_TAMPERED` | 报告副本的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
 | `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果，与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
-| `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」 | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
+| `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」（`qa run` 以 `FAILED(REASON=AC_NOT_PROVEN)` 提前给出同一判定） | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
 | `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径及其状态 | 补写或修复覆盖该路径的用例使其通过，或修正 PATHS.md 的路径、关联 TC 与覆盖准则，再运行 `qa run` |
 | `GATE_ERROR` | 业务验收门禁自身出错 | 带着错误信息排查后重新运行 `pnpm agent -- qa verify` |
 

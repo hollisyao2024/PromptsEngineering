@@ -38,6 +38,8 @@ pnpm run qa:generate -- --project
 - 只有显式传入 `--project` 才会执行全量刷新。
 - `session` 模式可通过 `--modules`/`--module` 显式指定模块（如 `pro-create,quick-create`），脚本会优先使用该列表，不再依赖 Git 改动推断。
 - 也支持通过环境变量传入：`QA_SESSION_MODULES=pro-create,quick-create pnpm run qa:generate`。
+- 模块 PRD 含原子 AC 表（见第 7 节）时，模块 QA 按该表生成：Story 清单取自 PRD 的 Story 定义表与 AC 表的 Story 列，只含本模块自己的 Story，横幅、依赖列等处提到的他模块 Story 不计入；测试用例表按 AC 表 `TC` 列登记的真实编号逐条生成，一个 TC 对应多条 AC 时合并为一行（关联 Story 去重，优先级取其中最高者，前置条件取第一条 AC 的 Given），编号前缀取 AC 表里的模块标识，不再臆造顺序编号；`TC` 列为 `-` 的 AC 与没有 AC 的 Story 列入「3.2 尚未登记用例的验收标准」，用例总数是 AC 表里不同 TC 的精确条数。`qa verify` 的 Story 覆盖率分母与此同源。
+- 既没有 Story 定义表也没有 AC 表的旧式 PRD 沿用旧骨架（顺序编号、至多 10 行、`（预估）`），但 Story 先按编号去重，`US-MODEL-CONFIG-001` 这类多段或带数字的模块标识也能解析。
 
 ### 1. `/qa verify` 验收检查（推荐第二步）
 
@@ -569,6 +571,9 @@ pnpm agent -- qa run
 说明：
 - `qa paths` 不创建目录、不运行测试；存在违规时 `STATUS=BLOCKED` 且退出码非零，逐条输出 `VIOLATION=<code>|<位置>|<说明>`，并给出 `MATRIX_AC=`、`MATRIX_PATH=` 追溯行。
 - `qa run` 逐个套件运行命令（在仓库根目录经 shell 执行），读取各套件的 JUnit XML；测试名须携带 AC/TC 标识才能绑定到原子 AC。结果写入容器 `tmp/qa-business-results/<工作区标识>/ac-results.json`，绑定当前 HEAD、配置摘要与报告 SHA256，并输出 `SUITE=` 行与 `RESULTS_FILE=`。该命令不受 `qa.business.enabled` 影响。
+- `qa run` 的 `STATUS=OK` 表示套件都正常完成，且 `requiredPriorities` 内的 `auto` AC 全部有通过的用例。套件失败时 `STATUS=FAILED`、`REASON=SUITE_FAILED`；套件都正常完成、但必需优先级的 `auto` AC 仍有未证明的（缺用例、用例被跳过、声明的端没有套件覆盖），逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，并以 `STATUS=FAILED`、`REASON=AC_NOT_PROVEN`、非零退出码结束。两种 FAILED 都照常写出结果文件（`SUITE_FAILED` 优先，不叠加第二个原因）；判定与 `qa verify` 的业务验收门禁共用同一函数，所以 `qa run` 通过的结果在验收一项上不会被 `qa verify` 推翻。`STATUS=BLOCKED` 仍表示运行前就被拒绝（配置非法、没有套件、规格违规、仓库无提交、报告路径不安全），此时没有运行任何套件、也没有写结果。
+- `qa verify` 的业务验收门禁放行并签发回执时，回执附带一个可选的 `business` 摘要：`gate`（固定为 `PASS`）、`required_priorities`、`acs_proven`（本次必需优先级内已证明的自动化 AC 条数）、`risk_count`（披露的 `BUSINESS_RISK=` 项数）与 `config_digest`（套件配置摘要）。门禁未启用时回执不带该字段；`schema_version` 仍为 1，`qa merge` 的复验只比对 `schema_version`、`verdict`、base/branch、两端 SHA 与 PR 引用，不读取 `business`，新旧回执互相兼容。
+- `task exec` 的测试范围护栏拦截 `pnpm exec playwright test` 这类无目标文件的聚合命令（见 `docs/CONVENTIONS.md` §8）。登记在 `qa.business.suites[].command` 的命令例外：与登记原文逐词相同时放行，便于把 `qa run` 将要运行的同一条套件命令也落成任务证据。登记命令里含引号、变量、管道、重定向、通配符等需要 shell 解释的词时不参与匹配；加了包装器（`sh -c …`）或改了任何参数的变体、`qa.business` 配置无效时，都按原规则拦截。
 - 须在最后一次提交之后运行，且工作区干净：报告、截图等驱动产物请加入 `.gitignore`，否则门禁报 `RESULTS_DIRTY_WORKTREE`；运行之后再提交则报 `RESULTS_STALE_HEAD`。
 - `qa.business.enabled=true`（默认 `false`）时，`qa verify` 在测试范围校验之后、签发回执之前运行业务验收门禁：输出 `BUSINESS_GATE=PASS|BLOCKED`，阻断项为 `BUSINESS_BLOCK=`，风险项为 `BUSINESS_RISK=`；阻断时不签发回执。官方息壤源自身不启用该门禁。
 
@@ -648,7 +653,7 @@ pnpm agent -- qa verify
 pnpm agent -- qa merge
 ```
 
-`qa verify` 通过后会在当前电脑原子写入绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执。`qa merge` 会重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；任一 SHA 漂移、冲突或主干非快进拒绝都会停止合并并保留恢复状态。回执不跨电脑共享：换电脑合并时，在该电脑重新执行 `qa verify` 即可，不需要专用 QA 电脑或账号。
+`qa verify` 通过后会在当前电脑原子写入绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执（启用业务验收门禁时另带一个 `business` 摘要，仅作审计记录，见第 7 节）。`qa merge` 会重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；任一 SHA 漂移、冲突或主干非快进拒绝都会停止合并并保留恢复状态。回执不跨电脑共享：换电脑合并时，在该电脑重新执行 `qa verify` 即可，不需要专用 QA 电脑或账号。
 
 启用 `qa.business` 的项目在 `qa verify` 之前依次运行 `pnpm agent -- qa paths` 与 `pnpm agent -- qa run`（见上文第 7 节）；业务验收门禁同样只在本机运行，结果不跨电脑共享，换电脑后须重新 `qa run`。
 
@@ -663,10 +668,10 @@ pnpm agent -- qa merge
 | sync-prd-qa-ids.js | ✅ 已实现 | v1.0 | PRD ↔ QA ID 同步验证 |
 | generate-test-report.js | ✅ 已实现 | v1.0 | 测试报告生成 |
 | check-defect-blockers.js | ✅ 已实现 | v1.0 | 缺陷阻塞检查 |
-| business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用） |
+| business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用）；`parsePrdStories` 同时供 `qa:generate` 与 `qa verify` 的 Story 清单使用 |
 | qa-paths.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa paths`：规格校验与追溯矩阵 |
 | business-config.js | ✅ 已实现 | v1.0 | 解析并校验 `qa.business` 配置 |
-| qa-run.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa run`：运行套件、解析 JUnit XML、写入结果 |
+| qa-run.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa run`：运行套件、解析 JUnit XML、写入结果；必需优先级的自动化 AC 未证明时 `FAILED(AC_NOT_PROVEN)` |
 | business-results.js | ✅ 已实现 | v1.0 | 把用例绑定到 AC/TC/路径并判定验收 |
 | qa-business-gate.js | ✅ 已实现 | v1.0 | `qa verify` 的业务验收门禁 |
 

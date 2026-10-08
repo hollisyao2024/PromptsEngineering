@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const { commitAll } = require('./fixtures/business-testing/builders');
+const { SHOP_ACS, commitAll } = require('./fixtures/business-testing/builders');
 const {
   WEB_CASES,
   createScenario,
@@ -38,8 +38,9 @@ const GOLDEN_DISABLED = [
   'HEAD_SHA=<SHA>',
 ];
 
-// 回执结构不得变化：键集合固定。
+// 未启用业务门禁时回执结构不得变化：键集合固定；启用且通过后只多一个 business 摘要键。
 const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'schema_version', 'verdict', 'verified_at'];
+const BUSINESS_RECEIPT_KEYS = [...RECEIPT_KEYS, 'business'].sort();
 
 function scenarioFor(t) {
   const scenario = createScenario();
@@ -116,6 +117,7 @@ test('模板源仓库不运行业务验收门禁，即使 qa.business 已启用'
   assert.match(verify.text, /模板源仓库：跳过业务 PRD\/QA 验收门禁。/u);
   assert.equal(verify.text.includes('BUSINESS_'), false);
   assert.ok(fs.existsSync(receiptPath(s)));
+  assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), RECEIPT_KEYS, '门禁没有运行，回执不得声称业务验收通过');
 });
 
 test('qa verify --help 说明业务验收门禁由 qa.business 控制', (t) => {
@@ -148,9 +150,21 @@ test('启用后必需 AC 都被证明时 qa verify 放行：先打印门禁与�
   assert.ok(indexOfLine(verify, 'BUSINESS_GATE=') < indexOfLine(verify, 'QA_RECEIPT='), verify.text);
 
   const receipt = readReceiptFile(s);
-  assert.deepEqual(Object.keys(receipt).sort(), RECEIPT_KEYS);
+  assert.deepEqual(Object.keys(receipt).sort(), BUSINESS_RECEIPT_KEYS);
+  assert.equal(receipt.schema_version, 1, '摘要是追加字段，回执版本不变');
   assert.equal(receipt.verdict, 'passed');
   assert.equal(receipt.head_sha, s.head());
+
+  // 回执里的业务摘要与刚打印的门禁输出、qa run 写下的结果一致：必需优先级、已证明的自动化 AC 条数、披露风险数、配置摘要。
+  const proven = SHOP_ACS.filter((ac) => ac.priority === 'P0' && ac.verification === 'auto').length;
+  assert.deepEqual(receipt.business, {
+    gate: 'PASS',
+    required_priorities: ['P0'],
+    acs_proven: proven,
+    risk_count: verify.lines.filter((line) => line.startsWith('BUSINESS_RISK=')).length,
+    config_digest: JSON.parse(fs.readFileSync(s.resultsFile, 'utf8')).config_digest,
+  });
+  assert.match(verify.lines[indexOfLine(verify, 'BUSINESS_SUMMARY=')], new RegExp(`${proven} 条`, 'u'));
 });
 
 test('启用后 P0 AC 的用例失败时 qa verify 阻断：列出该 AC、非零退出、不签发回执', (t) => {

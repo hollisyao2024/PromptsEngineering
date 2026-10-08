@@ -21,14 +21,39 @@ function assertSha(value, field) {
   return sha.toLowerCase();
 }
 
+function assertCount(value, field) {
+  if (!Number.isInteger(value) || value < 0) throw new Error(`${field} must be a non-negative integer`);
+  return value;
+}
+
+// 业务验收摘要是回执的可选附加字段，只记录门禁通过时的事实；缺省表示这次验证没有启用业务门禁。
+// 回执只留这五项，其余字段一律丢弃；不合法的摘要在写盘前抛错，不会留下半份回执。
+function normalizeBusinessSummary(business) {
+  if (business === undefined || business === null) return null;
+  if (typeof business !== 'object' || Array.isArray(business)) throw new Error('business summary must be an object');
+  if (business.gate !== 'PASS') throw new Error('business.gate must be PASS');
+  const priorities = business.required_priorities;
+  if (!Array.isArray(priorities) || priorities.length === 0) {
+    throw new Error('business.required_priorities must be a non-empty list');
+  }
+  return {
+    gate: 'PASS',
+    required_priorities: priorities.map((priority) => assertNonEmpty(priority, 'business.required_priorities item')),
+    acs_proven: assertCount(business.acs_proven, 'business.acs_proven'),
+    risk_count: assertCount(business.risk_count, 'business.risk_count'),
+    config_digest: assertNonEmpty(business.config_digest, 'business.config_digest'),
+  };
+}
+
 function buildQaVerificationReceipt({
   baseBranch,
   branch,
   baseSha,
   headSha,
   verifiedAt = new Date().toISOString(),
+  business,
 } = {}) {
-  return {
+  const receipt = {
     schema_version: RECEIPT_SCHEMA_VERSION,
     verdict: 'passed',
     base_branch: assertNonEmpty(baseBranch, 'BASE_BRANCH'),
@@ -37,6 +62,9 @@ function buildQaVerificationReceipt({
     head_sha: assertSha(headSha, 'HEAD_SHA'),
     verified_at: assertNonEmpty(verifiedAt, 'VERIFIED_AT'),
   };
+  const summary = normalizeBusinessSummary(business);
+  if (summary) receipt.business = summary;
+  return receipt;
 }
 
 function worktreeReceiptKey(worktreePath) {
@@ -55,6 +83,7 @@ function writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt) {
     baseSha: receipt && receipt.base_sha,
     headSha: receipt && receipt.head_sha,
     verifiedAt: receipt && receipt.verified_at,
+    business: receipt && receipt.business,
   });
   const receiptPath = getQaVerificationReceiptPath(config, mainRoot, worktreePath);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });

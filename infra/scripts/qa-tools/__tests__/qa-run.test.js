@@ -290,6 +290,26 @@ function expectBlocked(result, reason) {
   assert.match(result.stdout, /^NEXT_ACTION=\S/mu);
 }
 
+// 能证明全部必需优先级自动化 AC 的套件组合：web 套件覆盖三条 AC，ios 套件补上 AC-SHOP-001-02 的 iOS 端。
+// 与运行状态无关的用例用它配置，避免因为某条 AC 缺端而被 AC_NOT_PROVEN 拦下；overrides 按套件名覆盖选项。
+function provingSuites(s, overrides = {}) {
+  return [
+    s.suite('web', { platform: 'web', cases: WEB_CASES, ...overrides.web }),
+    s.suite('ios', { platform: 'ios', cases: IOS_CASES, ...overrides.ios }),
+  ];
+}
+
+// 套件都正常完成、但必需优先级的自动化 AC 没有被证明：FAILED(AC_NOT_PROVEN)、退出码非零，
+// 与 BLOCKED 不同的是套件确实运行过，结果与 AC_OPEN 照常输出；ids 为按标识排序的未证明 AC。
+function expectNotProven(result, ids) {
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(fieldOf(result.stdout, 'STATUS'), 'FAILED', result.stdout);
+  assert.equal(fieldOf(result.stdout, 'REASON'), 'AC_NOT_PROVEN', result.stdout);
+  assert.match(result.stdout, /^SUMMARY=\S/mu);
+  assert.match(result.stdout, /^NEXT_ACTION=\S/mu);
+  assert.deepEqual(fieldsOf(result.stdout, 'AC_OPEN').map((line) => line.split('|')[0]), ids, result.stdout);
+}
+
 // 被阻断的运行不得产生任何副作用：不建容器 tmp，不启动任何套件。
 function expectUntouched(scenario) {
   assert.equal(fs.existsSync(scenario.project.tmp), false, '被阻断时不得创建容器 tmp');
@@ -328,7 +348,7 @@ test('没有配置任何套件时 BLOCKED(NO_SUITES)', () => {
 test('规格违规时 BLOCKED(SPEC_INVALID)，保留上一次结果且不再启动套件', () => {
   const s = createScenario();
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+    s.configure(provingSuites(s));
     const first = runCli(s.project);
     assert.equal(first.status, 0, first.stdout + first.stderr);
     const before = fs.readFileSync(s.resultsFile, 'utf8');
@@ -436,15 +456,16 @@ test('全部套件正常时 STATUS=OK，结果落在容器 tmp 并绑定 HEAD、
 test('记录套件退出码、报告 SHA256 与字节数，并保存逐字节相同的报告副本', () => {
   const s = createScenario();
   try {
-    const entry = s.suite('web', { platform: 'web', cases: WEB_CASES });
-    s.configure([entry]);
+    const suites = provingSuites(s);
+    const [entry] = suites;
+    s.configure(suites);
 
     const result = runCli(s.project);
 
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const source = fs.readFileSync(path.join(s.aux, 'web.source.xml'));
     const digest = sha256Hex(source);
-    const [suite] = s.results().results.suites;
+    const suite = s.results().results.suites.find((item) => item.name === 'web');
     assert.equal(suite.command, entry.command);
     assert.equal(suite.exit_code, 0);
     assert.equal(suite.status, 'ok');
@@ -469,7 +490,8 @@ test('套件非零退出但报告有效时仍绑定用例，运行以 FAILED(SUI
 
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.equal(fieldOf(result.stdout, 'STATUS'), 'FAILED');
-    assert.equal(fieldOf(result.stdout, 'REASON'), 'SUITE_FAILED');
+    assert.equal(fieldOf(result.stdout, 'REASON'), 'SUITE_FAILED', '套件失败的原因优先于 AC_NOT_PROVEN');
+    assert.deepEqual(fieldsOf(result.stdout, 'AC_OPEN').map((line) => line.split('|')[0]), ['AC-SHOP-001-02'], '失败时 AC_OPEN 仍照常列出');
     assert.match(fieldOf(result.stdout, 'SUITE'), /^web\|web\|exit_nonzero\|exit=3\|\d+ms\|3 cases\|sha256=[0-9a-f]{64}\|退出码 3$/u);
     const read = s.results();
     assert.equal(read.ok, true, JSON.stringify(read));
@@ -512,7 +534,7 @@ test('报告里出现不属于规格的标识时汇总为 UNKNOWN_IDS，不阻�
   const s = createScenario();
   try {
     const cases = [...WEB_CASES, { name: 'AC-SHOP-009-09 / TC-SHOP-099 拼写错误的标识', status: 'passed' }];
-    s.configure([s.suite('web', { platform: 'web', cases })]);
+    s.configure(provingSuites(s, { web: { cases } }));
 
     const result = runCli(s.project);
 
@@ -545,21 +567,120 @@ test('声明了端的 AC 按端绑定，任一端失败都出现在 AC_OPEN', ()
   }
 });
 
-test('声明的端没有套件提供时按 missing 列入 AC_OPEN，但不改变运行状态', () => {
+test('声明的端没有套件提供时按 missing 列入 AC_OPEN，必需优先级的 AC 未证明故 FAILED(AC_NOT_PROVEN)', () => {
   const s = createScenario();
   try {
     s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
 
     const result = runCli(s.project);
 
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(fieldOf(result.stdout, 'STATUS'), 'OK');
-    const open = fieldsOf(result.stdout, 'AC_OPEN');
-    assert.equal(open.length, 1, result.stdout);
-    assert.match(open[0], /^AC-SHOP-001-02\|P0\|missing\|.*ios/u);
-    const record = s.results().results.acs['AC-SHOP-001-02'];
+    expectNotProven(result, ['AC-SHOP-001-02']);
+    assert.match(fieldsOf(result.stdout, 'AC_OPEN')[0], /^AC-SHOP-001-02\|P0\|missing\|.*ios/u);
+    const read = s.results();
+    assert.equal(read.ok, true, '结果照常写出，供 qa verify 复验');
+    const record = read.results.acs['AC-SHOP-001-02'];
     assert.equal(record.status, 'passed', '整体状态来自 web 端');
     assert.deepEqual(record.by_platform, { ios: 'missing', web: 'passed' });
+  } finally {
+    s.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------- 必需优先级 AC 未证明：与 qa verify 同一判定，qa run 也不放行
+
+test('必需优先级的自动化 AC 没有任何用例时 FAILED(AC_NOT_PROVEN)，结果与套件记录照常输出', () => {
+  const s = createScenario();
+  try {
+    s.configure([
+      s.suite('web', { platform: 'web', cases: WEB_CASES.slice(1) }), // 去掉 AC-SHOP-001-01 的用例
+      s.suite('ios', { platform: 'ios', cases: IOS_CASES }),
+    ]);
+
+    const result = runCli(s.project);
+
+    expectNotProven(result, ['AC-SHOP-001-01']);
+    assert.match(fieldsOf(result.stdout, 'AC_OPEN')[0], /^AC-SHOP-001-01\|P0\|missing\|/u);
+    assert.match(fieldOf(result.stdout, 'SUMMARY'), /有 1 条必需优先级（P0）的自动化 AC 未证明/u, '摘要要点出未证明的 AC 数量与必需优先级');
+    assert.match(fieldOf(result.stdout, 'NEXT_ACTION'), /AC_OPEN/u);
+    assert.match(fieldOf(result.stdout, 'NEXT_ACTION'), /pnpm agent -- qa run/u);
+    assert.deepEqual(fieldsOf(result.stdout, 'SUITE').map((line) => line.split('|').slice(0, 3).join('|')), ['web|web|ok', 'ios|ios|ok']);
+    assert.equal(fieldOf(result.stdout, 'RESULTS_FILE'), s.resultsFile);
+    assert.equal(s.results().ok, true);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('必需优先级的自动化 AC 的用例全部被跳过时 FAILED(AC_NOT_PROVEN)，状态为 skipped', () => {
+  const s = createScenario();
+  try {
+    const skipped = [{ ...WEB_CASES[0], status: 'skipped' }, ...WEB_CASES.slice(1)];
+    s.configure([
+      s.suite('web', { platform: 'web', cases: skipped }),
+      s.suite('ios', { platform: 'ios', cases: IOS_CASES }),
+    ]);
+
+    const result = runCli(s.project);
+
+    expectNotProven(result, ['AC-SHOP-001-01']);
+    assert.match(fieldsOf(result.stdout, 'AC_OPEN')[0], /^AC-SHOP-001-01\|P0\|skipped\|/u);
+    assert.equal(s.results().results.acs['AC-SHOP-001-01'].status, 'skipped');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('库接口同样以 FAILED/AC_NOT_PROVEN 返回，并带上未证明的 AC 与已写出的结果文件', async () => {
+  const s = createScenario();
+  try {
+    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+
+    const outcome = await runBusinessSuites(s.libraryOptions());
+
+    assert.equal(outcome.status, 'FAILED');
+    assert.equal(outcome.reason, 'AC_NOT_PROVEN');
+    assert.deepEqual(outcome.acOpen.map((item) => [item.id, item.priority, item.state]), [['AC-SHOP-001-02', 'P0', 'missing']]);
+    assert.equal(outcome.resultsFile, s.resultsFile);
+    assert.equal(s.results().ok, true);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('低于必需优先级的自动化 AC 与 manual 的 AC 未证明时仍 STATUS=OK，AC_OPEN 为空', () => {
+  const s = createScenario();
+  try {
+    // AC-SHOP-001-03 是 P1 自动化 AC，AC-SHOP-002-01 是 P0 的 manual AC：默认只要求 P0 的自动化 AC。
+    s.configure([
+      s.suite('web', { platform: 'web', cases: WEB_CASES.slice(0, 2) }),
+      s.suite('ios', { platform: 'ios', cases: IOS_CASES }),
+    ]);
+
+    const result = runCli(s.project);
+
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fieldOf(result.stdout, 'STATUS'), 'OK');
+    assert.equal(fieldOf(result.stdout, 'REASON'), undefined);
+    assert.deepEqual(fieldsOf(result.stdout, 'AC_OPEN'), []);
+    assert.equal(s.results().results.acs['AC-SHOP-001-03'].status, 'missing');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('requiredPriorities 放宽到 P1 后，P1 的自动化 AC 缺用例同样 FAILED(AC_NOT_PROVEN)', () => {
+  const s = createScenario();
+  try {
+    s.configure([
+      s.suite('web', { platform: 'web', cases: WEB_CASES.slice(0, 2) }),
+      s.suite('ios', { platform: 'ios', cases: IOS_CASES }),
+    ], { requiredPriorities: ['P0', 'P1'] });
+
+    const result = runCli(s.project);
+
+    expectNotProven(result, ['AC-SHOP-001-03']);
+    assert.match(fieldsOf(result.stdout, 'AC_OPEN')[0], /^AC-SHOP-001-03\|P1\|missing\|/u);
+    assert.match(fieldOf(result.stdout, 'SUMMARY'), /必需优先级（P0\/P1）/u, '摘要列出配置的必需优先级');
   } finally {
     s.cleanup();
   }
@@ -774,16 +895,17 @@ test('多个套件共用同一报告路径时，每个套件前都重新删除�
 test('运行前删除旧的 ac-results.json，运行后写出新的', () => {
   const s = createScenario({ files: { '.gitignore': 'reports/\n' } });
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+    s.configure(provingSuites(s));
     assert.equal(runCli(s.project).status, 0);
     assert.equal(fs.existsSync(s.resultsFile), true, '前置条件：第一次运行写出了结果');
     const firstDigest = s.results().results.config_digest;
 
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, probe: s.resultsFile })]);
+    s.configure(provingSuites(s, { web: { probe: s.resultsFile } }));
     const second = runCli(s.project);
 
     assert.equal(second.status, 0, second.stdout + second.stderr);
-    assert.deepEqual(s.markers().map((marker) => marker.probeExisted), [null, false]);
+    // 只有第二次运行的 web 套件带探针：它启动时旧结果已经不存在。
+    assert.deepEqual(s.markers().filter((marker) => marker.probeExisted !== null).map((marker) => marker.probeExisted), [false]);
     const read = s.results();
     assert.equal(read.ok, true, JSON.stringify(read));
     assert.notEqual(read.results.config_digest, firstDigest, '第二次运行写出的是新结果');
@@ -882,7 +1004,7 @@ test('报告路径的中间段是普通文件时 BLOCKED(REPORT_PATH_INVALID)', 
 test('运行前工作区干净时 WORKTREE_CLEAN=true 且没有警告', () => {
   const s = createScenario();
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+    s.configure(provingSuites(s));
 
     const result = runCli(s.project);
 
@@ -898,7 +1020,7 @@ test('运行前工作区干净时 WORKTREE_CLEAN=true 且没有警告', () => {
 test('运行前工作区不干净时照常运行，但记录 worktree_clean=false 并给出 .gitignore 提示', () => {
   const s = createScenario();
   try {
-    const head = s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+    const head = s.configure(provingSuites(s));
     s.project.write({ 'scratch.txt': '未提交的改动\n' });
 
     const result = runCli(s.project);
@@ -920,14 +1042,17 @@ test('运行前工作区不干净时照常运行，但记录 worktree_clean=fals
 test('套件在仓库根运行，PATH 首项是当前 node 所在目录', () => {
   const s = createScenario();
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })]);
+    s.configure(provingSuites(s));
 
     const result = runCli(s.project);
 
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const [started] = s.markers();
-    assert.equal(started.cwd, s.project.repo);
-    assert.equal(started.pathFirst, path.dirname(process.execPath));
+    const started = s.markers();
+    assert.equal(started.length, 2, '两个套件都启动了');
+    for (const marker of started) {
+      assert.equal(marker.cwd, s.project.repo);
+      assert.equal(marker.pathFirst, path.dirname(process.execPath));
+    }
   } finally {
     s.cleanup();
   }
@@ -936,7 +1061,7 @@ test('套件在仓库根运行，PATH 首项是当前 node 所在目录', () => 
 test('套件自己的输出只进 stderr，stdout 只含结构化的 KEY=value 行', () => {
   const s = createScenario();
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES, prefix: 'echo NOISE-FROM-SUITE && ' })]);
+    s.configure(provingSuites(s, { web: { prefix: 'echo NOISE-FROM-SUITE && ' } }));
 
     const result = runCli(s.project);
 
@@ -952,12 +1077,12 @@ test('套件自己的输出只进 stderr，stdout 只含结构化的 KEY=value �
 test('qa.business.enabled 为 false 时 qa run 仍然运行套件', () => {
   const s = createScenario();
   try {
-    s.configure([s.suite('web', { platform: 'web', cases: WEB_CASES })], { enabled: false });
+    s.configure(provingSuites(s), { enabled: false });
 
     const result = runCli(s.project);
 
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(s.markers().length, 1);
+    assert.equal(s.markers().length, 2);
     assert.equal(s.results().ok, true);
   } finally {
     s.cleanup();
@@ -973,6 +1098,7 @@ test('--help 打印用法并以 0 退出，不运行任何套件', () => {
 
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /qa run/u);
+    assert.match(result.stdout, /AC_NOT_PROVEN/u, '用法需要说明必需优先级的 AC 未证明时的结果');
     expectUntouched(s);
   } finally {
     s.cleanup();

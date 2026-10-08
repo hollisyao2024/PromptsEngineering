@@ -13,6 +13,7 @@ const {
   resolveTargetsFromQaPlanState,
   validateQaFile,
 } = require('../qa-verify');
+const { AC_COLUMNS, acRowCells, mdTable } = require('./fixtures/business-testing/builders');
 
 test('qa verify captures the configured remote base and exact remote feature head', () => {
   const A = 'a'.repeat(40);
@@ -179,6 +180,70 @@ test('validateQaFile accepts cross-module Story references without inflating loc
   assert.equal(result.stats.storyCount, 2);
   assert.equal(result.stats.validStoryRefCount, 1);
   assert.equal(result.stats.storyCoverage, 50);
+});
+
+test('validateQaFile measures coverage against the Stories the module PRD defines, not the ones it only mentions', (t) => {
+  const moduleDir = `story-table-fixture-${process.pid}`;
+  const prdDir = path.join(repoRoot, 'docs', 'prd-modules', moduleDir);
+  const qaDir = path.join(repoRoot, 'docs', 'qa-modules', moduleDir);
+  const qaFile = path.join(qaDir, 'QA.md');
+  const qaRelPath = path.posix.join('docs/qa-modules', moduleDir, 'QA.md');
+
+  fs.mkdirSync(prdDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  t.after(() => {
+    fs.rmSync(prdDir, { recursive: true, force: true });
+    fs.rmSync(qaDir, { recursive: true, force: true });
+  });
+
+  // US-USER-001 appears in a banner and in a dependency cell, but this module does not own it.
+  const prd = [
+    '# 订单模块 PRD',
+    '',
+    '> 登录态由 US-USER-001 提供（见用户模块 PRD）。',
+    '',
+    '## 用户故事',
+    '',
+    mdTable(
+      ['Story ID', '用户故事', '优先级', '依赖', '预估工时'],
+      [
+        ['US-STBL-001', '作为用户，我要下单', 'P0', '依赖 US-USER-001', '2d'],
+        ['US-STBL-002', '作为用户，我要查看订单', 'P1', '-', '1d'],
+      ]
+    ),
+    '',
+    '### 原子 AC 清单',
+    '',
+    mdTable(AC_COLUMNS, [
+      acRowCells({ id: 'AC-STBL-001-01', story: 'US-STBL-001', tc: 'TC-STBL-001' }),
+      acRowCells({ id: 'AC-STBL-002-01', story: 'US-STBL-002', priority: 'P1', tc: 'TC-STBL-002' }),
+    ]),
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(prdDir, 'PRD.md'), prd, 'utf8');
+
+  fs.writeFileSync(
+    qaFile,
+    ['# QA', '', '## Coverage', '- US-STBL-001 -> TC-STBL-001', '- US-STBL-002 -> TC-STBL-002'].join('\n'),
+    'utf8'
+  );
+  const full = validateQaFile(qaRelPath);
+
+  assert.deepEqual(full.errors, []);
+  assert.equal(full.stats.storyCount, 2);
+  assert.equal(full.stats.validStoryRefCount, 2);
+  assert.equal(full.stats.storyCoverage, 100, 'a Story the module only mentions must not enlarge the denominator');
+
+  fs.writeFileSync(
+    qaFile,
+    ['# QA', '', '## Coverage', '- US-STBL-001 -> TC-STBL-001'].join('\n'),
+    'utf8'
+  );
+  const partial = validateQaFile(qaRelPath);
+
+  assert.deepEqual(partial.errors, []);
+  assert.equal(partial.stats.validStoryRefCount, 1);
+  assert.equal(partial.stats.storyCoverage, 50, 'one of the two defined Stories is covered');
 });
 
 test('QA verification reads only the selected worktree session state file', (t) => {

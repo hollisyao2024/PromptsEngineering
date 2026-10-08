@@ -828,6 +828,50 @@ test('task exec rejects an implicit full test before creating a log or spawning'
   }
 });
 
+test('task exec runs a command registered as a qa.business suite and still rejects any other', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { worktree: paths.worktree }));
+  // 带运行器名但没有测试文件，不登记时按 unbounded 被拦；node 实际只会忽略多余参数
+  const command = ['node', '-e', '0', 'vitest'];
+  const exec = (name, overrides) => executeTaskCommand({ ...paths, taskId: 'durable-task', name, command, ...overrides });
+
+  assert.throws(() => exec('unregistered'), /TEST_SCOPE_DECISION/u);
+  assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task', 'evidence', 'unregistered.log')), false);
+
+  const result = exec('registered', { registeredCommands: ['node -e 0 vitest'] });
+  assert.equal(result.status, 'OK');
+  assert.equal(result.exitCode, 0);
+  assert.equal(fs.existsSync(result.logPath), true);
+
+  assert.throws(
+    () => exec('other-arguments', { command: ['node', '-e', '1', 'vitest'], registeredCommands: ['node -e 0 vitest'] }),
+    /TEST_SCOPE_DECISION/u,
+  );
+});
+
+test('task exec CLI reads the suites registered in the project config to sanction their commands', (t) => {
+  const suite = { name: 'unit', platform: '-', command: 'node -e 0 vitest', report: 'reports/unit.xml' };
+  const paths = pathsFixture(t, { qa: { business: { enabled: true, suites: [suite] } } });
+  createTask(startInput({
+    ...paths,
+    runsRoot: path.join(paths.root, 'tmp', 'agent-task-runs'),
+    lockDir: path.join(paths.root, 'tmp', 'agent-locks'),
+  }, { worktree: paths.projectRoot }));
+  const cli = path.resolve(__dirname, '../agent-task.js');
+  const exec = (name, ...command) => spawnSync(process.execPath, [cli, 'exec', '--task', 'durable-task', '--name', name, '--', ...command], {
+    cwd: paths.projectRoot, encoding: 'utf8', timeout: 30000,
+  });
+
+  const registered = exec('registered', 'node', '-e', '0', 'vitest');
+  assert.equal(registered.status, 0, registered.stderr);
+  assert.match(registered.stdout, /STATUS=OK/u);
+  assert.match(registered.stdout, /EXIT_CODE=0/u);
+
+  const unregistered = exec('unregistered', 'node', '-e', '1', 'vitest');
+  assert.notEqual(unregistered.status, 0);
+  assert.match(unregistered.stderr, /TEST_SCOPE_DECISION/u);
+});
+
 test('transition refreshes the bounded context without stopping authorized continuation', () => {
   const output = formatTransitionOutput({
     task_id: 'durable-task',

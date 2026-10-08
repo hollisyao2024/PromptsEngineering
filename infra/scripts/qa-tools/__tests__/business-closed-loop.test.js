@@ -53,8 +53,8 @@ const PRD_FILE = 'docs/prd-modules/shop/PRD.md';
 const PATHS_FILE = 'docs/qa-modules/shop/PATHS.md';
 const CONFIG_FILE = 'agent.config.json';
 
-// 回执结构不得变化：键集合固定。
-const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'schema_version', 'verdict', 'verified_at'];
+// 回执在原有键集合之上只追加 business 摘要（业务门禁通过时）；身份字段与 schema_version 不变。
+const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'business', 'head_sha', 'schema_version', 'verdict', 'verified_at'];
 
 // 规模上限（ARCH §6 性能）：500 条 AC、2000 个用例，校验 + 绑定 + 判定不超过 5 秒（不含套件自身耗时）。
 const BUDGET_MS = 5000;
@@ -189,7 +189,11 @@ test('闭环——基线全绿，逐个破坏后门禁变红并给出对应错�
   await t.test('基线：结果由真实 qa run 写在容器 tmp，门禁通过后才签发回执，仓库保持干净', () => {
     const run = runVerify(s);
     assertGreen(s, run);
-    assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), RECEIPT_KEYS);
+    const receipt = readReceiptFile(s);
+    assert.deepEqual(Object.keys(receipt).sort(), RECEIPT_KEYS);
+    assert.equal(receipt.schema_version, 1);
+    assert.equal(receipt.business.gate, 'PASS');
+    assert.deepEqual(receipt.business.required_priorities, ['P0']);
     assert.ok(has(run, /^BUSINESS_RISK=RISK_MANUAL_AC\|.*AC-SHOP-002-01/u), run.text);
     assert.equal(path.relative(s.project.tmp, s.resultsFile).startsWith('..'), false, '结果只能写在容器 tmp 下');
     assert.equal(gitStatus(s), '');

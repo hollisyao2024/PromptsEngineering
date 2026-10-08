@@ -33,7 +33,10 @@ const USAGE = [
   '读取各套件的 JUnit XML 报告，把用例绑定到 PRD 原子 AC / TC / 路径，',
   '并把结果写入容器 tmp 下的 qa-business-results/<工作区标识>/ac-results.json。',
   '配置非法、没有套件、规格违规、仓库无提交或报告路径不安全时 STATUS=BLOCKED，不运行任何套件；',
-  '任一套件未正常完成或存在失败用例时 STATUS=FAILED。qa.business.enabled 只决定 qa verify 是否启用门禁，不影响本命令。',
+  '任一套件未正常完成或存在失败用例时 STATUS=FAILED(REASON=SUITE_FAILED)；套件都正常完成、',
+  '但 requiredPriorities 内的自动化 AC 仍有未证明的（AC_OPEN 非空）时 STATUS=FAILED(REASON=AC_NOT_PROVEN)，',
+  '结果照常写出，退出码非零，判定与 qa verify 的业务门禁一致。',
+  'qa.business.enabled 只决定 qa verify 是否启用门禁，不影响本命令。',
 ].join('\n');
 
 const KILL_POLL_MS = 25;
@@ -294,7 +297,8 @@ const outcomeOf = (fields) => ({
 const blocked = (reason, summary, nextAction, extra = {}) => outcomeOf({ status: 'BLOCKED', reason, summary, nextAction, ...extra });
 const failed = (reason, summary, nextAction, extra = {}) => outcomeOf({ status: 'FAILED', reason, summary, nextAction, ...extra });
 
-// 需要的 AC 里没被证明的那些：判定与 qa verify 的门禁共用 judgeAc，只作提示，不影响 STATUS。
+// 需要的 AC 里没被证明的那些：判定与 qa verify 的门禁共用 judgeAc。
+// 它们既作 AC_OPEN 输出，也决定套件全部正常完成时是否以 AC_NOT_PROVEN 失败。
 function openAcs(results, requiredPriorities) {
   const required = new Set(requiredPriorities);
   const open = [];
@@ -490,18 +494,31 @@ async function runBusinessSuites({
   const warnings = worktreeClean
     ? []
     : ['工作区存在未提交改动，qa verify 会以 RESULTS_DIRTY_WORKTREE 拒绝这份结果；请把报告路径加入 .gitignore，或提交/清理改动后重新执行 pnpm agent -- qa run'];
+  const written = { ...known, results, resultsFile, acOpen: described.acOpen, warnings };
+  // 套件失败的原因优先：它已经说明了为什么有 AC 没被证明，不再叠加第二个原因。
+  if (!described.ok) {
+    return failed(
+      'SUITE_FAILED',
+      described.summary,
+      '按 SUITE 与 AC_OPEN 定位失败原因（套件的原始输出在 stderr），修复并提交后重新执行 pnpm agent -- qa run',
+      written,
+    );
+  }
+  // 套件都正常完成，但必需优先级的自动化 AC 仍没被证明：与 qa verify 同一判定，这里同样不放行，
+  // 否则 STATUS=OK 会让调用方以为业务验收已经过关。结果照常写出，仍可交给 qa verify 复验。
+  if (described.acOpen.length > 0) {
+    return failed(
+      'AC_NOT_PROVEN',
+      `${described.summary}；但有 ${described.acOpen.length} 条必需优先级（${business.requiredPriorities.join('/')}）的自动化 AC 未证明`,
+      '按 AC_OPEN 为未证明的 AC 补写自动化用例（用例名带上 AC-…/TC-… 标识）或修复被跳过的用例，提交后重新执行 pnpm agent -- qa run；确属无法自动化的 AC 须在 PRD 原子 AC 表中标为 manual',
+      written,
+    );
+  }
   return outcomeOf({
-    status: described.ok ? 'OK' : 'FAILED',
-    reason: described.ok ? null : 'SUITE_FAILED',
+    status: 'OK',
     summary: described.summary,
-    nextAction: described.ok
-      ? `结果已绑定 HEAD ${headSha.slice(0, 12)}；若还会提交新改动，须在最终提交后重新执行 pnpm agent -- qa run，再执行 pnpm agent -- qa verify`
-      : '按 SUITE 与 AC_OPEN 定位失败原因（套件的原始输出在 stderr），修复并提交后重新执行 pnpm agent -- qa run',
-    ...known,
-    results,
-    resultsFile,
-    acOpen: described.acOpen,
-    warnings,
+    nextAction: `结果已绑定 HEAD ${headSha.slice(0, 12)}；若还会提交新改动，须在最终提交后重新执行 pnpm agent -- qa run，再执行 pnpm agent -- qa verify`,
+    ...written,
   });
 }
 

@@ -13,6 +13,7 @@ const {
   STORY_ID_SOURCE,
   TEST_CASE_ID_SOURCE,
   exactPattern,
+  extractIds,
 } = require('../shared/governance-ids');
 
 const PRD_MODULES_DIR = 'docs/prd-modules';
@@ -251,6 +252,53 @@ function parseAcTables(content, { file = '' } = {}) {
   return { acs, entries, violations, tables: tables.length, rows };
 }
 
+// ---------------------------------------------------------------- PRD Story 清单
+
+// Story 的登记处是 Story 表：任意表格中第一格恰为 Story ID 的行（PRD 模板 §2.1）。
+// 依赖列、横幅、正文与 AC 表里出现的 ID 只是引用，不算登记；围栏代码块内的表格一律忽略。
+function storyDefinitions(content) {
+  const defined = [];
+  let fence = null;
+  for (const line of content.replace(/^﻿/u, '').split(/\r?\n/u)) {
+    if (fence) {
+      if (closesFence(line, fence)) fence = null;
+      continue;
+    }
+    fence = openingFence(line);
+    if (fence) continue;
+    const cells = splitTableRow(line);
+    if (cells && STORY_ID.test(cells[0])) defined.push(cells[0]);
+  }
+  return defined;
+}
+
+// 出现次数最多的模块标识；并列取先出现者。
+function dominantModule(modules) {
+  const counts = new Map();
+  for (const module of modules) counts.set(module, (counts.get(module) ?? 0) + 1);
+  let best = null;
+  for (const [module, count] of counts) {
+    if (best === null || count > counts.get(best)) best = module;
+  }
+  return best;
+}
+
+// 模块 PRD 自己拥有的 Story，供 QA 文档生成与 qa verify 的覆盖率分母共用。
+// 登记行在前，只出现在 AC 表 Story 列（合法行）的 Story 依次补在其后，全部去重并保持首次出现顺序。
+// 两处都没有时退化为全文中去重后的 Story ID 提及（defined=false），此时无从区分引用与登记。
+// moduleId 是本模块的标识：AC 编号里出现最多的模块，无 AC 时取登记行里最多的模块，退化时为 null。
+function parsePrdStories(content, { file = '' } = {}) {
+  const text = content === undefined || content === null ? '' : String(content);
+  const definitions = [...new Set(storyDefinitions(text))];
+  const { acs } = parseAcTables(text, { file });
+  const stories = [...new Set([...definitions, ...acs.map((ac) => ac.story)])];
+  if (stories.length === 0) {
+    return { stories: [...new Set(extractIds(text, STORY_ID_SOURCE))], defined: false, moduleId: null, acs: [] };
+  }
+  const modules = acs.length > 0 ? acs.map((ac) => ac.module) : definitions.map((story) => story.slice(3, -4));
+  return { stories, defined: true, moduleId: dominantModule(modules), acs };
+}
+
 // ---------------------------------------------------------------- PATHS.md
 
 function parseCriterion(prose, doc, violations, file) {
@@ -470,6 +518,7 @@ module.exports = {
   loadBusinessSpec,
   parseAcTables,
   parsePathsDocument,
+  parsePrdStories,
   splitList,
   splitTableRow,
 };

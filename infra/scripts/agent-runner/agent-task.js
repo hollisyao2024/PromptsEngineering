@@ -1171,7 +1171,7 @@ function executeTaskCommand(options) {
     name: '--max-summary-lines', min: 1, max: 400,
   });
   const state = readTaskState({ runsRoot: options.runsRoot, taskId });
-  assertTestCommandScope(command, state);
+  assertTestCommandScope(command, state, { registeredCommands: options.registeredCommands });
   const taskDir = path.join(options.runsRoot, taskId);
   const evidenceDir = path.join(taskDir, 'evidence');
   ensureRealDirectory(evidenceDir);
@@ -1330,6 +1330,12 @@ function runtimeContext(cwd = process.cwd()) {
   };
 }
 
+// task exec 的测试范围护栏放行与 qa.business.suites 登记一致的命令；业务测试模块只在 exec 时加载，其他子命令不受影响。
+function registeredSuiteCommandsOf(context) {
+  const { registeredSuiteCommands } = require('../qa-tools/business-config');
+  return registeredSuiteCommands(loadConfig({ repoRoot: context.worktree }));
+}
+
 function printHelp() {
   console.log(`Usage:
   node infra/scripts/agent-runner/agent-task.js paths [--task <id>] (read-only; does not evaluate permissions)
@@ -1386,7 +1392,9 @@ function main(argv = process.argv.slice(2)) {
   }
   if (cli.command === 'exec') {
     if (!cli.taskId) throw new Error('exec requires --task <id>');
-    const result = executeTaskCommand({ ...context, ...cli, command: cli.execCommand });
+    const result = executeTaskCommand({
+      ...context, ...cli, command: cli.execCommand, registeredCommands: registeredSuiteCommandsOf(context),
+    });
     console.log(`STATUS=${result.status}`);
     console.log(`TASK_ID=${result.taskId}`);
     console.log(`NAME=${result.name}`);

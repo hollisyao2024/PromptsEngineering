@@ -458,12 +458,17 @@ function evaluate(options) {
   const blocks = [...acceptance.blocks, ...gaps];
   if (blocks.length > 0) return blocked(blocks, { headSha, resultsFile, risks });
 
+  // 放行的判定同时携带回执要记录的业务摘要：必需优先级、已证明的自动化 AC 条数、披露风险数与配置摘要。
   return {
     status: 'PASS',
     blocks: [],
     risks,
     nextAction: null,
     summary: `业务验收通过：${acceptance.checked} 条必需优先级（${[...required].join('/')}）的自动化 AC 全部证明，披露风险 ${risks.length} 项`,
+    requiredPriorities: [...business.requiredPriorities],
+    provenCount: acceptance.checked,
+    riskCount: risks.length,
+    configDigest: business.digest,
     headSha,
     resultsFile,
   };

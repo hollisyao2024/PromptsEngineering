@@ -15,6 +15,7 @@ const {
   getWorktreeRoot,
   loadConfig,
 } = require('../shared/config');
+const { PRIORITIES, parsePrdStories } = require('./business-spec');
 
 const CONFIG = {
   paths: {
@@ -190,26 +191,16 @@ function getChangedFilesForSession() {
   return Array.from(fileSet).sort();
 }
 
+// Story 清单与原子 AC 由 business-spec 解析（Story 表 + AC 表），与 qa verify 的覆盖率分母同源；
+// 两张表都没有的旧式 PRD 退化为去重后的 Story 提及。moduleId 是本模块的标识，用作用例编号前缀。
 function parsePRD(content) {
-  if (!content) return { stories: [], domains: [] };
-
-  const storyIdRegex = /US-([A-Z0-9]+)-(\d+)/g;
-  const stories = [];
-  const domainSet = new Set();
-
-  let match;
-  while ((match = storyIdRegex.exec(content)) !== null) {
-    const domain = match[1];
-    const number = match[2];
-    stories.push({
-      id: `US-${domain}-${number}`,
-      domain,
-      number: parseInt(number, 10),
-    });
-    domainSet.add(domain);
-  }
-
-  return { stories, domains: Array.from(domainSet) };
+  const { stories, moduleId, acs } = parsePrdStories(content);
+  const parsed = stories.map((id) => ({
+    id,
+    domain: id.slice(3, -4),
+    number: parseInt(id.slice(-3), 10),
+  }));
+  return { stories: parsed, domains: [...new Set(parsed.map((story) => story.domain))], acs, moduleId };
 }
 
 function isTemplateRepository(root = process.cwd()) {
@@ -303,6 +294,8 @@ function buildModuleEntries() {
         prdPath,
         qaPath,
         stories: prdData.stories,
+        acs: prdData.acs,
+        moduleId: prdData.moduleId,
       };
     });
 }
@@ -423,9 +416,57 @@ function generateTestCasesTable(stories, prefix = 'GEN') {
   return table;
 }
 
+// 表格单元格里的 | 必须转义，否则一行会多出列；与 business-spec.splitTableRow 的反向转义对称。
+function escapeCell(text) {
+  return String(text).replace(/\|/gu, '\\|');
+}
+
+// 用例编号只取 PRD 原子 AC 表的 TC 列：同一用例可覆盖多条 AC、也可跨 Story，按编号归并并保持首次出现顺序。
+function groupTestCases(acs) {
+  const groups = new Map();
+  for (const ac of acs) {
+    for (const testCaseId of ac.tcs) {
+      if (!groups.has(testCaseId)) groups.set(testCaseId, []);
+      groups.get(testCaseId).push(ac);
+    }
+  }
+  return groups;
+}
+
+function generateAcTestCasesTable(groups) {
+  if (groups.size === 0) return '（PRD 原子 AC 表尚未登记任何测试用例编号，见下节）';
+
+  const rows = [
+    '| 用例 ID | 用例名称 | 关联 Story | 优先级 | 前置条件 | 状态 | 执行人 |',
+    '|---------|---------|-----------|--------|---------|------|--------|',
+  ];
+  for (const [testCaseId, acs] of groups) {
+    const name = `${acs.map((ac) => ac.id).join('、')} 验收`;
+    const stories = [...new Set(acs.map((ac) => ac.story))].join('、');
+    const priority = PRIORITIES.find((candidate) => acs.some((ac) => ac.priority === candidate));
+    rows.push(`| ${testCaseId} | ${name} | ${stories} | ${priority} | ${escapeCell(acs[0].given || '（待补充）')} | 📝 待执行 | TBD |`);
+  }
+  return rows.join('\n');
+}
+
+// TC 列为 - 的 AC，以及原子 AC 表里一条 AC 都没有的 Story，都还没有可执行的用例；列出来而不是替它们编号。
+function generateGapSection(moduleEntry) {
+  const withoutCase = moduleEntry.acs.filter((ac) => ac.tcs.length === 0);
+  const withAc = new Set(moduleEntry.acs.map((ac) => ac.story));
+  const withoutAc = moduleEntry.stories.filter((story) => !withAc.has(story.id));
+  if (withoutCase.length === 0 && withoutAc.length === 0) return '';
+
+  const lines = [
+    ...withoutCase.map((ac) => `- ${ac.id}（${ac.story}，${ac.priority}，${ac.verification}）：PRD 的 TC 列为 \`-\``),
+    ...withoutAc.map((story) => `- ${story.id}：原子 AC 表中没有该 Story 的验收标准`),
+  ];
+  return `### 3.2 尚未登记用例的验收标准\n\n${lines.join('\n')}\n\n`;
+}
+
+// 编号前缀跟随本模块标识，而不是文中最先提到的 Story（横幅或依赖列常先出现别的模块）。
 function toTestCaseDomainTag(moduleEntry) {
-  const firstDomain = moduleEntry.stories[0]?.domain;
-  if (firstDomain) return firstDomain;
+  const tag = moduleEntry.moduleId || moduleEntry.stories[0]?.domain;
+  if (tag) return tag;
 
   return moduleEntry.moduleDir
     .replace(/[^a-zA-Z0-9]/g, '')
@@ -437,6 +478,12 @@ function generateModuleQA(moduleEntry) {
   const today = new Date().toISOString().split('T')[0];
   const moduleTag = toTestCaseDomainTag(moduleEntry);
   const storyCount = moduleEntry.stories.length;
+  // 有原子 AC 表时用例来自 TC 列，数量是确数；否则沿用按 Story 估算并自编序号的旧骨架。
+  const acs = moduleEntry.acs || [];
+  const groups = acs.length > 0 ? groupTestCases(acs) : null;
+  const testCaseCount = groups ? `${groups.size} 条` : `${storyCount * 3} 条（预估）`;
+  const testCases = groups ? generateAcTestCasesTable(groups) : generateTestCasesTable(moduleEntry.stories, moduleTag);
+  const gapSection = groups ? generateGapSection({ stories: moduleEntry.stories, acs }) : '';
   const qaPath = moduleEntry.qaPath || path.posix.join(CONFIG.paths.qaModulesDir, moduleEntry.moduleDir, 'QA.md');
   const linkTo = (target) => path.posix.relative(path.posix.dirname(normalizePath(qaPath)), normalizePath(target));
   const prdLink = linkTo(moduleEntry.prdPath);
@@ -458,7 +505,7 @@ function generateModuleQA(moduleEntry) {
 **测试范围**：${moduleEntry.moduleName}（包含 ${storyCount} 个用户故事）
 
 **测试关键指标**：
-- 测试用例总数：${storyCount * 3} 条（预估）
+- 测试用例总数：${testCaseCount}
 - 测试通过率目标：≥ 95%
 - 需求覆盖率目标：100%
 
@@ -489,9 +536,9 @@ function generateModuleQA(moduleEntry) {
 
 ### 3.1 功能测试用例
 
-${generateTestCasesTable(moduleEntry.stories, moduleTag)}
+${testCases}
 
----
+${gapSection}---
 
 ## 4. 缺陷列表
 （待补充）
@@ -504,7 +551,7 @@ ${generateTestCasesTable(moduleEntry.stories, moduleTag)}
 ---
 
 ## 6. 测试指标
-- **总用例数**：${storyCount * 3} 条（预估）
+- **总用例数**：${testCaseCount}
 - **通过率**：N/A（待执行）
 
 ---
