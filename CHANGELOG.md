@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.10.4] - 2026-10-08
+
 - 验证：v3.8.0 与 v3.8.1 的变更记录写明官方 `@google/design.md` lint 当时没有运行（下载未获授权）。本次经批准下载 `@google/design.md@0.4.0`，对骨架 `docs/data/templates/prd/DESIGN-TEMPLATE.md`（sha256 `ee4b7372…36ebc`，本次未改动）实跑。来源与完整性：npm 发布，发布者 google-wombot，仓库 google-labs-code/design.md，tarball 329,973 B，registry 登记的 sha512 与 sha1 同下载文件一致，包内没有 install 类脚本；只在解压目录里运行，没有装进本仓，也不新增依赖。结果：退出码 0，0 个错误，4 条 `orphaned-tokens` 警告（`foreground`、`destructive`、`border`、`ring`），1 条统计信息（7 个颜色、1 个字号层级、3 个圆角、5 个间距、1 个组件）。v3.8.0、v3.8.1 的两条旧记录是当时的状态，保持原样。
 - 4 条警告为何保留：骨架只有一个示例组件，官方允许的组件子 Token 只有 `backgroundColor`、`textColor`、`typography`、`rounded`、`padding`、`size`、`height`、`width`，没有边框或焦点环属性，写成 `borderColor` 会被当作未知子 Token 而报警告（`border` 虽不再算孤立，警告总数不变）。警告可以消除（实测：另加分隔线、焦点环、正文、危险按钮 4 个示例组件，分别经 `backgroundColor` 或 `textColor` 引用 `border`、`ring`、`foreground`、`destructive`，得到 0 条警告、退出码 0），但这会让边框色和焦点环色以背景色的身份出现，还给骨架添上与示例无关的组件，所以没有改骨架。
 - 负向对照（在骨架副本上逐项改动，退出码均为本次重跑实测）：引用不存在的 Token `{colors.nope}`、非法颜色值 `notacolor`、未闭合的 `oklch(.89 0 0`、非法单位 `6pt`（官方只允许 px、rem、em）各得 1 个错误、退出码 1；调换 `Colors` 与 `Typography` 的章节顺序、末尾追加重复的 `## Colors`、`#fcfcfc` 文字压在 `#ffffff` 背景上（对比度 1.03:1，低于 WCAG AA 的 4.5:1，同时说明去掉前导零的 `oklch(.99 0 0)` 被正确解析），退出码 0，各多 1 条警告（共 5 条）；给示例组件加未知子 Token `borderColor: "{colors.border}"`，退出码 0，报 1 条「不是可识别的组件子 Token」的警告，`border` 因被引用不再算孤立，警告总数仍是 4 条；去掉 front matter 时退出码 0，只有 1 条「没有找到 YAML 内容」的警告。
