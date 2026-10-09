@@ -41,6 +41,7 @@ const defectBlockerCheckers = require('./check-defect-blockers');
 const { checkMergeEvidence, resolveMergeEvidenceConfig } = require('./merge-evidence');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const { exitOnHelp } = require('../shared/cli-help');
+const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
@@ -96,7 +97,7 @@ function runGh(args) {
   const result = spawnSync('gh', args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: process.env,
+    env: buildProxyEnvironment({ env: process.env, cwd: repoRoot, target: 'https://api.github.com/' }),
     stdio: 'pipe',
   });
   return result;

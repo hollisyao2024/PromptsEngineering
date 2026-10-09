@@ -7,6 +7,7 @@
 
 const https = require('https');
 const { spawnSync } = require('child_process');
+const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 
 function isGhAvailable() {
   const result = spawnSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
@@ -23,19 +24,41 @@ function parseGitHubRepoSlug(remoteUrl) {
   };
 }
 
-function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body, userAgent = 'xirang-agent' } = {}) {
+function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body, userAgent = 'xirang-agent', env = process.env, proxyOptions = {} } = {}) {
   return new Promise((resolve, reject) => {
     if (!token) {
-      reject(new Error('GH_TOKEN is required for GitHub REST API'));
+      reject(new Error('GH_TOKEN is required for GitHub API fallback'));
       return;
     }
 
+    const proxyEnv = buildProxyEnvironment({ ...proxyOptions, env, target: 'https://api.github.com/' });
+    const selectedProxy = proxyEnv.https_proxy;
+    if (selectedProxy) {
+      const [major, minor] = process.versions.node.split('.').map(Number);
+      if (!(major > 24 || (major === 24 && minor >= 5) || (major === 22 && minor >= 21))) {
+        reject(new Error('GITHUB_PROXY_UNSUPPORTED_RUNTIME: use Node 24.5+ or 22.21+'));
+        return;
+      }
+      if (!/^https?:\/\//i.test(selectedProxy)) {
+        reject(new Error('GITHUB_PROXY_UNSUPPORTED: API proxy must use an http:// or https:// URL'));
+        return;
+      }
+    }
+    // Scoped agent also works when this process started before proxy discovery.
+    // Never change the global agent used by unrelated application traffic.
+    let agent;
+    try { agent = new https.Agent({ proxyEnv, keepAlive: false }); }
+    catch {
+      reject(new Error('GITHUB_PROXY_INVALID: check proxy configuration'));
+      return;
+    }
     const payload = body === undefined ? '' : JSON.stringify(body);
     const request = https.request(
       {
         hostname: 'api.github.com',
         path: apiPath,
         method,
+        agent,
         headers: {
           Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${token}`,
@@ -52,6 +75,7 @@ function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body,
           raw += chunk;
         });
         response.on('end', () => {
+          agent.destroy();
           let data = null;
           if (raw.trim()) {
             try {
@@ -78,7 +102,16 @@ function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body,
       }
     );
 
-    request.on('error', reject);
+    request.setTimeout(30000, () => request.destroy(new Error('GitHub API request timed out')));
+    const deadline = setTimeout(() => request.destroy(new Error('GitHub API request timed out')), 30000);
+    deadline.unref();
+    request.on('close', () => clearTimeout(deadline));
+    request.on('error', (error) => {
+      agent.destroy();
+      // Do not include proxy URLs (which may contain credentials) in diagnostics.
+      if (selectedProxy) reject(new Error(`GITHUB_PROXY_REQUEST_FAILED: ${error.code || 'connection failed'}; no direct retry`));
+      else reject(error);
+    });
     if (payload) request.write(payload);
     request.end();
   });

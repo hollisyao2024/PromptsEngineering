@@ -12,6 +12,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { getMainRepoRoot, resolveRepoRoot } = require('./config');
 const { resolveCommitIdentity } = require('./github-identity');
+const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 
 const REMOTE_GIT_COMMANDS = new Set(['fetch', 'pull', 'push', 'ls-remote']);
 const GIT_OPTIONS_WITH_VALUES = new Set([
@@ -206,7 +207,11 @@ function buildGitHubGitEnv({
   args = [],
   env = process.env,
   identityLookup,
+  proxyOptions = {},
 } = {}) {
+  if (shouldInjectGitHubAuth({ cwd, args, env })) {
+    env = buildProxyEnvironment({ ...proxyOptions, env, cwd });
+  }
   const token = getProjectGitHubToken({ repoRoot, cwd, env });
   // commit 与注解 tag 在 git 没有身份时，由 GH_TOKEN 所属账号补齐（仅限本次进程环境，不写 git 配置）。
   const gitEnv = resolveCommitIdentity({ args, cwd, env, token, lookup: identityLookup }).env;
@@ -223,7 +228,10 @@ function buildGitHubShellEnv({
   repoRoot = '',
   cwd = process.cwd(),
   env = process.env,
+  proxyOptions = {},
+  discoverProxy = true,
 } = {}) {
+  if (discoverProxy) env = buildProxyEnvironment({ ...proxyOptions, env, cwd });
   const token = getProjectGitHubToken({ repoRoot, cwd, env });
   if (!token) return env;
   const tokenEnv = withProjectGitHubToken(env, token);

@@ -65,6 +65,8 @@ const https = require('node:https');
 const { EventEmitter } = require('node:events');
 https.request = (options, callback) => {
   const request = new EventEmitter();
+  request.setTimeout = () => request;
+  request.destroy = (error) => { if (error) request.emit('error', error); request.emit('close'); };
   request.write = () => {};
   request.end = () => {
     fs.writeFileSync(process.env.STUB_CAPTURE, JSON.stringify({
@@ -80,6 +82,7 @@ https.request = (options, callback) => {
       callback(response);
       response.emit('data', process.env.STUB_BODY);
       response.emit('end');
+      request.emit('close');
     });
   };
   return request;
