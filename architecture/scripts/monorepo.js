@@ -3,12 +3,14 @@ const {json,parseJson,read,readLock}=require('../../tooling/xirang/engine');
 const workspaceModules=['domain','contracts','api-client','query','platform','config','observability',...require('./open-source').moduleIds];
 const dependencies={contracts:['domain'],'api-client':['contracts'],query:['api-client']};
 const packageRoot=p=>p.split('/').slice(0,2).join('/');
+function isPinnedPnpm10Plus(value){const m=/^pnpm@(\d+)\.\d+\.\d+$/.exec(String(value||''));return !!m && Number(m[1])>=10;}
+
 function validateWorkspaceConfig(config,cat) {
   if(config.schemaVersion!==2) {
     if(config.modules.some(m=>cat.modules[m.id].requiresWorkspace))throw new Error('Module requires schemaVersion 2 workspace');
     return;
   }
-  if(!config.workspace || Object.keys(config.workspace).some(k=>k!=='packageManager') || !/^pnpm@10\.\d+\.\d+$/.test(config.workspace.packageManager))throw new Error('v2 workspace requires pinned pnpm@10.x.y');
+  if(!config.workspace || Object.keys(config.workspace).some(k=>k!=='packageManager') || !isPinnedPnpm10Plus(config.workspace.packageManager))throw new Error('v2 workspace requires pinned pnpm@10+ (pnpm@<major>.<minor>.<patch>, major >= 10)');
   if(config.blueprint && (Object.keys(config.blueprint).some(k=>!['id','version'].includes(k)) || !cat.blueprints[config.blueprint.id] || typeof config.blueprint.version!=='string'))throw new Error('Invalid blueprint metadata');
   const names=new Set();
   for(const item of [...config.applications.filter(a=>a.stack!=='go'),...config.modules.filter(m=>workspaceModules.includes(m.id)),...config.datastores.map(d=>({id:d.access?'database-'+d.id:'db-'+d.id}))]) {

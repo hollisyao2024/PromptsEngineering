@@ -1,6 +1,6 @@
 # 模块 PRD 填充示例（用户管理域）
 
-> 本文为 `/docs/prd-modules/MODULE-TEMPLATE.md` Appendix A 的填充示例，以"用户管理"模块为例，展示各章节的实际内容。仅供参考，实际项目请按 MODULE-TEMPLATE.md 中的模板骨架创建。
+> 本文为 `/docs/prd-modules/MODULE-TEMPLATE.md` Appendix A 的填充示例，以"用户管理"模块为例，展示各章节的实际内容；本示例章节编号为示例自身顺序，原子 AC 清单对应模板的 §3.2。仅供参考，实际项目请按 MODULE-TEMPLATE.md 中的模板骨架创建。
 
 ---
 

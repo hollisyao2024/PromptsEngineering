@@ -95,7 +95,7 @@ test('unified agent CLI routes tdd commit to the GH_TOKEN-identity commit entry 
   } finally {
     console.log = originalLog;
   }
-  assert.match(lines.join('\n'), /tdd <sync\|push\|commit\|finish\|guard>/u);
+  assert.match(lines.join('\n'), /tdd <sync\|push\|commit\|review-gate\|finish\|guard>/u);
 });
 
 test('unified agent CLI routes qa paths and qa run to the business-test entries and lists them in help', () => {
@@ -150,4 +150,32 @@ test('unified agent CLI fails when the routed script is killed by a signal', () 
   const { exitCodeFor } = require('../agent-cli');
   assert.equal(exitCodeFor({ status: null, signal: 'SIGKILL' }), 128 + os.constants.signals.SIGKILL);
   assert.equal(exitCodeFor({ status: 2, signal: null }), 2);
+});
+
+// /tdd review-gate was documented in the tdd-tools README but had no unified-CLI route, so `pnpm agent -- tdd
+// review-gate` was rejected as an unknown command.
+test('unified agent CLI routes tdd review-gate to the review gate entry', () => {
+  assert.deepEqual(resolveCommand(['tdd', 'review-gate', '--base', 'main', '--record', 'required']), {
+    script: 'infra/scripts/tdd-tools/tdd-review-gate.js',
+    args: ['--base', 'main', '--record', 'required'],
+  });
+});
+
+// `pnpm agent -- architecture check` in a project that never pulled the architecture package used to crash with a
+// MODULE_NOT_FOUND stack. The CLI checks the routed script first and names the command that installs it.
+test('unified agent CLI blocks with a next action when the routed script is not installed', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const cwd = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'xirang-cli-missing-'));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  const result = spawnSync(process.execPath, [path.resolve(__dirname, '../agent-cli.js'), 'architecture', 'check'], {
+    cwd, encoding: 'utf8', stdio: 'pipe',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /^STATUS=BLOCKED$/mu);
+  assert.match(result.stderr, /^REASON=.*architecture\/scripts\/cli\.js.*not installed/mu);
+  assert.match(result.stderr, /^NEXT_ACTION=pnpm agent -- template sync --include architecture$/mu);
+  assert.doesNotMatch(result.stderr, /MODULE_NOT_FOUND|at Module\._/u);
 });

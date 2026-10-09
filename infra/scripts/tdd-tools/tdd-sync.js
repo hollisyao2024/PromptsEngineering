@@ -5,6 +5,7 @@ const { loadConfig, resolveRepoRoot } = require('../shared/config');
 const { spawnExitCode } = require('../shared/spawn-exit');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { resolveMigrationRegistryConfig } = require('./check-migration-registry');
+const { buildGitHubGitEnv } = require('../shared/github-auth');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -146,6 +147,72 @@ function runMigrationRegistryCheck(config, options = {}) {
   return false;
 }
 
+// ── Base Sync Gate ──────────────────────────────────────────────────────────
+// /tdd sync 在文档门禁之前把 origin/<base> 合并进当前功能分支：远端 base 前进后，qa verify 会以 STALE_QA_BASE 阻断，
+// 而这件事执行器本可以在本地解决。冲突时中止合并并给出稳定错误码，不把半合并状态留给后续门禁。
+const BASE_SYNC_NEXT_ACTION = {
+  BASE_FETCH_FAILED: '检查网络、GH_TOKEN 与 origin 远端后重跑 pnpm agent -- tdd sync',
+};
+
+function baseSyncError(code, message, nextAction) {
+  const error = new Error(message);
+  error.code = code;
+  error.nextAction = nextAction || BASE_SYNC_NEXT_ACTION[code];
+  return error;
+}
+
+function defaultRunGit(args, cwd) {
+  return spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    env: buildGitHubGitEnv({ repoRoot: cwd, cwd, args, env: process.env }),
+  });
+}
+
+function syncWithBase({ repoRoot: cwd, baseBranch, runGit }) {
+  const base = String(baseBranch || '').trim();
+  if (!base) throw baseSyncError('BASE_BRANCH_MISSING', 'config.baseBranch is empty', '在 agent.config.json 设置 baseBranch 后重跑 pnpm agent -- tdd sync');
+  const git = (args) => {
+    const result = runGit ? runGit(args) : defaultRunGit(args, cwd);
+    if (result.error) throw result.error;
+    return { status: result.status, stdout: String(result.stdout || ''), stderr: String(result.stderr || '') };
+  };
+  const baseRef = `origin/${base}`;
+
+  if (git(['remote', 'get-url', 'origin']).status !== 0) {
+    return { status: 'SKIPPED', baseRef, baseSha: '', merged: false, reason: 'origin remote is not configured' };
+  }
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+  if (branch === base) {
+    return { status: 'SKIPPED', baseRef, baseSha: '', merged: false, reason: `already on base branch ${base}` };
+  }
+
+  const fetched = git(['fetch', '--prune', 'origin', base]);
+  if (fetched.status !== 0) {
+    throw baseSyncError('BASE_FETCH_FAILED', `git fetch origin ${base} failed (exit ${fetched.status}): ${(fetched.stderr || fetched.stdout).trim()}`);
+  }
+  const verified = git(['rev-parse', '--verify', `${baseRef}^{commit}`]);
+  if (verified.status !== 0) {
+    throw baseSyncError('BASE_FETCH_FAILED', `${baseRef} is not resolvable after fetch: ${(verified.stderr || verified.stdout).trim()}`);
+  }
+  const baseSha = verified.stdout.trim();
+
+  if (git(['merge-base', '--is-ancestor', baseRef, 'HEAD']).status === 0) {
+    return { status: 'OK', baseRef, baseSha, merged: false };
+  }
+  const merged = git(['merge', '--no-edit', baseRef]);
+  if (merged.status !== 0) {
+    git(['merge', '--abort']);
+    throw baseSyncError(
+      'BASE_MERGE_CONFLICT',
+      `git merge --no-edit ${baseRef} failed (exit ${merged.status}): ${`${merged.stdout}\n${merged.stderr}`.trim()}`,
+      `在当前 worktree 手动执行 git merge --no-edit ${baseRef}，解决冲突并提交后重跑 pnpm agent -- tdd sync`,
+    );
+  }
+  return { status: 'OK', baseRef, baseSha, merged: true };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (isHelp(argv)) {
@@ -156,8 +223,15 @@ function main() {
   const scope = parseScope(argv);
 
   const config = loadConfig({ repoRoot });
+  try {
+    const baseSync = syncWithBase({ repoRoot, baseBranch: config.baseBranch || 'main' });
+    console.log(`BASE_SYNC=${baseSync.status}${baseSync.baseSha ? `  BASE_REF=${baseSync.baseRef}  BASE_SHA=${baseSync.baseSha}  MERGED=${baseSync.merged}` : `  REASON=${baseSync.reason}`}`);
+  } catch (error) {
+    console.error(`STATUS=BLOCKED\nREASON=${error.code || 'BASE_SYNC_FAILED'}\nSUMMARY=${error.message}\nNEXT_ACTION=${error.nextAction || '修复后重跑 pnpm agent -- tdd sync'}`);
+    process.exit(1);
+  }
   try { require('../shared/architecture-check').runArchitectureCheck(repoRoot); }
-  catch (error) { console.error(`STATUS=BLOCKED\nREASON=${error.message}`); process.exit(1); }
+  catch (error) { console.error(`STATUS=BLOCKED\nREASON=${error.message}${error.nextAction ? `\nNEXT_ACTION=${error.nextAction}` : ''}`); process.exit(1); }
   if (!runMigrationRegistryCheck(config)) {
     console.error('❌ /tdd sync 失败：Migration Registry Gate 未通过');
     process.exit(1);
@@ -214,4 +288,5 @@ module.exports = {
   resolveProjectChecks,
   runMigrationRegistryCheck,
   runProjectChecks,
+  syncWithBase,
 };

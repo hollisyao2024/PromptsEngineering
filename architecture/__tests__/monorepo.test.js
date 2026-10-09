@@ -72,3 +72,16 @@ test('minimal workspace and provider-specific install scripts remain valid',t=>{
   const workspace=pg.entries.find(e=>e.path==='pnpm-workspace.yaml');
   assert.ok(!workspace.after?.includes('better-sqlite3'));
 });
+test('v2 workspace accepts any pinned pnpm 10 or newer and still rejects older majors and npm',t=>{
+  const f=fixture(t);
+  for(const pm of ['pnpm@10.18.3','pnpm@11.0.0','pnpm@12.4.1']) {
+    const config=project.expandBlueprint('admin-api',{source});
+    config.workspace.packageManager=pm;
+    assert.doesNotThrow(()=>project.validateConfig(config,{source,target:f.target}),pm);
+  }
+  for(const pm of ['pnpm@9.15.0','pnpm@10','pnpm@latest','npm@11.0.0']) {
+    const config=project.expandBlueprint('admin-api',{source});
+    config.workspace.packageManager=pm;
+    assert.throws(()=>project.validateConfig(config,{source,target:f.target}),/pnpm/,pm);
+  }
+});

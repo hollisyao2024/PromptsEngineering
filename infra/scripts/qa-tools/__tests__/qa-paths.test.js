@@ -377,3 +377,37 @@ test('CLI 在没有原子 AC 表的仓库 STATUS=BLOCKED 并给出 NO_ATOMIC_AC'
     project.cleanup();
   }
 });
+
+// A domain whose PRD has auto ACs but no docs/qa-modules/<domain>/PATHS.md used to pass qa paths silently: there was
+// no document to check, so no violation. The missing document is itself the violation.
+test('有 auto AC 但缺少 PATHS.md 的域报 PATHS_MISSING', () => {
+  const project = createProject({ [PRD_FILE]: prdDocument() }, { git: true });
+  try {
+    const analysis = analyzeSpec({ repoRoot: project.repo });
+    assert.equal(analysis.status, 'BLOCKED');
+    assert.deepEqual(codes(analysis), ['PATHS_MISSING']);
+    const [violation] = analysis.violations;
+    assert.equal(violation.file, PATHS_FILE);
+    assert.equal(violation.line, 0);
+    assert.match(violation.message, /shop/);
+    assert.equal(formatViolation(violation), `VIOLATION=PATHS_MISSING|${PATHS_FILE}|${violation.message}`);
+    const cli = runCli(project);
+    assert.equal(cli.status, 1);
+    assert.match(cli.stdout, /^VIOLATION=PATHS_MISSING\|/mu);
+  } finally {
+    project.cleanup();
+  }
+});
+
+test('只有 manual AC 的域不要求 PATHS.md', () => {
+  const project = createProject({
+    [PRD_FILE]: prdDocument([{ id: 'AC-SHOP-002-01', story: 'US-SHOP-002', verification: 'manual', tc: '-' }]),
+  });
+  try {
+    const analysis = analyzeSpec({ repoRoot: project.repo });
+    assert.equal(analysis.status, 'OK');
+    assert.deepEqual(codes(analysis), []);
+  } finally {
+    project.cleanup();
+  }
+});

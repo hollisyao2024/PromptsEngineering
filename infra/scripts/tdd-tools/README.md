@@ -65,6 +65,7 @@ pnpm run tdd:tick
 - `tdd:sync` 默认是 `session` 作用域：仅处理当前会话涉及模块（主 `TASK.md` + 对应域的模块 TASK + `module-list.md`）。
 - `tdd:sync -- --project` 或 `tdd:tick` 为全项目作用域：遍历 `docs/TASK.md` 与 `docs/task-modules/**/*.md`。
 - 输出未找到的任务 ID 以阻断缺失勾选。
+- `pnpm agent -- tdd sync` 在文档门禁之前先执行 Base Sync Gate：`git fetch --prune origin <base>` 后，若 `origin/<base>` 不是当前 HEAD 的祖先则 `git merge --no-edit origin/<base>`，输出 `BASE_SYNC=OK|SKIPPED  BASE_REF=  BASE_SHA=  MERGED=true|false`（在主干上或无 origin 时 `SKIPPED` 并给 `REASON=`）。fetch 失败为 `REASON=BASE_FETCH_FAILED`，合并冲突会 `merge --abort` 并以 `REASON=BASE_MERGE_CONFLICT` 阻断，`NEXT_ACTION` 指向手动合并；这样 `qa verify` 不再因远端主干前进而报 `STALE_QA_BASE`。
 
 **Tip**：脚本还会根据任务名称生成标准化变种，尽量匹配表格/列表中的描述，避免手工漏勾。
 
@@ -75,7 +76,8 @@ pnpm run tdd:tick
 ```bash
 pnpm run tdd:push [bump|vX.Y.Z] [release-note]
 pnpm run tdd:push -- --project [bump|vX.Y.Z] [release-note]
-pnpm run tdd:review-gate -- --base main
+pnpm agent -- tdd review-gate [--base <ref>] [--json]
+pnpm agent -- tdd review-gate --record required|optional --reason "<结论>" [--task <id>]
 ```
 
 **执行流程：**
@@ -83,6 +85,7 @@ pnpm run tdd:review-gate -- --base main
 - `tdd:push -- --project` 为显式项目模式，仍只针对当前分支执行：
   - 若工作树存在未提交改动，自动执行 `git add -A`，并基于当前分支名生成 commit message 后提交到当前分支。
   - 先执行 `tdd:review-gate`，输出 `Review-Class` 与 `Reason`。
+  - `tdd review-gate --record <required|optional> --reason <text>` 把模型侧语义审查结论作为 `REVIEW_DECISION=<json>`（含 `head_sha`、`base_ref`）追加到当前任务未完成步骤的 evidence，输出 `REVIEW_RECORDED=<task>/<step>`；`--task` 未给时按当前 worktree 自动选择任务。随后的 `tdd push` 读取最近一条记录，在 PR 描述的 Review Gate 段追加 `Model-Review: <decision>（<reason>）`，没有记录时不写该行。
   - 通过脚本内认证执行当前分支 push / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。优先使用 gh CLI；gh 不可用时用 `.env.local` 的 `GH_TOKEN` 走 GitHub API。两者都不可用或 PR 创建失败时输出 `STATUS=BLOCKED` 并非零退出，修复后重跑 `tdd push`（已有 PR 时同步 Review Gate，并刷新标记内的概要与变更内容）。
   - 自动提交信息与 PR 标题由分支前缀推导 Conventional 类型（`feature/`→`feat`、`fix/`、`docs/`、`refactor/` 等），去掉末尾 8 位日期。
   - PR「概要」取分支提交正文中的 `-`/`*` 要点，「变更内容」列出短 SHA 与提交标题，二者包在 `<!-- xirang:auto-summary:start/end -->` 标记内；起始标记带生成内容摘要（`digest=`），再次 `tdd push` 仅在标记内容未被修改时按当前提交刷新，人工改过的概要保持原样并提示；标记外的手写章节保持不变。要重新自动生成，删除起始标记里的 `digest=…`；要彻底手工接管，删除这两行标记。早期无标记的自动正文（3.7.13 及更早：概要只有 PR 标题一行；3.7.14：概要取提交要点、变更内容列 sha7）只要与按当前分支提交重建的内容逐字一致，就会在下次推送时升级为带标记的格式；被修改过、或所列提交已不在分支上（如 rebase 后）的正文不改动。工作区自动提交的正文逐条列出改动文件（最多 20 条），使概要不再只有提交标题。`qa merge` 用「概要」作为 squash 提交正文。
@@ -122,7 +125,7 @@ pnpm agent -- tdd commit [git commit 选项...]
 | `tdd-tick.js` | ✅ 实现 | 基于分支名自动勾选 TASK 文档中的复选项 |
 | `tdd-push.js` | ✅ 实现 | push + 自动创建 PR + 输出 review gate 判定 |
 | `tdd-commit.js` | ✅ 实现 | 提交已暂存改动；git 无身份时作者与提交者取自 `GH_TOKEN` 所属账号，不写 git 配置 |
-| `tdd-review-gate.js` | ✅ 实现 | 按差异风险判定 `required / optional-skipped / skipped` |
+| `tdd-review-gate.js` | ✅ 实现 | 按差异风险判定 `required / optional-skipped / skipped`；`--record` 把模型审查结论写入任务 evidence，供 `tdd push` 写入 PR `Model-Review` |
 
 ---
 

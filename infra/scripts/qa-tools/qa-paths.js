@@ -10,6 +10,7 @@ const { oneLine } = require('../shared/result-block');
 const {
   AC_TABLE_HEADER,
   PRD_MODULES_DIR,
+  QA_MODULES_DIR,
   compareText,
   compareViolations,
   loadBusinessSpec,
@@ -187,6 +188,19 @@ function analyzeSpec({ repoRoot }) {
       file: PRD_MODULES_DIR,
       line: 0,
       message: `未找到任何原子 AC：${PRD_MODULES_DIR}/<域>/ 下的 Markdown 须包含表头为「${AC_TABLE_HEADER.join(' | ')}」的表格`,
+    });
+  }
+
+  // 有 auto AC 的域必须有路径模型；只有 manual AC 的域不要求 PATHS.md。缺文档本身就是违规，而不是"无文档可检查"。
+  const domainsWithPaths = new Set(spec.pathsDocs.map((doc) => doc.domain));
+  const autoDomains = [...new Set(spec.acs.filter((ac) => ac.verification === 'auto').map((ac) => ac.domain))];
+  for (const domain of autoDomains.sort(compareText)) {
+    if (domainsWithPaths.has(domain)) continue;
+    violations.push({
+      code: 'PATHS_MISSING',
+      file: `${QA_MODULES_DIR}/${domain}/PATHS.md`,
+      line: 0,
+      message: `域 ${domain} 含 auto AC 但缺少 ${QA_MODULES_DIR}/${domain}/PATHS.md 路径模型`,
     });
   }
 
