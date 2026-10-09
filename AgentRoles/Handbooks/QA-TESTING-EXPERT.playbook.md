@@ -380,7 +380,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 
 套件命令退出码非零但报告有效时，以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`，不直接阻断；启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
 
-套件命令较长时，可用 `pnpm agent -- task exec --task <id> --name <名> -- <命令>` 把输出落成任务证据：与 `qa.business.suites[].command` 登记原文逐词相同的命令不受聚合测试护栏拦截；加了包装器、改了参数，或登记命令含引号、变量、管道、通配符的，仍按原规则处理（定向文件、或事先记录 `mode=full` 的 `TEST_SCOPE_DECISION`）。
+套件命令较长时，可用 `pnpm agent -- task exec --task <id> --name <名> -- <命令>` 把输出落成任务证据：与 `qa.business.suites[].command` 登记原文逐词相同的命令不受聚合测试护栏拦截；加了包装器、改了参数，或登记命令含引号、变量、管道、通配符的，仍按原规则处理（定向文件、或事先记录 `mode=full` 的 `TEST_SCOPE_DECISION`）。`pnpm agent -- test --file <文件> -- <命令>` 对同一批登记命令同样放行，并把文件追加到命令末尾。`task exec` 输出的 `LOG_PATH`/`LOG_SHA256` 可直接写进 `TEST_SCOPE_RESULT.checks[].evidence`（形如 `evidence/<名>.log sha256=<hex>`），`qa verify` 会核对该文件存在且摘要一致。
 
 ### 阻断码与风险码速查
 
@@ -431,6 +431,23 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」（`qa run` 以 `FAILED(REASON=AC_NOT_PROVEN)` 提前给出同一判定） | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
 | `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径及其状态 | 补写或修复覆盖该路径的用例使其通过，或修正 PATHS.md 的路径、关联 TC 与覆盖准则，再运行 `qa run` |
 | `GATE_ERROR` | 业务验收门禁自身出错 | 带着错误信息排查后重新运行 `pnpm agent -- qa verify` |
+
+##### 流程阻断码（结果块 `REASON=`）
+
+`qa verify` 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=`；上表的业务门禁码出现在 `BUSINESS_BLOCK=` 行，结果块的 `REASON=` 则是下面的流程码。`BLOCKED` 表示前置条件未满足、按 `NEXT_ACTION` 补齐后重跑即可；`FAILED` 表示命令本身没有跑完，先按 `tool_error` 留痕再决定是否重试，不改写命令或更换入口。
+
+| 代码 | 状态 | 含义 | 处理 |
+|------|------|------|------|
+| `QA_BRANCH_REQUIRED` | BLOCKED | 当前不在任务功能分支（在配置主干或分离 HEAD） | 在任务功能分支的 worktree 中重跑 `pnpm agent -- qa verify` |
+| `STALE_QA_BASE` | BLOCKED | 功能分支落后于远端配置主干 | 在当前 worktree 执行 `git merge --no-edit origin/<base>`，重跑受影响测试并追加 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，再 `pnpm agent -- tdd push` 与 `qa verify` |
+| `HEAD_NOT_PUSHED` | BLOCKED | 本地 HEAD 与远端功能分支不一致 | `pnpm agent -- tdd push` 后重跑 `qa verify` |
+| `TEST_SCOPE_EVIDENCE` | BLOCKED | 当前 mutation 任务缺少或不合法的 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，包括 evidence 引用的任务日志缺失或 SHA256 不符 | 在任务 checkpoint 中补录决策与绑定当前 HEAD 的结果后重跑 `qa verify` |
+| `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误（Go/Conditional/No-Go 判定为 No-Go） | 修复上方列出的错误后重跑 `qa verify` |
+| `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
+| `QA_FETCH_FAILED` | FAILED | 签发回执前的 `git fetch --prune` 连续 2 次失败（同一命令只重试一次） | 核实网络、代理与 `GH_TOKEN` 后重试；按 `tool_error` 留痕 |
+| `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
+
+`qa plan` 的结果块同形，`REASON=` 取 `PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`（逐项 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`，补齐或移除对应 `docs/arch-modules/<domain>/ARCH.md`、`docs/task-modules/<domain>/TASK.md`）或 `UNEXPECTED_ERROR`。
 
 #### 风险披露码
 
@@ -550,6 +567,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] NFR 验收在模块 `nfr-tracking.md` 中有最新状态
 - [ ] 全局矩阵（strategy/priority/risk）反映当前覆盖/优先级/风险
 - [ ] 启用 `qa.business` 时：`pnpm agent -- qa paths` 输出 `STATUS=OK`；`pnpm agent -- qa run` 在最后一次提交之后运行；`qa verify` 的业务验收门禁通过，`BUSINESS_RISK=` 披露项已在评审中处理
+- [ ] `qa verify` 结尾 `STATUS=OK` 且已输出 `QA_RECEIPT=`；出现 `BLOCKED`/`FAILED` 时按 `REASON=` 与 `NEXT_ACTION=` 处理，不带着非 OK 结果进入 `qa merge`
 
 ### 发布评估
 - [ ] 发布建议已明确（Go / Conditional / No-Go）

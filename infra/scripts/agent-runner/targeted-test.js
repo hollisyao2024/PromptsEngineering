@@ -4,6 +4,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { loadConfig } = require('../shared/config');
+const { isRegisteredSuiteCommand } = require('./test-command-scope');
+
+// 与 task exec 同一口径：qa.business.suites 里逐词一致的登记命令视为项目已审定的套件入口，
+// 不再套用聚合命令拦截与运行器白名单；文件校验与追加文件参数的行为保持不变。
+function isRegisteredSuite(runner, cwd) {
+  const { registeredSuiteCommands } = require('../qa-tools/business-config');
+  return isRegisteredSuiteCommand(runner, registeredSuiteCommands(loadConfig({ repoRoot: cwd })));
+}
 
 function parseTargetedTest(argv, cwd = process.cwd()) {
   if (argv[0] !== '--file' || !argv[1]) {
@@ -31,6 +40,7 @@ function parseTargetedTest(argv, cwd = process.cwd()) {
     throw new Error('test requires an existing test file');
   }
   const runner = argv.slice(separator + 1);
+  if (isRegisteredSuite(runner, cwd)) return { runner, file, registered: true };
   const executable = path.basename(runner[0]).replace(/\.cmd$/iu, '').toLowerCase();
   const first = runner[1] || '';
   if (['sh', 'bash', 'zsh', 'cmd', 'powershell'].includes(executable)

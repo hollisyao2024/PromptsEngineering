@@ -15,6 +15,7 @@ const {
   getWorktreeRoot,
   loadConfig,
 } = require('../shared/config');
+const { resultBlockLines, resultExitCode } = require('../shared/result-block');
 const { PRIORITIES, parsePrdStories } = require('./business-spec');
 
 const CONFIG = {
@@ -784,13 +785,30 @@ function runProjectPlan(moduleEntries, dryRun) {
   return touched;
 }
 
+// qa plan ends with the parsable block from docs/CONVENTIONS.md §7: BLOCKED carries a stable reason code the
+// operator can act on (missing PRD, module-set mismatch, …); FAILED is reserved for unexpected errors.
+const TEMPLATE_SOURCE_OUTCOME = {
+  status: 'OK',
+  summary: '模板源仓库跳过业务 QA 文档生成',
+  nextAction: '执行 pnpm agent -- qa verify',
+};
+
+function blocked(reason, summary, nextAction) {
+  return { status: 'BLOCKED', reason, summary, nextAction };
+}
+
+function printResultBlock(outcome) {
+  const color = outcome.status === 'OK' ? 'green' : outcome.status === 'BLOCKED' ? 'yellow' : 'red';
+  for (const line of resultBlockLines(outcome)) log(line, color);
+}
+
 function main() {
   const cli = parseCliArgs(process.argv.slice(2));
 
   const config = loadConfig({ repoRoot: getWorktreeRoot() });
   if (config.template && config.template.role === 'source') {
     log('ℹ️ 模板源仓库跳过业务 QA 文档生成。', 'yellow');
-    return;
+    return TEMPLATE_SOURCE_OUTCOME;
   }
 
   log('='.repeat(60), 'cyan');
@@ -799,7 +817,7 @@ function main() {
 
   if (isTemplateRepository()) {
     log('模板源仓库：跳过业务 PRD/QA 计划门禁。', 'yellow');
-    process.exit(0);
+    return TEMPLATE_SOURCE_OUTCOME;
   }
 
   log('📖 读取输入文件...', 'cyan');
@@ -809,7 +827,7 @@ function main() {
 
   if (!prdContent) {
     log('❌ PRD 文档不存在，请先完成 docs/PRD.md', 'red');
-    process.exit(1);
+    return blocked('PRD_MISSING', `PRD 总纲 ${CONFIG.paths.prd} 不存在，未生成 QA 文档`, `先完成 ${CONFIG.paths.prd} 与 docs/prd-modules/<domain>/PRD.md，再执行 pnpm agent -- qa plan`);
   }
 
   const rootPrdData = parsePRD(prdContent);
@@ -829,18 +847,30 @@ function main() {
 
   if (moduleEntries.length === 0) {
     log('❌ 未找到任何模块（docs/prd-modules/*/PRD.md）；模块化结构是强制要求', 'red');
-    process.exit(1);
+    return blocked('NO_MODULES', '未找到任何模块（docs/prd-modules/*/PRD.md），模块化结构是强制要求', '按 docs/prd-modules/<domain>/PRD.md 建立至少一个功能域后重跑 pnpm agent -- qa plan');
   }
-  validateModuleEntriesForGeneration(moduleEntries);
+  try {
+    validateModuleEntriesForGeneration(moduleEntries);
+  } catch (error) {
+    log(`❌ ${error.message}`, 'red');
+    return blocked('MODULE_STORIES_EMPTY', error.message, '补全上述模块 PRD 的 Story/AC 段落后重跑 pnpm agent -- qa plan');
+  }
 
   const alignment = validateUpstreamModuleAlignment(
     moduleEntries,
     listDirsWithRequiredFile(CONFIG.paths.archModulesDir, 'ARCH.md'),
     listDirsWithRequiredFile(CONFIG.paths.taskModulesDir, 'TASK.md')
   );
-  if (Object.values(alignment).some((entries) => entries.length > 0)) {
+  const mismatches = Object.entries(alignment)
+    .flatMap(([kind, modules]) => modules.map((module) => `${kind}|${module}`));
+  if (mismatches.length > 0) {
     log(`❌ PRD/ARCH/TASK 模块集合不一致：${JSON.stringify(alignment)}`, 'red');
-    process.exit(1);
+    for (const entry of mismatches) log(`MODULE_SET_MISMATCH=${entry}`, 'red');
+    return blocked(
+      'MODULE_SET_MISMATCH',
+      `PRD/ARCH/TASK 模块集合不一致（${mismatches.length} 项，见 MODULE_SET_MISMATCH 行；missingArch/missingTask 为 PRD 有而对应目录缺少，extraArch/extraTask 为目录多出）`,
+      '补齐或移除对应 docs/arch-modules/<domain>/ARCH.md 与 docs/task-modules/<domain>/TASK.md，使三者模块集合一致后重跑 pnpm agent -- qa plan',
+    );
   }
 
   if (cli.dryRun) {
@@ -889,18 +919,31 @@ function main() {
     log('📄 本次未产生文档改动。', 'yellow');
   }
 
-  process.exit(0);
+  return {
+    status: 'OK',
+    summary: `QA 计划生成完成（scope=${cli.scope}${cli.dryRun ? ' dry-run' : ''}，回写 ${touched.length} 个文件）`,
+    nextAction: cli.dryRun ? '确认预览后不带 --dry-run 重跑 pnpm agent -- qa plan' : '执行 pnpm agent -- qa verify',
+  };
 }
 
 if (require.main === module) {
   exitOnHelp('Usage: pnpm agent -- qa plan [--project | --scope <session|project>] [--module <name>] [--dry-run]\n\nGenerate the QA plan for the current branch.');
+  let outcome;
   try {
-    main();
+    outcome = main();
   } catch (error) {
     log(`\n❌ 执行出错: ${error.message}`, 'red');
     console.error(error);
-    process.exit(1);
+    outcome = {
+      status: 'FAILED',
+      reason: 'UNEXPECTED_ERROR',
+      summary: `qa plan 执行出错：${error.message}`,
+      nextAction: '查看 stderr 中的堆栈，修复后重跑 pnpm agent -- qa plan',
+    };
   }
+  log('');
+  printResultBlock(outcome);
+  process.exit(resultExitCode(outcome.status));
 }
 
 module.exports = {

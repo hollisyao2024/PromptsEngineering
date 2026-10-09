@@ -118,6 +118,18 @@ test('merge-json creates a missing file with sorted keys', t => {
   install(f, [asset(JSON.stringify({ b: 1, a: { d: 1, c: 2 } }), 'merge-json', 'package.json')]);
   assert.equal(f.get('package.json'), '{\n  "a": {\n    "c": 2,\n    "d": 1\n  },\n  "b": 1\n}\n');
 });
+// A project that deleted a merge-json file keeps it deleted while upstream is unchanged: the merge must not write
+// the literal text "undefined" as the file's content.
+test('merge-json leaves a project-deleted file absent while upstream is unchanged; repeat converges', t => {
+  const f = fixture(t), next = asset(JSON.stringify({ a: 1 }), 'merge-json', 'package.json');
+  install(f, [next]);
+  fs.rmSync(path.join(f.target, 'package.json'));
+  const p = install(f, [next]);
+  assert.equal(p.conflicts.length, 0);
+  assert.equal(p.entries[0].after, null);
+  assert.equal(fs.existsSync(path.join(f.target, 'package.json')), false);
+  assert.equal(planUpdate({ target: f.target, assets: [next] }).changes.length, 0);
+});
 test('merge-json never reorders order-significant keys inside project values', t => {
   const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
   install(f, [a({ marker: 1 })]);

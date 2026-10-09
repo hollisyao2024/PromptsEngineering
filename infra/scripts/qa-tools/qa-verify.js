@@ -34,6 +34,7 @@ const { verifyTestScopeEvidence } = require('./qa-test-scope');
 const { verifyBusinessAcceptance } = require('./qa-business-gate');
 const { parsePrdStories } = require('./business-spec');
 const { exitOnHelp } = require('../shared/cli-help');
+const { resultBlockLines, resultExitCode } = require('../shared/result-block');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
@@ -158,6 +159,82 @@ function runGit(args, { allowFailure = false, cwd = repoRoot } = {}) {
   return result.stdout || '';
 }
 
+// The receipt fetch is the only network step in qa verify. A transient failure (proxy reset, DNS hiccup) gets one
+// bounded retry of the identical command; the second failure propagates with code QA_FETCH_FAILED so the caller
+// reports it as a tool_error instead of a stale base, and nothing else is retried.
+const QA_FETCH_ATTEMPTS = 2;
+
+function codedError(code, message, cause) {
+  const error = new Error(message);
+  error.code = code;
+  if (cause) error.cause = cause;
+  return error;
+}
+
+function fetchWithBoundedRetry(_runGit, args, attempts = QA_FETCH_ATTEMPTS) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return _runGit(args);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw codedError('QA_FETCH_FAILED', `git fetch failed after ${attempts} attempts: ${lastError.message}`, lastError);
+}
+
+// qa verify ends with the parsable block from docs/CONVENTIONS.md §7. Gate failures the operator can act on are
+// BLOCKED with a stable reason code and the matching next action; a failed tool (network) or an unexpected error is
+// FAILED so the caller records a tool_error instead of treating it as a stale base.
+const QA_VERIFY_BLOCKED_NEXT_ACTION = {
+  STALE_QA_BASE: '在当前 worktree 执行 git merge --no-edit origin/<base>，重跑受影响测试并追加 TEST_SCOPE_DECISION/RESULT，再执行 pnpm agent -- tdd push 与 pnpm agent -- qa verify',
+  HEAD_NOT_PUSHED: '执行 pnpm agent -- tdd push 推送当前 HEAD 后重跑 pnpm agent -- qa verify',
+  QA_BRANCH_REQUIRED: '在任务功能分支的 worktree 中重跑 pnpm agent -- qa verify',
+  TEST_SCOPE_EVIDENCE: '在当前 mutation 任务 checkpoint 中补录 TEST_SCOPE_DECISION 与绑定当前 HEAD 的 TEST_SCOPE_RESULT 后重跑 pnpm agent -- qa verify',
+  QA_VERDICT_NO_GO: '修复上方列出的 QA 文档错误后重跑 pnpm agent -- qa verify',
+  BUSINESS_GATE_BLOCKED: '按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
+};
+const QA_VERIFY_FAILED_NEXT_ACTION = {
+  QA_FETCH_FAILED: '核实网络、代理与 GH_TOKEN 后重试 pnpm agent -- qa verify；按 tool_error 留痕，不改写命令或更换入口',
+};
+
+function describeQaVerifyOutcome({ error, exitCode = 0, failureReason, receipt, receiptPath } = {}) {
+  if (error) {
+    const code = error.code;
+    if (QA_VERIFY_BLOCKED_NEXT_ACTION[code]) {
+      return { status: 'BLOCKED', reason: code, summary: error.message, nextAction: QA_VERIFY_BLOCKED_NEXT_ACTION[code] };
+    }
+    if (QA_VERIFY_FAILED_NEXT_ACTION[code]) {
+      return { status: 'FAILED', reason: code, summary: error.message, nextAction: QA_VERIFY_FAILED_NEXT_ACTION[code] };
+    }
+    return {
+      status: 'FAILED',
+      reason: 'UNEXPECTED_ERROR',
+      summary: `qa verify 执行失败：${error.message}`,
+      nextAction: '查看 stderr 中的堆栈，修复后重跑 pnpm agent -- qa verify',
+    };
+  }
+  if (exitCode !== 0) {
+    const reason = failureReason || 'QA_VERDICT_NO_GO';
+    return {
+      status: 'BLOCKED',
+      reason,
+      summary: reason === 'BUSINESS_GATE_BLOCKED' ? '业务验收门禁未通过，回执未签发' : 'QA 验收检查存在错误，回执未签发',
+      nextAction: QA_VERIFY_BLOCKED_NEXT_ACTION[reason] || QA_VERIFY_BLOCKED_NEXT_ACTION.QA_VERDICT_NO_GO,
+    };
+  }
+  return {
+    status: 'OK',
+    summary: `QA 验收通过并签发回执 ${receiptPath}（BASE_SHA=${receipt.base_sha} HEAD_SHA=${receipt.head_sha}）`,
+    nextAction: '执行 pnpm agent -- qa merge',
+  };
+}
+
+function printResultBlock(outcome) {
+  const color = outcome.status === 'OK' ? 'green' : outcome.status === 'BLOCKED' ? 'yellow' : 'red';
+  for (const line of resultBlockLines(outcome)) log(line, color);
+}
+
 function captureQaVerificationIdentity({
   config = loadConfig({ repoRoot }),
   runGit: _runGit = runGit,
@@ -165,12 +242,12 @@ function captureQaVerificationIdentity({
 } = {}) {
   const baseBranch = config.baseBranch || 'main';
   const branch = _runGit(['branch', '--show-current']).trim();
-  if (!branch) throw new Error('QA verification requires an attached feature branch.');
+  if (!branch) throw codedError('QA_BRANCH_REQUIRED', 'QA verification requires an attached feature branch.');
   if (branch === baseBranch) {
-    throw new Error(`QA verification must run on a feature branch, not configured base ${baseBranch}.`);
+    throw codedError('QA_BRANCH_REQUIRED', `QA verification must run on a feature branch, not configured base ${baseBranch}.`);
   }
 
-  _runGit([
+  fetchWithBoundedRetry(_runGit, [
     'fetch', '--prune', 'origin',
     `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
     `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
@@ -185,7 +262,8 @@ function captureQaVerificationIdentity({
   const localHeadSha = _runGit(['rev-parse', '--verify', 'HEAD^{commit}']).trim().toLowerCase();
 
   if (localHeadSha !== remoteHeadSha) {
-    throw new Error(
+    throw codedError(
+      'HEAD_NOT_PUSHED',
       `local HEAD ${localHeadSha || '<missing>'} does not match origin/${branch} ` +
       `${remoteHeadSha || '<missing>'}; push the exact branch and rerun qa verify.`,
     );
@@ -659,46 +737,54 @@ function main() {
   } else {
     exitCode = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
   }
+  if (exitCode !== 0) return describeQaVerifyOutcome({ exitCode, failureReason: 'QA_VERDICT_NO_GO' });
 
-  if (exitCode === 0) {
-    const receipt = captureQaVerificationIdentity({ config });
-    if (!templateSource) {
-      const taskContext = runtimeContext(repoRoot);
-      const scope = verifyTestScopeEvidence({
+  const receipt = captureQaVerificationIdentity({ config });
+  if (!templateSource) {
+    const taskContext = runtimeContext(repoRoot);
+    let scope;
+    try {
+      scope = verifyTestScopeEvidence({
         states: listTaskStates({ runsRoot: taskContext.runsRoot }),
         context: taskContext,
         headSha: receipt.head_sha,
+        runsRoot: taskContext.runsRoot,
       });
-      if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
-      else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
-      const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
-      if (!gate.passed) exitCode = 1;
-      else if (gate.business) receipt.business = gate.business;
+    } catch (error) {
+      if (!error.code) error.code = 'TEST_SCOPE_EVIDENCE';
+      throw error;
     }
-    if (exitCode === 0) {
-      const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
-      log(`QA_RECEIPT=${receiptPath}`, 'green');
-      log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
-      log(`BASE_SHA=${receipt.base_sha}`, 'gray');
-      log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
-    }
+    if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
+    else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
+    const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
+    if (!gate.passed) return describeQaVerifyOutcome({ exitCode: 1, failureReason: 'BUSINESS_GATE_BLOCKED' });
+    if (gate.business) receipt.business = gate.business;
   }
-  process.exit(exitCode);
+  const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
+  log(`QA_RECEIPT=${receiptPath}`, 'green');
+  log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
+  log(`BASE_SHA=${receipt.base_sha}`, 'gray');
+  log(`HEAD_SHA=${receipt.head_sha}`, 'gray');
+  return describeQaVerifyOutcome({ exitCode: 0, receipt, receiptPath });
 }
 
 if (require.main === module) {
   exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name>]\n\nRun QA verification and write the local base/head SHA receipt.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.');
+  let outcome;
   try {
-    main();
+    outcome = main();
   } catch (error) {
-    log(`\n❌ 执行失败: ${error.message}`, 'red');
-    console.error(error);
-    process.exit(1);
+    outcome = describeQaVerifyOutcome({ error });
+    if (outcome.status === 'FAILED') console.error(error);
   }
+  log('');
+  printResultBlock(outcome);
+  process.exit(resultExitCode(outcome.status));
 }
 
 module.exports = {
   captureQaVerificationIdentity,
+  describeQaVerifyOutcome,
   isTemplateRepository,
   createPnpmRunInvocation,
   parseArgs,

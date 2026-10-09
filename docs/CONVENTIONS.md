@@ -246,7 +246,7 @@ pnpm agent -- qa run
 
 执行回归前在当前 mutation 任务的 step evidence 记录单行 `TEST_SCOPE_DECISION=<JSON>`：`version:1`、`mode:targeted|full|static`、非空 `impact_paths`、非空 `commands`、`not_run` 数组与非空 `reason`；影响路径中说明消费者与覆盖边界。full 还须记录 `full_trigger`（`explicit_requirement|whole_scope_impact|unbounded_after_investigation|cross_domain_failure`）及非空 `trigger_evidence`，对应上段四类触发。静态/文档任务使用 static，明确业务测试未运行的理由，并列出适用静态、链接或模板契约命令。执行后记录单行 `TEST_SCOPE_RESULT=<JSON>`：`version:1`、当前交付 `head_sha`、`environment`、`dependencies`，以及与决策命令逐项对应的 `checks`（`command`、`exit_code:0`、非空 `evidence` 引用）。提交前运行的测试须先确认受测内容与当前提交一致（可用受测文件摘要核对），再绑定 HEAD。`qa verify` 对实际项目在签发回执前校验这些字段与 HEAD；旧任务可在 QA 前补录，模板源走既有门禁。结构校验不代替 QA 对范围、日志与证据真实性的判断。
 
-确认测试运行器支持所用过滤参数，不能把命令成功当作选中了目标用例。`commands.test` 默认 `pnpm agent -- test`，无目标会在启动运行器前失败；定向调用示例：`pnpm agent -- test --file tests/unit.test.js -- pnpm exec vitest run`。`task exec` 在启动前拦截常见聚合测试命令，只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行。项目自有 `pnpm test` 脚本和 `agent.config.json` 覆盖不会被模板同步改写，执行器不能把它们当作安全的定向入口；明确需要全量时使用项目显式全量入口。通用入口不表示每次交付都要执行；项目 `tdd.projectChecks` / `qa.projectChecks` 的适用硬门禁仍须完成，不得临时改成空命令或忽略失败来缩小范围。
+确认测试运行器支持所用过滤参数，不能把命令成功当作选中了目标用例。`commands.test` 默认 `pnpm agent -- test`，无目标会在启动运行器前失败；定向调用示例：`pnpm agent -- test --file tests/unit.test.js -- pnpm exec vitest run`。`task exec` 在启动前拦截常见聚合测试命令，只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行，与 `qa.business.suites` 已登记命令逐词一致的命令直接放行。项目自有 `pnpm test` 脚本和 `agent.config.json` 覆盖不会被模板同步改写，执行器不能把它们当作安全的定向入口；明确需要全量时使用项目显式全量入口。通用入口不表示每次交付都要执行；项目 `tdd.projectChecks` / `qa.projectChecks` 的适用硬门禁仍须完成，不得临时改成空命令或忽略失败来缩小范围。
 
 QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测试范围、命令、退出码、依赖/配置和环境。上述条件未变且证据完整时，不因阶段切换重复执行；有变更、失败、证据缺失或时效要求时，补跑受影响范围。新增 QA 测试仍须实际执行。测试证据复用不替代 `qa verify` 的本机 base/head 回执及合并前 SHA 复验。
 

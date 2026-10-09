@@ -40,6 +40,7 @@ pnpm run qa:generate -- --project
 - 也支持通过环境变量传入：`QA_SESSION_MODULES=pro-create,quick-create pnpm run qa:generate`。
 - 模块 PRD 含原子 AC 表（见第 7 节）时，模块 QA 按该表生成：Story 清单取自 PRD 的 Story 定义表与 AC 表的 Story 列，只含本模块自己的 Story，横幅、依赖列等处提到的他模块 Story 不计入；测试用例表按 AC 表 `TC` 列登记的真实编号逐条生成，一个 TC 对应多条 AC 时合并为一行（关联 Story 去重，优先级取其中最高者，前置条件取第一条 AC 的 Given），编号前缀取 AC 表里的模块标识，不再臆造顺序编号；`TC` 列为 `-` 的 AC 与没有 AC 的 Story 列入「3.2 尚未登记用例的验收标准」，用例总数是 AC 表里不同 TC 的精确条数。`qa verify` 的 Story 覆盖率分母与此同源。
 - 既没有 Story 定义表也没有 AC 表的旧式 PRD 沿用旧骨架（顺序编号、至多 10 行、`（预估）`），但 Story 先按编号去重，`US-MODEL-CONFIG-001` 这类多段或带数字的模块标识也能解析。
+- 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=` 三行，非 OK 时另给 `REASON=<code>`：`PRD_MISSING`（PRD 总纲不存在）、`NO_MODULES`（没有可生成的模块）、`MODULE_STORIES_EMPTY`（模块 PRD 没有 Story）、`MODULE_SET_MISMATCH`（PRD/ARCH/TASK 模块集合不一致，逐项输出 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`）均为 `BLOCKED`；未预期异常为 `FAILED`、`REASON=UNEXPECTED_ERROR` 并把堆栈写到 stderr。模板源直接 `STATUS=OK`。
 
 ### 1. `/qa verify` 验收检查（推荐第二步）
 
@@ -62,6 +63,8 @@ pnpm run qa:verify -- --project --write-reports
 - 若会话状态文件不存在，再回退到当前工作区 QA 改动 / 会话推断。
 - `project` 模式会复用 `qa:lint`、`qa:sync-prd-qa-ids`、`qa:coverage-report`、`qa:check-defect-blockers`。
 - `project` 默认只校验不写 `qa-reports`，显式传 `--write-reports` 才会输出报告文件。
+- 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=<code>`；既有的 `QA_RECEIPT=`、`BASE_BRANCH=`、`BASE_SHA=`、`HEAD_SHA=` 行保留。`BLOCKED` 代码：`QA_BRANCH_REQUIRED`（不在任务功能分支）、`STALE_QA_BASE`（功能分支落后配置主干）、`HEAD_NOT_PUSHED`（本地 HEAD 与远端分支不一致）、`TEST_SCOPE_EVIDENCE`（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT` 缺失或不合法）、`QA_VERDICT_NO_GO`（QA 文档检查有错误）、`BUSINESS_GATE_BLOCKED`（业务验收门禁未通过）。`FAILED` 代码：`QA_FETCH_FAILED`（签发回执前的 `git fetch --prune` 失败；同一命令至多重试一次、共 2 次，仍失败即停止且不签发回执）、`UNEXPECTED_ERROR`（堆栈写到 stderr）。每个代码的 `NEXT_ACTION` 见 Playbook §qa verify 阻断码。
+- `TEST_SCOPE_RESULT.checks[].evidence` 写成 `evidence/<name>.log sha256=<hex>`（即 `task exec` 输出的 `LOG_PATH`/`LOG_SHA256`）时，`qa verify` 会核对当前任务 `evidence/` 目录下该文件存在且 SHA256 一致，缺失或不符按 `TEST_SCOPE_EVIDENCE` 阻断；其他写法只做结构校验，旧任务记录不受影响。
 
 ### 2. QA 文档完整性检查
 检查 QA 文档的章节完整性、Test Case ID 格式、缺陷 ID 规范、Given-When-Then 格式。
@@ -573,7 +576,7 @@ pnpm agent -- qa run
 - `qa run` 逐个套件运行命令（在仓库根目录经 shell 执行），读取各套件的 JUnit XML；测试名须携带 AC/TC 标识才能绑定到原子 AC。结果写入容器 `tmp/qa-business-results/<工作区标识>/ac-results.json`，绑定当前 HEAD、配置摘要与报告 SHA256，并输出 `SUITE=` 行与 `RESULTS_FILE=`。该命令不受 `qa.business.enabled` 影响。
 - `qa run` 的 `STATUS=OK` 表示套件都正常完成，且 `requiredPriorities` 内的 `auto` AC 全部有通过的用例。套件失败时 `STATUS=FAILED`、`REASON=SUITE_FAILED`；套件都正常完成、但必需优先级的 `auto` AC 仍有未证明的（缺用例、用例被跳过、声明的端没有套件覆盖），逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，并以 `STATUS=FAILED`、`REASON=AC_NOT_PROVEN`、非零退出码结束。两种 FAILED 都照常写出结果文件（`SUITE_FAILED` 优先，不叠加第二个原因）；判定与 `qa verify` 的业务验收门禁共用同一函数，所以 `qa run` 通过的结果在验收一项上不会被 `qa verify` 推翻。`STATUS=BLOCKED` 仍表示运行前就被拒绝（配置非法、没有套件、规格违规、仓库无提交、报告路径不安全），此时没有运行任何套件、也没有写结果。
 - `qa verify` 的业务验收门禁放行并签发回执时，回执附带一个可选的 `business` 摘要：`gate`（固定为 `PASS`）、`required_priorities`、`acs_proven`（本次必需优先级内已证明的自动化 AC 条数）、`risk_count`（披露的 `BUSINESS_RISK=` 项数）与 `config_digest`（套件配置摘要）。门禁未启用时回执不带该字段；`schema_version` 仍为 1，`qa merge` 的复验只比对 `schema_version`、`verdict`、base/branch、两端 SHA 与 PR 引用，不读取 `business`，新旧回执互相兼容。
-- `task exec` 的测试范围护栏拦截 `pnpm exec playwright test` 这类无目标文件的聚合命令（见 `docs/CONVENTIONS.md` §8）。登记在 `qa.business.suites[].command` 的命令例外：与登记原文逐词相同时放行，便于把 `qa run` 将要运行的同一条套件命令也落成任务证据。登记命令里含引号、变量、管道、重定向、通配符等需要 shell 解释的词时不参与匹配；加了包装器（`sh -c …`）或改了任何参数的变体、`qa.business` 配置无效时，都按原规则拦截。
+- `task exec` 的测试范围护栏拦截 `pnpm exec playwright test` 这类无目标文件的聚合命令（见 `docs/CONVENTIONS.md` §8）。登记在 `qa.business.suites[].command` 的命令例外：与登记原文逐词相同时放行，便于把 `qa run` 将要运行的同一条套件命令也落成任务证据。登记命令里含引号、变量、管道、重定向、通配符等需要 shell 解释的词时不参与匹配；加了包装器（`sh -c …`）或改了任何参数的变体、`qa.business` 配置无效时，都按原规则拦截。`pnpm agent -- test --file <文件> -- <运行器>` 对同一批登记命令同样放行：只校验文件，并把文件原样追加到命令末尾，所以登记的套件命令须能接受末尾的文件参数；未登记命令仍只接受既有的文件级运行器。
 - 须在最后一次提交之后运行，且工作区干净：报告、截图等驱动产物请加入 `.gitignore`，否则门禁报 `RESULTS_DIRTY_WORKTREE`；运行之后再提交则报 `RESULTS_STALE_HEAD`。
 - `qa.business.enabled=true`（默认 `false`）时，`qa verify` 在测试范围校验之后、签发回执之前运行业务验收门禁：输出 `BUSINESS_GATE=PASS|BLOCKED`，阻断项为 `BUSINESS_BLOCK=`，风险项为 `BUSINESS_RISK=`；阻断时不签发回执。官方息壤源自身不启用该门禁。
 
@@ -654,6 +657,8 @@ pnpm agent -- qa merge
 ```
 
 `qa verify` 通过后会在当前电脑原子写入绑定配置主干、功能分支、`BASE_SHA` 和 `HEAD_SHA` 的回执（启用业务验收门禁时另带一个 `business` 摘要，仅作审计记录，见第 7 节）。`qa merge` 会重新 fetch，并把回执与 PR base/head refs、远端引用逐项复验；任一 SHA 漂移、冲突或主干非快进拒绝都会停止合并并保留恢复状态。回执不跨电脑共享：换电脑合并时，在该电脑重新执行 `qa verify` 即可，不需要专用 QA 电脑或账号。
+
+`qa plan` 与 `qa verify` 都以 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=` 三行结束，非 OK 时另给 `REASON=<code>`，退出码非零；执行器按 `NEXT_ACTION` 行动即可，不必从堆栈推断原因，代码清单见上文第 0、1 节与 Playbook §qa verify 阻断码。
 
 启用 `qa.business` 的项目在 `qa verify` 之前依次运行 `pnpm agent -- qa paths` 与 `pnpm agent -- qa run`（见上文第 7 节）；业务验收门禁同样只在本机运行，结果不跨电脑共享，换电脑后须重新 `qa run`。
 

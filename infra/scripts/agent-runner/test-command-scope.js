@@ -88,4 +88,4 @@ function assertTestCommandScope(command, state, options) {
   throw new Error(`${explanation}; use pnpm agent -- test --file <file> -- <runner>, or record a matching TEST_SCOPE_DECISION with mode=full before task exec (a command registered under qa.business.suites is accepted when typed verbatim)`);
 }
 
-module.exports = { assertTestCommandScope, commandRisk };
+module.exports = { assertTestCommandScope, commandRisk, isRegisteredSuiteCommand };

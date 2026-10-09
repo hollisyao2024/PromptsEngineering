@@ -169,7 +169,10 @@ function decide(asset, local, base, record, adopt) {
   if (asset.strategy === 'merge-json') {
     const localValue = local === null ? undefined : parseJson(local, asset.path), upstreamValue = parseJson(upstream, asset.path);
     if (adopt && base === undefined) return jsonLike(adoptJson(localValue, upstreamValue), localValue);
-    return jsonLike(mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), localValue, upstreamValue), localValue);
+    const merged = mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), localValue, upstreamValue);
+    // The project deleted the file and upstream did not change it: keep it deleted instead of writing "undefined".
+    if (merged === undefined) return null;
+    return jsonLike(merged, localValue);
   }
   if (local === upstream) return local;
   if (base === undefined) {

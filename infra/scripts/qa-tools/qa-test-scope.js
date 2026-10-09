@@ -1,7 +1,14 @@
 'use strict';
 
+const crypto = require('node:crypto');
+const fs = require('node:fs');
 const path = require('node:path');
 const { orderedStepEvidence } = require('../shared/task-evidence');
+
+// A check's evidence may cite a task evidence log as `evidence/<name>.log sha256=<hex>` (what `task exec` records).
+// When the caller knows the task runs root, that citation must resolve to an existing file with the same digest, so
+// a result cannot point at a log that was never written or has been replaced since.
+const EVIDENCE_LOG_REFERENCE = /evidence\/([a-z0-9][a-z0-9._-]*\.log) sha256=([0-9a-f]{64})/u;
 
 const MODES = new Set(['targeted', 'full', 'static']);
 const FULL_TRIGGERS = new Set([
@@ -58,7 +65,21 @@ function validateDecision(value) {
   return value;
 }
 
-function validateResult(value, decision, headSha) {
+function verifyEvidenceLogReference(evidence, { runsRoot, taskId }) {
+  const match = EVIDENCE_LOG_REFERENCE.exec(evidence);
+  if (!match || !runsRoot) return;
+  const [, fileName, expected] = match;
+  const file = path.join(runsRoot, taskId, 'evidence', fileName);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    throw new Error(`TEST_SCOPE_RESULT evidence file is missing: ${path.join(taskId, 'evidence', fileName)}`);
+  }
+  const actual = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`TEST_SCOPE_RESULT evidence sha256 mismatch for ${path.join(taskId, 'evidence', fileName)}: recorded ${expected}, actual ${actual}`);
+  }
+}
+
+function validateResult(value, decision, headSha, evidenceContext = {}) {
   if (value.version !== 1 || !/^[0-9a-f]{40}$/.test(value.head_sha || '')) {
     throw new Error('TEST_SCOPE_RESULT requires version=1 and a commit head_sha');
   }
@@ -77,6 +98,7 @@ function validateResult(value, decision, headSha) {
       throw new Error('TEST_SCOPE_RESULT checks require command, exit_code=0 and evidence');
     }
     if (checks.has(check.command)) throw new Error('TEST_SCOPE_RESULT checks contain duplicate commands');
+    verifyEvidenceLogReference(check.evidence, evidenceContext);
     checks.set(check.command, check);
   }
   if (decision.commands.some((command) => !checks.has(command))) {
@@ -84,7 +106,7 @@ function validateResult(value, decision, headSha) {
   }
 }
 
-function verifyTestScopeEvidence({ states, context, headSha, templateSource = false }) {
+function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateSource = false }) {
   if (templateSource) return { skipped: true };
   const matches = states.filter((state) => state.status === 'running'
     && samePath(state.project_root, context.projectRoot)
@@ -103,7 +125,7 @@ function verifyTestScopeEvidence({ states, context, headSha, templateSource = fa
     typeof item === 'string' && item.startsWith('TEST_SCOPE_RESULT=')
   ));
   if (!resultRaw) throw new Error('TEST_SCOPE_RESULT is missing after the latest decision');
-  validateResult(parseRecord(resultRaw, 'TEST_SCOPE_RESULT='), decision, headSha);
+  validateResult(parseRecord(resultRaw, 'TEST_SCOPE_RESULT='), decision, headSha, { runsRoot, taskId: task.task_id });
   return { taskId: task.task_id, mode: decision.mode, commands: decision.commands };
 }
 

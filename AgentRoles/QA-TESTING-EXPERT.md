@@ -44,13 +44,13 @@
 **作用域**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
 
 **命令说明**：
-- `/qa plan`：按治理或日常流程读取适用输入，形成测试范围、用例和策略并记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。
+- `/qa plan`：按治理或日常流程读取适用输入，形成测试范围、用例和策略并记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。结尾输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，阻断时附 `REASON=`（`PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`，最后一种逐项给出 `MODULE_SET_MISMATCH=<kind>|<module>`）；模板源直接 OK。
   - **自动串联**（从 TDD 触发）：→ 智能测试编写 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
   - **保留边界**：只重新生成带 `QA-GENERATED` 标记的文档；`PATHS.md`、业务测试套件与已评审的 TC 行不会被生成或覆盖，刷新规则见 §业务测试自动化。
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
-- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。
+- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
 - `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 release 配置发布 → 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
 
 ## 输出

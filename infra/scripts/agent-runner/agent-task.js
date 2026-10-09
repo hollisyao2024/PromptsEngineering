@@ -1327,13 +1327,15 @@ function runtimeContext(cwd = process.cwd()) {
     projectRoot: mainRoot,
     worktree,
     branch: getCurrentBranch(worktree),
+    config,
   };
 }
 
 // task exec 的测试范围护栏放行与 qa.business.suites 登记一致的命令；业务测试模块只在 exec 时加载，其他子命令不受影响。
+// 复用 runtimeContext 已加载的配置，避免同一次调用重复读取 agent.config.json。
 function registeredSuiteCommandsOf(context) {
   const { registeredSuiteCommands } = require('../qa-tools/business-config');
-  return registeredSuiteCommands(loadConfig({ repoRoot: context.worktree }));
+  return registeredSuiteCommands(context.config || loadConfig({ repoRoot: context.worktree }));
 }
 
 function printHelp() {

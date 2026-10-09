@@ -604,7 +604,8 @@ test('conventions section 8 states each test-scope rule once and keeps the rules
 
   // 全量入口段不再重复触发依据的记录要求，放行条件仍由 task exec 一句承担。
   assert.doesNotMatch(section, /按上段记录触发依据/u);
-  assert.match(section, /只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行/u);
+  assert.match(section, /只有事先记录了匹配命令和触发依据的 `mode=full` 决策才放行，与 `qa\.business\.suites` 已登记命令逐词一致的命令直接放行。/u);
+  assert.equal(occurrences('已登记命令逐词一致'), 1);
   assert.match(section, /明确需要全量时使用项目显式全量入口/u);
 
   // 压缩只合并重复，邻近的规则本身必须原样保留。

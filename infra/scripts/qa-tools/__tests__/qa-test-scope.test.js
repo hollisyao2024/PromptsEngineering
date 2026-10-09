@@ -2,6 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { verifyTestScopeEvidence } = require('../qa-test-scope');
 
 const HEAD = 'a'.repeat(40);
@@ -135,6 +139,32 @@ test('QA rejects an old result before a new decision across steps', () => {
   const task = backflowState();
   task.evidence_order.reverse();
   assert.throws(() => verify([task]), /missing after the latest decision/);
+});
+
+function evidenceLogFixture(t, content = 'ok\n') {
+  const runsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-test-scope-'));
+  t.after(() => fs.rmSync(runsRoot, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(runsRoot, 'change', 'evidence'), { recursive: true });
+  fs.writeFileSync(path.join(runsRoot, 'change', 'evidence', 'qa.log'), content);
+  const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+  return { runsRoot, sha256 };
+}
+
+function withEvidence(evidence) {
+  return [
+    `TEST_SCOPE_DECISION=${JSON.stringify(decision())}`,
+    `TEST_SCOPE_RESULT=${JSON.stringify(result({ checks: [{ command: 'node --test qa-test-scope.test.js', exit_code: 0, evidence }] }))}`,
+  ];
+}
+
+test('evidence log references with sha256 must point at an existing, matching task evidence file', (t) => {
+  const { runsRoot, sha256 } = evidenceLogFixture(t);
+  assert.equal(verify([state(withEvidence(`task exec evidence/qa.log sha256=${sha256}`))], { runsRoot }).taskId, 'change');
+  assert.throws(() => verify([state(withEvidence(`evidence/qa.log sha256=${'0'.repeat(64)}`))], { runsRoot }), /sha256/);
+  assert.throws(() => verify([state(withEvidence(`evidence/missing.log sha256=${sha256}`))], { runsRoot }), /evidence file/);
+  // Evidence without a log reference is still accepted; without runsRoot the reference is not checked (legacy callers).
+  assert.equal(verify([state(withEvidence('task evidence/qa-test-scope.log'))], { runsRoot }).taskId, 'change');
+  assert.equal(verify([state(withEvidence(`evidence/missing.log sha256=${sha256}`))]).taskId, 'change');
 });
 
 test('QA fails closed on missing, duplicate and invalid evidence references', () => {
