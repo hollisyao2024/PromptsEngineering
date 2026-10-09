@@ -114,6 +114,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 3. 脚本检查：QA 文档完整性、覆盖率、缺陷阻塞情况
 4. 生成质量指标（通过率、覆盖率、缺陷密度）
 5. 输出发布建议：Go / Conditional / No-Go
+6. `qa verify` 的架构门禁可能在 stderr 输出 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，即 `DESIGN.md` 与 `styles.css` 的漂移告警（ADR-040）。告警不阻断，也不改变回执签发；执行器在验收结论中把告警原样报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
 
 ### 第四步：合并发布（/qa merge）
 1. 前置：verify 为 Go

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.9] - 2026-10-10
+
+- 修复 `DESIGN.md` 漂移检查跟随符号链接的问题：根 `DESIGN.md` 改经 `safePath` 解析，是符号链接时不跟随、不读取，以 `DESIGN_DRIFT_INVALID_DESIGN` 告警，检查不抛错，门禁结果不变；文件不存在或项目没有 shadcn 应用时仍静默跳过。TDD 与 QA 手册补充说明：`tdd sync`、`qa verify` 在 stderr 输出的 `ARCHITECTURE_WARNING=<name>|<code>|<reason>` 不阻断，执行器把告警报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
+
 ## [v3.11.8] - 2026-10-09
 
 - 新增 `DESIGN.md` 与 `styles.css` 的漂移检查（ADR-040）：shadcn 应用的 `architecture check` 按实际生效取值比较颜色、圆角和正文字体族，只告警不阻断；`tdd sync` 与 `qa verify` 的架构门禁把告警输出为 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，通过条件不变。

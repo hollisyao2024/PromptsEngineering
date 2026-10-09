@@ -20,7 +20,7 @@ ADR-037 已经给出设计输入：只覆盖 shadcn 技术栈，只比较归一�
    - `DESIGN_DRIFT_COLOR`、`DESIGN_DRIFT_RADIUS`、`DESIGN_DRIFT_FONT_FAMILY`：取值不一致。
    - `DESIGN_DRIFT_TOKEN_MISSING`：`DESIGN.md` 声明了取值，样式表里没有对应变量或 `body` 字体族。
    - `DESIGN_DRIFT_UNSUPPORTED_VALUE`：任一侧的写法不支持或无法解析，例如 `color-mix()`、`em`、未定义的变量。
-   - `DESIGN_DRIFT_INVALID_DESIGN`：front matter 没有闭合、不是合法 YAML 或不是映射。
+   - `DESIGN_DRIFT_INVALID_DESIGN`：front matter 没有闭合、不是合法 YAML 或不是映射；根 `DESIGN.md` 无法读取，或被 `safePath` 拒绝（例如是符号链接，不跟随也不读取）。
    - `DESIGN_DRIFT_STYLES_MISSING`：应用的 `styles.css` 不存在。
    - `DESIGN_DRIFT_CHECK_ERROR`：意外异常；检查本身从不抛错。
 6. 没有根 `DESIGN.md`、文件首行不是 `---`，或项目没有 shadcn 应用时，检查不执行，也不登记 `design:` 项，与 ADR-037 的触发条件一致。

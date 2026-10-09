@@ -23,6 +23,7 @@
 - 采用架构包的项目另读 `docs/standards/ui.md` 取得控件与 DataTable 约束；需要源规范时从架构命令输出的 `ARCHITECTURE_SOURCE_ROOT` 下读取 `architecture/standards/ui.md`。
 - 没有 `DESIGN.md` 时回退 UX 规范 §5 与 `styles.css`，不为实现方便自行新增取值。
 - 实现与 `DESIGN.md` 的偏差先回溯其 Components 与 Do's and Don'ts；仍无法判断时回到 PRD 澄清，不在代码里自行裁定。
+- `tdd sync` 的架构门禁发现 `DESIGN.md` 与 `styles.css` 不一致时，在 stderr 输出 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`（ADR-040）。告警不阻断，门禁结果不变。执行器把告警原样报告给用户，不为消除告警自行修改项目的 `DESIGN.md` 或 `styles.css`；本任务本来就在调整这些取值时，按上面先改 `DESIGN.md` 的顺序处理。
 
 ---
 

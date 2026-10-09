@@ -298,12 +298,14 @@ function compareApp(app, design, css) {
   return warnings;
 }
 
-// apps: [{ id, stylesPath }] with absolute stylesPath; designPath is the absolute root DESIGN.md.
-function checkDesignDrift({ designPath, apps }) {
+// apps: [{ id, stylesPath }] with absolute stylesPath; designPath is the absolute root DESIGN.md, or
+// designError is set instead when the caller rejected that path (the file is then never read).
+function checkDesignDrift({ designPath, designError, apps }) {
   const checks = [], warnings = [];
-  if (!apps.length || !fs.existsSync(designPath)) return { checks, warnings };
+  if (!apps.length || (!designError && !fs.existsSync(designPath))) return { checks, warnings };
   let front;
-  try { front = readFrontMatter(fs.readFileSync(designPath, 'utf8')); }
+  if (designError) front = { error: `cannot be read: ${designError}` };
+  else try { front = readFrontMatter(fs.readFileSync(designPath, 'utf8')); }
   catch (error) { front = { error: `cannot be read: ${error.code || error.message}` }; }
   if (front.skip) return { checks, warnings };
   for (const app of apps) {
