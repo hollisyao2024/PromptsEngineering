@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * GitHub 访问后端：优先 gh CLI，缺失时使用项目 GH_TOKEN 直连 GitHub REST API。
+ * GitHub 访问后端：优先使用项目 GH_TOKEN 调用 REST API，无令牌时保留 gh CLI 兼容路径。
  * tdd push 与 qa merge 共用，保证两端在同一环境下行为一致。
  */
 
@@ -26,7 +26,7 @@ function parseGitHubRepoSlug(remoteUrl) {
 function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body, userAgent = 'xirang-agent' } = {}) {
   return new Promise((resolve, reject) => {
     if (!token) {
-      reject(new Error('GH_TOKEN is required for GitHub API fallback'));
+      reject(new Error('GH_TOKEN is required for GitHub REST API'));
       return;
     }
 
@@ -85,17 +85,17 @@ function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body,
 }
 
 function createGitHubBackend({
-  ghAvailable = isGhAvailable(),
+  ghAvailable,
   token = process.env.GH_TOKEN,
   remoteUrl = '',
   apiRequest = githubApiRequest,
 } = {}) {
-  if (ghAvailable) return { mode: 'gh' };
-
   if (!token) {
+    // 仅无令牌时探测 CLI；已选 API 后不切换后端或鉴权身份。
+    if (ghAvailable === undefined ? isGhAvailable() : ghAvailable) return { mode: 'gh' };
     throw new Error(
-      'gh CLI 未安装或不可用，且未从 .env.local 读取到 GH_TOKEN。\n' +
-      '  安装 gh CLI，或在仓库根目录 .env.local 配置 GH_TOKEN。'
+      '未读取到 GH_TOKEN，且 gh CLI 未安装或不可用。\n' +
+      '  请在仓库根目录 .env.local 配置 GH_TOKEN，以使用 GitHub REST API。'
     );
   }
 

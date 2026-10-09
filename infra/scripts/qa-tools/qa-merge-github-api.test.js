@@ -15,14 +15,14 @@ const {
   tryGhMerge,
 } = require('./qa-merge');
 
-test('createGitHubBackend falls back to API when gh is missing and GH_TOKEN exists', () => {
+test('createGitHubBackend prefers API when both gh and GH_TOKEN exist', () => {
   assert.deepEqual(parseGitHubRepoSlug('git@github.com:owner/repo.git'), {
     owner: 'owner',
     repo: 'repo',
   });
 
   const backend = createGitHubBackend({
-    ghAvailable: false,
+    ghAvailable: true,
     token: 'token',
     remoteUrl: 'https://github.com/owner/repo.git',
     apiRequest: async () => ({}),
@@ -37,7 +37,7 @@ test('createGitHubBackend falls back to API when gh is missing and GH_TOKEN exis
   );
 });
 
-test('findOpenPR uses GitHub API fallback and normalizes mergeability', async () => {
+test('findOpenPR uses GitHub API and normalizes mergeability', async () => {
   const calls = [];
   const backend = {
     mode: 'api',
@@ -140,7 +140,7 @@ test('feature cleanup verifies a failed delete as already absent or head drift',
   assert.equal(drifted.actualHeadSha, changed);
 });
 
-test('closePullRequest and read helpers use API fallback', async () => {
+test('closePullRequest and read helpers use API', async () => {
   const calls = [];
   const backend = {
     mode: 'api',

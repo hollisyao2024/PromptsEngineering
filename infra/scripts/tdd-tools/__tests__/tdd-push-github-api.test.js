@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createGitHubBackend } = require('../../shared/github-api');
 
 const {
   buildAutoCommitMessage,
@@ -15,16 +16,15 @@ function apiBackend(handler) {
   const calls = [];
   return {
     calls,
-    backend: {
-      mode: 'api',
+    backend: createGitHubBackend({
+      ghAvailable: true,
       token: 'token',
-      owner: 'owner',
-      repo: 'repo',
+      remoteUrl: 'https://github.com/owner/repo.git',
       apiRequest: async (method, apiPath, options) => {
         calls.push({ method, apiPath, body: options && options.body });
         return handler(method, apiPath, options);
       },
-    },
+    }),
   };
 }
 
@@ -45,7 +45,7 @@ test('PR title uses the same conventional derivation', () => {
   assert.equal(buildPrTitle('spike/try-things'), 'chore: spike try things');
 });
 
-test('ensurePullRequest creates PR through GitHub API with configured base when gh is missing', async () => {
+test('ensurePullRequest prefers API with configured base even when gh is available', async () => {
   const { backend, calls } = apiBackend((method) => {
     if (method === 'GET') return [];
     return { number: 7, html_url: 'https://github.com/owner/repo/pull/7' };
@@ -94,7 +94,10 @@ test('ensurePullRequest propagates API creation failures instead of silently ski
   });
 
   await assert.rejects(
-    ensurePullRequest({ branch: 'fix/api-pr', baseBranch: 'stable', reviewDecision, backend }),
+    ensurePullRequest({
+      branch: 'fix/api-pr', baseBranch: 'stable', reviewDecision, backend,
+      runGh: () => assert.fail('API failure must not invoke gh'),
+    }),
     /422/
   );
 });
