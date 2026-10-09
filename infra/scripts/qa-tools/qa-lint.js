@@ -20,6 +20,7 @@ const path = require('path');
 // 配置
 const CONFIG = {
   mainQAPath: path.join(__dirname, '../../../docs/QA.md'),
+  mainPrdPath: path.join(__dirname, '../../../docs/PRD.md'),
   qaModulesDir: path.join(__dirname, '../../../docs/qa-modules'),
   qaModuleListPath: path.join(__dirname, '../../../docs/qa-modules/module-list.md'),
   prdModulesDir: path.join(__dirname, '../../../docs/prd-modules'),
@@ -66,6 +67,71 @@ const STORY_ID_PATTERN = new RegExp(`^${STORY_ID_SOURCE}$`);
 
 function extractIds(content, source) {
   return content.match(new RegExp(`${source}(?!\\d)`, 'g')) || [];
+}
+
+// 非规范 TC 引用：区间（TC-X-001~005、TC-X-035-A~E）或子编号（TC-X-035-A、TC-X-023-05）。
+// 规范写法是逐个列出完整的 TC-{模块}-NNN，以逗号分隔。
+const NONCANONICAL_TC_PATTERN = new RegExp(
+  `(?<![A-Za-z0-9-])${TC_ID_SOURCE}(?:(?:-[A-Za-z0-9]+)+(?:[~～][A-Za-z0-9-]+)?|[~～][A-Za-z0-9-]+|[A-Za-z0-9]+)`,
+  'g'
+);
+const TC_NOTATION_REPORT_LIMIT = 20;
+
+function findNonCanonicalTestCaseRefs(content) {
+  const findings = [];
+  String(content).split(/\r?\n/).forEach((text, index) => {
+    for (const match of text.matchAll(NONCANONICAL_TC_PATTERN)) {
+      findings.push({ line: index + 1, token: match[0] });
+    }
+  });
+  return findings;
+}
+
+function listModuleMarkdown(modulesDir, fileFilter) {
+  if (!modulesDir || !fs.existsSync(modulesDir)) return [];
+  return fs.readdirSync(modulesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .flatMap((dir) => fs.readdirSync(path.join(modulesDir, dir), { withFileTypes: true })
+      .filter((entry) => entry.isFile() && fileFilter(entry.name))
+      .map((entry) => entry.name)
+      .sort()
+      .map((name) => path.join(modulesDir, dir, name)));
+}
+
+// 只警告：历史文档中的区间/子编号不阻断 lint；业务测试链路仍按完整 TC 编号严格校验。
+function checkTestCaseIdNotation(config = CONFIG, { root = path.join(__dirname, '../../..'), quiet = false } = {}) {
+  const files = [
+    config.mainQAPath,
+    ...listModuleMarkdown(config.qaModulesDir, (name) => name === 'QA.md'),
+    config.mainPrdPath,
+    ...listModuleMarkdown(config.prdModulesDir, (name) => name.endsWith('.md')),
+    config.traceabilityMatrixPath,
+  ].filter((filePath) => filePath && fs.existsSync(filePath));
+
+  const findings = files.flatMap((filePath) => {
+    const file = path.relative(root, filePath).split(path.sep).join('/');
+    return findNonCanonicalTestCaseRefs(fs.readFileSync(filePath, 'utf-8'))
+      .map(({ line, token }) => ({ file, line, token }));
+  });
+
+  if (!quiet) {
+    log('\n🔢 检查 TC 引用写法...', 'cyan');
+    if (findings.length === 0) {
+      log('  ✅ TC 引用均为完整编号', 'green');
+    } else {
+      findings.slice(0, TC_NOTATION_REPORT_LIMIT).forEach(({ file, line, token }) => {
+        console.log(`TC_ID_NONCANONICAL=${file}:${line} ${token}`);
+      });
+      if (findings.length > TC_NOTATION_REPORT_LIMIT) {
+        log(`  ... 另有 ${findings.length - TC_NOTATION_REPORT_LIMIT} 处未列出`, 'yellow');
+      }
+      log(`  ⚠️  发现 ${findings.length} 处区间或子编号写法；请拆成逗号分隔的完整 TC-{模块}-NNN 编号`, 'yellow');
+    }
+  }
+
+  return { ok: findings.length === 0, findings };
 }
 
 function isValidTestCaseId(id) {
@@ -441,7 +507,7 @@ function main() {
   log('='.repeat(60), 'cyan');
 
   let hasErrors = false;
-  let hasWarnings = false;
+  let warningCount = 0;
 
   // 检查主 QA 是否存在
   const mainQAExists = checkFileExists(CONFIG.mainQAPath, '主 QA');
@@ -461,7 +527,7 @@ function main() {
 
   // 检查模块 QA 文档
   if (!checkModuleQADocs()) {
-    hasWarnings = true;
+    warningCount += 1;
   }
 
   // 检查 Test Case ID 格式
@@ -476,12 +542,17 @@ function main() {
 
   // 检查 Given-When-Then 格式
   if (!checkGivenWhenThenFormat()) {
-    hasWarnings = true;
+    warningCount += 1;
   }
 
   // 检查 Story ID 关联
   if (!checkStoryIdAssociation()) {
-    hasWarnings = true;
+    warningCount += 1;
+  }
+
+  // 检查 TC 引用写法（区间/子编号只警告）
+  if (!checkTestCaseIdNotation().ok) {
+    warningCount += 1;
   }
 
   // 输出结果
@@ -492,12 +563,7 @@ function main() {
   if (hasErrors) {
     log('❌ 发现错误，请修正后再提交。', 'red');
     process.exit(1);
-  } else if (hasWarnings) {
-    const warningCount = [
-      !checkGivenWhenThenFormat(),
-      !checkStoryIdAssociation(),
-      !checkModuleQADocs()
-    ].filter(Boolean).length;
+  } else if (warningCount > 0) {
     log(`⚠️  发现 ${warningCount} 个警告，建议修正。`, 'yellow');
     process.exit(0);
   } else {
@@ -520,7 +586,9 @@ if (require.main === module) {
 module.exports = {
   checkFileExists,
   checkTestCaseIdFormat,
+  checkTestCaseIdNotation,
   checkDefectIdFormat,
+  findNonCanonicalTestCaseRefs,
   isValidTestCaseId,
   isValidDefectId,
   isValidStoryId,

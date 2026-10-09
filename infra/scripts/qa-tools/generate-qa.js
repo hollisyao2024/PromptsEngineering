@@ -336,20 +336,44 @@ function matchModuleInText(text, moduleDir) {
   return pattern.test(normalized);
 }
 
+// 模板与工具链自有路径（及仓库根文件）不属于任何业务模块，不参与按名匹配；
+// 否则 agent.config.json、infra/scripts/agent-runner 会把 agent 之类的模块误判为会话模块。
+const NON_MODULE_PATH_PREFIXES = Object.freeze([
+  'infra/',
+  'agent/',
+  'AgentRoles/',
+  'tooling/',
+  'architecture/',
+  '.xirang/',
+  '.github/',
+  '.claude/',
+  '.codex/',
+]);
+
+function isNonModulePath(normalizedPath) {
+  if (!normalizedPath.includes('/')) return true;
+  return NON_MODULE_PATH_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix));
+}
+
 function inferSessionModules(moduleEntries, changedFiles, branchName) {
   const moduleMap = new Map(moduleEntries.map((entry) => [entry.moduleDir, entry]));
   const moduleSet = new Set(moduleEntries.map((entry) => entry.moduleDir));
   const scores = new Map(moduleEntries.map((entry) => [entry.moduleDir, 0]));
 
+  // 规则 1：改动落在模块文档目录是显式证据；只要有命中，就只返回这些模块，
+  // 不再叠加路径名与分支名的推测（例如 routes/admin/auth.ts 不应再带出 auth 模块）。
+  const docModules = new Set(
+    changedFiles
+      .map((file) => parseModuleFromModuleDocPath(normalizePath(file), moduleSet))
+      .filter(Boolean)
+  );
+  if (docModules.size > 0) {
+    return Array.from(docModules).map((moduleDir) => moduleMap.get(moduleDir));
+  }
+
   for (const file of changedFiles) {
     const normalized = normalizePath(file);
-
-    // 规则 1：若改动落在模块文档目录，直接高权重命中该模块
-    const fromDocPath = parseModuleFromModuleDocPath(normalized, moduleSet);
-    if (fromDocPath) {
-      scores.set(fromDocPath, (scores.get(fromDocPath) || 0) + 100);
-      continue;
-    }
+    if (isNonModulePath(normalized)) continue;
 
     // 规则 2：按完整模块目录名在改动路径中匹配（不使用硬编码别名）
     for (const moduleDir of moduleSet) {

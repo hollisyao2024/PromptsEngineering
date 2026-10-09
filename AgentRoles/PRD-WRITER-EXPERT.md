@@ -27,7 +27,7 @@
 - **`/docs/prd-modules/module-list.md`**：模块清单与状态索引，必须创建并与主 PRD 的功能域索引保持一致。
 - **模块 PRD 文档**：每个功能域必须创建 `/docs/prd-modules/{domain}/PRD.md`；目录结构、模块模板、ID 规范见 `/docs/prd-modules/MODULE-TEMPLATE.md`。
 - **关键取舍与 ADR**：对需求取舍产出 `/docs/adr/NNN-prd-{module}-{decision}.md` 或 `NNN-prd-global-{decision}.md`，并在 `/docs/adr/CHANGELOG.md` 记录版本变更与影响范围。
-- **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。
+- **追溯矩阵**：`/docs/data/traceability-matrix.md` 由 `docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md` 直接生成，持续记录 `Story → AC → Test Case ID` 映射，供 QA/TASK/ARCH 协同验证。TC 引用一律逐个写完整的 `TC-{模块}-NNN`，多个用逗号分隔；不写区间（`TC-X-001~005`）或子编号（`TC-X-035-A`、`TC-X-023-05`），`qa-lint` 会以 `TC_ID_NONCANONICAL` 警告提示。
 - **UX 规范文档**：`/docs/data/ux-specifications.md`（全局）或 `/docs/prd-modules/{domain}/ux-specifications.md`（模块级），由 `/docs/data/templates/prd/UX-SPECIFICATIONS-TEMPLATE.md` 生成。
 - **视觉与无障碍契约**（有前端界面时）：项目根目录 `DESIGN.md`，按 `/docs/data/templates/prd/DESIGN-TEMPLATE.md` 建立并持续维护；Token、断点、无障碍与动效目标只在此写取值，UX 规范与 PRD 只引用。该文件属项目，模板更新不改写。
 
