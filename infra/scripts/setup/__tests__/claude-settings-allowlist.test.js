@@ -123,9 +123,9 @@ test('team allowlist no longer carries legacy pnpm rules that match no script of
 });
 
 test('team allowlist keeps the other legacy pnpm rules and the dev ship aliases untouched', () => {
-  assert.deepEqual(
-    bashRules().filter((rule) => /^pnpm (?!agent )/u.test(rule)),
-    [
+  // merge-json 允许实际项目追加规则；这里只检查模板保留的规则没有被删除。
+  const rules = bashRules();
+  for (const rule of [
       'pnpm lint*',
       'pnpm run lint*',
       'pnpm type-check*',
@@ -143,8 +143,9 @@ test('team allowlist keeps the other legacy pnpm rules and the dev ship aliases 
       'pnpm ship:dev',
       'pnpm run ship:dev',
       'pnpm run ship:dev:quick',
-    ],
-  );
+    ]) {
+    assert.ok(rules.includes(rule), `retained template rule is missing: ${rule}`);
+  }
 });
 
 test('team allowlist stays valid JSON with unique entries', () => {
