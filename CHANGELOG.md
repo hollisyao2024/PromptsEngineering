@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.8] - 2026-10-09
+
+- 新增 `DESIGN.md` 与 `styles.css` 的漂移检查（ADR-040）：shadcn 应用的 `architecture check` 按实际生效取值比较颜色、圆角和正文字体族，只告警不阻断；`tdd sync` 与 `qa verify` 的架构门禁把告警输出为 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，通过条件不变。
+
 ## [v3.11.7] - 2026-10-09
 
 - 修正模板回归测试的项目兼容性：权限测试允许项目追加规则，同时继续检查模板必需规则；业务验收关闭场景的完整输出快照纳入统一 CLI 结果块，保持回执与门禁断言。

@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-09：[ADR 040](040-arch-design-drift-check.md)，`DESIGN.md` 与 `styles.css` 的漂移检查只告警：shadcn 应用按实际生效取值比较颜色、圆角与正文字体族，结果写入 `checkProject` 的 `warnings`，工作流门禁输出 `ARCHITECTURE_WARNING=` 行，不改变通过条件；[ADR 037](037-arch-ui-design-contract.md) 文末增补指针。
+
 - 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 更正官方 lint 的门禁口径：规则 `broken-ref` 对未知的组件子属性只报警告、退出码仍为 0，门禁改为退出码为 0 且 `--format json` 输出中该规则的条数为 0；骨架 Components 节列出有效子属性清单。决策正文不变。
 
 - 2026-10-08：[ADR 038](038-arch-business-test-automation.md) 补充真实项目试验后的三处修正（`qa run` 在必需优先级 AC 未被证明时以 `FAILED` 非零退出、回执可选携带 `business` 摘要、`task exec` 放行逐词一致的已登记套件命令）与 QA 生成器对 PRD 表格的识别；第 6 条「回执结构不变」与取舍「本期不扩展回执结构」由补充节更正，其余决策不变。
