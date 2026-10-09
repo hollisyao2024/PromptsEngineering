@@ -8,9 +8,11 @@ const {
   listWorktrees,
   parseCliArgs,
   removeWorktreeSafely,
+  readSessions,
   removeSession,
   resolveContainerPath,
 } = require('./worktree-core');
+const { removalRootForWorktree } = require('./desktop-worktree');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
 
@@ -33,7 +35,12 @@ function main() {
       throw new Error(`target is not a registered worktree branch or path: ${target}`);
     }
 
-    const worktreesRoot = resolveContainerPath(config, mainRoot, 'worktrees');
+    const worktreesRoot = removalRootForWorktree(
+      mainRoot,
+      resolveContainerPath(config, mainRoot, 'worktrees'),
+      found.path,
+      readSessions(config, mainRoot),
+    );
     const result = removeWorktreeSafely({
       mainRoot,
       worktreePath: found.path,

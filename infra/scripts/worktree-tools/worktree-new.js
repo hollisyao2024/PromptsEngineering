@@ -17,7 +17,13 @@ Options:
   --dry-run             Print the planned branch and path without creating them
   --skip-fetch          Do not contact origin; use a cached remote or local base as unverified
   --skip-bootstrap      Skip configured worktree dependency bootstrap
-  -h, --help            Show this help without changing Git or the filesystem`);
+  -h, --help            Show this help without changing Git or the filesystem
+
+Claude Desktop worktrees:
+  Run inside an unmanaged <main>/.claude/worktrees/<name> worktree to adopt it in
+  place: a clean tree is required, origin/<base> is fetched, a branch without own
+  commits is reset to that SHA, a branch with own commits behind base is blocked
+  (never auto-rebased), and the branch is renamed to the canonical name.`);
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -33,6 +39,11 @@ function main(argv = process.argv.slice(2)) {
     if (result.dryRun) {
       console.log('STATUS=DRY_RUN');
       console.log(`BRANCH_NAME=${result.branch}`);
+      if (result.adopted) {
+        console.log('ADOPTION=PLANNED');
+        console.log('WORKTREE_ORIGIN=claude-desktop');
+        console.log(`ORIGINAL_BRANCH=${result.originalBranch}`);
+      }
       console.log(`WORKTREE_PATH=${result.worktreePath}`);
       console.log(`NEXT_CWD=${result.worktreePath}`);
       console.log(`BASE_REF=${result.baseRef}`);
@@ -41,8 +52,15 @@ function main(argv = process.argv.slice(2)) {
       return;
     }
 
-    console.log(result.resumed ? 'STATUS=RESUMED' : 'STATUS=CREATED');
+    if (result.adopted) console.log('STATUS=ADOPTED');
+    else console.log(result.resumed ? 'STATUS=RESUMED' : 'STATUS=CREATED');
     console.log(`BRANCH_NAME=${result.branch}`);
+    if (result.adopted) {
+      console.log('WORKTREE_ORIGIN=claude-desktop');
+      console.log(`ORIGINAL_BRANCH=${result.originalBranch}`);
+      console.log(`PREVIOUS_HEAD=${result.previousHead}`);
+      console.log(`ADOPTION_RESET=${result.adoptionReset ? 'true' : 'false'}`);
+    }
     console.log(`WORKTREE_PATH=${result.worktreePath}`);
     console.log(`NEXT_CWD=${result.worktreePath}`);
     if (result.fetchStatus) console.log(`FETCH_STATUS=${result.fetchStatus}`);
@@ -85,6 +103,7 @@ function main(argv = process.argv.slice(2)) {
   } catch (error) {
     console.error('STATUS=BLOCKED');
     if (error.worktreePath) console.error(`WORKTREE_PATH=${error.worktreePath}`);
+    if (error.originalBranch) console.error(`ORIGINAL_BRANCH=${error.originalBranch}`);
     if (error.fetchStatus) console.error(`FETCH_STATUS=${error.fetchStatus}`);
     if (error.baseRef) console.error(`BASE_REF=${error.baseRef}`);
     if (error.baseFreshness) console.error(`BASE_FRESHNESS=${error.baseFreshness}`);
@@ -94,6 +113,7 @@ function main(argv = process.argv.slice(2)) {
     if (error.command) console.error(`BOOTSTRAP_COMMAND=${error.command}`);
     if (error.checkCommand) console.error(`BOOTSTRAP_CHECK_COMMAND=${error.checkCommand}`);
     if (error.dirtyFiles) console.error(`DIRTY_FILES=${error.dirtyFiles}`);
+    if (error.adoptionRollback) console.error(`ADOPTION_ROLLBACK=${error.adoptionRollback}`);
     if (error.nextManualAction) console.error(`NEXT_MANUAL_ACTION=${error.nextManualAction}`);
     console.error(`REASON=${error.message}`);
     process.exit(1);

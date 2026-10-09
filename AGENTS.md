@@ -76,6 +76,7 @@
 - 创建后，所有读写、测试、提交和 QA 命令必须在输出的 `NEXT_CWD` 中执行。
 - `apply_patch` 不继承 shell `workdir`：创建 worktree 后，其所有目标必须使用经校验、位于 `NEXT_CWD` 下的绝对路径；写入容器层目录时先用 `resolveContainerPath()` 解析绝对路径。禁止以 `../` 等父级相对路径调用 `apply_patch`。若发生错误写入，删除错文件后还必须复核并清理遗留的空父目录。
 - 依赖用 `pnpm agent -- worktree bootstrap` 建立；不得跨 worktree 调脚本或共享依赖目录。
+- 在 Claude Desktop 创建的未受管 worktree（`<repo>/.claude/worktrees/<name>`）内执行 `worktree new` 时原地接管（`STATUS=ADOPTED`）：须工作区干净，required fetch 后无自有提交则重置到远端 base SHA，有自有提交且落后则阻断、不自动 rebase；分支改为规范名并在 session 写入 `provenance.origin=claude-desktop`。合并后清理仅对带匹配 provenance 的精确路径生效，未接管的 Desktop worktree 一律跳过。
 - 合并后清理由 session 封印和补偿器完成；存在未提交变更、HEAD 漂移或缺少封印时转为恢复状态，禁止删除。
 - 多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。
 

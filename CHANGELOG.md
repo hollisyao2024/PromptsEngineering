@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [v3.11.11] - 2026-10-10
+
+- 原地接管 Claude Desktop worktree：在 `<repo>/.claude/worktrees/<name>` 中执行 `worktree new` 不再新建 worktree，而是在工作区干净、required fetch 通过后接管当前目录，无自有提交时重置到远端 base SHA，有自有提交且落后时阻断（不自动 rebase），分支改为规范名，session 记录 `provenance.origin=claude-desktop` 与原分支，输出 `STATUS=ADOPTED`。
+- 合并后清理（`qa merge`、封印补偿器、`worktree audit`、finish guard、`worktree remove|cancel`、分支对账）按 session 计算删除边界：仅带匹配 provenance 的 Desktop 精确子目录可删，未接管或伪造封印的 Desktop worktree 保持跳过；`.gitignore` 与模板追加片段忽略 `.claude/worktrees/`。接管在锁内复检并在释放前写入带 provenance 的 session，写入前失败会回滚重置与改名（输出 `ADOPTION_ROLLBACK=`）。新增 14 项定向测试。
+
 ## [v3.11.10] - 2026-10-10
 
 - 业务测试自动化全链路试跑（XiaoLan Admin 登录子域）暴露的模板缺陷修复，共 8 处脚本改动与 1 组文档修正：① `infra/scripts/shared/architecture-check.js` 以带 `code`/`nextAction` 的错误替代裸崩溃，`ARCHITECTURE_PACKAGE_MISSING`（声明了架构包但 `architecture/` 缺失）与 `ARCHITECTURE_CHECK_FAILED` 进入 `qa verify` 的 `REASON=` 映射与 `tdd sync` 的 `NEXT_ACTION=`；② `tdd sync` 新增 Base Sync Gate，先 `fetch --prune origin <base>`、再在需要时 `merge --no-edit origin/<base>`，输出 `BASE_SYNC=`，fetch 失败 `BASE_FETCH_FAILED`、冲突 `merge --abort` 后 `BASE_MERGE_CONFLICT` 阻断，避免 `qa verify` 因远端主干前进报 `STALE_QA_BASE`；③ `generate-codemap.js` 的 `session` 作用域只按当前会话改动文件生成，输出 `SESSION_CHANGED_FILES=`，不再把全项目文件写进会话 codemap；④ `business-results.js` 测试名显式带 AC ID 时只绑定该 AC，不再按同 TC 扩散到其他 AC，避免未验证 AC 被标记为已证明；⑤ `agent-cli` 新增 `tdd review-gate` 路由，`tdd-review-gate.js` 支持 `--record required|optional --reason <text> [--task <id>]` 把模型侧语义审查结论作为 `REVIEW_DECISION=` 写入任务 evidence，`tdd push` 读取最近记录并在 PR 描述写入 `Model-Review:`；⑥ `qa paths` 对含 `auto` AC 但缺少 `docs/qa-modules/<域>/PATHS.md` 的域输出 `VIOLATION=PATHS_MISSING` 并退出 1，Playbook 违规码表同步；⑦ `agent-cli` 在派发前检查目标脚本存在，缺失时输出 `STATUS=BLOCKED`、`REASON=MISSING_SCRIPT` 与 `NEXT_ACTION=`，不再抛 `MODULE_NOT_FOUND` 堆栈；⑧ `architecture/scripts/monorepo.js` 的 v2 workspace 校验改为要求固定的 `pnpm@10+`（原来只接受 `pnpm@10.x`，pnpm@11 项目被误阻断），`architecture/guides/monorepo.md` 同步。文档修正：PRD 专家与 Playbook 的「模块 PRD 附录 A」改为 MODULE-TEMPLATE 的「§3.2 原子 AC 清单」，`MODULE-EXAMPLE.md` 标注编号对应；QA 专家与 Playbook 的 E2E 路径由 `e2e/tests/` 改为与架构包脚手架一致的 `packages/e2e/tests/<app>/`，定向命令改为 `pnpm --filter @project/e2e exec playwright test`；qa-tools / tdd-tools README 补充上述阻断码、`PATHS_MISSING`、`BASE_SYNC` 与 `--record`。

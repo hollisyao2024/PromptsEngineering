@@ -23,6 +23,7 @@ const {
   runGit,
   writeSession,
 } = require('./worktree-core');
+const { resolveSessionRemovalRoot } = require('./desktop-worktree');
 const { inspectProcessSnapshot, inspectWorktreeUsers } = require('./worktree-process-guard');
 const { auditQaPlanSessionStates } = require('./qa-plan-state-audit');
 
@@ -417,7 +418,11 @@ function applyCleanupCandidate(record, context) {
     removeWorktree: () => remove({
       mainRoot,
       worktreePath: record.path,
-      worktreesRoot,
+      // Adopted Desktop worktrees carry provenance; anything else stays bound to the container root.
+      worktreesRoot: resolveSessionRemovalRoot(mainRoot, worktreesRoot, {
+        ...(record.session || {}),
+        worktree: record.path,
+      }) || worktreesRoot,
       force: false,
     }),
     deleteBranch: () => deleteBranch(mainRoot, record.branch),
