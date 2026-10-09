@@ -369,3 +369,22 @@ test('QA verification reads only the selected worktree session state file', (t) 
   assert.match(result.source, /current-worktree\.json/);
   assert.doesNotMatch(result.source, /foreign-worktree\.json/);
 });
+
+// The architecture gate runs inside main(); its coded errors must land in the BLOCKED table with a next action
+// instead of falling through to FAILED / UNEXPECTED_ERROR with a stack trace.
+test('qa verify maps architecture gate errors to BLOCKED with the matching next action', () => {
+  const failed = new Error('Architecture check failed: shadcn-ui: components.json missing');
+  failed.code = 'ARCHITECTURE_CHECK_FAILED';
+  const failedOutcome = describeQaVerifyOutcome({ error: failed });
+  assert.equal(failedOutcome.status, 'BLOCKED');
+  assert.equal(failedOutcome.reason, 'ARCHITECTURE_CHECK_FAILED');
+  assert.match(failedOutcome.summary, /components\.json missing/);
+  assert.match(failedOutcome.nextAction, /architecture check/);
+
+  const missing = new Error('architecture.config.json exists but architecture package is missing; install it explicitly');
+  missing.code = 'ARCHITECTURE_PACKAGE_MISSING';
+  const missingOutcome = describeQaVerifyOutcome({ error: missing });
+  assert.equal(missingOutcome.status, 'BLOCKED');
+  assert.equal(missingOutcome.reason, 'ARCHITECTURE_PACKAGE_MISSING');
+  assert.match(missingOutcome.nextAction, /template sync --include architecture/);
+});

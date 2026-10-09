@@ -85,7 +85,7 @@ UX 设计流程与交付标准详见 `/docs/data/templates/prd/UX-SPECIFICATIONS
 - [ ] AC 可量化验证（避免"用户体验良好"等模糊描述）
 - [ ] AC 覆盖正常场景和异常场景
 - [ ] AC 与 Test Case ID 关联（在追溯矩阵中）
-- [ ] 有页面或客户端界面的功能域，模块 PRD 附录 A 维护原子 AC 表：一行一条 AC，Given/When/Then 分列，优先级、验证方式、端与 TC 列齐全，Then 写可断言的结果（状态、文案、错误码或数据）
+- [ ] 有页面或客户端界面的功能域，模块 PRD §3.2「原子 AC 清单」维护原子 AC 表：一行一条 AC，Given/When/Then 分列，优先级、验证方式、端与 TC 列齐全，Then 写可断言的结果（状态、文案、错误码或数据）
 - [ ] 原子 AC 表通过 `pnpm agent -- qa paths` 校验（无 `VIOLATION=` 行）；无法自动化的 AC 标为 `manual` 并写明原因
 - [ ] 期望值来自 PRD、数据字典、UX 规范与 ARCH 接口契约，不依赖被测代码当前的输出；有歧义的 AC 在 PRD 阶段澄清，不留给测试阶段猜测
 

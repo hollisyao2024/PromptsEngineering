@@ -157,3 +157,13 @@ test('PR title ignores auto-commit file lists and uses the single authored conve
   assert.equal(resolvePrTitle('fix/branch-title', [autoCommit, authored, commits[0]]), 'fix: branch title');
   assert.equal(resolvePrTitle('fix/branch-title', [autoCommit]), 'feat: fix scan findings');
 });
+
+test('PR body surfaces a recorded model review decision after the Review Gate lines', () => {
+  const body = buildPrBody('feat: x', {
+    gateResult: 'required', reason: 'shared base lib', baseRef: 'origin/main',
+    modelReview: { decision: 'required', reason: 'touches shared base lib', head_sha: 'b'.repeat(40) },
+  }, []);
+  assert.match(body, /- Base-Ref: origin\/main\n- Model-Review: required（touches shared base lib）/u);
+  const plain = buildPrBody('feat: x', { gateResult: 'skipped', reason: 'docs only', baseRef: 'origin/main' }, []);
+  assert.doesNotMatch(plain, /Model-Review/u);
+});
