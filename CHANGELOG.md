@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.13] - 2026-10-10
+
 - 修正 v3.11.10 发布说明第③项：`generate-codemap.js` 的 `session` 作用域实际行为是 map 始终全量、只追加 `SESSION_CHANGED_FILES=` 报告行，原描述写反。
 
 ## [v3.11.12] - 2026-10-10
