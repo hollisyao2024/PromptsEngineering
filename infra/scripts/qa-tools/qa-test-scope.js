@@ -27,6 +27,17 @@ function nonempty(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+// environment/dependencies 可写成描述字符串，或各叶值均非空的对象（嵌套对象与非空数组也可）。
+function described(value, depth = 0) {
+  if (typeof value === 'string') return nonempty(value);
+  if (depth > 0 && typeof value === 'number') return Number.isFinite(value);
+  if (depth > 0 && typeof value === 'boolean') return true;
+  if (depth > 0 && Array.isArray(value)) return value.length > 0 && value.every((item) => described(item, depth + 1));
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const values = Object.values(value);
+  return values.length > 0 && values.every((item) => described(item, depth + 1));
+}
+
 function stringList(value, { allowEmpty = false } = {}) {
   return Array.isArray(value)
     && (allowEmpty || value.length > 0)
@@ -86,8 +97,8 @@ function validateResult(value, decision, headSha, evidenceContext = {}) {
   if (value.head_sha !== headSha) {
     throw new Error('TEST_SCOPE_RESULT head_sha does not match the QA receipt HEAD');
   }
-  if (!nonempty(value.environment) || !nonempty(value.dependencies)) {
-    throw new Error('TEST_SCOPE_RESULT environment and dependencies are required');
+  if (!described(value.environment) || !described(value.dependencies)) {
+    throw new Error('TEST_SCOPE_RESULT environment and dependencies are required as a nonempty string or an object whose values are all nonempty');
   }
   if (!Array.isArray(value.checks) || value.checks.length !== decision.commands.length) {
     throw new Error('TEST_SCOPE_RESULT checks must cover every selected command');
