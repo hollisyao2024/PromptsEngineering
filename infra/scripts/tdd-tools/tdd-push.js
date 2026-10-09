@@ -16,6 +16,7 @@ const {
 } = require('../shared/github-auth');
 const { createGitHubBackend, repoApiPath } = require('../shared/github-api');
 const { exitOnHelp } = require('../shared/cli-help');
+const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -115,7 +116,7 @@ function runGh(args) {
   const result = spawnSync('gh', args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: process.env,
+    env: buildProxyEnvironment({ env: process.env, cwd: repoRoot, target: 'https://api.github.com/' }),
     stdio: 'pipe',
   });
   return result;

@@ -1,7 +1,8 @@
 const os = require('node:os');
+const { buildProxyEnvironment } = require('./system-proxy');
 
 // Shared by official template sync and pinned architecture cache reconstruction.
-function buildAnonymousGitEnvironment(env = process.env) {
+function buildAnonymousGitEnvironment(env = process.env, proxyOptions = {}) {
   // Git for Windows rejects Node's extended device path (\\.\nul).
   const gitNullDevice = process.platform === 'win32' ? 'NUL' : os.devNull;
   const output = { ...env };
@@ -26,7 +27,8 @@ function buildAnonymousGitEnvironment(env = process.env) {
     output[`GIT_CONFIG_KEY_${index}`] = key;
     output[`GIT_CONFIG_VALUE_${index}`] = value;
   });
-  return output;
+  // Discover after isolation: never reintroduce user Git credentials/configuration.
+  return buildProxyEnvironment({ ...proxyOptions, env: output, useGitConfig: false });
 }
 
 module.exports = { buildAnonymousGitEnvironment };

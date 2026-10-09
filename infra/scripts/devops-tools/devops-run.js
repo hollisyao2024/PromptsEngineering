@@ -356,6 +356,9 @@ function main() {
   const commandEnv = buildGitHubShellEnv({
     repoRoot,
     cwd: repoRoot,
+    // This environment belongs to an entire build/deploy command, not just GitHub.
+    // Actual GitHub callers discover proxies at their own network boundary.
+    discoverProxy: false,
     env: {
       ...process.env,
       AGENT_DEVOPS_ACTION: action,
