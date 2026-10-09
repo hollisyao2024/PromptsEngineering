@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { isHelpRequest: isOwnHelpRequest } = require('../shared/cli-help');
 const { spawnExitCode } = require('../shared/spawn-exit');
@@ -12,6 +14,7 @@ const ROUTES = new Map([
   ['tdd:sync', 'infra/scripts/tdd-tools/tdd-sync.js'],
   ['tdd:push', 'infra/scripts/tdd-tools/tdd-push.js'],
   ['tdd:commit', 'infra/scripts/tdd-tools/tdd-commit.js'],
+  ['tdd:review-gate', 'infra/scripts/tdd-tools/tdd-review-gate.js'],
   ['tdd:finish', 'infra/scripts/tdd-tools/tdd-finish.js'],
   ['tdd:guard', 'infra/scripts/tdd-tools/tdd-completion-guard.js'],
   ['qa:plan', 'infra/scripts/qa-tools/generate-qa.js'],
@@ -120,7 +123,7 @@ Core commands:
   test --file <test-file> -- <runner> [args]
   task <paths|context|start|checkpoint|exec|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
-  tdd <sync|push|commit|finish|guard>
+  tdd <sync|push|commit|review-gate|finish|guard>
   qa <plan|paths|run|verify|merge>
   template <sync|update|backfill>
   architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>
@@ -137,6 +140,22 @@ Core commands:
 Existing package aliases remain compatible for migrated projects.`);
 }
 
+const MISSING_SCRIPT_NEXT_ACTION = [
+  ['architecture/', 'pnpm agent -- template sync --include architecture'],
+  ['', 'pnpm agent -- template sync'],
+];
+
+// Routed scripts live in the project; a project that never pulled a package (for example `architecture check`
+// before `template sync --include architecture`) must get STATUS=BLOCKED with the installing command, not a
+// MODULE_NOT_FOUND stack from the spawned node process.
+function assertScriptInstalled(script, cwd) {
+  if (fs.existsSync(path.resolve(cwd, script))) return;
+  const error = new Error(`routed script ${script} is not installed in ${cwd}`);
+  error.code = 'SCRIPT_NOT_INSTALLED';
+  error.nextAction = MISSING_SCRIPT_NEXT_ACTION.find(([prefix]) => script.startsWith(prefix))[1];
+  throw error;
+}
+
 function main(argv = process.argv.slice(2)) {
   const args = normalizeArgv(argv);
   if (isHelpRequest(args)) {
@@ -144,6 +163,7 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
   const resolved = resolveCommand(args);
+  assertScriptInstalled(resolved.script, process.cwd());
   const result = spawnSync(process.execPath, [resolved.script, ...resolved.args], {
     cwd: process.cwd(),
     env: process.env,
@@ -159,6 +179,7 @@ if (require.main === module) {
   } catch (error) {
     console.error('STATUS=BLOCKED');
     console.error(`REASON=${error.message}`);
+    if (error.nextAction) console.error(`NEXT_ACTION=${error.nextAction}`);
     process.exitCode = 1;
   }
 }

@@ -193,6 +193,8 @@ const QA_VERIFY_BLOCKED_NEXT_ACTION = {
   TEST_SCOPE_EVIDENCE: '在当前 mutation 任务 checkpoint 中补录 TEST_SCOPE_DECISION 与绑定当前 HEAD 的 TEST_SCOPE_RESULT 后重跑 pnpm agent -- qa verify',
   QA_VERDICT_NO_GO: '修复上方列出的 QA 文档错误后重跑 pnpm agent -- qa verify',
   BUSINESS_GATE_BLOCKED: '按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
+  ARCHITECTURE_PACKAGE_MISSING: '执行 pnpm agent -- template sync --include architecture 安装架构包后重跑 pnpm agent -- qa verify',
+  ARCHITECTURE_CHECK_FAILED: '执行 pnpm agent -- architecture check 并修复列出的失败项后重跑 pnpm agent -- qa verify',
 };
 const QA_VERIFY_FAILED_NEXT_ACTION = {
   QA_FETCH_FAILED: '核实网络、代理与 GH_TOKEN 后重试 pnpm agent -- qa verify；按 tool_error 留痕，不改写命令或更换入口',

@@ -29,7 +29,7 @@ pnpm type-check
 
 ## 工作区与目录
 
-v2 使用 pnpm@10 固定补丁版本，单一根 pnpm-workspace.yaml 与 pnpm-lock.yaml。包路径由项目配置决定，支持 packages/database/main 等嵌套包；不搬动旧目录。包间使用 workspace:*，公共 UI 为 @project/ui，通过 exports 引用，不穿透 apps 源码。
+v2 使用 pnpm@10 及以上固定补丁版本（`packageManager` 形如 `pnpm@<major>.<minor>.<patch>`，major ≥ 10），单一根 pnpm-workspace.yaml 与 pnpm-lock.yaml。包路径由项目配置决定，支持 packages/database/main 等嵌套包；不搬动旧目录。包间使用 workspace:*，公共 UI 为 @project/ui，通过 exports 引用，不穿透 apps 源码。
 
 默认共享目录：
 - packages/ui/src/{ui,data-table,forms,selectors,feedback}，AppShell 位于 src/app-shell.tsx；兼容工具位于 lib/utils.ts。

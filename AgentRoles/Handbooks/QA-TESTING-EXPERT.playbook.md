@@ -32,12 +32,12 @@
 QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/降级测试由 TDD 专家在实现阶段编写。
 
 #### E2E 测试（Playwright）
-- **目录**：`e2e/tests/`（Page Object 在 `e2e/pages/`，Fixtures 在 `e2e/fixtures/`）
+- **目录**：`packages/e2e/tests/<app>/`（与架构包 e2e 脚手架一致；Page Object 在 `packages/e2e/pages/`，Fixtures 在 `packages/e2e/fixtures/`）
 - **策略**：Page Object Model + Fixtures；API 驱动创建前置数据（非 UI）；使用 web-first assertions（`await expect(locator).toBeVisible()`）
 - **优先级**：P0 核心用户旅程 → P1 关键业务场景 → P2 边界
 - **命名**：`{module}.e2e.spec.ts`（如 `auth.e2e.spec.ts`、`checkout.e2e.spec.ts`）
 - **工具**：Playwright + @faker-js/faker
-- **命令**：`pnpm playwright test e2e/tests/<affected>.e2e.spec.ts`（headless 定向）；调试用 `--ui` 或 `--trace on`
+- **命令**：`pnpm --filter @project/e2e exec playwright test tests/<app>/<affected>.e2e.spec.ts`（headless 定向）；调试用 `--ui` 或 `--trace on`
 - **本地执行**：需要时使用 `--shard=N/M` 与 headless 模式；失败 Trace 留在容器 tmp，重试不能替代失败分析，不将 GitHub CI 作为合并门禁。
 
 #### 性能测试（k6）
@@ -404,6 +404,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `ID_INVALID` | 界面、状态、转移或路径的标识格式不合法 | 按 `SCR-`、`STA-`、`TRN-`、`PTH-` 前缀加模块与三位序号重命名 |
 | `ID_DUPLICATE` | 标识重复，包括不同功能域的 PATHS.md 之间重复 | 换用未占用的序号 |
 | `PATHS_TABLE_MISSING` | PATHS.md 缺少某张表，或表头不符 | 按 PATHS-TEMPLATE.md 补齐界面、状态、转移、路径四张表及表头 |
+| `PATHS_MISSING` | 某功能域的 PRD 含 `auto` AC，但 `docs/qa-modules/<域>/PATHS.md` 不存在，自动化验收没有路径模型可依 | 按 PATHS-TEMPLATE.md 为该域新建 PATHS.md；只做人工验收的域把 AC 改为 manual |
 | `NO_ATOMIC_AC` | `docs/prd-modules/<域>/` 下没有找到任何原子 AC 表 | 按 PRD 模块模板补写原子 AC 表，或把 `qa.business.enabled` 设为 false |
 | `REF_UNKNOWN` | 引用了不存在的界面、状态、转移或 AC | 修正引用，或先补上被引用的条目 |
 | `PATH_EMPTY` | 路径的转移序列为空 | 补写转移序列，或删除该路径 |
@@ -444,6 +445,8 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `TEST_SCOPE_EVIDENCE` | BLOCKED | 当前 mutation 任务缺少或不合法的 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，包括 evidence 引用的任务日志缺失或 SHA256 不符 | 在任务 checkpoint 中补录决策与绑定当前 HEAD 的结果后重跑 `qa verify` |
 | `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误（Go/Conditional/No-Go 判定为 No-Go） | 修复上方列出的错误后重跑 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
+| `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
+| `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
 | `QA_FETCH_FAILED` | FAILED | 签发回执前的 `git fetch --prune` 连续 2 次失败（同一命令只重试一次） | 核实网络、代理与 `GH_TOKEN` 后重试；按 `tool_error` 留痕 |
 | `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
 
@@ -520,7 +523,7 @@ pnpm test -- --coverage                                # 项目要求覆盖率�
 ### 测试执行（QA 编写的测试）
 ```bash
 # E2E 测试
-pnpm playwright test e2e/tests/<affected>.e2e.spec.ts     # 定向 E2E（headless）
+pnpm --filter @project/e2e exec playwright test tests/<app>/<affected>.e2e.spec.ts   # 定向 E2E（headless）
 pnpm playwright test --shard=1/4                       # 分片并行
 pnpm playwright test --ui                              # 调试模式
 pnpm playwright test --trace on                        # 带 Trace
