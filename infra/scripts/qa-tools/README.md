@@ -63,7 +63,7 @@ pnpm run qa:verify -- --project --write-reports
 - 若会话状态文件不存在，再回退到当前工作区 QA 改动 / 会话推断。
 - `project` 模式会复用 `qa:lint`、`qa:sync-prd-qa-ids`、`qa:coverage-report`、`qa:check-defect-blockers`。
 - `project` 默认只校验不写 `qa-reports`，显式传 `--write-reports` 才会输出报告文件。
-- 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=<code>`；既有的 `QA_RECEIPT=`、`BASE_BRANCH=`、`BASE_SHA=`、`HEAD_SHA=` 行保留。`BLOCKED` 代码：`QA_BRANCH_REQUIRED`（不在任务功能分支）、`STALE_QA_BASE`（功能分支落后配置主干）、`HEAD_NOT_PUSHED`（本地 HEAD 与远端分支不一致）、`TEST_SCOPE_EVIDENCE`（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT` 缺失或不合法）、`QA_VERDICT_NO_GO`（QA 文档检查有错误）、`BUSINESS_GATE_BLOCKED`（业务验收门禁未通过）。`FAILED` 代码：`QA_FETCH_FAILED`（签发回执前的 `git fetch --prune` 失败；同一命令至多重试一次、共 2 次，仍失败即停止且不签发回执）、`UNEXPECTED_ERROR`（堆栈写到 stderr）。每个代码的 `NEXT_ACTION` 见 Playbook §qa verify 阻断码。
+- 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=<code>`；既有的 `QA_RECEIPT=`、`BASE_BRANCH=`、`BASE_SHA=`、`HEAD_SHA=` 行保留。`BLOCKED` 代码：`QA_BRANCH_REQUIRED`（不在任务功能分支）、`STALE_QA_BASE`（功能分支落后配置主干）、`HEAD_NOT_PUSHED`（本地 HEAD 与远端分支不一致）、`TEST_SCOPE_EVIDENCE`（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT` 缺失或不合法）、`QA_VERDICT_NO_GO`（QA 文档检查有错误）、`BUSINESS_GATE_BLOCKED`（业务验收门禁未通过）、`ARCHITECTURE_PACKAGE_MISSING`（项目声明了架构包但 `architecture/` 目录缺失）、`ARCHITECTURE_CHECK_FAILED`（`architecture check` 有失败项）。`FAILED` 代码：`QA_FETCH_FAILED`（签发回执前的 `git fetch --prune` 失败；同一命令至多重试一次、共 2 次，仍失败即停止且不签发回执）、`UNEXPECTED_ERROR`（堆栈写到 stderr）。每个代码的 `NEXT_ACTION` 见 Playbook §qa verify 阻断码。
 - `TEST_SCOPE_RESULT.checks[].evidence` 写成 `evidence/<name>.log sha256=<hex>`（即 `task exec` 输出的 `LOG_PATH`/`LOG_SHA256`）时，`qa verify` 会核对当前任务 `evidence/` 目录下该文件存在且 SHA256 一致，缺失或不符按 `TEST_SCOPE_EVIDENCE` 阻断；其他写法只做结构校验，旧任务记录不受影响。
 
 ### 2. QA 文档完整性检查
@@ -618,7 +618,7 @@ pnpm agent -- qa run
 ### 业务测试自动化（可选，启用 `qa.business` 时）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
-| `pnpm agent -- qa paths` | 校验原子 AC 表与 `PATHS.md`，输出 AC/路径追溯矩阵（只读） | ⭐⭐ |
+| `pnpm agent -- qa paths` | 校验原子 AC 表与 `PATHS.md`，输出 AC/路径追溯矩阵（只读）；含 `auto` AC 的域缺少 `PATHS.md` 时输出 `VIOLATION=PATHS_MISSING` 并退出 1 | ⭐⭐ |
 | `pnpm agent -- qa run` | 运行 `qa.business.suites`，把报告绑定到原子 AC/TC/路径并写入结果文件 | ⭐⭐ |
 
 ---
@@ -674,10 +674,10 @@ pnpm agent -- qa merge
 | generate-test-report.js | ✅ 已实现 | v1.0 | 测试报告生成 |
 | check-defect-blockers.js | ✅ 已实现 | v1.0 | 缺陷阻塞检查 |
 | business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用）；`parsePrdStories` 同时供 `qa:generate` 与 `qa verify` 的 Story 清单使用 |
-| qa-paths.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa paths`：规格校验与追溯矩阵 |
+| qa-paths.js | ✅ 已实现 | v1.1 | `pnpm agent -- qa paths`：规格校验与追溯矩阵；含 `auto` AC 的域缺少 `PATHS.md` 时报 `PATHS_MISSING` |
 | business-config.js | ✅ 已实现 | v1.0 | 解析并校验 `qa.business` 配置 |
 | qa-run.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa run`：运行套件、解析 JUnit XML、写入结果；必需优先级的自动化 AC 未证明时 `FAILED(AC_NOT_PROVEN)` |
-| business-results.js | ✅ 已实现 | v1.0 | 把用例绑定到 AC/TC/路径并判定验收 |
+| business-results.js | ✅ 已实现 | v1.1 | 把用例绑定到 AC/TC/路径并判定验收；测试名显式带 AC ID 时只绑定该 AC，不再按 TC 扩散到同 TC 的其他 AC |
 | qa-business-gate.js | ✅ 已实现 | v1.0 | `qa verify` 的业务验收门禁 |
 
 ---

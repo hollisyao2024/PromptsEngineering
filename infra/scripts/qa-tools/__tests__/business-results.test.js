@@ -1003,3 +1003,22 @@ test('judgeAc 与 aggregateResults 的真实输出配合：端为 - 的套件不
   assert.equal(judgeAc(both.acs['AC-SHOP-001-03']).proven, false, '没有任何用例覆盖');
   assert.equal(judgeAc(both.acs['AC-SHOP-001-03']).state, 'missing');
 }));
+
+// A case that names its AC explicitly is bound to that AC only. Expanding its TC to every AC listing the TC made a
+// failing "AC-X / TC-1" case fail sibling ACs that merely reuse TC-1 (business-test trial defect D).
+test('用例显式标注 AC 时只绑定该 AC，TC 仍计数，不扩散到共用同一 TC 的其他 AC', () => withSpec({
+  'docs/prd-modules/shop/PRD.md': prdDocument([
+    { id: 'AC-SHOP-001-01', tc: 'TC-SHOP-001' },
+    { id: 'AC-SHOP-001-02', tc: 'TC-SHOP-001, TC-SHOP-002' },
+  ]),
+}, ({ spec }) => {
+  const aggregate = aggregateResults({ spec, suites: [web([kase('AC-SHOP-001-01 / TC-SHOP-001 结算', 'failed')])] });
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'failed');
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'missing');
+  assert.deepEqual(aggregate.tcs['TC-SHOP-001'].cases, { total: 1, passed: 0, failed: 1, error: 0, skipped: 0 });
+  assert.deepEqual(aggregate.unknown_ids, []);
+
+  const tcOnly = aggregateResults({ spec, suites: [web([kase('TC-SHOP-001 shared', 'failed')])] });
+  assert.equal(tcOnly.acs['AC-SHOP-001-01'].status, 'failed');
+  assert.equal(tcOnly.acs['AC-SHOP-001-02'].status, 'failed');
+}));

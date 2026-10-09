@@ -2,7 +2,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
-const { analyzeReviewGate, GATE_RESULT } = require('./tdd-review-gate');
+const { analyzeReviewGate, GATE_RESULT, readRecordedModelReview } = require('./tdd-review-gate');
 const {
   assertSessionCanResume,
   getMainRepoRoot,
@@ -282,12 +282,29 @@ async function findOpenPullRequest(branch, { backend, runGh: _runGh = runGh }) {
 }
 
 function getReviewSection(reviewDecision) {
-  return [
+  const lines = [
     '### Review Gate',
     `- Gate-Result: ${reviewDecision.gateResult}`,
     `- Reason: ${reviewDecision.reason}`,
     `- Base-Ref: ${reviewDecision.baseRef}`,
-  ].join('\n');
+  ];
+  const review = reviewDecision.modelReview;
+  if (review && review.decision) {
+    lines.push(`- Model-Review: ${review.decision}（${review.reason || '-'}）`);
+  }
+  return lines.join('\n');
+}
+
+// 读取 tdd review-gate --record 写入当前任务的语义审查结论；没有任务或多候选时不阻断 push，只是 PR 不带 Model-Review。
+function loadRecordedModelReview() {
+  try {
+    const { listTaskStates, runtimeContext, selectTaskState } = require('../agent-runner/agent-task');
+    const context = runtimeContext(repoRoot);
+    const selected = selectTaskState(listTaskStates({ runsRoot: context.runsRoot }), context);
+    return selected ? readRecordedModelReview({ runsRoot: context.runsRoot, taskId: selected.task_id }) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function mergeReviewSectionIntoBody(body, reviewDecision) {
@@ -324,6 +341,9 @@ function printReviewDecision(reviewDecision) {
   console.log(`\u001b[36mGate-Result: ${reviewDecision.gateResult}\u001b[0m`);
   console.log(`\u001b[36mReason: ${reviewDecision.reason}\u001b[0m`);
   console.log(`\u001b[36mDecision: ${label}\u001b[0m`);
+  if (reviewDecision.modelReview && reviewDecision.modelReview.decision) {
+    console.log(`\u001b[36mModel-Review: ${reviewDecision.modelReview.decision}（${reviewDecision.modelReview.reason || '-'}）\u001b[0m`);
+  }
 
   if (reviewDecision.gateResult === GATE_RESULT.REQUIRED) {
     console.log('\u001b[33m下一步：hotfix 分支，执行当前 CLI 对应的 code review 命令，Approved 后才能标记 TDD_DONE。\u001b[0m');
@@ -610,6 +630,7 @@ async function main() {
       baseBranch: reviewBaseBranch,
       branchName: branch,
     });
+    reviewDecision.modelReview = loadRecordedModelReview();
 
     if (cliArgs.dryRun) {
       console.log('\x1b[33m[DRY RUN] /tdd push 预览：\x1b[0m');

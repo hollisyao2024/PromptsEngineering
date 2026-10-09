@@ -297,26 +297,102 @@ function analyzeReviewGate(options = {}) {
   return { ...result, baseRef, changedFiles };
 }
 
+const RECORD_DECISIONS = ['required', 'optional'];
+
 function parseCliArgs(argv) {
-  const options = { baseBranch: '', json: false };
+  const options = { baseBranch: '', json: false, record: '', reason: '', taskId: '' };
+  const assign = (key, value) => {
+    if (key === 'record' && !RECORD_DECISIONS.includes(value)) {
+      throw new Error(`--record must be one of ${RECORD_DECISIONS.join('|')}, got "${value}"`);
+    }
+    options[key] = value;
+  };
+  const flags = { '--base': 'baseBranch', '--record': 'record', '--reason': 'reason', '--task': 'taskId' };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--base' && argv[i + 1]) {
-      options.baseBranch = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg.startsWith('--base=')) {
-      options.baseBranch = arg.split('=')[1];
-      continue;
-    }
     if (arg === '--json') {
       options.json = true;
+      continue;
+    }
+    const eq = arg.indexOf('=');
+    const flag = eq > 0 ? arg.slice(0, eq) : arg;
+    if (!Object.hasOwn(flags, flag)) continue;
+    if (eq > 0) {
+      assign(flags[flag], arg.slice(eq + 1));
+      continue;
+    }
+    if (argv[i + 1] !== undefined) {
+      assign(flags[flag], argv[i + 1]);
+      i += 1;
     }
   }
 
   return options;
+}
+
+// ── 语义审查结论记录 ──────────────────────────────────────────────────────────
+// review-gate 只能给出"是否需要模型语义审查"的判定；执行器实际做出的 required|optional 结论以前没有落地，
+// qa verify 与 PR body 都无法证明门禁被执行。`--record` 把结论写入当前任务步骤的 REVIEW_DECISION 证据，
+// tdd push 读回后写入 PR body 的 Model-Review 行。
+const REVIEW_DECISION_PREFIX = 'REVIEW_DECISION=';
+
+function recordModelReview({ runsRoot, lockDir, taskId, decision, reason, headSha, baseRef, now }) {
+  if (!RECORD_DECISIONS.includes(decision)) {
+    throw new Error(`review decision must be one of ${RECORD_DECISIONS.join('|')}, got "${decision}"`);
+  }
+  const { checkpointTask, readTaskState } = require('../agent-runner/agent-task');
+  const state = readTaskState({ runsRoot, taskId });
+  const step = (state.steps || []).find((item) => item.status !== 'done');
+  if (!step) throw new Error(`task ${taskId} has no incomplete step to attach the review decision to`);
+  const record = {
+    version: 1,
+    decision,
+    reason: String(reason || '').trim(),
+    head_sha: String(headSha || '').trim(),
+    base_ref: String(baseRef || '').trim(),
+  };
+  checkpointTask({
+    runsRoot,
+    lockDir,
+    taskId,
+    stepId: step.id,
+    status: 'running',
+    evidence: [`${REVIEW_DECISION_PREFIX}${JSON.stringify(record)}`],
+    now,
+  });
+  return { stepId: step.id, record };
+}
+
+function readRecordedModelReview({ runsRoot, taskId }) {
+  const { readTaskState } = require('../agent-runner/agent-task');
+  const { orderedStepEvidence } = require('../shared/task-evidence');
+  let state;
+  try {
+    state = readTaskState({ runsRoot, taskId });
+  } catch {
+    return undefined;
+  }
+  const line = orderedStepEvidence(state).findLast((entry) => {
+    const text = typeof entry === 'string' ? entry : entry && entry.text;
+    return typeof text === 'string' && text.startsWith(REVIEW_DECISION_PREFIX);
+  });
+  if (!line) return undefined;
+  const text = typeof line === 'string' ? line : line.text;
+  try {
+    return JSON.parse(text.slice(REVIEW_DECISION_PREFIX.length));
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveTaskForRecord(options) {
+  const { listTaskStates, runtimeContext, selectTaskState } = require('../agent-runner/agent-task');
+  const context = runtimeContext(repoRoot);
+  if (options.taskId) return { ...context, taskId: options.taskId };
+  const selected = selectTaskState(listTaskStates({ runsRoot: context.runsRoot }), context);
+  if (!selected) throw new Error('--record needs a matching mutation task; pass --task <id> or start one with pnpm agent -- task start');
+  return { ...context, taskId: selected.task_id };
 }
 
 function printHumanReadable(result) {
@@ -342,11 +418,26 @@ function main() {
   try {
     const options = parseCliArgs(process.argv.slice(2));
     const result  = analyzeReviewGate(options);
+    let recorded;
+    if (options.record) {
+      const target = resolveTaskForRecord(options);
+      recorded = recordModelReview({
+        runsRoot: target.runsRoot,
+        lockDir: target.lockDir,
+        taskId: target.taskId,
+        decision: options.record,
+        reason: options.reason || result.reason,
+        headSha: runGit(['rev-parse', 'HEAD'], { capture: true }).trim(),
+        baseRef: result.baseRef,
+      });
+      recorded = { taskId: target.taskId, ...recorded };
+    }
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      console.log(JSON.stringify(recorded ? { ...result, recorded } : result, null, 2));
       return;
     }
     printHumanReadable(result);
+    if (recorded) console.log(`REVIEW_RECORDED=${recorded.taskId}/${recorded.stepId} ${JSON.stringify(recorded.record)}`);
   } catch (error) {
     console.error(`\u001b[31m/tdd review-gate 失败: ${error.message}\u001b[0m`);
     process.exit(1);
@@ -363,4 +454,7 @@ module.exports = {
   classifyChanges,
   detectSignals,
   isCommentOnlyDiff,
+  parseCliArgs,
+  readRecordedModelReview,
+  recordModelReview,
 };

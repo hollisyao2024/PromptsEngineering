@@ -405,35 +405,30 @@ function generateMap(files) {
 
 // ─── 主流程 ──────────────────────────────────────────────
 
+// The map always describes the full high-value file set; `--scope=session` only adds the branch's changed
+// high-value files as a report line so tdd sync never overwrites docs/data/CODEBASE_MAP.md with a fragment.
+function selectFilesForScope({ scope, allFiles, sessionFiles }) {
+  const changed = scope === 'session' && sessionFiles
+    ? allFiles.filter((file) => sessionFiles.has(file))
+    : [];
+  return { files: allFiles, changed };
+}
+
 function main() {
   const scope = parseArgs(process.argv.slice(2));
 
-  // 收集文件
-  let allFiles = [];
+  // 收集文件（始终全量；session 只影响报告）
+  const allFiles = [];
   for (const dir of SCAN_DIRS) {
     const fullDir = path.join(ROOT, dir);
     allFiles.push(...collectFiles(fullDir));
   }
 
-  // session 模式：过滤仅当前分支改动文件
-  if (scope === 'session') {
-    const sessionFiles = getSessionFiles();
-    if (sessionFiles) {
-      allFiles = allFiles.filter((f) => sessionFiles.has(f));
-      if (allFiles.length === 0) {
-        console.warn('⚠️  当前分支差异不在高价值源码目录内，回退到全量扫描');
-        allFiles = [];
-        for (const dir of SCAN_DIRS) {
-          const fullDir = path.join(ROOT, dir);
-          allFiles.push(...collectFiles(fullDir));
-        }
-      }
-    }
-    // sessionFiles 为 null 时回退全量
-  }
+  const sessionFiles = scope === 'session' ? getSessionFiles() : null;
+  const { files, changed } = selectFilesForScope({ scope, allFiles, sessionFiles });
 
   // 生成内容
-  const { output: content, keyEntryCount } = generateMap(allFiles);
+  const { output: content, keyEntryCount } = generateMap(files);
 
   // 确保输出目录存在
   const outputDir = path.dirname(OUTPUT);
@@ -443,7 +438,11 @@ function main() {
 
   fs.writeFileSync(OUTPUT, content, 'utf8');
 
-  console.log(`✅ Codebase Map 已生成: ${path.relative(ROOT, OUTPUT)} (${keyEntryCount} key entries)`);
+  console.log(`✅ Codebase Map 已生成: ${path.relative(ROOT, OUTPUT)} (${keyEntryCount} key entries, ${files.length} files)`);
+  if (scope === 'session') {
+    console.log(`SESSION_CHANGED_FILES=${changed.length}`);
+    for (const file of changed) console.log(`  - ${normalizePathSeparators(path.relative(ROOT, file))}`);
+  }
 }
 
 if (require.main === module) {
@@ -460,6 +459,7 @@ module.exports = {
   parseArgs,
   collectFiles,
   getSessionFiles,
+  selectFilesForScope,
   parseFile,
   generateMap,
   main,

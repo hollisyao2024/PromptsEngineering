@@ -488,11 +488,14 @@ function aggregateResults({ spec, suites } = {}) {
         suiteUnlabelled += 1;
         continue;
       }
+      // 显式标注 AC 的用例只绑定这些 AC；只有未标注 AC 时，才按 TC 展开到列出该 TC 的全部 AC。
+      // 否则 "AC-X / TC-1" 失败会连带让仅复用 TC-1 的兄弟 AC 失败。
       const bound = new Set();
       for (const id of labels.acs) {
         if (!knownAcs.has(id)) unknown.add(id);
         else if (acById.has(id)) bound.add(id);
       }
+      const explicitAcs = bound.size > 0;
       for (const id of labels.tcs) {
         if (!knownTcs.has(id)) {
           unknown.add(id);
@@ -500,6 +503,7 @@ function aggregateResults({ spec, suites } = {}) {
         }
         if (!tcCounts.has(id)) tcCounts.set(id, emptyCounts());
         addCase(tcCounts.get(id), item.status);
+        if (explicitAcs) continue;
         for (const acId of acsOfTc.get(id) || []) bound.add(acId);
       }
       for (const acId of bound) {
