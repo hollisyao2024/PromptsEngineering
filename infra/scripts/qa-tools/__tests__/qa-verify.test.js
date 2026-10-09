@@ -9,10 +9,68 @@ const path = require('node:path');
 const {
   captureQaVerificationIdentity,
   createPnpmRunInvocation,
+  describeQaVerifyOutcome,
   resolveProjectChecks,
   resolveTargetsFromQaPlanState,
   validateQaFile,
 } = require('../qa-verify');
+const { resultBlockLines } = require('../../shared/result-block');
+
+// qa verify ends with the parsable STATUS/REASON/SUMMARY/NEXT_ACTION block (docs/CONVENTIONS.md §7) instead of a bare
+// "❌ 执行失败" line: known gate failures are BLOCKED with a stable reason code, tool failures are FAILED.
+test('qa verify maps known errors to BLOCKED reason codes and unknown errors to FAILED', () => {
+  const stale = new Error('origin/main (aaa) is not an ancestor of origin/fix (bbb); synchronize the feature branch and rerun QA.');
+  stale.code = 'STALE_QA_BASE';
+  const staleOutcome = describeQaVerifyOutcome({ error: stale });
+  assert.equal(staleOutcome.status, 'BLOCKED');
+  assert.equal(staleOutcome.reason, 'STALE_QA_BASE');
+  assert.match(staleOutcome.summary, /not an ancestor/);
+  assert.match(staleOutcome.nextAction, /merge/i);
+  assert.deepEqual(resultBlockLines(staleOutcome).slice(0, 2), ['STATUS=BLOCKED', 'REASON=STALE_QA_BASE']);
+
+  const fetch = new Error('git fetch failed after 2 attempts: unable to access origin');
+  fetch.code = 'QA_FETCH_FAILED';
+  assert.equal(describeQaVerifyOutcome({ error: fetch }).status, 'FAILED');
+  assert.equal(describeQaVerifyOutcome({ error: fetch }).reason, 'QA_FETCH_FAILED');
+
+  for (const code of ['HEAD_NOT_PUSHED', 'QA_BRANCH_REQUIRED', 'TEST_SCOPE_EVIDENCE']) {
+    const error = new Error(`gate ${code}`);
+    error.code = code;
+    const outcome = describeQaVerifyOutcome({ error });
+    assert.equal(outcome.status, 'BLOCKED', code);
+    assert.equal(outcome.reason, code);
+    assert.match(outcome.summary, new RegExp(`gate ${code}`));
+  }
+
+  const unknown = describeQaVerifyOutcome({ error: new TypeError('x is not a function') });
+  assert.equal(unknown.status, 'FAILED');
+  assert.equal(unknown.reason, 'UNEXPECTED_ERROR');
+  assert.match(unknown.summary, /x is not a function/);
+});
+
+test('qa verify reports verdict and business gate blocks with their own reason codes and OK with the receipt', () => {
+  const noGo = describeQaVerifyOutcome({ exitCode: 1, failureReason: 'QA_VERDICT_NO_GO' });
+  assert.equal(noGo.status, 'BLOCKED');
+  assert.equal(noGo.reason, 'QA_VERDICT_NO_GO');
+  const business = describeQaVerifyOutcome({ exitCode: 1, failureReason: 'BUSINESS_GATE_BLOCKED' });
+  assert.equal(business.reason, 'BUSINESS_GATE_BLOCKED');
+  const ok = describeQaVerifyOutcome({ exitCode: 0, receipt: { head_sha: 'b'.repeat(40), base_sha: 'a'.repeat(40) }, receiptPath: '/tmp/receipt.json' });
+  assert.equal(ok.status, 'OK');
+  assert.equal(ok.reason, undefined);
+  assert.match(ok.summary, /b{40}/);
+  assert.match(ok.nextAction, /qa merge/);
+});
+
+test('qa verify identity errors carry stable reason codes', () => {
+  const onBase = (args) => (args.join(' ') === 'branch --show-current' ? 'stable\n' : '');
+  assert.throws(() => captureQaVerificationIdentity({ config: { baseBranch: 'stable' }, runGit: onBase }), (error) => (
+    error.code === 'QA_BRANCH_REQUIRED' && /feature branch/.test(error.message)
+  ));
+  const detached = (args) => (args.join(' ') === 'branch --show-current' ? '\n' : '');
+  assert.throws(() => captureQaVerificationIdentity({ config: { baseBranch: 'stable' }, runGit: detached }), (error) => (
+    error.code === 'QA_BRANCH_REQUIRED'
+  ));
+});
 const { AC_COLUMNS, acRowCells, mdTable } = require('./fixtures/business-testing/builders');
 
 test('qa verify captures the configured remote base and exact remote feature head', () => {
@@ -47,6 +105,47 @@ test('qa verify captures the configured remote base and exact remote feature hea
   assert.deepEqual(calls.at(-1), ['merge-base', '--is-ancestor', A, B]);
 });
 
+// A transient network failure on the single fetch gets exactly one bounded retry; the second failure propagates.
+function flakyFetchGit({ fetchFailures }) {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const calls = [];
+  let fetches = 0;
+  const runGit = (args) => {
+    calls.push(args);
+    const key = args.join(' ');
+    if (key === 'branch --show-current') return 'fix/verified\n';
+    if (args[0] === 'fetch') {
+      fetches += 1;
+      if (fetches <= fetchFailures) throw new Error(`git ${key} failed (128): fatal: unable to access origin`);
+      return '';
+    }
+    if (key === 'rev-parse --verify refs/remotes/origin/stable^{commit}') return `${A}\n`;
+    if (key === 'rev-parse --verify refs/remotes/origin/fix/verified^{commit}') return `${B}\n`;
+    if (key === 'rev-parse --verify HEAD^{commit}') return `${B}\n`;
+    return '';
+  };
+  return { runGit, calls, fetchCount: () => calls.filter((args) => args[0] === 'fetch').length, A, B };
+}
+
+test('qa verify retries a failed fetch once and signs the receipt when the retry succeeds', () => {
+  const git = flakyFetchGit({ fetchFailures: 1 });
+  const receipt = captureQaVerificationIdentity({ config: { baseBranch: 'stable' }, runGit: git.runGit });
+  assert.equal(receipt.base_sha, git.A);
+  assert.equal(receipt.head_sha, git.B);
+  assert.equal(git.fetchCount(), 2);
+  assert.deepEqual(git.calls.at(-1), ['merge-base', '--is-ancestor', git.A, git.B]);
+});
+
+test('qa verify gives up after the second fetch failure without a third attempt', () => {
+  const git = flakyFetchGit({ fetchFailures: 2 });
+  assert.throws(() => captureQaVerificationIdentity({ config: { baseBranch: 'stable' }, runGit: git.runGit }), (error) => (
+    error.code === 'QA_FETCH_FAILED' && /after 2 attempts/.test(error.message) && /unable to access origin/.test(error.message)
+  ));
+  assert.equal(git.fetchCount(), 2);
+  assert.ok(!git.calls.some((args) => args[0] === 'rev-parse'));
+});
+
 test('qa verify rejects a local HEAD that differs from the pushed feature branch', () => {
   const A = 'a'.repeat(40);
   const B = 'b'.repeat(40);
@@ -63,7 +162,7 @@ test('qa verify rejects a local HEAD that differs from the pushed feature branch
   assert.throws(() => captureQaVerificationIdentity({
     config: { baseBranch: 'stable' },
     runGit: fakeRunGit,
-  }), /local HEAD.*origin\/fix\/verified/i);
+  }), (error) => error.code === 'HEAD_NOT_PUSHED' && /local HEAD.*origin\/fix\/verified/i.test(error.message));
 });
 
 const repoRoot = path.resolve(__dirname, '../../../..');

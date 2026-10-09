@@ -6,6 +6,7 @@
 
 const { exitOnHelp } = require('../shared/cli-help');
 const { resolveRepoRoot } = require('../shared/config');
+const { oneLine } = require('../shared/result-block');
 const {
   AC_TABLE_HEADER,
   PRD_MODULES_DIR,
@@ -210,7 +211,6 @@ function analyzeSpec({ repoRoot }) {
 }
 
 const list = (values) => (values.length > 0 ? values.join(',') : '-');
-const oneLine = (text) => String(text).replace(/\s*[\r\n]+\s*/gu, ' ');
 
 // 与 qa run 共用：两条命令对同一类规格违规必须给出同一种输出行。
 function formatViolation(violation) {

@@ -13,6 +13,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const { exitOnHelp } = require('../shared/cli-help');
 const { ensureContainerDirectories, getMainRepoRoot, loadConfig, resolveRepoRoot } = require('../shared/config');
 const { createToolchainEnv } = require('../shared/toolchain-env');
+const { oneLine } = require('../shared/result-block');
 const { resolveBusinessConfig } = require('./business-config');
 const {
   MAX_REPORT_BYTES,
@@ -45,7 +46,6 @@ const FORWARDED_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const IS_WINDOWS = process.platform === 'win32';
 
-const oneLine = (text) => String(text).replace(/\s*[\r\n]+\s*/gu, ' ');
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const reportFile = (repoRoot, report) => path.join(repoRoot, ...report.split('/'));
 

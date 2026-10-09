@@ -141,7 +141,7 @@ function matchTableAt(lines, index, definitions) {
 // 围栏代码块内的内容一律忽略；表头必须与定义逐列一致才识别为表。
 // prose 为围栏之外、表格之外的正文行（供读取 覆盖准则 声明）。
 function scanMarkdown(content, definitions) {
-  const lines = String(content).replace(/^﻿/u, '').split(/\r?\n/u);
+  const lines = String(content).replace(/^\uFEFF/u, '').split(/\r?\n/u);
   const tables = [];
   const prose = [];
   let fence = null;
@@ -259,7 +259,7 @@ function parseAcTables(content, { file = '' } = {}) {
 function storyDefinitions(content) {
   const defined = [];
   let fence = null;
-  for (const line of content.replace(/^﻿/u, '').split(/\r?\n/u)) {
+  for (const line of content.replace(/^\uFEFF/u, '').split(/\r?\n/u)) {
     if (fence) {
       if (closesFence(line, fence)) fence = null;
       continue;

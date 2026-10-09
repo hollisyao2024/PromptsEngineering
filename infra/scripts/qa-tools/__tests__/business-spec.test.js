@@ -547,7 +547,7 @@ test('parsePrdStories 忽略围栏代码块里的表格，并且 BOM 与 CRLF �
   ].join('\n');
 
   const plain = spec.parsePrdStories(lines, { file: PRD_FILE });
-  const crlf = spec.parsePrdStories(`﻿${lines.replace(/\n/gu, '\r\n')}`, { file: PRD_FILE });
+  const crlf = spec.parsePrdStories(`\uFEFF${lines.replace(/\n/gu, '\r\n')}`, { file: PRD_FILE });
 
   assert.deepEqual(plain.stories, ['US-SHOP-001', 'US-SHOP-002']);
   assert.deepEqual(crlf, plain);
