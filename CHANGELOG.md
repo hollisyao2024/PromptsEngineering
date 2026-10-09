@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.11] - 2026-10-10
+
 - 原地接管 Claude Desktop worktree：在 `<repo>/.claude/worktrees/<name>` 中执行 `worktree new` 不再新建 worktree，而是在工作区干净、required fetch 通过后接管当前目录，无自有提交时重置到远端 base SHA，有自有提交且落后时阻断（不自动 rebase），分支改为规范名，session 记录 `provenance.origin=claude-desktop` 与原分支，输出 `STATUS=ADOPTED`。
 - 合并后清理（`qa merge`、封印补偿器、`worktree audit`、finish guard、`worktree remove|cancel`、分支对账）按 session 计算删除边界：仅带匹配 provenance 的 Desktop 精确子目录可删，未接管或伪造封印的 Desktop worktree 保持跳过；`.gitignore` 与模板追加片段忽略 `.claude/worktrees/`。接管在锁内复检并在释放前写入带 provenance 的 session，写入前失败会回滚重置与改名（输出 `ADOPTION_ROLLBACK=`）。新增 14 项定向测试。
 
