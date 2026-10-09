@@ -14,6 +14,7 @@ const {
   readSessions,
   MANAGED_MARKER,
 } = require('../worktree-tools/worktree-core');
+const { removalRootForWorktree } = require('../worktree-tools/desktop-worktree');
 const { loadConfig, resolveRepoRoot } = require('../shared/config');
 
 const PROTECTED_BRANCHES = new Set(['main', 'master', 'develop']);
@@ -104,7 +105,12 @@ function cleanupEntry(repoRoot, config, entry, options) {
     if (!options.removeWorktrees) return 'needs-worktree-removal';
     const dirty = runGit(entry.worktreePath, ['status', '--porcelain']).stdout.trim();
     if (dirty) throw new Error(`refusing to remove dirty worktree for ${entry.branch}: ${entry.worktreePath}`);
-    const worktreesRoot = resolveContainerPath(config, repoRoot, 'worktrees');
+    const worktreesRoot = removalRootForWorktree(
+      repoRoot,
+      resolveContainerPath(config, repoRoot, 'worktrees'),
+      entry.worktreePath,
+      readSessions(config, repoRoot),
+    );
     removeWorktreeSafely({ mainRoot: repoRoot, worktreePath: entry.worktreePath, worktreesRoot, force: true });
     removeSession(config, repoRoot, entry.branch);
   }

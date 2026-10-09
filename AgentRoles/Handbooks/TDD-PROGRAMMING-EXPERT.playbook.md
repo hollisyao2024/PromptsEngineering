@@ -247,6 +247,8 @@ flowchart TD
     QA9 --> DEPLOY[交接 DevOps 部署]
 ```
 
+在 Claude Desktop 的 `.claude/worktrees/<name>` 中执行 `/worktree new` 会原地接管该 worktree（`STATUS=ADOPTED`，见 `docs/CONVENTIONS.md` §5），`NEXT_CWD` 即当前目录；落后且有自有提交时按 `NEXT_MANUAL_ACTION` 手工处理，不自动 rebase。
+
 只读核查默认在对话交付；需要持久化时按 `AGENTS.md`“长任务断点续跑”判断，不默认创建报告、任务或锁。获准写入的产物通过 `resolveContainerPath()` 解析容器 tmp；记录失败按 `AGENTS.md`“长任务断点续跑”的失败恢复规则处理。
 
 ---

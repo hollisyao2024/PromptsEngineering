@@ -4,9 +4,12 @@
 
 ## [Unreleased]
 
+- 修复 `DESIGN.md` 漂移检查跟随符号链接的问题：根 `DESIGN.md` 改经 `safePath` 解析，是符号链接时不跟随、不读取，以 `DESIGN_DRIFT_INVALID_DESIGN` 告警，检查不抛错，门禁结果不变；文件不存在或项目没有 shadcn 应用时仍静默跳过。TDD 与 QA 手册补充说明：`tdd sync`、`qa verify` 在 stderr 输出的 `ARCHITECTURE_WARNING=<name>|<code>|<reason>` 不阻断，执行器把告警报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
+
 ## [v3.11.11] - 2026-10-10
 
-- 修复 `DESIGN.md` 漂移检查跟随符号链接的问题：根 `DESIGN.md` 改经 `safePath` 解析，是符号链接时不跟随、不读取，以 `DESIGN_DRIFT_INVALID_DESIGN` 告警，检查不抛错，门禁结果不变；文件不存在或项目没有 shadcn 应用时仍静默跳过。TDD 与 QA 手册补充说明：`tdd sync`、`qa verify` 在 stderr 输出的 `ARCHITECTURE_WARNING=<name>|<code>|<reason>` 不阻断，执行器把告警报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
+- 原地接管 Claude Desktop worktree：在 `<repo>/.claude/worktrees/<name>` 中执行 `worktree new` 不再新建 worktree，而是在工作区干净、required fetch 通过后接管当前目录，无自有提交时重置到远端 base SHA，有自有提交且落后时阻断（不自动 rebase），分支改为规范名，session 记录 `provenance.origin=claude-desktop` 与原分支，输出 `STATUS=ADOPTED`。
+- 合并后清理（`qa merge`、封印补偿器、`worktree audit`、finish guard、`worktree remove|cancel`、分支对账）按 session 计算删除边界：仅带匹配 provenance 的 Desktop 精确子目录可删，未接管或伪造封印的 Desktop worktree 保持跳过；`.gitignore` 与模板追加片段忽略 `.claude/worktrees/`。接管在锁内复检并在释放前写入带 provenance 的 session，写入前失败会回滚重置与改名（输出 `ADOPTION_ROLLBACK=`）。新增 14 项定向测试。
 
 ## [v3.11.10] - 2026-10-10
 
