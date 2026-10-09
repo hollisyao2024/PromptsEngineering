@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+- 原地接管 Claude Desktop worktree：在 `<repo>/.claude/worktrees/<name>` 中执行 `worktree new` 不再新建 worktree，而是在工作区干净、required fetch 通过后接管当前目录，无自有提交时重置到远端 base SHA，有自有提交且落后时阻断（不自动 rebase），分支改为规范名，session 记录 `provenance.origin=claude-desktop` 与原分支，输出 `STATUS=ADOPTED`。
+- 合并后清理（`qa merge`、封印补偿器、`worktree audit`、finish guard、`worktree remove|cancel`、分支对账）按 session 计算删除边界：仅带匹配 provenance 的 Desktop 精确子目录可删，未接管或伪造封印的 Desktop worktree 保持跳过；`.gitignore` 与模板追加片段忽略 `.claude/worktrees/`。新增 12 项定向测试。
+
 ## [v3.11.8] - 2026-10-09
 
 - 新增 `DESIGN.md` 与 `styles.css` 的漂移检查（ADR-040）：shadcn 应用的 `architecture check` 按实际生效取值比较颜色、圆角和正文字体族，只告警不阻断；`tdd sync` 与 `qa verify` 的架构门禁把告警输出为 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，通过条件不变。

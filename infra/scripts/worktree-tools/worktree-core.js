@@ -24,6 +24,10 @@ const {
   removeWorktreeSafely,
   safeRemoveTreeNoFollow,
 } = require('./worktree-safe-remove');
+const {
+  buildDesktopProvenance,
+  isDesktopWorktreePath,
+} = require('./desktop-worktree');
 
 const MAIN_BRANCHES = new Set(['main', 'master', 'develop']);
 const MANAGED_MARKER = '.agent-worktree.json';
@@ -1120,6 +1124,215 @@ function runWorktreeBootstrap(options = {}) {
   return { status: 'READY', mode, command, checkCommand, ...reuse };
 }
 
+function adoptionError(message, details = {}) {
+  const error = new Error(message);
+  Object.assign(error, details);
+  return error;
+}
+
+/**
+ * Returns the registered Claude Desktop worktree containing cwd when it has
+ * neither a session nor an ownership marker; managed or foreign paths return null.
+ */
+function detectDesktopAdoption(config, mainRoot, cwd) {
+  const worktreeRoot = getWorktreeRoot(cwd);
+  if (!worktreeRoot || isSamePath(worktreeRoot, mainRoot)) return null;
+  if (!isDesktopWorktreePath(mainRoot, worktreeRoot)) return null;
+  const entry = listWorktrees(mainRoot).find((item) => isSamePath(item.path, worktreeRoot));
+  if (!entry) return null;
+  const managed = readSessions(config, mainRoot)
+    .some((session) => session.worktree && isSamePath(session.worktree, entry.path));
+  if (managed) return null;
+  if (entry.branch && hasOwnedWorktreeMarker(mainRoot, entry.path, entry.branch)) return null;
+  return entry;
+}
+
+function adoptDesktopWorktree(context) {
+  const {
+    cli, branch, cwd, mainRoot, config, entry, options,
+  } = context;
+  const worktreePath = path.resolve(entry.path);
+  const originalBranch = entry.branch || '';
+  const details = { worktreePath, originalBranch };
+  if (!originalBranch) {
+    throw adoptionError('Desktop worktree has a detached HEAD; refusing to adopt it', {
+      ...details,
+      nextManualAction: `Check out a branch in ${worktreePath} or leave it and run worktree new from the main worktree.`,
+    });
+  }
+  if (isMainBranch(originalBranch)) {
+    throw adoptionError(`Desktop worktree is on base branch ${originalBranch}; refusing to adopt it`, details);
+  }
+  if (entry.locked || entry.prunable) {
+    throw adoptionError(`Desktop worktree is ${entry.locked ? 'locked' : 'prunable'}; refusing to adopt it`, details);
+  }
+  const occupied = findWorktreeByBranch(mainRoot, branch);
+  if (occupied && !isSamePath(occupied.path, worktreePath)) {
+    throw adoptionError(`branch ${branch} is already checked out at ${occupied.path}`, {
+      ...details,
+      nextManualAction: `Continue in ${occupied.path}, or choose a different --task/--branch for this Desktop worktree.`,
+    });
+  }
+  if (originalBranch !== branch && branchExists(mainRoot, branch)) {
+    throw adoptionError(`local branch ${branch} already exists; refusing to rename ${originalBranch} over it`, details);
+  }
+  const dirty = getStatusLines(worktreePath);
+  if (dirty.length > 0) {
+    throw adoptionError(`Desktop worktree has uncommitted changes: ${worktreePath}`, {
+      ...details,
+      dirtyFiles: dirty.map((line) => line.slice(3)).join(','),
+      nextManualAction: `Commit or discard the changes in ${worktreePath}, then rerun worktree new.`,
+    });
+  }
+  const previousHead = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
+
+  if (cli.dryRun) {
+    return {
+      branch,
+      worktreePath,
+      config,
+      mainRoot,
+      baseRef: getBaseRef(mainRoot, config),
+      dryRun: true,
+      adopted: true,
+      originalBranch,
+      previousHead,
+    };
+  }
+
+  const fetchSkipped = shouldSkipFetch(cli);
+  let base;
+  if (fetchSkipped) {
+    base = getSkippedBase(mainRoot, config);
+  } else {
+    try {
+      runGit(['fetch', '--prune', 'origin'], { cwd: mainRoot });
+    } catch (error) {
+      error.fetchStatus = 'FAILED';
+      error.baseFreshness = 'UNVERIFIED';
+      error.worktreePath = worktreePath;
+      error.nextManualAction = 'Fix origin access and rerun, or explicitly use --skip-fetch with a cached or local base.';
+      throw error;
+    }
+    base = getRequiredRemoteBase(mainRoot, config);
+  }
+  const baseLabel = base.baseRef.replace(/^refs\/remotes\//u, '').replace(/^refs\/heads\//u, '');
+  const remote = getRemoteBranch(mainRoot, branch);
+  if (remote) throw Object.assign(remoteBranchConflictError(branch, remote), details);
+  assertNoConflictingRecovery(config, mainRoot, cli, branch);
+
+  const uniqueCommits = Number(runGit(['rev-list', '--count', `${base.baseCommit}..HEAD`], {
+    cwd: worktreePath,
+    capture: true,
+  }).trim());
+  const containsBase = spawnSync('git', ['merge-base', '--is-ancestor', base.baseCommit, 'HEAD'], {
+    cwd: worktreePath,
+    stdio: 'pipe',
+  }).status === 0;
+  if (uniqueCommits > 0 && !containsBase) {
+    throw adoptionError(`Desktop branch ${originalBranch} has ${uniqueCommits} own commit(s) and is behind ${baseLabel}`, {
+      ...details,
+      fetchStatus: base.fetchStatus,
+      baseRef: base.baseRef,
+      baseFreshness: base.baseFreshness,
+      nextManualAction: `In ${worktreePath}, rebase or merge ${baseLabel} into ${originalBranch} yourself, then rerun worktree new.`,
+    });
+  }
+
+  const audit = require('./worktree-audit').auditManagedWorktrees({
+    mainRoot,
+    config,
+    baseRef: base.baseCommit,
+    cwd,
+    apply: true,
+    excludeBranch: originalBranch,
+    skipWorktreePath: worktreePath,
+  });
+
+  const lockDir = resolveRuntimePath(config, mainRoot, config.worktree && config.worktree.lockDir, 'agent-locks');
+  const release = acquireLock(lockDir, 'worktree-desktop-adoption', 30000);
+  let adoptionReset = false;
+  try {
+    const observedHead = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
+    if (observedHead !== previousHead || getStatusLines(worktreePath).length > 0) {
+      throw adoptionError('Desktop worktree changed during adoption; rerun worktree new', details);
+    }
+    if (uniqueCommits === 0 && previousHead !== base.baseCommit) {
+      runGit(['reset', '--hard', base.baseCommit], { cwd: worktreePath, capture: true });
+      adoptionReset = true;
+    }
+    if (originalBranch !== branch) {
+      runGit(['branch', '-m', branch], { cwd: worktreePath, capture: true });
+    }
+    const renamed = listWorktrees(mainRoot).find((item) => isSamePath(item.path, worktreePath));
+    if (!renamed || renamed.branch !== branch) {
+      throw adoptionError(`Desktop branch rename is incomplete: expected ${branch}`, details);
+    }
+  } finally {
+    release();
+  }
+
+  const head = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
+  const linked = setupSharedLinks(mainRoot, worktreePath, config);
+  const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
+  const lifecycle = lifecycleState(supersession);
+  const provenance = buildDesktopProvenance(worktreePath, originalBranch, {
+    previous_head: previousHead,
+    reset_to: adoptionReset ? base.baseCommit : '',
+  });
+  writeManagedMarker(mainRoot, worktreePath, branch);
+  const sessionPayload = {
+    phase: cli.phase || inferPhaseFromBranch(branch),
+    branch,
+    worktree: worktreePath,
+    status: 'in_progress',
+    step: 'adopted',
+    head,
+    linked,
+    lifecycle,
+    provenance,
+  };
+  writeSession(config, mainRoot, sessionPayload);
+  const bootstrap = runWorktreeBootstrap({
+    worktreePath,
+    config,
+    cli,
+    mainRoot,
+    defaultMode: bootstrapConfig(config).mode || 'skip',
+  });
+  const { lifecycle: _initialLifecycle, ...resumePayload } = sessionPayload;
+  writeSession(config, mainRoot, { ...resumePayload, bootstrap });
+  const taskBindings = bindLifecycleTaskLocations(
+    config,
+    mainRoot,
+    { branch, lifecycle },
+    worktreePath,
+    branch,
+    options,
+  );
+  return {
+    branch,
+    worktreePath,
+    config,
+    mainRoot,
+    baseRef: base.baseRef,
+    baseCommit: base.baseCommit,
+    baseSource: base.baseSource,
+    baseFreshness: base.baseFreshness,
+    fetchStatus: base.fetchStatus,
+    fetchSkipped,
+    linked,
+    bootstrap,
+    audit,
+    supersession,
+    taskBindings,
+    adopted: true,
+    originalBranch,
+    previousHead,
+    adoptionReset,
+  };
+}
+
 function createOrResumeWorktree(options = {}) {
   const cli = options.cli || {};
   const branch = buildBranchName(cli);
@@ -1130,6 +1343,12 @@ function createOrResumeWorktree(options = {}) {
   // Validate before fetch, branch creation, worktree registration, session writes, or links.
   validateSharedLinkConfig(config);
   assertSessionCanResume(config, mainRoot, branch);
+  const desktopEntry = detectDesktopAdoption(config, mainRoot, cwd);
+  if (desktopEntry) {
+    return adoptDesktopWorktree({
+      cli, branch, cwd, mainRoot, config, entry: desktopEntry, options,
+    });
+  }
   const existing = findWorktreeByBranch(mainRoot, branch);
   if (existing && existing.path) {
     const audit = require('./worktree-audit').auditManagedWorktrees({
@@ -1310,6 +1529,8 @@ function createOrResumeWorktree(options = {}) {
 }
 
 module.exports = {
+  adoptDesktopWorktree,
+  detectDesktopAdoption,
   acquireLock,
   assertNoConflictingRecovery,
   assertSessionCanResume,

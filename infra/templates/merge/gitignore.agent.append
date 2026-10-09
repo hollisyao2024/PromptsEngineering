@@ -7,6 +7,7 @@
 .codex/history.jsonl
 .codex/sessions/
 .claude/settings.local.json
+.claude/worktrees/
 .gemini/settings.local.json
 
 # Project runtime environment files (examples remain trackable)

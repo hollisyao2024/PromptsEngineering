@@ -17,6 +17,7 @@ const {
   safeRemoveTreeNoFollow,
   writeSession,
 } = require('./worktree-core');
+const { resolveSessionRemovalRoot } = require('./desktop-worktree');
 
 function runGitStrict(mainRoot, args) {
   const result = spawnSync('git', args, {
@@ -170,7 +171,14 @@ function isAuthorizedCleanupSession(session, mainRoot, worktreesRoot) {
   if (!cleanup.worktree || !isSamePath(cleanup.worktree, worktree)) return false;
   if (!cleanup.mainRoot || !isSamePath(cleanup.mainRoot, mainRoot)) return false;
   if (!cleanup.expectedHead) return false;
-  return isPathInside(worktreesRoot, worktree);
+  if (isPathInside(worktreesRoot, worktree)) return true;
+  // Adopted Claude Desktop worktrees: only with provenance naming this exact child path.
+  return Boolean(resolveSessionRemovalRoot(mainRoot, worktreesRoot, session));
+}
+
+// Unauthorized paths fall back to the container root so removal stays rejected.
+function sessionRemovalRoot(mainRoot, worktreesRoot, session) {
+  return resolveSessionRemovalRoot(mainRoot, worktreesRoot, session) || worktreesRoot;
 }
 
 function inspectCleanupState(mainRoot, session) {
@@ -321,20 +329,21 @@ function sweepStaleInProgressSessions(options = {}) {
     }
 
     try {
+      const removalRoot = sessionRemovalRoot(mainRoot, worktreesRoot, session);
       const entry = registered.find((item) => isSamePath(item.path, session.worktree));
       if (entry) {
         if (fs.existsSync(session.worktree)) {
           removeRegistered({
             mainRoot,
             worktreePath: session.worktree,
-            worktreesRoot,
+            worktreesRoot: removalRoot,
             force: true,
           });
         } else {
           pruneMissingAuthorizedRegistration(mainRoot, session.worktree);
         }
       } else if (session.worktree && fs.existsSync(session.worktree)) {
-        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: worktreesRoot });
+        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: removalRoot });
       }
       deleteBranch(mainRoot, branch);
       removeSess(config, mainRoot, branch);
@@ -471,19 +480,20 @@ function reconcilePendingCleanups(options = {}) {
         cleanup: deletingCleanup,
       });
       session.cleanup = deletingCleanup;
+      const removalRoot = sessionRemovalRoot(mainRoot, worktreesRoot, session);
       if (entry) {
         if (fs.existsSync(session.worktree)) {
           removeRegistered({
             mainRoot,
             worktreePath: session.worktree,
-            worktreesRoot,
+            worktreesRoot: removalRoot,
             force: true,
           });
         } else {
           pruneMissingAuthorizedRegistration(mainRoot, session.worktree);
         }
       } else if (fs.existsSync(session.worktree)) {
-        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: worktreesRoot });
+        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: removalRoot });
       }
       deleteBranch(mainRoot, session.branch);
       removeSess(config, mainRoot, session.branch);

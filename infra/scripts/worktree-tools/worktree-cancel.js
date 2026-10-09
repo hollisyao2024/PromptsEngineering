@@ -9,9 +9,11 @@ const {
   listWorktrees,
   parseCliArgs,
   removeWorktreeSafely,
+  readSessions,
   removeSession,
   resolveContainerPath,
 } = require('./worktree-core');
+const { removalRootForWorktree } = require('./desktop-worktree');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
 
@@ -37,7 +39,12 @@ function main() {
     const result = removeWorktreeSafely({
       mainRoot,
       worktreePath: found.path,
-      worktreesRoot: resolveContainerPath(config, mainRoot, 'worktrees'),
+      worktreesRoot: removalRootForWorktree(
+        mainRoot,
+        resolveContainerPath(config, mainRoot, 'worktrees'),
+        found.path,
+        readSessions(config, mainRoot),
+      ),
       force: true,
     });
     removeSession(config, mainRoot, found.branch);
