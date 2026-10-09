@@ -15,6 +15,14 @@ const PACKAGE_MANAGERS = new Set(['pnpm', 'npm', 'yarn', 'bun']);
 const RUNNERS = new Set(['vitest', 'jest', 'playwright', 'pytest']);
 const NESTED_EXECUTABLES = new Set([...PACKAGE_MANAGERS, ...RUNNERS, 'turbo', 'npx', 'go']);
 
+// `pnpm agent` 就是 `node infra/scripts/agent-runner/agent-cli.js`；直接调用时与 pnpm 入口同样放行 test --file，
+// 嵌套 runner 的文件参数由 targeted-test 追加，因此不再递归检查。
+function isAgentCliFileTest(args) {
+  if (!/(?:^|\/)infra\/scripts\/agent-runner\/agent-cli\.js$/u.test((args[0] || '').replace(/\\/gu, '/'))) return false;
+  const rest = args[1] === '--' ? args.slice(2) : args.slice(1);
+  return rest[0] === 'test' && rest[1] === '--file';
+}
+
 function commandRisk(command) {
   const executable = path.basename(command[0] || '').replace(/\.cmd$/iu, '').toLowerCase();
   const args = command.slice(1);
@@ -33,6 +41,7 @@ function commandRisk(command) {
   if (executable === 'turbo' && args.includes('test')) return 'aggregate';
   if (executable === 'npx') return commandRisk(args);
   if (executable === 'node') {
+    if (isAgentCliFileTest(args)) return '';
     if (args.includes('--test') && !hasTestFile(args)) return 'unbounded';
     const nestedIndex = args.findIndex((arg) => NESTED_EXECUTABLES.has(path.basename(arg).toLowerCase())
       || /^python(?:3(?:\.\d+)?)?$/u.test(path.basename(arg).toLowerCase()));
