@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.9] - 2026-10-10
+
 - 修复（`infra/scripts/agent-runner/test-command-scope.js`）：`task exec` 此前只放行 `pnpm agent -- test --file <文件> -- <运行器>`，等价的 `node infra/scripts/agent-runner/agent-cli.js test --file <文件> -- <运行器>`（含 `agent-cli.js -- test --file` 写法）会递归检查嵌套运行器，因其后没有文件参数被判为 unbounded 而拦截。现在直接调用 agent-cli 的 `test --file` 与 pnpm 入口同等放行；没有 `--file` 或调用其他子命令时仍照常检查。
 - 修复（`infra/scripts/qa-tools/qa-test-scope.js`）：`TEST_SCOPE_RESULT` 的 `environment`、`dependencies` 此前只接受非空字符串，写成对象会在 `qa verify` 按 `TEST_SCOPE_EVIDENCE` 阻断。现在也接受各叶值均非空的对象（嵌套对象、非空数组、数字与布尔叶值可用）；空字符串、空对象、空叶值、顶层数组或数字仍拒绝，错误信息写明两种可接受形状。
 
