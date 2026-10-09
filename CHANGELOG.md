@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.8] - 2026-10-09
+
 - 新增 `DESIGN.md` 与 `styles.css` 的漂移检查（ADR-040）：shadcn 应用的 `architecture check` 按实际生效取值比较颜色、圆角和正文字体族，只告警不阻断；`tdd sync` 与 `qa verify` 的架构门禁把告警输出为 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，通过条件不变。
 
 ## [v3.11.7] - 2026-10-09
