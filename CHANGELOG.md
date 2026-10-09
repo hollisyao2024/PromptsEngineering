@@ -6,6 +6,11 @@
 
 - 取消“回灌模板”命令，统一为“回灌息壤模板”：`pnpm agent -- template backfill` 不再接受 `<source>` 位置参数与 `--source/--target/--template`，移除 `template.sourceRepo` 配置项与 `AGENT_TEMPLATE_SOURCE_REPO` 环境变量，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`，在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中运行其自身的 `task start` 与 `worktree new` 创建新任务 worktree 并复制 template-owned 差异，输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`，再按息壤源的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并；`template.role=source` 时阻断。新增 `infra/scripts/setup/__tests__/backfill-template.test.js`。
 
+## [v3.11.14] - 2026-10-10
+
+- 修复 QA 会话模块推断误报：`inferSessionModules`（`qa plan`、`qa verify` 共用）在改动命中 `docs/{prd|arch|task|qa}-modules/<模块>/` 时只返回这些模块，不再叠加路径名与分支名推测；按名匹配跳过仓库根文件以及 `infra/`、`agent/`、`AgentRoles/`、`tooling/`、`architecture/`、`.xirang/`、`.github/`、`.claude/`、`.codex/` 下的模板与工具链路径。此前 `agent.config.json` 会带出 `agent` 模块，`routes/admin/auth.ts` 会带出 `auth` 模块。
+- `qa-lint` 新增 TC 引用写法检查：主/模块 QA、主 PRD、模块 PRD 与追溯矩阵中的区间（`TC-X-001~005`、`TC-X-035-A~E`）与子编号（`TC-X-035-A`、`TC-X-023-05`）输出 `TC_ID_NONCANONICAL=<文件>:<行> <写法>`，只计为警告，退出码不变；业务测试链路仍以 `TC_INVALID` 严格拒绝。PRD/QA 专家、QA 手册、追溯矩阵模板与 qa-tools README 写明 TC 引用须逐个列出完整 `TC-{模块}-NNN` 并以逗号分隔。新增 7 项定向测试。
+
 ## [v3.11.13] - 2026-10-10
 
 - 修正 v3.11.10 发布说明第③项：`generate-codemap.js` 的 `session` 作用域实际行为是 map 始终全量、只追加 `SESSION_CHANGED_FILES=` 报告行，原描述写反。
