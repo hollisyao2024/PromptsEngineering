@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.15] - 2026-10-10
+
+- 取消“回灌模板”命令，统一为“回灌息壤模板”：`pnpm agent -- template backfill` 不再接受 `<source>` 位置参数与 `--source/--target/--template`，移除 `template.sourceRepo` 配置项与 `AGENT_TEMPLATE_SOURCE_REPO` 环境变量，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`，在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中运行其自身的 `task start` 与 `worktree new` 创建新任务 worktree 并复制 template-owned 差异，输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`，再按息壤源的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并；`template.role=source` 时阻断。新增 `infra/scripts/setup/__tests__/backfill-template.test.js`。
+
 ## [v3.11.14] - 2026-10-10
 
 - 修复 QA 会话模块推断误报：`inferSessionModules`（`qa plan`、`qa verify` 共用）在改动命中 `docs/{prd|arch|task|qa}-modules/<模块>/` 时只返回这些模块，不再叠加路径名与分支名推测；按名匹配跳过仓库根文件以及 `infra/`、`agent/`、`AgentRoles/`、`tooling/`、`architecture/`、`.xirang/`、`.github/`、`.claude/`、`.codex/` 下的模板与工具链路径。此前 `agent.config.json` 会带出 `agent` 模块，`routes/admin/auth.ts` 会带出 `auth` 模块。

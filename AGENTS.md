@@ -165,7 +165,7 @@ pnpm agent -- finish
 - 升级按文件/字段所有权执行，`xirang.lock.json` 与 `.xirang/baselines` 保存版本依据；未知基线、覆盖漂移、合并冲突或恢复态阻断，不静默丢弃定制。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
 - 应用模板：`pnpm agent -- template update <target>`；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。
-- 回灌模板是显式操作：`pnpm agent -- template backfill <source>`；不得回灌项目配置、规则、业务脚本或 generated 文件。
+- 回灌息壤模板是显式操作：`pnpm agent -- template backfill`，无 `<source>` 参数，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`、固定 SHA，在容器 `cache/xirang/backfill-source/repo` 的可重建克隆中用其自身的 `task start` 与 `worktree new` 创建新任务 worktree，并把 template-owned 差异复制进去；随后在输出的 `NEXT_CWD` 中按息壤源自身的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并到官方 `main`。不得写入本地模板源旧分支，不得回灌项目配置、规则、业务脚本或 generated 文件。
 
 ## 全仓扫描
 

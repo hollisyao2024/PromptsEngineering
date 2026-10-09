@@ -64,7 +64,7 @@ test('team allowlist keeps remote, merge-chaining, install, deploy, arbitrary-ex
     'pnpm agent -- build prod',
     'pnpm agent -- template sync',
     'pnpm agent -- template update ../other',
-    'pnpm agent -- template backfill ../src',
+    'pnpm agent -- template backfill',
   ]) {
     assert.ok(!isAllowed(command), `should still require confirmation: ${command}`);
   }

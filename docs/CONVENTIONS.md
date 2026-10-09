@@ -67,10 +67,12 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 
 模板源码不预装应用依赖。实际项目的 `architecture/` 只保存轻量 metadata、固定来源指针与 CLI；完整模板留在源或容器 `cache/xirang/sources/`，按提交和摘要验证。include 只获取工具，init/update 按选择生成代码并默认安装依赖；普通同步不新增技术选择。命令输出 `ARCHITECTURE_SOURCE_ROOT`，从其 `architecture/guides/` 点读指南。旧全量目录只移除 lock 登记且未修改的 runtime 文件，定制与仍被引用的 baseline 保留。
 
-模板回灌默认关闭，仅处理已记录 baseline 之后的 template-owned 改动；项目规则、配置、业务文档和 generated 文件不可回灌。
+“回灌息壤模板”确定性映射为 `pnpm agent -- template backfill`，是显式操作，仅处理已记录 baseline（`refs/agent/backfill-baseline` 或 `--base`）之后的 template-owned `overwrite` 改动；项目规则、配置、业务文档和 generated 文件不可回灌。命令没有 `<source>` 位置参数，也不接受 `--source`、`--target`、`--template`；目标固定为官方息壤源 `main`，旧 `template.sourceRepo` 与 `AGENT_TEMPLATE_SOURCE_REPO` 已移除并被忽略。
+
+执行流程：匿名 required fetch 官方 `main` 并固定 `FETCH_HEAD^{commit}`（失败即阻断，不回退缓存）→ 在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中快进到该 SHA（克隆被改动、远端或分支不符时阻断）→ 校验息壤身份与 manifest → 运行克隆自身的 `task start` 与 `worktree new --phase tdd --task <id>`，从最新官方 `main` 创建新任务 worktree 与分支 → 把候选文件复制到该 worktree 并校验 JSON → 输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`。之后在 `NEXT_CWD` 中按息壤源自身的 TDD/QA 门禁（`tdd sync → tdd push → qa plan → qa verify → qa merge`）交付到官方 `main`，版本递增与 CHANGELOG 由 `tdd sync` 处理。`--dry-run` 只刷新克隆并列出计划，不创建任务或 worktree；`--task <id>` 指定任务标识（默认 `backfill-<时间戳>`）。克隆内 `.env.local` 软链接到项目主 worktree 的同名文件以复用 `GH_TOKEN`，不复制、不输出；缺失时输出 `AUTH_WARNING`，需在环境提供 `GH_TOKEN`。项目 `AGENT_*` 环境变量不传给克隆的 CLI。官方息壤源自身不是回灌对象，`template.role=source` 时阻断。
 ### 息壤官方同步
 
-模板的稳定身份为“息壤”（`xirang` / `Xirang`），默认上游是 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。`template.sourceRepo` 继续只表示本地回灌来源，不得复用为官方只读上游；官方来源由 `template.identity` 与 `template.upstream` 独立声明。
+模板的稳定身份为“息壤”（`xirang` / `Xirang`），默认上游是 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。官方来源由 `template.identity` 与 `template.upstream` 声明，同步与回灌共用该来源。
 
 实际项目中的自然语言“更新息壤模板”确定性映射为 `pnpm agent -- template sync`。执行器必须先建立 mutation 任务及专用 linked worktree，再在干净的 `NEXT_CWD` 运行命令，并继续项目既有的 TDD/QA 交付链。模板源角色或主 worktree 不得运行同步。
 

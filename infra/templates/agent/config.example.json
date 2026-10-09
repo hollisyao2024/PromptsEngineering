@@ -98,8 +98,7 @@
       "fetchRequired": true
     },
     "manifest": "infra/templates/agent/template.manifest.json",
-    "applyReportDir": "../tmp/template-apply-reports",
-    "sourceRepo": ""
+    "applyReportDir": "../tmp/template-apply-reports"
   },
   "release": {
     "bumpVersion": false,
