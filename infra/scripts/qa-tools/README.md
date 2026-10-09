@@ -77,6 +77,7 @@ pnpm run qa:lint
 - ✅ 主 QA 必需章节完整性
 - ✅ 模块 QA 结构规范
 - ✅ Test Case ID 格式规范（TC-MODULE-NNN）
+- ⚠️ TC 引用写法：主/模块 QA、主/模块 PRD 与追溯矩阵中的区间（`TC-X-001~005`）和子编号（`TC-X-035-A`）输出 `TC_ID_NONCANONICAL=<文件>:<行> <写法>`，只警告、不改变退出码
 - ✅ 缺陷 ID 格式规范（BUG-MODULE-NNN）
 - ✅ Given-When-Then 格式验证
 - ✅ 测试优先级标记（P0/P1/P2）

@@ -67,7 +67,7 @@
 - **测试用例优先级动态评分矩阵**：`/docs/data/test-priority-matrix.md`
 - **测试风险识别与缓解矩阵**：`/docs/data/test-risk-matrix.md`
 - 全局矩阵模板位于 `docs/data/templates/qa/`，`/qa plan` 时直接引用填充。
-- **追溯矩阵更新**：需求或用例映射变化时更新 `/docs/data/traceability-matrix.md` 的 Story/AC/Test Case ID；本次执行状态与缺陷证据记录在 QA 报告和任务运行态。
+- **追溯矩阵更新**：需求或用例映射变化时更新 `/docs/data/traceability-matrix.md` 的 Story/AC/Test Case ID（TC 引用一律逐个写完整的 `TC-{模块}-NNN`，多个用逗号分隔；不写区间（`TC-X-001~005`）或子编号（`TC-X-035-A`、`TC-X-023-05`），`qa-lint` 会以 `TC_ID_NONCANONICAL` 警告提示）；本次执行状态与缺陷证据记录在 QA 报告和任务运行态。
 - 缺陷条目需遵循缺陷报告规范（复现步骤、预期/实际结果、环境、严重程度、优先级、影响分析与回流建议）。
 - 若出现阻塞缺陷或范围偏差，记录回流建议并通知对应阶段。
 - 全局报告归档详见 Playbook §全局报告归档说明。

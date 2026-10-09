@@ -11,6 +11,7 @@ const {
   generateModuleList,
   generateProjectOverview,
   getQaPlanSessionStatePath,
+  inferSessionModules,
   parsePRD,
   planModuleQaWrite,
   validateModuleEntriesForGeneration,
@@ -488,4 +489,42 @@ test('qa plan blocks a missing root PRD with a parsable reason', (t) => {
   const lines = stripAnsi(result.stdout).split('\n');
   assert.ok(lines.includes('STATUS=BLOCKED'), result.stdout);
   assert.ok(lines.includes('REASON=PRD_MISSING'), result.stdout);
+});
+
+const sessionModules = (moduleDirs, changedFiles, branchName = '') =>
+  inferSessionModules(moduleDirs.map((moduleDir) => ({ moduleDir })), changedFiles, branchName)
+    .map((entry) => entry.moduleDir);
+
+test('session modules come only from module documents when the diff touches any', () => {
+  assert.deepEqual(
+    sessionModules(['admin', 'agent', 'auth'], [
+      'docs/qa-modules/admin/PATHS.md',
+      'docs/prd-modules/admin/PRD.md',
+      'apps/server/src/routes/admin/auth.ts',
+      'agent.config.json',
+    ], 'feature/admin-auth'),
+    ['admin'],
+  );
+});
+
+test('session modules ignore template tooling paths and repository root files', () => {
+  assert.deepEqual(
+    sessionModules(['agent', 'auth', 'qa'], [
+      'agent.config.json',
+      'infra/scripts/agent-runner/agent-cli.js',
+      'AgentRoles/QA-TESTING-EXPERT.md',
+      'agent/manifest.json',
+      'tooling/xirang/agent-kit.js',
+      'architecture/scripts/auth.js',
+      '.xirang/baselines/agent.json',
+      'apps/server/src/auth/session.ts',
+    ]),
+    ['auth'],
+  );
+});
+
+test('session modules still match source paths and the branch name without module documents', () => {
+  assert.deepEqual(sessionModules(['billing', 'chat'], ['apps/desktop/src/billing/plan.ts']), ['billing']);
+  assert.deepEqual(sessionModules(['billing', 'chat'], [], 'feature/chat-retry'), ['chat']);
+  assert.deepEqual(sessionModules(['billing', 'chat'], ['README.md', 'package.json']), []);
 });
