@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+- 修复（`infra/scripts/agent-runner/test-command-scope.js`）：`task exec` 此前只放行 `pnpm agent -- test --file <文件> -- <运行器>`，等价的 `node infra/scripts/agent-runner/agent-cli.js test --file <文件> -- <运行器>`（含 `agent-cli.js -- test --file` 写法）会递归检查嵌套运行器，因其后没有文件参数被判为 unbounded 而拦截。现在直接调用 agent-cli 的 `test --file` 与 pnpm 入口同等放行；没有 `--file` 或调用其他子命令时仍照常检查。
+- 修复（`infra/scripts/qa-tools/qa-test-scope.js`）：`TEST_SCOPE_RESULT` 的 `environment`、`dependencies` 此前只接受非空字符串，写成对象会在 `qa verify` 按 `TEST_SCOPE_EVIDENCE` 阻断。现在也接受各叶值均非空的对象（嵌套对象、非空数组、数字与布尔叶值可用）；空字符串、空对象、空叶值、顶层数组或数字仍拒绝，错误信息写明两种可接受形状。
+
 ## [v3.11.8] - 2026-10-09
 
 - 新增 `DESIGN.md` 与 `styles.css` 的漂移检查（ADR-040）：shadcn 应用的 `architecture check` 按实际生效取值比较颜色、圆角和正文字体族，只告警不阻断；`tdd sync` 与 `qa verify` 的架构门禁把告警输出为 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，通过条件不变。

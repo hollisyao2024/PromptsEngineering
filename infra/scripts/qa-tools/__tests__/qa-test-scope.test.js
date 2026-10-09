@@ -67,6 +67,33 @@ test('targeted and static decisions with matching successful checks are accepted
   ])]).mode, 'static');
 });
 
+test('environment and dependencies accept nonempty strings or objects with nonempty values', () => {
+  const recorded = (overrides) => [state([
+    `TEST_SCOPE_DECISION=${JSON.stringify(decision())}`,
+    `TEST_SCOPE_RESULT=${JSON.stringify(result(overrides))}`,
+  ])];
+  assert.equal(verify(recorded({
+    environment: { os: 'macOS Darwin 25.5.0', node: 'v24.19.0', nodeMajor: 24, ci: false },
+    dependencies: { installed: 'none', lockfile: ['pnpm-lock.yaml unchanged'] },
+  })).taskId, 'change');
+  for (const bad of [
+    { environment: '' },
+    { environment: '   ' },
+    { environment: {} },
+    { environment: { node: '' } },
+    { environment: { node: null } },
+    { environment: { tools: [] } },
+    { environment: ['Node 22'] },
+    { environment: 22 },
+    { environment: null },
+    { dependencies: {} },
+    { dependencies: { lockfile: { changed: ' ' } } },
+    { dependencies: undefined },
+  ]) {
+    assert.throws(() => verify(recorded(bad)), /environment and dependencies are required/u, JSON.stringify(bad));
+  }
+});
+
 test('full scope requires a recognized trigger and investigation evidence', () => {
   const full = decision({ mode: 'full', full_trigger: 'unbounded_after_investigation', trigger_evidence: 'Caller map spans unknown packages.' });
   assert.equal(verify([state([`TEST_SCOPE_DECISION=${JSON.stringify(full)}`, `TEST_SCOPE_RESULT=${JSON.stringify(result())}`])]).mode, 'full');
