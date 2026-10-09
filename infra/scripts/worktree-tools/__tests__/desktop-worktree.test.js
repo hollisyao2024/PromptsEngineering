@@ -8,8 +8,11 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const {
+  adoptDesktopWorktree,
   createOrResumeWorktree,
+  detectDesktopAdoption,
   readSessions,
+  slugify,
   safeRemoveTreeNoFollow,
   writeSession,
   MANAGED_MARKER,
@@ -199,6 +202,48 @@ test('adoption is idempotent once the Desktop worktree is managed', (t) => {
   assert.equal(session.provenance.origin, DESKTOP_ORIGIN);
   assert.equal(session.provenance.original_branch, desktop.branch);
   assert.equal(readSessions(fixture.config, fixture.repo).length, 1);
+});
+
+test('a stale concurrent adoption is rejected under the lock without renaming the adopted branch', (t) => {
+  const fixture = initDesktopFixture(t);
+  const desktop = addDesktopWorktree(fixture);
+  const staleEntry = detectDesktopAdoption(fixture.config, fixture.repo, desktop.worktreePath);
+  assert.equal(staleEntry.branch, desktop.branch);
+  const first = adopt(desktop.worktreePath);
+
+  assert.throws(() => adoptDesktopWorktree({
+    cli: { phase: 'tdd', task: 'TASK-ADOPT-002' },
+    branch: 'feature/TASK-ADOPT-002',
+    cwd: desktop.worktreePath,
+    mainRoot: fixture.repo,
+    config: fixture.config,
+    entry: staleEntry,
+    options: {},
+  }), /adopted or switched branches during adoption/u);
+
+  assert.equal(runGit(desktop.worktreePath, ['branch', '--show-current']), first.branch);
+  assert.equal(runGit(fixture.repo, ['branch', '--list', 'feature/TASK-ADOPT-002']), '');
+  assert.equal(readSessions(fixture.config, fixture.repo).length, 1);
+});
+
+test('a failure before the session is persisted rolls back the reset and rename', (t) => {
+  const fixture = initDesktopFixture(t);
+  const desktop = addDesktopWorktree(fixture);
+  const staleHead = runGit(desktop.worktreePath, ['rev-parse', 'HEAD']);
+  advanceRemoteMain(fixture);
+  // A directory at the session file path makes the atomic session write fail.
+  const blocked = path.join(fixture.container, 'tmp', 'sessions', `${slugify('feature/TASK-ADOPT-001')}.json`);
+  fs.mkdirSync(path.join(blocked, 'occupied'), { recursive: true });
+
+  assert.throws(() => adopt(desktop.worktreePath), (error) => {
+    assert.match(error.adoptionRollback, /branch restored to claude\/brave-otter/u);
+    assert.match(error.adoptionRollback, new RegExp(`HEAD restored to ${staleHead}`, 'u'));
+    return true;
+  });
+  assert.equal(runGit(desktop.worktreePath, ['branch', '--show-current']), desktop.branch);
+  assert.equal(runGit(desktop.worktreePath, ['rev-parse', 'HEAD']), staleHead);
+  assert.equal(fs.existsSync(path.join(desktop.worktreePath, MANAGED_MARKER)), false);
+  assert.equal(runGit(desktop.worktreePath, ['status', '--porcelain']), '');
 });
 
 test('dry-run adoption reports the plan without touching Git or sessions', (t) => {

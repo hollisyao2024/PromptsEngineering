@@ -113,6 +113,7 @@ function main(argv = process.argv.slice(2)) {
     if (error.command) console.error(`BOOTSTRAP_COMMAND=${error.command}`);
     if (error.checkCommand) console.error(`BOOTSTRAP_CHECK_COMMAND=${error.checkCommand}`);
     if (error.dirtyFiles) console.error(`DIRTY_FILES=${error.dirtyFiles}`);
+    if (error.adoptionRollback) console.error(`ADOPTION_ROLLBACK=${error.adoptionRollback}`);
     if (error.nextManualAction) console.error(`NEXT_MANUAL_ACTION=${error.nextManualAction}`);
     console.error(`REASON=${error.message}`);
     process.exit(1);

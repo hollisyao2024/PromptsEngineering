@@ -1147,6 +1147,24 @@ function detectDesktopAdoption(config, mainRoot, cwd) {
   return entry;
 }
 
+function rollbackDesktopAdoption(worktreePath, state, error) {
+  const rollback = [];
+  try {
+    if (state.renamed) {
+      runGit(['branch', '-m', state.originalBranch], { cwd: worktreePath, capture: true });
+      rollback.push(`branch restored to ${state.originalBranch}`);
+    }
+    if (state.adoptionReset) {
+      runGit(['reset', '--hard', state.previousHead], { cwd: worktreePath, capture: true });
+      rollback.push(`HEAD restored to ${state.previousHead}`);
+    }
+  } catch (rollbackError) {
+    rollback.push(`rollback failed: ${rollbackError.message}`);
+    error.nextManualAction = `Inspect ${worktreePath}: restore branch ${state.originalBranch} at ${state.previousHead} manually before rerunning worktree new.`;
+  }
+  if (rollback.length > 0) error.adoptionRollback = rollback.join('; ');
+}
+
 function adoptDesktopWorktree(context) {
   const {
     cli, branch, cwd, mainRoot, config, entry, options,
@@ -1252,7 +1270,19 @@ function adoptDesktopWorktree(context) {
   const lockDir = resolveRuntimePath(config, mainRoot, config.worktree && config.worktree.lockDir, 'agent-locks');
   const release = acquireLock(lockDir, 'worktree-desktop-adoption', 30000);
   let adoptionReset = false;
+  let renamed = false;
+  let sessionWritten = false;
+  let head;
+  let linked;
+  let supersession;
+  let lifecycle;
+  let sessionPayload;
   try {
+    // Another run may have adopted or touched this worktree since detection.
+    const current = detectDesktopAdoption(config, mainRoot, worktreePath);
+    if (!current || current.branch !== originalBranch) {
+      throw adoptionError('Desktop worktree was adopted or switched branches during adoption; rerun worktree new', details);
+    }
     const observedHead = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
     if (observedHead !== previousHead || getStatusLines(worktreePath).length > 0) {
       throw adoptionError('Desktop worktree changed during adoption; rerun worktree new', details);
@@ -1263,36 +1293,44 @@ function adoptDesktopWorktree(context) {
     }
     if (originalBranch !== branch) {
       runGit(['branch', '-m', branch], { cwd: worktreePath, capture: true });
+      renamed = true;
     }
-    const renamed = listWorktrees(mainRoot).find((item) => isSamePath(item.path, worktreePath));
-    if (!renamed || renamed.branch !== branch) {
+    const afterRename = listWorktrees(mainRoot).find((item) => isSamePath(item.path, worktreePath));
+    if (!afterRename || afterRename.branch !== branch) {
       throw adoptionError(`Desktop branch rename is incomplete: expected ${branch}`, details);
     }
+
+    head = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
+    supersession = planSupersededSessions({ config, mainRoot, cli, branch });
+    lifecycle = lifecycleState(supersession);
+    const provenance = buildDesktopProvenance(worktreePath, originalBranch, {
+      previous_head: previousHead,
+      reset_to: adoptionReset ? base.baseCommit : '',
+    });
+    // Persist provenance first so a later failure resumes a managed session instead of losing it.
+    sessionPayload = {
+      phase: cli.phase || inferPhaseFromBranch(branch),
+      branch,
+      worktree: worktreePath,
+      status: 'in_progress',
+      step: 'adopted',
+      head,
+      linked: [],
+      lifecycle,
+      provenance,
+    };
+    writeSession(config, mainRoot, sessionPayload);
+    sessionWritten = true;
+    writeManagedMarker(mainRoot, worktreePath, branch);
+    linked = setupSharedLinks(mainRoot, worktreePath, config);
+    sessionPayload = { ...sessionPayload, linked };
+  } catch (error) {
+    if (!sessionWritten) rollbackDesktopAdoption(worktreePath, { renamed, originalBranch, adoptionReset, previousHead }, error);
+    throw error;
   } finally {
     release();
   }
 
-  const head = runGit(['rev-parse', 'HEAD'], { cwd: worktreePath, capture: true }).trim();
-  const linked = setupSharedLinks(mainRoot, worktreePath, config);
-  const supersession = planSupersededSessions({ config, mainRoot, cli, branch });
-  const lifecycle = lifecycleState(supersession);
-  const provenance = buildDesktopProvenance(worktreePath, originalBranch, {
-    previous_head: previousHead,
-    reset_to: adoptionReset ? base.baseCommit : '',
-  });
-  writeManagedMarker(mainRoot, worktreePath, branch);
-  const sessionPayload = {
-    phase: cli.phase || inferPhaseFromBranch(branch),
-    branch,
-    worktree: worktreePath,
-    status: 'in_progress',
-    step: 'adopted',
-    head,
-    linked,
-    lifecycle,
-    provenance,
-  };
-  writeSession(config, mainRoot, sessionPayload);
   const bootstrap = runWorktreeBootstrap({
     worktreePath,
     config,
