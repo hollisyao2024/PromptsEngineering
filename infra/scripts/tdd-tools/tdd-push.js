@@ -538,7 +538,7 @@ function buildPrBody(title, reviewDecision, commits = []) {
 
 /**
  * 确保当前分支存在指向配置主干的 open PR：已存在则同步 Review Gate，否则创建。
- * gh 不可用时使用 GH_TOKEN 走 GitHub API；任何失败都抛出，由调用方阻断。
+ * 优先使用 GH_TOKEN 走 GitHub REST API；任何失败都抛出，由调用方阻断。
  */
 async function ensurePullRequest({ branch, baseBranch, reviewDecision, backend, commits = [], runGh: _runGh = runGh }) {
   const existing = await findOpenPullRequest(branch, { backend, runGh: _runGh });
@@ -626,7 +626,7 @@ async function main() {
     // 推送前确定 GitHub 后端：gh 与 GH_TOKEN 都不可用时直接阻断，不留下无 PR 的推送
     const backend = createGitHubBackend({ remoteUrl: getRemoteUrl() });
     if (backend.mode === 'api') {
-      console.log('\x1b[33mgh CLI 不可用，已使用 .env.local 的 GH_TOKEN 走 GitHub API 创建/更新 PR\x1b[0m');
+      console.log('\x1b[36m优先使用项目 GH_TOKEN，通过 GitHub REST API 创建/更新 PR\x1b[0m');
     }
 
     pushBranch();

@@ -4,7 +4,7 @@
  * /qa merge — 合并当前分支的 PR 到 main
  *
  * 双策略自动降级：
- *   策略 A: 远端 squash merge（有 gh 时用 gh pr merge，否则用 GH_TOKEN 调 GitHub API）
+ *   策略 A: 远端 squash merge（优先用 GH_TOKEN 调 REST API，无令牌时保留 gh 兼容路径）
  *   策略 B: 本地 git merge --squash + push + 关闭 PR（远端合并失败时自动降级）
  *
  * 用法：
@@ -128,7 +128,7 @@ function createGitHubBackend(options = {}) {
 function ensureGitHubBackend(options = {}) {
   githubBackend = createGitHubBackend(options);
   if (githubBackend.mode === 'api') {
-    console.log('\x1b[33mgh CLI 不可用，已使用 .env.local 的 GH_TOKEN 走 GitHub API fallback\x1b[0m');
+    console.log('\x1b[36m优先使用项目 GH_TOKEN，通过 GitHub REST API 执行 PR 操作\x1b[0m');
   }
   return githubBackend;
 }
@@ -1552,7 +1552,7 @@ async function main() {
     // Step 2: 加载 GH_TOKEN
     loadProjectGitHubToken({ repoRoot });
 
-    // Step 3: 确保 gh CLI 可用
+    // Step 3: 确定 GitHub 后端（令牌优先使用 REST API）
     ensureGhAvailable();
 
     // Step 4: 主干写入与开发目录隔离；开发目录可有本地未提交内容。
