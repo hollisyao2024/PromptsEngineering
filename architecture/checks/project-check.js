@@ -97,7 +97,10 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
   // DESIGN.md drift is advisory (ADR-040): it adds warnings and never changes status or failures.
   const designApps = config.applications.filter(app => cat.stacks[app.stack].ui === 'shadcn' && fs.existsSync(safePath(target, app.path)))
     .map(app => { const styles = `${app.path}/${app.sourceDir}/styles.css`; return { id: app.id, styles, stylesPath: safePath(target, styles) }; });
-  const design = checkDesignDrift({ designPath: path.join(target, 'DESIGN.md'), apps: designApps });
+  // A DESIGN.md that safePath rejects (e.g. a symlink) is reported, never followed or thrown.
+  let designPath = null, designError = null;
+  if (designApps.length) try { designPath = safePath(target, 'DESIGN.md'); } catch (error) { designError = error.message; }
+  const design = checkDesignDrift({ designPath, designError, apps: designApps });
   checks.push(...design.checks);
   return { status: failures.length ? 'BLOCKED' : 'OK', checks, failures, warnings: design.warnings };
 }

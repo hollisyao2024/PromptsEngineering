@@ -124,6 +124,22 @@ test('AC4 invalid front matter and a missing styles.css each produce one warning
   assert.deepEqual(codes(check(fixture(t, { design: skeleton }))), ['DESIGN_DRIFT_STYLES_MISSING']);
 });
 
+test('AC4 a DESIGN.md symlink leaving the repository is not followed and only warns', t => {
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-design-outside-')));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, 'DESIGN.md'), front('colors:\n  primary: "#123456"\n'));
+  const target = fixture(t, { styles: tokens });
+  fs.symlinkSync(path.join(outside, 'DESIGN.md'), path.join(target, 'DESIGN.md'));
+  const result = check(target);
+  assert.equal(result.status, 'OK');
+  assert.deepEqual(codes(result), ['DESIGN_DRIFT_INVALID_DESIGN']);
+  assert.match(result.warnings[0].reason, /symlink/);
+  const apiOnly = { schemaVersion: 1, applications: [{ id: 'api', stack: 'node', path: 'apps/api' }], datastores: [], modules: [] };
+  const api = fixture(t, { apps: ['apps/api'] });
+  fs.symlinkSync(path.join(outside, 'DESIGN.md'), path.join(api, 'DESIGN.md'));
+  assert.deepEqual(check(api, apiOnly).warnings, []);
+});
+
 test('AC4 the design check runs even when the TypeScript syntax gate blocks the application', t => {
   const target = fixture(t, { design: front('colors:\n  primary: "#123456"\n'), styles: tokens });
   const result = check(target, webConfig(), {});

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.12] - 2026-10-10
+
+- 修复 `DESIGN.md` 漂移检查跟随符号链接的问题：根 `DESIGN.md` 改经 `safePath` 解析，是符号链接时不跟随、不读取，以 `DESIGN_DRIFT_INVALID_DESIGN` 告警，检查不抛错，门禁结果不变；文件不存在或项目没有 shadcn 应用时仍静默跳过。TDD 与 QA 手册补充说明：`tdd sync`、`qa verify` 在 stderr 输出的 `ARCHITECTURE_WARNING=<name>|<code>|<reason>` 不阻断，执行器把告警报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
+
 ## [v3.11.11] - 2026-10-10
 
 - 原地接管 Claude Desktop worktree：在 `<repo>/.claude/worktrees/<name>` 中执行 `worktree new` 不再新建 worktree，而是在工作区干净、required fetch 通过后接管当前目录，无自有提交时重置到远端 base SHA，有自有提交且落后时阻断（不自动 rebase），分支改为规范名，session 记录 `provenance.origin=claude-desktop` 与原分支，输出 `STATUS=ADOPTED`。

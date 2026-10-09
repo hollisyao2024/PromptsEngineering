@@ -323,6 +323,20 @@ test('DESIGN.md is routed to PRD, ARCH, TDD and QA with their own responsibility
   assert.match(read('AgentRoles/TDD-PROGRAMMING-EXPERT.md'), /UI 实现约定/u);
 });
 
+// ADR-040：tdd sync / qa verify 的 DESIGN.md 漂移告警只报告给用户，不阻断，也不由执行器自行改项目样式
+test('TDD and QA playbooks explain the non-blocking ARCHITECTURE_WARNING line', () => {
+  const sections = [
+    [headingBody(read('AgentRoles/Handbooks/TDD-PROGRAMMING-EXPERT.playbook.md'), 'UI 实现约定'), '`tdd sync`'],
+    [headingBody(read('AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md'), '第三步：验收检查（/qa verify）'), '`qa verify`'],
+  ];
+  for (const [body, command] of sections) {
+    assert.ok(body.includes(command), `${command} is named`);
+    assert.ok(body.includes('`ARCHITECTURE_WARNING=<name>|<code>|<reason>`'), `${command} names the warning line format`);
+    assert.match(body, /不阻断/u, `${command} says the warning does not block`);
+    assert.match(body, /报告给用户[^\n]*不[^\n]*`DESIGN\.md`[^\n]*`styles\.css`/u, `${command} reports instead of editing project styles`);
+  }
+});
+
 test('accessibility targets keep a fallback when DESIGN.md is absent', () => {
   for (const file of [
     'AgentRoles/QA-TESTING-EXPERT.md',
