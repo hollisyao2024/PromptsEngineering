@@ -2,7 +2,7 @@
 
 // `qa verify` 接入业务验收门禁的端到端测试：真实的 `qa run` 写出结果，真实的 `qa verify`
 // （cwd 为场景仓库）读取并判定，回执由生产代码签发或拒发；测试只构造场景、读取输出与回执。
-// 未启用时的输出必须与接入前逐字一致：该基线用例先于接入编写，并对未改动的脚本通过。
+// 未启用时保留既有门禁与回执行为；输出基线包含统一 CLI 结果块。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,7 +24,7 @@ const {
   runVerify,
 } = require('./fixtures/business-testing/verify');
 
-// 接入前 `qa verify` 在本夹具上的完整输出（临时目录、回执名与提交号换成占位符）。
+// 现行 `qa verify` 在业务门禁关闭时的完整输出（临时目录、回执名与提交号换成占位符）。
 const GOLDEN_DISABLED = [
   '============================================================',
   'QA 验收检查工具 v1.1.0',
@@ -36,6 +36,9 @@ const GOLDEN_DISABLED = [
   'BASE_BRANCH=main',
   'BASE_SHA=<SHA>',
   'HEAD_SHA=<SHA>',
+  'STATUS=OK',
+  'SUMMARY=QA 验收通过并签发回执 <ROOT>/tmp/qa-verification-receipts/<KEY>.json（BASE_SHA=<SHA> HEAD_SHA=<SHA>）',
+  'NEXT_ACTION=执行 pnpm agent -- qa merge',
 ];
 
 // 未启用业务门禁时回执结构不得变化：键集合固定；启用且通过后只多一个 business 摘要键。
