@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const { validateConfig, walk, catalog } = require('../scripts/project');
 const { safePath, hash, parseJson, read } = require('../../tooling/xirang/engine');
 const { componentCatalog, resolveComponentSets } = require('../scripts/component-sets');
+const { checkDesignDrift } = require('./design-drift');
 const RAW_UI = new Set(['button','input','select','option','textarea','dialog','details','summary','table']);
 function checkProject(target, raw, { source, syntax = true } = {}) {
   optionCache.clear();
@@ -93,7 +94,12 @@ function checkProject(target, raw, { source, syntax = true } = {}) {
     for(const key of ['primaryApp','webAppDir','apiAppDir','databaseDir','migrationsDir']) if(paths[key] && derived[key] && paths[key]!==derived[key]) fail(`paths.${key}`,`agent.config.json conflicts with architecture mapping: ${paths[key]} != ${derived[key]}`);
   }
   if(config.schemaVersion===2){const workspace=require('./workspace-check').checkWorkspace(target,config,{syntax});checks.push(...workspace.checks);failures.push(...workspace.failures);}
-  return { status: failures.length ? 'BLOCKED' : 'OK', checks, failures };
+  // DESIGN.md drift is advisory (ADR-040): it adds warnings and never changes status or failures.
+  const designApps = config.applications.filter(app => cat.stacks[app.stack].ui === 'shadcn' && fs.existsSync(safePath(target, app.path)))
+    .map(app => { const styles = `${app.path}/${app.sourceDir}/styles.css`; return { id: app.id, styles, stylesPath: safePath(target, styles) }; });
+  const design = checkDesignDrift({ designPath: path.join(target, 'DESIGN.md'), apps: designApps });
+  checks.push(...design.checks);
+  return { status: failures.length ? 'BLOCKED' : 'OK', checks, failures, warnings: design.warnings };
 }
 const optionCache = new Map();
 function optsFor(app, ts, dir) {
