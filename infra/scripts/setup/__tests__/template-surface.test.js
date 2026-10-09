@@ -1097,7 +1097,7 @@ test('Xirang identity, official upstream, and natural-language sync route propag
     fetchRequired: true,
   });
   assert.equal(config.template.role, 'consumer');
-  assert.equal(config.template.sourceRepo, '', 'local backfill source keeps its existing meaning');
+  assert.equal(config.template.sourceRepo, undefined, 'backfill always targets the official upstream; no local source setting');
   assert.deepEqual(manifest.template, {
     id: 'xirang',
     name: '息壤',

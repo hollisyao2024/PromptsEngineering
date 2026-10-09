@@ -15,7 +15,7 @@
 
 `template sync` 是轻量引导器：它在目标 tracked mutation 前校验调用 worktree和模板身份，在容器 tmp 的唯一运行目录初始化隔离 Git 仓库，通过既有 GitHub 鉴权环境 required fetch 官方分支，解析 `FETCH_HEAD^{commit}`，并 detached checkout 该固定 SHA。引导器验证快照包含有效身份、manifest、update wrapper 和 apply engine 后，调用快照中的最新 wrapper执行 dry-run、冲突检查和 apply，再执行 convergence dry-run。所有阶段使用同一模板 SHA；成功输出仓库、分支、SHA 和阶段状态，失败以非零退出且不得静默回退项目内旧快照或缓存。
 
-既有 `template.sourceRepo` 与 `AGENT_TEMPLATE_SOURCE_REPO` 继续表示项目向本地模板工作区执行 backfill 的路径，避免将 GitHub URL 传入现有 `path.resolve()` 逻辑。在线官方源使用独立的 `template.identity` 与 `template.upstream` 配置。测试和明确 fork 场景可以通过显式参数注入本地 bare remote，但普通自然语言触发始终采用模板默认官方源。
+在线官方源使用独立的 `template.identity` 与 `template.upstream` 配置。原 `template.sourceRepo`、`AGENT_TEMPLATE_SOURCE_REPO` 与 `template backfill <source>` 已取消：“回灌息壤模板”（`template backfill`）固定把 template-owned 差异回灌到官方 `main`，经由项目容器缓存中的官方克隆创建新任务 worktree，再走息壤源自身的 TDD/QA 合并链，不直接写本地模板源旧分支，也不内置 PR 代码。测试和明确 fork 场景可以通过显式参数注入本地 bare remote，但普通自然语言触发始终采用模板默认官方源。
 
 ## 被拒绝方案
 

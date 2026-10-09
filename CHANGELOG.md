@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 取消“回灌模板”命令，统一为“回灌息壤模板”：`pnpm agent -- template backfill` 不再接受 `<source>` 位置参数与 `--source/--target/--template`，移除 `template.sourceRepo` 配置项与 `AGENT_TEMPLATE_SOURCE_REPO` 环境变量，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`，在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中运行其自身的 `task start` 与 `worktree new` 创建新任务 worktree 并复制 template-owned 差异，输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`，再按息壤源的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并；`template.role=source` 时阻断。新增 `infra/scripts/setup/__tests__/backfill-template.test.js`。
+
 ## [v3.11.13] - 2026-10-10
 
 - 修正 v3.11.10 发布说明第③项：`generate-codemap.js` 的 `session` 作用域实际行为是 map 始终全量、只追加 `SESSION_CHANGED_FILES=` 报告行，原描述写反。

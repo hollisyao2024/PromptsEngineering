@@ -63,7 +63,6 @@ function createUpstream(testRoot, options = {}) {
       },
       manifest: 'infra/templates/agent/template.manifest.json',
       applyReportDir: '../tmp/template-apply-reports',
-      sourceRepo: '',
     },
   };
   const manifest = {

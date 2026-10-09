@@ -158,9 +158,6 @@ function envOverrides(env = process.env) {
   if (env.AGENT_DEFAULT_EXECUTOR) {
     output.automation = { ...(output.automation || {}), defaultExecutor: env.AGENT_DEFAULT_EXECUTOR };
   }
-  if (env.AGENT_TEMPLATE_SOURCE_REPO) {
-    output.template = { ...(output.template || {}), sourceRepo: env.AGENT_TEMPLATE_SOURCE_REPO };
-  }
   if (env.AGENT_WORKTREE_BOOTSTRAP_MODE) {
     output.worktree = {
       ...(output.worktree || {}),
@@ -225,9 +222,6 @@ function cliOverrides(cli = {}) {
   if (cli.project || cli.projectName) output.projectName = cli.project || cli.projectName;
   if (cli.base || cli.baseBranch) output.baseBranch = cli.base || cli.baseBranch;
   if (cli.executor) output.automation = { defaultExecutor: cli.executor };
-  if (cli.templateSource || cli.templateSourceRepo) {
-    output.template = { sourceRepo: cli.templateSource || cli.templateSourceRepo };
-  }
   if (cli.bootstrap || cli['skip-bootstrap'] || cli.skipBootstrap) {
     output.worktree = {
       bootstrap: {
