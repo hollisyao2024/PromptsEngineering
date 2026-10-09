@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.4] - 2026-10-09
+
 - 修复（`tooling/xirang/engine.js`，`merge-json`）：项目删除了一个 `merge-json` 策略的文件、上游未变时，`decide()` 把 `mergeJsonValue()` 返回的 `undefined` 当作文件内容序列化，写出只有 `undefined` 一行的文件，而且每次应用都再写一次，不收敛。现在合并结果为 `undefined` 时返回 `null`：文件保持不存在，计划里没有该文件的变更，重复应用逐字节收敛。`merge-yaml` 走的是另一条就地补丁路径，项目删除文件而上游不变时会按集合重建该文件（语义不同，不是写出 `undefined`），本次没有动，见下面「未处理」。
 - 修复（`qa verify`，v3.11.0 条目「未处理的试验缺陷」③，试验报告 #4）：`captureQaVerificationIdentity` 里签发回执前的 `git fetch --prune origin` 失败时，现在对同一条命令重试一次（`QA_FETCH_ATTEMPTS = 2`）：第二次成功照常签发回执；两次都失败即停止，输出 `STATUS=FAILED`、`REASON=QA_FETCH_FAILED`，不签发回执、不做第三次，也不读取 `rev-parse`。仍是 fail-closed，只是把代理偶发 SSL 错误这类一次性失败吸收掉。
 - 收口（试验缺陷 ①④⑤ 是同一缺口的三个表现，试验报告 #1/#4/#5）：`qa verify` 与 `qa plan` 两个老脚本此前从未输出过 `STATUS`/`SUMMARY`/`NEXT_ACTION`，失败时是 `❌ …` 加 `process.exit(1)`、原始 git 报错或带栈的 `Error`。现在两者结尾统一输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=` 三行，非 OK 时在 `STATUS` 之后另给 `REASON=<code>`，退出码非零；实现放在新文件 `infra/scripts/shared/result-block.js`（`RESULT_STATUSES`、`oneLine`、`resultBlockLines`、`resultExitCode`），`qa-run.js`、`qa-paths.js` 各自的 `oneLine` 副本改为引用它。`qa verify` 的代码：`QA_BRANCH_REQUIRED`、`STALE_QA_BASE`、`HEAD_NOT_PUSHED`、`TEST_SCOPE_EVIDENCE`、`QA_VERDICT_NO_GO`、`BUSINESS_GATE_BLOCKED` 为 `BLOCKED`，`QA_FETCH_FAILED` 与 `UNEXPECTED_ERROR` 为 `FAILED`（后者仍把堆栈写到 stderr）；`QA_RECEIPT=`、`BASE_SHA=`、`HEAD_SHA=` 等既有键值行不变，结果块追加在其后。`qa plan` 的代码：`PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH` 为 `BLOCKED`，最后一种另逐项输出 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`；未预期异常为 `FAILED`、`REASON=UNEXPECTED_ERROR`；模板源仍直接 `STATUS=OK`。取舍：① 的「PRD/ARCH/TASK 三套模块目录集合必须一致」保留不放宽——这是治理流程的设计，放宽与否是产品口径——只把退出方式换成可解析的结果块，让执行器能按 `NEXT_ACTION` 行动。
