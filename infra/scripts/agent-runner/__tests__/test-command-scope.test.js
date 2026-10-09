@@ -48,6 +48,20 @@ test('task exec permits explicit file runners and the guarded template route', (
   ]) assert.doesNotThrow(() => assertTestCommandScope(command, { steps: [] }));
 });
 
+test('task exec treats direct agent-cli test --file calls like the pnpm agent route', () => {
+  const cli = 'infra/scripts/agent-runner/agent-cli.js';
+  for (const command of [
+    ['node', cli, 'test', '--file', 'tests/one.test.ts', '--', 'pnpm', 'exec', 'vitest', 'run'],
+    ['node', cli, '--', 'test', '--file', 'tests/one.test.ts', '--', 'pnpm', 'exec', 'vitest', 'run'],
+    ['node', `./${cli}`, 'test', '--file', 'tests/one.test.js', '--', 'node', '--test'],
+  ]) assert.doesNotThrow(() => assertTestCommandScope(command, { steps: [] }), command.join(' '));
+  for (const command of [
+    ['node', cli, 'test', '--', 'pnpm', 'exec', 'vitest', 'run'],
+    ['node', cli, 'run', '--file', 'tests/one.test.ts', '--', 'pnpm', 'exec', 'vitest', 'run'],
+    ['node', 'other/agent-cli.js.bak', 'test', '--file', 'tests/one.test.ts', '--', 'pnpm', 'exec', 'vitest', 'run'],
+  ]) assert.throws(() => assertTestCommandScope(command, { steps: [] }), /explicit test file/u, command.join(' '));
+});
+
 test('task exec permits an intentionally full command only with matching recorded evidence', () => {
   assert.doesNotThrow(() => assertTestCommandScope(['pnpm', 'test:all'], fullDecision('pnpm test:all')));
   assert.throws(() => assertTestCommandScope(['pnpm', 'test'], fullDecision('pnpm test:all')), /TEST_SCOPE_DECISION/u);
