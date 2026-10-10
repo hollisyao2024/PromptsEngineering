@@ -253,6 +253,8 @@ module.exports = {
   isGitHubRemoteUrl,
   loadProjectGitHubToken,
   parseEnvContent,
+  readEnvFile,
   sanitizeGitHubRemoteUrl,
   shouldInjectGitHubAuth,
+  usableGitHubToken,
 };
