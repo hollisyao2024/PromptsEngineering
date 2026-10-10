@@ -207,6 +207,8 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 → 编写并评审自动化用例（测试名携带 AC/TC 标识）→ 提交 → pnpm agent -- qa run → pnpm agent -- qa verify
 ```
 
+> 单个模块可用 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）按上述链条逐步推进，见本章「单模块编排」。
+
 ### 预言机：期望值从哪里来
 
 预言机是判定「实际结果对不对」的依据。自动生成的用例只有在预言机独立于被测系统时才有验证价值：
@@ -383,6 +385,27 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 
 套件命令较长时，可用 `pnpm agent -- task exec --task <id> --name <名> -- <命令>` 把输出落成任务证据：与 `qa.business.suites[].command` 登记原文逐词相同的命令不受聚合测试护栏拦截；加了包装器、改了参数，或登记命令含引号、变量、管道、通配符的，仍按原规则处理（定向文件、或事先记录 `mode=full` 的 `TEST_SCOPE_DECISION`）。`pnpm agent -- test --file <文件> -- <命令>` 对同一批登记命令同样放行，并把文件追加到命令末尾。`task exec` 输出的 `LOG_PATH`/`LOG_SHA256` 可直接写进 `TEST_SCOPE_RESULT.checks[].evidence`（形如 `evidence/<名>.log sha256=<hex>`），`qa verify` 会核对该文件存在且摘要一致。
 
+### 单模块编排：/qa automate
+
+`pnpm agent -- qa automate --module <模块>` 只读检查一个模块的五个步骤，指出当前步骤、要激活的专家和要读的章节：
+
+| 步骤 | 名称 | 完成条件 | 专家与章节 |
+|------|------|----------|------------|
+| 1 | `ac-table` | `docs/prd-modules/<模块>/` 有原子 AC 表，且本模块 PRD 内无表格违规 | PRD；`PRD-WRITER-EXPERT.md`、模块模板 §3.2 |
+| 2 | `paths-model` | `docs/qa-modules/<模块>/PATHS.md` 存在，`qa paths` 无本模块违规（只有 manual AC 时免） | QA；本章「路径推导」 |
+| 3 | `test-cases` | 测试文件（`*.spec.*`/`*.test.*`）引用每条必需优先级 auto AC 的 AC ID 或其 TC | QA；本章「数据驱动用例与测试命名」 |
+| 4 | `suite-config` | `qa.business` 合法、`enabled=true`、`suites` 非空 | QA；本章「配置与使用顺序」 |
+| 5 | `run-results` | `qa run` 结果绑定当前 HEAD、干净工作区与当前配置摘要，本模块必需优先级 auto AC 全部被证明 | QA；本章「配置与使用顺序」 |
+
+输出 `STATUS=OK|PENDING|BLOCKED`、`CURRENT_STEP=`、`EXPERT=`、`ACTIVATE=`、`READ=`、每步 `STEP=<n>|<name>|done|pending|blocked|<说明>`，以及本模块的 `VIOLATION=`、未被引用的 `UNREFERENCED_AC=` 和 `RISK=`。未完成是 `PENDING`（退出码 0）；配置非法、结果文件损坏或必需 AC 失败为 `BLOCKED`（非零）。前一步未完成时，后续步骤一律报 `pending`，防止跳步。套件不按模块登记，所以步骤 4 只检查全局配置；步骤 5 只证明本模块，其他模块的规格违规以 `RISK=SPEC_OTHER_MODULES` 提示，全局终判仍是 `qa verify` 业务门禁。
+
+收到 `/qa automate <模块>` 或「把某模块的业务测试自动化做完」等自然语言时：
+
+1. 按 `AGENTS.md` 以 mutation 任务执行：`task start` → `worktree new`，在 `NEXT_CWD` 运行本命令。
+2. 按 `ACTIVATE=` 激活对应专家，读 `READ=` 列出的章节，完成 `NEXT_ACTION=`；AC、PATHS 与用例由模型按规范生成，脚本不代写。
+3. 每完成一步重跑本命令，直到 `STATUS=OK`；PRD 有歧义或需确认哪些 AC 为 P0 时，只问解决歧义所需的最少问题。
+4. `STATUS=OK` 后走项目自身的 TDD/QA 合并链（`tdd sync → tdd push → qa plan → qa verify → qa merge`）。
+
 ### 阻断码与风险码速查
 
 输出格式：`qa paths` 为 `VIOLATION=<代码>|<文件>:<行号>|<说明>`；`qa verify` 为 `BUSINESS_BLOCK=<代码>|<对象>|<详情>` 与 `BUSINESS_RISK=<代码>|<详情>`。下列三张表由漂移守卫测试对照脚本中的代码清单校验，脚本新增或改名代码时必须同步这里。
@@ -494,6 +517,7 @@ pnpm run qa:verify                      # session 模式
 pnpm run qa:verify -- --project         # project 模式
 
 # 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
+pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步骤、专家与章节（只读）
 pnpm agent -- qa paths                  # 校验原子 AC 与 PATHS.md，输出覆盖矩阵（只读）
 pnpm agent -- qa run                    # 在最后一次提交之后运行业务测试套件并写入结果
 

@@ -36,6 +36,7 @@
 | 快捷命令 | 模板脚本入口 | 可选 package alias |
 |---------|---------|---------|
 | `/qa plan` | `pnpm agent -- qa plan` | `pnpm run qa:generate` |
+| `/qa automate <模块>` | `pnpm agent -- qa automate --module <模块>` | — |
 | `/qa paths` | `pnpm agent -- qa paths` | — |
 | `/qa run` | `pnpm agent -- qa run` | — |
 | `/qa verify` | `pnpm agent -- qa verify` | `pnpm run qa:verify` |
@@ -48,6 +49,7 @@
   - **自动串联**（从 TDD 触发）：→ 智能测试编写 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
   - **保留边界**：只重新生成带 `QA-GENERATED` 标记的文档；`PATHS.md`、业务测试套件与已评审的 TC 行不会被生成或覆盖，刷新规则见 §业务测试自动化。
+- `/qa automate <模块>`：单模块业务测试自动化的编排入口。只读检查五步（1 原子 AC 表 → 2 `PATHS.md` 且 `qa paths` 无本模块违规 → 3 用例名引用必需优先级 auto AC 的 AC/TC → 4 `qa.business` 启用并登记套件 → 5 提交后 `qa run` 结果绑定当前 HEAD 且本模块必需 AC 全部通过），输出 `STATUS=OK|PENDING|BLOCKED`、`STEP=<n>|<name>|done|pending|blocked|<说明>`、`CURRENT_STEP=`、`ACTIVATE=`、`READ=`。脚本不生成 AC、PATHS 或用例；收到该命令或「把某模块的业务测试自动化做完」等自然语言时，按 Playbook §业务测试自动化「单模块编排」逐步推进。
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
 - `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
@@ -104,6 +106,7 @@
 ### 业务测试自动化（启用 `qa.business` 的项目）
 - **规格来源**：用例规格取自 PRD 原子 AC 表（`/docs/prd-modules/{domain}/` 的 AC 清单）；`PATHS.md` 只引用 AC 与 TC，不复制 Given/When/Then。
 - **预言机**：预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。
+- **单模块编排**：`/qa automate <模块>` 给出当前步骤与要激活的专家；每完成一步重跑该命令，直到 `STATUS=OK`。
 - **路径与用例**：先推导 `PATHS.md` 并运行 `pnpm agent -- qa paths` 至 `STATUS=OK`，P0 路径须评审；再按覆盖准则与用例预算编写自动化用例，测试名携带 AC/TC 标识。
 - **执行顺序**：提交全部改动后运行 `pnpm agent -- qa run`（须在最后一次提交之后），再运行 `pnpm agent -- qa verify`；判定顺序与阻断码速查见 Playbook §业务测试自动化。
 - **刷新**：刷新只新增或提出差异，不覆盖已评审用例；`PATHS.md`、业务测试套件与已评审的 TC 行由 QA 维护，其他专家通过评审提出修改。
