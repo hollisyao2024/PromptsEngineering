@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.11.24] - 2026-10-11
+
 - `merge-yaml` 与 `merge-json` 的删除语义对齐：项目删除了模板所有的 YAML 文件、且上游内容未变时保持删除并收敛，上游已改动时报冲突（`YAML file deleted locally but changed upstream`），不再误报 “Required workspace entry removed locally”。
 - QA session 模块推断忽略 `docs/standards/` 与 `docs/data/`：架构标准与生成的数据文档与模块同名（如 `ui.md`、`data`）时不再被算作改动了该模块；`apps/**` 等真实模块路径不受影响。
 - `qa merge` 复验通过后输出 `QA_RECEIPT_BUSINESS=PASS|required=…|acs_proven=…|risk_count=…|config_digest=…`（无摘要 `NONE`、损坏 `INVALID|<原因>`），回执中的业务验收摘要有了审计读取方；它不参与合并放行判定，回执 `schema_version` 不变。
