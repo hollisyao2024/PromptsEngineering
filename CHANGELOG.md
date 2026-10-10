@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [v3.11.20] - 2026-10-10
+
+- 仓库级/任务级 completion guard 的 worktree 生命周期阻塞改为逐项诊断：每个阻塞输出 `LIFECYCLE_BLOCKER=<branch>|<status>|<reason>|<verdict>|<path>`，判定为 `SAFE_TO_REMOVE`（审计实时判定为 head-drift：工作区干净、无独有提交、无活动进程/任务）、`RETRY_CLEANUP`（`cleanup_pending`）或 `REVIEW_REQUIRED`；对应恢复命令只写入 `MANUAL_COMMANDS=`，不进入会被 `tdd:finish` 自动执行的 `NEXT_COMMANDS=`。session 中持久化的旧审计原因只展示、不作为可删除依据。
+- 修复 `template backfill` 在匿名 Git 环境（`init.templateDir` 为空）首次克隆时因缺少 `.git/info/` 报 ENOENT；复用克隆时也幂等补齐 `.env.local` 本地排除项。
+
 ## [v3.11.19] - 2026-10-10
 
 - 修复定向测试入口 `pnpm agent -- test --file`：Jest 与 Playwright 会把文件参数当正则，路径含 `[id]` 等元字符（如 Next.js 动态路由测试）时报 “No tests found”；现对这两类运行器转义为字面模式，Jest 带 `--runTestsByPath` 时改传绝对路径（兼容 `pnpm --dir` 切换目录）。Vitest、Node test、Pytest、Go 与 `qa.business.suites` 登记套件的参数不变。

@@ -78,6 +78,50 @@ function block(reason, kind, meta = {}) {
   };
 }
 
+const LIFECYCLE_BLOCKING_STATES = ['cleanup_pending', 'recovery_required'];
+
+// The audit classifies head-drift only after proving the worktree is clean, has no
+// commits outside the base branch and is not used by a live process or active task.
+const SAFE_TO_REMOVE_REASONS = new Set(['head-drift']);
+
+function describeLifecycleBlocker(session) {
+  const branch = String(session.branch || '');
+  const worktree = String(session.worktree || '');
+  const auditReason = String(session.auditReason || '');
+  const reason = auditReason || String(session.audit?.reason || '') || 'unknown';
+  if (session.status === 'cleanup_pending') {
+    return {
+      branch,
+      status: session.status,
+      reason,
+      verdict: 'RETRY_CLEANUP',
+      worktree,
+      nextCommands: ['pnpm agent -- worktree audit --apply'],
+    };
+  }
+  if (SAFE_TO_REMOVE_REASONS.has(auditReason) && branch) {
+    return {
+      branch,
+      status: session.status,
+      reason,
+      verdict: 'SAFE_TO_REMOVE',
+      worktree,
+      nextCommands: [`pnpm agent -- worktree remove ${branch}`],
+    };
+  }
+  return {
+    branch,
+    status: session.status,
+    reason,
+    verdict: 'REVIEW_REQUIRED',
+    worktree,
+    nextCommands: [
+      `git -C "${worktree}" status --short --branch`,
+      `pnpm agent -- worktree resume ${branch || '<branch>'} --recover-as <new-branch>`,
+    ],
+  };
+}
+
 function lifecycleSessionsForTask(sessions, taskId) {
   const lifecycleSessions = Array.isArray(sessions) ? sessions : [];
   const normalizedTaskId = normalizeTaskId(taskId);
@@ -91,7 +135,7 @@ function evaluateCompletionGuard(input) {
   const dirty = statusLines.length > 0;
   const lifecycleSessions = lifecycleSessionsForTask(input.lifecycleSessions, input.taskId);
   const lifecycleBlockers = lifecycleSessions.filter((session) =>
-    ['cleanup_pending', 'recovery_required'].includes(session.status));
+    LIFECYCLE_BLOCKING_STATES.includes(session.status));
 
   if (!branch) {
     return block('当前不在普通分支上，无法确认 TDD/QA 流水线是否完成。', 'unmerged', {
@@ -102,11 +146,18 @@ function evaluateCompletionGuard(input) {
 
   if (lifecycleBlockers.length > 0) {
     const states = [...new Set(lifecycleBlockers.map((session) => session.status))].join(', ');
-    return block(`存在未收敛的 worktree 生命周期状态：${states}。`, 'cleanup', {
-      branch,
-      dirty,
-      lifecycleBranches: lifecycleBlockers.map((session) => session.branch),
-    });
+    const blockers = lifecycleBlockers.map(describeLifecycleBlocker);
+    return {
+      ...block(`存在未收敛的 worktree 生命周期状态：${states}。`, 'cleanup', {
+        branch,
+        dirty,
+        lifecycleBranches: lifecycleBlockers.map((session) => session.branch),
+        lifecycleBlockers: blockers,
+        nextAction: 'SAFE_TO_REMOVE 已确认干净且无独有提交，可直接清理；REVIEW_REQUIRED 先检查并用 --recover-as 保留需要的改动；RETRY_CLEANUP 重试清理补偿。',
+      }),
+      // NEXT_COMMANDS is auto-run by tdd-finish; lifecycle recovery needs a human decision.
+      manualCommands: [...new Set(blockers.flatMap((blocker) => blocker.nextCommands))],
+    };
   }
 
   if (MAIN_BRANCHES.has(branch)) {
@@ -244,22 +295,32 @@ function collectLifecycleState(repoRoot) {
     apply: true,
     skipWorktreePath: repoRoot,
   });
-  const persisted = readSessions(config, mainRoot).filter((session) =>
-    ['cleanup_pending', 'recovery_required'].includes(session.status));
+  return {
+    audit,
+    lifecycleSessions: mergeLifecycleSessions(readSessions(config, mainRoot), audit.records),
+  };
+}
+
+function mergeLifecycleSessions(sessions, records) {
+  const auditRecords = Array.isArray(records) ? records : [];
+  const reasonByBranch = new Map(auditRecords
+    .filter((record) => record.branch)
+    .map((record) => [record.branch, record.reason || '']));
+  const persisted = (Array.isArray(sessions) ? sessions : [])
+    .filter((session) => LIFECYCLE_BLOCKING_STATES.includes(session.status))
+    .map((session) => ({ ...session, auditReason: reasonByBranch.get(session.branch) || '' }));
   const persistedBranches = new Set(persisted.map((session) => session.branch));
-  const synthetic = audit.records
-    .filter((record) => ['cleanup_pending', 'recovery_required'].includes(record.state))
+  const synthetic = auditRecords
+    .filter((record) => LIFECYCLE_BLOCKING_STATES.includes(record.state))
     .filter((record) => !persistedBranches.has(record.branch))
     .map((record) => ({
       ...(record.session || {}),
       branch: record.branch || record.path,
       worktree: record.path || record.session?.worktree || '',
       status: record.state,
+      auditReason: record.reason || '',
     }));
-  return {
-    audit,
-    lifecycleSessions: [...persisted, ...synthetic],
-  };
+  return [...persisted, ...synthetic];
 }
 
 function parseArgs(argv) {
@@ -286,21 +347,42 @@ function parseArgs(argv) {
   return args;
 }
 
-function printResult(result) {
-  console.log(`STATUS=${result.status}`);
-  if (result.branch !== undefined) console.log(`BRANCH=${result.branch || '(detached)'}`);
-  if (result.reason) console.log(`REASON=${result.reason}`);
-  if (result.baseRef) console.log(`BASE_REF=${result.baseRef}`);
-  if (result.changedFiles) console.log(`CHANGED_FILES=${result.changedFiles}`);
+function formatResult(result) {
+  const lines = [`STATUS=${result.status}`];
+  if (result.branch !== undefined) lines.push(`BRANCH=${result.branch || '(detached)'}`);
+  if (result.reason) lines.push(`REASON=${result.reason}`);
+  if (result.baseRef) lines.push(`BASE_REF=${result.baseRef}`);
+  if (result.changedFiles) lines.push(`CHANGED_FILES=${result.changedFiles}`);
   if (result.lifecycleBranches && result.lifecycleBranches.length) {
-    console.log(`LIFECYCLE_BRANCHES=${result.lifecycleBranches.join(',')}`);
+    lines.push(`LIFECYCLE_BRANCHES=${result.lifecycleBranches.join(',')}`);
   }
-  if (result.nextCommands && result.nextCommands.length) {
-    console.log('NEXT_COMMANDS=');
-    for (const command of result.nextCommands) {
-      console.log(`  ${command}`);
+  for (const blocker of result.lifecycleBlockers || []) {
+    lines.push(`LIFECYCLE_BLOCKER=${[
+      blocker.branch,
+      blocker.status,
+      blocker.reason,
+      blocker.verdict,
+      blocker.worktree,
+    ].join('|')}`);
+  }
+  if (result.nextAction) lines.push(`NEXT_ACTION=${result.nextAction}`);
+  if (result.manualCommands && result.manualCommands.length) {
+    lines.push('MANUAL_COMMANDS=');
+    for (const command of result.manualCommands) {
+      lines.push(`  ${command}`);
     }
   }
+  if (result.nextCommands && result.nextCommands.length) {
+    lines.push('NEXT_COMMANDS=');
+    for (const command of result.nextCommands) {
+      lines.push(`  ${command}`);
+    }
+  }
+  return lines;
+}
+
+function printResult(result) {
+  for (const line of formatResult(result)) console.log(line);
 }
 
 function main() {
@@ -324,8 +406,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  describeLifecycleBlocker,
   evaluateCompletionGuard,
   collectLifecycleState,
+  formatResult,
+  mergeLifecycleSessions,
   lifecycleSessionsForTask,
   parseArgs,
   splitStatusLines,
