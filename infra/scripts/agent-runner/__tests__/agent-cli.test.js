@@ -125,7 +125,7 @@ test('unified agent CLI routes qa paths and qa run to the business-test entries 
   } finally {
     console.log = originalLog;
   }
-  assert.match(lines.join('\n'), /qa <plan\|paths\|run\|verify\|merge>/u);
+  assert.match(lines.join('\n'), /qa <plan\|automate\|paths\|run\|verify\|merge>/u);
 });
 
 test('private service shortcut only accepts lifecycle actions', () => {

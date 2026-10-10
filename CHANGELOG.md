@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 新增 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）：单模块业务测试自动化的只读编排入口，逐步检查 1 原子 AC 表 → 2 `PATHS.md` 且 `qa paths` 无本模块违规 → 3 测试文件引用每条必需优先级 auto AC 的 AC/TC 编号 → 4 `qa.business` 启用并登记套件 → 5 提交后 `qa run` 结果绑定当前 HEAD、干净工作区与配置摘要且本模块必需 AC 全部被证明；输出 `STATUS=OK|PENDING|BLOCKED`、`STEP=<n>|<name>|done|pending|blocked|<说明>`、`CURRENT_STEP=`、`EXPERT=`、`ACTIVATE=`、`READ=`、`UNREFERENCED_AC=`、`RISK=`。设计取舍：① AC、PATHS 与用例必须由模型按专家规范生成，脚本代写会把被测代码现状反写成规格，所以命令只读、不创建目录或写文件；② 复用 `analyzeSpec`、`resolveBusinessConfig`、`readResults`/`judgeAc`，与 `qa paths`、`qa run`、`qa verify` 同一口径；③ 套件配置的键是严格的、不带模块字段，所以步骤 4 只检查全局配置，步骤 3 改用静态扫描（`*.spec.*`/`*.test.*` 中的 AC/TC 编号），使“写了用例但没登记套件”能停在步骤 4；④ 步骤 5 只证明本模块，其他模块违规以 `RISK=SPEC_OTHER_MODULES` 提示，全局终判仍归 `qa verify`；⑤ 未完成是正常进度，`PENDING` 以 0 退出，便于“执行 → 复查”循环，只有配置非法、结果损坏或必需 AC 失败才 `BLOCKED` 非零退出；⑥ 前一步未完成时后续步骤一律报 `pending`，防止跳步。QA 专家命令表、Playbook「业务测试自动化」新增「单模块编排」小节（模型收到命令后以 mutation 任务 + worktree 推进、只问最少问题、完成后走 TDD/QA 合并链）、`agent-cli` 路由与帮助、qa-tools README 同步登记；按“新模板不继续扩张别名集合”，不新增 package alias。新增 `infra/scripts/qa-tools/__tests__/qa-automate.test.js` 7 项定向测试，`agent-cli.test.js` 帮助断言同步。
+
 ## [v3.11.16] - 2026-10-10
 
 - `qa verify` 一次列出全部阻断：前置条件（不在功能分支、fetch 失败、本地 HEAD 未推送、功能分支落后主干）与未预期错误仍立即结束；之后的架构检查、QA 文档或 projectChecks、测试范围证据（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`）与业务验收门禁全部执行完再判定，每个阻断输出 `QA_VERIFY_BLOCK=<代码>|<摘要>`，`BUSINESS_BLOCK=`/`BUSINESS_RISK=` 等明细行格式不变。多个阻断时 `REASON=` 取第一个，`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 逐个代码列出处理；单个阻断与无阻断时输出、退出码和回执与此前一致。架构检查改在前置条件之后执行。新增 3 项定向测试。

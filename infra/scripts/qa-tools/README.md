@@ -574,6 +574,7 @@ pnpm agent -- qa run
 ```
 
 说明：
+- `qa automate --module <模块>` 只读编排单个模块：逐步检查原子 AC 表、`PATHS.md`、用例对必需优先级 auto AC 的引用、`qa.business` 套件登记与当前 HEAD 的 `qa run` 结果，输出 `STATUS=OK|PENDING|BLOCKED` 与 `STEP=` 行；不生成 AC、PATHS 或用例。
 - `qa paths` 不创建目录、不运行测试；存在违规时 `STATUS=BLOCKED` 且退出码非零，逐条输出 `VIOLATION=<code>|<位置>|<说明>`，并给出 `MATRIX_AC=`、`MATRIX_PATH=` 追溯行。
 - `qa run` 逐个套件运行命令（在仓库根目录经 shell 执行），读取各套件的 JUnit XML；测试名须携带 AC/TC 标识才能绑定到原子 AC。结果写入容器 `tmp/qa-business-results/<工作区标识>/ac-results.json`，绑定当前 HEAD、配置摘要与报告 SHA256，并输出 `SUITE=` 行与 `RESULTS_FILE=`。该命令不受 `qa.business.enabled` 影响。
 - `qa run` 的 `STATUS=OK` 表示套件都正常完成，且 `requiredPriorities` 内的 `auto` AC 全部有通过的用例。套件失败时 `STATUS=FAILED`、`REASON=SUITE_FAILED`；套件都正常完成、但必需优先级的 `auto` AC 仍有未证明的（缺用例、用例被跳过、声明的端没有套件覆盖），逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，并以 `STATUS=FAILED`、`REASON=AC_NOT_PROVEN`、非零退出码结束。两种 FAILED 都照常写出结果文件（`SUITE_FAILED` 优先，不叠加第二个原因）；判定与 `qa verify` 的业务验收门禁共用同一函数，所以 `qa run` 通过的结果在验收一项上不会被 `qa verify` 推翻。`STATUS=BLOCKED` 仍表示运行前就被拒绝（配置非法、没有套件、规格违规、仓库无提交、报告路径不安全），此时没有运行任何套件、也没有写结果。
@@ -620,6 +621,7 @@ pnpm agent -- qa run
 ### 业务测试自动化（可选，启用 `qa.business` 时）
 | 命令 | 说明 | 优先级 |
 |------|------|--------|
+| `pnpm agent -- qa automate --module <模块>` | 单模块业务测试自动化五步编排（AC 表 → PATHS → 用例 → 套件登记 → qa run 结果），输出当前步骤、要激活的专家与手册章节（只读） | ⭐⭐ |
 | `pnpm agent -- qa paths` | 校验原子 AC 表与 `PATHS.md`，输出 AC/路径追溯矩阵（只读）；含 `auto` AC 的域缺少 `PATHS.md` 时输出 `VIOLATION=PATHS_MISSING` 并退出 1 | ⭐⭐ |
 | `pnpm agent -- qa run` | 运行 `qa.business.suites`，把报告绑定到原子 AC/TC/路径并写入结果文件 | ⭐⭐ |
 
