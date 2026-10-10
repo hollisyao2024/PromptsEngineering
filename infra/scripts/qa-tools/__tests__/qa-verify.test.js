@@ -61,6 +61,30 @@ test('qa verify reports verdict and business gate blocks with their own reason c
   assert.match(ok.nextAction, /qa merge/);
 });
 
+test('qa verify folds every collected gate block into one BLOCKED outcome', () => {
+  const scope = { reason: 'TEST_SCOPE_EVIDENCE', summary: 'TEST_SCOPE_RESULT head_sha mismatch' };
+  const single = describeQaVerifyOutcome({ blockers: [scope] });
+  assert.deepEqual(single, describeQaVerifyOutcome({ error: Object.assign(new Error(scope.summary), { code: scope.reason }) }));
+
+  const several = describeQaVerifyOutcome({
+    blockers: [
+      { reason: 'ARCHITECTURE_CHECK_FAILED', summary: 'Architecture check failed: ui: missing' },
+      { reason: 'QA_VERDICT_NO_GO' },
+      scope,
+      { reason: 'BUSINESS_GATE_BLOCKED' },
+    ],
+  });
+  assert.equal(several.status, 'BLOCKED');
+  assert.equal(several.reason, 'ARCHITECTURE_CHECK_FAILED');
+  assert.match(several.summary, /^4 项门禁阻断/);
+  for (const code of ['ARCHITECTURE_CHECK_FAILED', 'QA_VERDICT_NO_GO', 'TEST_SCOPE_EVIDENCE', 'BUSINESS_GATE_BLOCKED']) {
+    assert.ok(several.summary.includes(code), several.summary);
+    assert.ok(several.nextAction.includes(code), several.nextAction);
+  }
+  assert.match(several.nextAction, /architecture check/);
+  assert.match(several.nextAction, /qa run/);
+});
+
 test('qa verify identity errors carry stable reason codes', () => {
   const onBase = (args) => (args.join(' ') === 'branch --show-current' ? 'stable\n' : '');
   assert.throws(() => captureQaVerificationIdentity({ config: { baseBranch: 'stable' }, runGit: onBase }), (error) => (

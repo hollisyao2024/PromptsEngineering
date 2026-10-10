@@ -64,6 +64,7 @@ pnpm run qa:verify -- --project --write-reports
 - `project` 模式会复用 `qa:lint`、`qa:sync-prd-qa-ids`、`qa:coverage-report`、`qa:check-defect-blockers`。
 - `project` 默认只校验不写 `qa-reports`，显式传 `--write-reports` 才会输出报告文件。
 - 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=<code>`；既有的 `QA_RECEIPT=`、`BASE_BRANCH=`、`BASE_SHA=`、`HEAD_SHA=` 行保留。`BLOCKED` 代码：`QA_BRANCH_REQUIRED`（不在任务功能分支）、`STALE_QA_BASE`（功能分支落后配置主干）、`HEAD_NOT_PUSHED`（本地 HEAD 与远端分支不一致）、`TEST_SCOPE_EVIDENCE`（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT` 缺失或不合法）、`QA_VERDICT_NO_GO`（QA 文档检查有错误）、`BUSINESS_GATE_BLOCKED`（业务验收门禁未通过）、`ARCHITECTURE_PACKAGE_MISSING`（项目声明了架构包但 `architecture/` 目录缺失）、`ARCHITECTURE_CHECK_FAILED`（`architecture check` 有失败项）。`FAILED` 代码：`QA_FETCH_FAILED`（签发回执前的 `git fetch --prune` 失败；同一命令至多重试一次、共 2 次，仍失败即停止且不签发回执）、`UNEXPECTED_ERROR`（堆栈写到 stderr）。每个代码的 `NEXT_ACTION` 见 Playbook §qa verify 阻断码。
+- 前置条件（`QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE`）与 `FAILED` 类错误立即结束；其后的架构检查、QA 文档/projectChecks、测试范围证据、业务验收门禁一次全部执行，每个阻断输出 `QA_VERIFY_BLOCK=<代码>|<摘要>`。多个阻断时 `REASON=` 取第一个，`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 逐个代码列出处理；单个阻断时结果块不变。
 - `TEST_SCOPE_RESULT.checks[].evidence` 写成 `evidence/<name>.log sha256=<hex>`（即 `task exec` 输出的 `LOG_PATH`/`LOG_SHA256`）时，`qa verify` 会核对当前任务 `evidence/` 目录下该文件存在且 SHA256 一致，缺失或不符按 `TEST_SCOPE_EVIDENCE` 阻断；其他写法只做结构校验，旧任务记录不受影响。
 
 ### 2. QA 文档完整性检查
