@@ -19,6 +19,7 @@ const {
   resolveRepoRoot,
 } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
+const { readEnvFile, usableGitHubToken } = require('../shared/github-auth');
 const {
   EXPECTED_UPSTREAM,
   buildAnonymousGitEnvironment,
@@ -31,6 +32,9 @@ const DEFAULT_TIMEOUT_MS = 120000;
 const SOURCE_CLI_TIMEOUT_MS = 300000;
 const BASELINE_REF = 'refs/agent/backfill-baseline';
 const SOURCE_CLONE_SEGMENTS = Object.freeze(['xirang', 'backfill-source']);
+const SOURCE_ENV_KEY = 'XIRANG_SOURCE_ENV_FILE';
+const SOURCE_ENV_HINT = `set ${SOURCE_ENV_KEY}=<official Xirang source main worktree>/.env.local in the project .env.local `
+  + '(or the environment), or pass --source-env <path>; the file must hold the official source\'s own GH_TOKEN';
 const BLOCKED_PREFIXES = [
   'agent.config.json',
   '.npmrc',
@@ -59,7 +63,7 @@ function singleLine(value) {
 
 function parseArgs(argv) {
   const args = { include: [] };
-  const valueFlags = new Set(['base', 'include', 'timeout-ms', 'task']);
+  const valueFlags = new Set(['base', 'include', 'timeout-ms', 'task', 'source-env']);
   const booleanFlags = new Map([['dry-run', 'dryRun']]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -88,7 +92,9 @@ function parseArgs(argv) {
     }
     if (eq === -1) index += 1;
     if (name === 'include') args.include.push(...value.split(',').filter(Boolean));
-    else args[name === 'timeout-ms' ? 'timeoutMs' : name] = value;
+    else if (name === 'timeout-ms') args.timeoutMs = value;
+    else if (name === 'source-env') args.sourceEnv = value;
+    else args[name] = value;
   }
   return args;
 }
@@ -344,10 +350,53 @@ function readSourceManifest(sourceRoot) {
   }
 }
 
-// The clone resolves GH_TOKEN from its own main worktree; share the project's
-// credential file by symlink so the secret is never copied or printed.
-function linkCredentials({ projectMainRoot, sourceRoot }) {
-  const projectEnv = path.join(projectMainRoot, '.env.local');
+function sameRealPath(a, b) {
+  try {
+    return fs.realpathSync(a) === fs.realpathSync(b);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Locate the official source's own credential file. Writes to the official repository
+ * need its own GH_TOKEN; the project's token is never a fallback. Precedence:
+ * --source-env > XIRANG_SOURCE_ENV_FILE environment > the same key in the project .env.local.
+ */
+function resolveSourceCredentials({ args = {}, env = process.env, cwd = process.cwd(), projectMainRoot }) {
+  const projectEnvPath = path.join(projectMainRoot, '.env.local');
+  let file = '';
+  let source = '';
+  if (args.sourceEnv) {
+    file = path.resolve(cwd, args.sourceEnv);
+    source = 'flag';
+  } else if (String(env[SOURCE_ENV_KEY] || '').trim()) {
+    file = path.resolve(cwd, String(env[SOURCE_ENV_KEY]).trim());
+    source = 'env';
+  } else {
+    const configured = String(readEnvFile(projectEnvPath)[SOURCE_ENV_KEY] || '').trim();
+    if (configured) {
+      file = path.resolve(projectMainRoot, configured);
+      source = 'project-env-local';
+    }
+  }
+  if (!file) return { status: 'NOT_CONFIGURED', file: '', source: '', reason: 'no official-source credential file configured' };
+  let reason = '';
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) reason = 'configured file does not exist';
+  else if (sameRealPath(file, projectEnvPath)) reason = 'configured file is the project .env.local, not the official source\'s own';
+  else if (!usableGitHubToken(readEnvFile(file).GH_TOKEN)) reason = 'configured file has no usable GH_TOKEN';
+  return { status: reason ? 'INVALID' : 'CONFIGURED', file, source, reason };
+}
+
+function assertSourceCredentials(credentials) {
+  if (credentials.status === 'CONFIGURED') return;
+  const where = credentials.file ? ` (${credentials.source}: ${credentials.file})` : '';
+  throw new BackfillError(`official source credential unavailable: ${credentials.reason}${where}`, SOURCE_ENV_HINT);
+}
+
+// The clone resolves GH_TOKEN from its own main worktree; point it at the configured
+// official-source credential file by symlink so the secret is never copied or printed.
+function linkCredentials({ sourceRoot, credentialFile }) {
   const sourceEnv = path.join(sourceRoot, '.env.local');
   let existing = null;
   try {
@@ -355,23 +404,38 @@ function linkCredentials({ projectMainRoot, sourceRoot }) {
   } catch (error) {
     if (!error || error.code !== 'ENOENT') throw error;
   }
-  if (existing) return existing.isSymbolicLink() ? 'LINKED' : 'PRESENT';
-  if (fs.existsSync(projectEnv)) {
-    fs.symlinkSync(fs.realpathSync(projectEnv), sourceEnv);
+  const target = fs.realpathSync(credentialFile);
+  if (!existing) {
+    fs.symlinkSync(target, sourceEnv);
     return 'LINKED';
   }
-  return process.env.GH_TOKEN ? 'ENV' : 'MISSING';
+  if (!existing.isSymbolicLink()) {
+    throw new BackfillError(
+      `official clone holds an unmanaged credential file: ${sourceEnv}`,
+      `remove ${sourceEnv}; backfill links it to the configured official-source credential file`,
+    );
+  }
+  if (sameRealPath(sourceEnv, target)) return 'LINKED';
+  fs.unlinkSync(sourceEnv);
+  fs.symlinkSync(target, sourceEnv);
+  return 'RELINKED';
+}
+
+// Project container overrides must not redirect the official clone's own containers,
+// and the project's token must not stand in for the official source's credentials.
+function sourceCliEnvironment(baseEnv = process.env) {
+  const env = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (/^AGENT_/u.test(key) || key === 'GH_TOKEN' || key === 'GITHUB_TOKEN' || key === SOURCE_ENV_KEY) continue;
+    env[key] = value;
+  }
+  return env;
 }
 
 function defaultRunSourceCli(sourceRoot, argv) {
-  const env = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    // Project container overrides must not redirect the official clone's own containers.
-    if (!/^AGENT_/u.test(key)) env[key] = value;
-  }
   return run(process.execPath, [path.join('infra', 'scripts', 'agent-runner', 'agent-cli.js'), ...argv], {
     cwd: sourceRoot,
-    env,
+    env: sourceCliEnvironment(),
     timeoutMs: SOURCE_CLI_TIMEOUT_MS,
   });
 }
@@ -427,6 +491,12 @@ function executeBackfill(argv = process.argv.slice(2), options = {}) {
   ensureContainerDirectories(config, projectMainRoot, ['cache']);
   const cacheRoot = resolveContainerPath(config, projectMainRoot, 'cache');
 
+  const sourceAuth = resolveSourceCredentials({
+    args,
+    env: options.env || process.env,
+    cwd: options.cwd || process.cwd(),
+    projectMainRoot,
+  });
   const { sourceRoot } = prepareSourceClone({ audit, cacheRoot, repository, timeoutMs });
   const manifest = readSourceManifest(sourceRoot);
   const { candidates, skipped } = filterCandidates(changedFiles, manifest, args.include);
@@ -443,11 +513,13 @@ function executeBackfill(argv = process.argv.slice(2), options = {}) {
     worktree: null,
     taskId: '',
     authStatus: 'NOT_CHECKED',
+    sourceAuth,
     modified: [],
   };
   if (args.dryRun || changed.length === 0) return base;
 
-  const authStatus = linkCredentials({ projectMainRoot, sourceRoot });
+  assertSourceCredentials(sourceAuth);
+  const authStatus = linkCredentials({ sourceRoot, credentialFile: sourceAuth.file });
   const taskId = validateTaskId(options.taskId || args.task || defaultTaskId());
   const runSourceCli = options.runSourceCli || defaultRunSourceCli;
   const projectName = singleLine(config.projectName || path.basename(path.dirname(projectMainRoot)));
@@ -497,6 +569,10 @@ function printPlan(result) {
   console.log(`CURRENT_REPO=${result.projectRoot}`);
   console.log(`TEMPLATE_SOURCE_CLONE=${result.sourceRoot}`);
   console.log(`BASE_REF=${result.baseRef}`);
+  console.log(`TEMPLATE_SOURCE_AUTH=${result.sourceAuth.status}`);
+  if (result.sourceAuth.status !== 'CONFIGURED') {
+    console.log(`AUTH_WARNING=${singleLine(result.sourceAuth.reason)}; ${SOURCE_ENV_HINT}`);
+  }
   console.log('BACKFILL_FILES_START');
   if (result.items.length === 0) console.log('none');
   for (const item of result.items) console.log(`${item.status}\t${item.file}`);
@@ -530,9 +606,6 @@ function main(argv = process.argv.slice(2)) {
   console.log('MODIFIED_FILES_START');
   for (const item of result.modified) console.log(`${item.status}\t${item.file}`);
   console.log('MODIFIED_FILES_END');
-  if (result.authStatus === 'MISSING') {
-    console.log('AUTH_WARNING=no GH_TOKEN source found for the official clone; provide GH_TOKEN before tdd push');
-  }
   console.log(
     `NEXT_ACTION=cd "${result.worktree.path}", review the diff, then run pnpm agent -- tdd sync, tdd push, qa plan, qa verify, qa merge there to land on official ${OFFICIAL_UPSTREAM.branch}`,
   );
@@ -540,11 +613,15 @@ function main(argv = process.argv.slice(2)) {
 
 if (require.main === module) {
   exitOnHelp([
-    'Usage: pnpm agent -- template backfill [--dry-run] [--base <ref>] [--include <path>] [--task <id>]',
+    'Usage: pnpm agent -- template backfill [--dry-run] [--base <ref>] [--include <path>] [--task <id>] [--source-env <path>]',
     '',
     '回灌息壤模板：把本项目的 template-owned 变更回灌到官方息壤仓库 main。',
     'Backfill template-owned changes into the official Xirang repository (main) through a task worktree',
     'of its own clone; the destination is fixed and cannot be redirected.',
+    '',
+    'Credentials: the official clone uses the official source\'s own GH_TOKEN, never this project\'s.',
+    `Configure its .env.local with --source-env <path>, or ${SOURCE_ENV_KEY}=<path> in the environment`,
+    'or in this project\'s .env.local (precedence in that order). A real backfill blocks when unset.',
   ].join('\n'));
   try {
     main();
@@ -563,4 +640,6 @@ module.exports = {
   executeBackfill,
   filterCandidates,
   parseArgs,
+  resolveSourceCredentials,
+  sourceCliEnvironment,
 };

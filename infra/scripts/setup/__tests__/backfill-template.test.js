@@ -104,14 +104,24 @@ function fakeSourceCli(calls) {
   };
 }
 
+// The official source keeps its own credential file outside the project.
+function officialSourceEnv(project, content = 'GH_TOKEN=test-only-placeholder\n') {
+  const file = path.join(path.dirname(project.container), 'official-source', '.env.local');
+  write(path.dirname(file), '.env.local', content);
+  return file;
+}
+
 function execute(project, upstream, argv, extra = {}) {
   const calls = extra.calls || [];
+  const env = (extra.options && extra.options.env)
+    || { XIRANG_SOURCE_ENV_FILE: officialSourceEnv(project) };
   const result = backfill.executeBackfill(argv, {
     cwd: project.mainRoot,
     upstreamRepository: upstream,
     runSourceCli: fakeSourceCli(calls),
     taskId: 'backfill-test',
     ...extra.options,
+    env,
   });
   return { result, calls };
 }
@@ -299,16 +309,114 @@ test('a reused official clone restores a missing env exclusion exactly once', t 
   assert.equal(readExclude(first.sourceRoot).match(/^\.env\.local$/gmu).length, 1);
 });
 
-test('project env credentials are shared with the official clone by symlink, never copied', t => {
+test('the official clone links only the configured official-source credential file', t => {
   const testRoot = tmpRoot(t, 'backfill-auth-link');
   const upstream = createUpstream(testRoot);
   const project = createProject(testRoot);
-  write(project.mainRoot, '.env.local', 'GH_TOKEN=test-only-placeholder\n');
+  write(project.mainRoot, '.env.local', 'GH_TOKEN=project-only-placeholder\n');
   const { result } = execute(project, upstream, []);
   const linked = path.join(result.sourceRoot, '.env.local');
   assert.equal(fs.lstatSync(linked).isSymbolicLink(), true);
-  assert.equal(fs.realpathSync(linked), fs.realpathSync(path.join(project.mainRoot, '.env.local')));
+  assert.equal(fs.realpathSync(linked), fs.realpathSync(officialSourceEnv(project)));
+  assert.notEqual(fs.realpathSync(linked), fs.realpathSync(path.join(project.mainRoot, '.env.local')));
   assert.equal(result.authStatus, 'LINKED');
+  assert.equal(result.sourceAuth.source, 'env');
+});
+
+test('source credential precedence is --source-env, then XIRANG_SOURCE_ENV_FILE, then the project .env.local key', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-precedence');
+  const project = createProject(testRoot);
+  const fromFlag = path.join(testRoot, 'flag', '.env.local');
+  const fromEnv = path.join(testRoot, 'env', '.env.local');
+  const fromProject = path.join(testRoot, 'project-key', '.env.local');
+  for (const file of [fromFlag, fromEnv, fromProject]) write(path.dirname(file), '.env.local', 'GH_TOKEN=test-only-placeholder\n');
+  write(project.mainRoot, '.env.local', `GH_TOKEN=project-only-placeholder\nXIRANG_SOURCE_ENV_FILE=${fromProject}\n`);
+  const resolve = (args, env) => backfill.resolveSourceCredentials({
+    args, env, cwd: project.mainRoot, projectMainRoot: project.mainRoot,
+  });
+  assert.deepEqual(
+    [resolve({ sourceEnv: fromFlag }, { XIRANG_SOURCE_ENV_FILE: fromEnv }).file, resolve({}, { XIRANG_SOURCE_ENV_FILE: fromEnv }).file, resolve({}, {}).file],
+    [fromFlag, fromEnv, fromProject],
+  );
+  assert.equal(resolve({}, {}).status, 'CONFIGURED');
+  assert.equal(resolve({}, {}).source, 'project-env-local');
+  assert.equal(backfill.parseArgs(['--source-env', fromFlag]).sourceEnv, fromFlag);
+});
+
+test('without a configured source credential file a real backfill blocks before any source task or worktree', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-missing');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  // Neither the project token nor a process GH_TOKEN may stand in for the official source's credentials.
+  write(project.mainRoot, '.env.local', 'GH_TOKEN=project-only-placeholder\n');
+  const calls = [];
+  assert.throws(
+    () => execute(project, upstream, [], { calls, options: { env: { GH_TOKEN: 'process-only-placeholder' } } }),
+    (error) => /source credential|XIRANG_SOURCE_ENV_FILE/iu.test(error.message)
+      && /XIRANG_SOURCE_ENV_FILE/u.test(error.nextAction)
+      && !/placeholder/u.test(`${error.message} ${error.nextAction}`),
+  );
+  assert.equal(calls.length, 0);
+  const sourceRoot = path.join(project.container, 'cache', 'xirang', 'backfill-source', 'repo');
+  assert.equal(fs.existsSync(path.join(sourceRoot, '.env.local')), false);
+});
+
+test('dry run only reports an unconfigured source credential', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-dry');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  const { result, calls } = execute(project, upstream, ['--dry-run'], { options: { env: {} } });
+  assert.equal(calls.length, 0);
+  assert.equal(result.sourceAuth.status, 'NOT_CONFIGURED');
+});
+
+test('a configured source credential file that is missing, lacks GH_TOKEN or is the project file blocks', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-invalid');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  write(project.mainRoot, '.env.local', 'GH_TOKEN=project-only-placeholder\n');
+  const noToken = path.join(testRoot, 'no-token', '.env.local');
+  write(path.dirname(noToken), '.env.local', 'OTHER=1\n');
+  for (const file of [path.join(testRoot, 'absent', '.env.local'), noToken, path.join(project.mainRoot, '.env.local')]) {
+    const calls = [];
+    assert.throws(
+      () => execute(project, upstream, [], { calls, options: { env: { XIRANG_SOURCE_ENV_FILE: file } } }),
+      /source credential/iu,
+      file,
+    );
+    assert.equal(calls.length, 0, file);
+  }
+});
+
+test('a stale clone credential symlink is repointed to the configured official-source file', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-relink');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  write(project.mainRoot, '.env.local', 'GH_TOKEN=project-only-placeholder\n');
+  const sourceRoot = execute(project, upstream, ['--dry-run']).result.sourceRoot;
+  fs.symlinkSync(path.join(project.mainRoot, '.env.local'), path.join(sourceRoot, '.env.local'));
+  const { result } = execute(project, upstream, []);
+  assert.equal(result.authStatus, 'RELINKED');
+  assert.equal(fs.realpathSync(path.join(sourceRoot, '.env.local')), fs.realpathSync(officialSourceEnv(project)));
+});
+
+test('a regular credential file inside the clone blocks instead of being trusted or overwritten', t => {
+  const testRoot = tmpRoot(t, 'backfill-auth-regular');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  const sourceRoot = execute(project, upstream, ['--dry-run']).result.sourceRoot;
+  write(sourceRoot, '.env.local', 'GH_TOKEN=unknown-placeholder\n');
+  const calls = [];
+  assert.throws(() => execute(project, upstream, [], { calls }), /\.env\.local/u);
+  assert.equal(calls.length, 0);
+  assert.equal(fs.readFileSync(path.join(sourceRoot, '.env.local'), 'utf8'), 'GH_TOKEN=unknown-placeholder\n');
+});
+
+test('the official source CLI environment drops project GH_TOKEN and AGENT_* overrides', () => {
+  const env = backfill.sourceCliEnvironment({
+    PATH: '/bin', GH_TOKEN: 'x', GITHUB_TOKEN: 'y', AGENT_TMP_DIR: '/tmp', XIRANG_SOURCE_ENV_FILE: '/a',
+  });
+  assert.deepEqual(env, { PATH: '/bin' });
 });
 
 test('CLI blocks with parseable output and never reaches the network without a baseline', t => {
@@ -341,4 +449,6 @@ test('help documents the official-only command shape', () => {
   assert.match(result.stdout, /template backfill/u);
   assert.match(result.stdout, /官方|official/iu);
   assert.doesNotMatch(result.stdout, /<source>/u);
+  assert.match(result.stdout, /--source-env/u);
+  assert.match(result.stdout, /XIRANG_SOURCE_ENV_FILE/u);
 });

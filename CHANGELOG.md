@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.21] - 2026-10-10
+
+- `template backfill` 写入官方源改为只使用官方源自身的 `GH_TOKEN`，不再把克隆的 `.env.local` 软链接到当前项目（项目 token 通常无官方仓库写权限）：凭据文件按 `--source-env <path>` > 环境变量 `XIRANG_SOURCE_ENV_FILE` > 项目 `.env.local` 同名键确定，须存在、含可用 `GH_TOKEN` 且不是项目自身 `.env.local`；未配置或无效时正式回灌在创建任务与 worktree 前阻断，`--dry-run` 输出 `TEMPLATE_SOURCE_AUTH` 与 `AUTH_WARNING`。克隆内指向漂移的软链接自动纠正，非软链接文件阻断；调用官方源 CLI 时剥离 `GH_TOKEN`、`GITHUB_TOKEN` 与 `AGENT_*`。
+
 ## [v3.11.20] - 2026-10-10
 
 - 仓库级/任务级 completion guard 的 worktree 生命周期阻塞改为逐项诊断：每个阻塞输出 `LIFECYCLE_BLOCKER=<branch>|<status>|<reason>|<verdict>|<path>`，判定为 `SAFE_TO_REMOVE`（审计实时判定为 head-drift：工作区干净、无独有提交、无活动进程/任务）、`RETRY_CLEANUP`（`cleanup_pending`）或 `REVIEW_REQUIRED`；对应恢复命令只写入 `MANUAL_COMMANDS=`，不进入会被 `tdd:finish` 自动执行的 `NEXT_COMMANDS=`。session 中持久化的旧审计原因只展示、不作为可删除依据。
