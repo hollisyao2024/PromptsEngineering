@@ -473,6 +473,22 @@ function resolveSessionTargets(args, moduleEntries) {
   return resolveTargetsFromInference(moduleEntries);
 }
 
+const GAP_SECTION_HEADING = /^(#{2,6})\s+(?:\d+(?:\.\d+)*\s+)?尚未登记用例的验收标准\s*$/u;
+
+// 去掉缺口小节：从该标题起，到下一个同级或更高级标题为止。
+function withoutGapSection(content) {
+  const kept = [];
+  let level = 0;
+  for (const line of content.split(/\r?\n/u)) {
+    const heading = /^(#{1,6})\s/u.exec(line);
+    if (level && heading && heading[1].length <= level) level = 0;
+    const gap = GAP_SECTION_HEADING.exec(line);
+    if (!level && gap) level = gap[1].length;
+    if (!level) kept.push(line);
+  }
+  return kept.join('\n');
+}
+
 // root 仅供测试把夹具放在临时目录，生产调用沿用当前 worktree 根。
 function validateQaFile(filePath, { root = repoRoot } = {}) {
   const content = readFile(filePath, root);
@@ -549,7 +565,9 @@ function validateQaFile(filePath, { root = repoRoot } = {}) {
     result.errors.push(`引用了 PRD 不存在的 Story: ${invalidStoryRefs.join(', ')}`);
   }
 
-  const validStoryRefCount = storyIds.filter((id) => prdStories.has(id)).length;
+  // qa:generate 的「尚未登记用例的验收标准」小节列出的正是缺口，提到不等于覆盖，计算覆盖率前去掉该小节。
+  const coveredIds = uniqueMatches(withoutGapSection(content), new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g'));
+  const validStoryRefCount = [...coveredIds].filter((id) => prdStories.has(id)).length;
   result.stats.validStoryRefCount = validStoryRefCount;
   result.stats.storyCoverage = Math.round((validStoryRefCount / prdStories.size) * 100);
 

@@ -109,6 +109,7 @@ function print(plan,write) {
     return `${status}\t${entry.strategy}\t${entry.path}${entry.reason?`\tconflicts=${entry.reason}`:''}`;
   });
   for(const p of plan.metadataChanges||[]){counts.updated=(counts.updated||0)+1;details.push(`updated\tmetadata\t${p}`);}
+  for(const p of plan.lockPrunes||[]){counts.pruned=(counts.pruned||0)+1;details.push(`pruned\tlock\t${p}`);}
   console.log(`COUNTS=${JSON.stringify(counts)}\nDETAILS_START\n${details.join('\n')}\nDETAILS_END`);
   console.log(`NEXT_ACTION=${nextAction(plan,write)}`);
 }

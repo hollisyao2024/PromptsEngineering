@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [v3.11.25] - 2026-10-11
+
+- `parsePrdStories` 的 Story 登记识别：以 Story ID 开头的标题（如 `### US-FOUND-005 …`）与表格首列同样算作登记，按出现顺序合并；登记只保留与模块标识（AC 表的模块，无 AC 时取登记中的多数）一致的 Story，跨模块依赖表首列里的外模块 Story 不再计入本模块。
+- `qa verify` 的 `prd-story-coverage` 计算覆盖前去掉 `qa:generate` 生成的「尚未登记用例的验收标准」小节，缺口清单里的 Story 不再被算作已覆盖；Story 总数与无效引用检查不变。
+- 模板引擎修剪孤儿锁记录：本次重建的所有者（`xirang:engine` 除外）名下、已不再产出且项目文件已不存在的 lock 条目随更新删除（dry-run 显示 `pruned\tlock\t<path>`），对应基线一并移除；文件仍在或所有者未参与本次重建（如 `--scope agent` 时的架构记录）的条目保持不变。
+
 ## [v3.11.24] - 2026-10-11
 
 - `merge-yaml` 与 `merge-json` 的删除语义对齐：项目删除了模板所有的 YAML 文件、且上游内容未变时保持删除并收敛，上游已改动时报冲突（`YAML file deleted locally but changed upstream`），不再误报 “Required workspace entry removed locally”。

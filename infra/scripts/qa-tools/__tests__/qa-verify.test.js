@@ -377,6 +377,51 @@ test('validateQaFile measures coverage against the Stories the module PRD define
   assert.equal(partial.stats.storyCoverage, 50, 'one of the two defined Stories is covered');
 });
 
+test('validateQaFile does not count Stories listed only in the generated 3.2 gap section as covered', (t) => {
+  const root = makeFixtureRoot(t);
+  const moduleDir = 'gap-section-fixture';
+  const prdDir = path.join(root, 'docs', 'prd-modules', moduleDir);
+  const qaDir = path.join(root, 'docs', 'qa-modules', moduleDir);
+  fs.mkdirSync(prdDir, { recursive: true });
+  fs.mkdirSync(qaDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(prdDir, 'PRD.md'),
+    mdTable(['Story ID', '用户故事', '优先级', '依赖', '预估工时'], [
+      ['US-GAP-001', '作为用户，我要下单', 'P0', '-', '2d'],
+      ['US-GAP-002', '作为用户，我要退款', 'P1', '-', '1d'],
+    ]),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(qaDir, 'QA.md'),
+    [
+      '# QA',
+      '',
+      '## 3. 测试用例',
+      '',
+      '### 3.1 用例清单',
+      '',
+      '- US-GAP-001 -> TC-GAP-001',
+      '',
+      '### 3.2 尚未登记用例的验收标准',
+      '',
+      '- US-GAP-002：原子 AC 表中没有该 Story 的验收标准',
+      '',
+      '## 4. 执行记录',
+      '',
+      '- US-GAP-001 已执行',
+    ].join('\n'),
+    'utf8'
+  );
+
+  const result = validateQaFile(path.posix.join('docs/qa-modules', moduleDir, 'QA.md'), { root });
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.stats.storyCount, 2, 'the gap listing is still a valid Story reference');
+  assert.equal(result.stats.validStoryRefCount, 1);
+  assert.equal(result.stats.storyCoverage, 50);
+});
+
 test('QA verification reads only the selected worktree session state file', (t) => {
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-session-isolation-'));
   const currentStatePath = path.join(fixtureDir, 'current-worktree.json');

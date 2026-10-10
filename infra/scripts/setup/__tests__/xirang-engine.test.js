@@ -250,3 +250,27 @@ test('lock drift during a batch must not be overwritten at commit', t => {
   assert.throws(() => applyPlan(p, { runRoot: f.runRoot, afterWrite() { f.put('xirang.lock.json', concurrent); } }), /lock drift/);
   assert.equal(f.get('xirang.lock.json'), concurrent);
 });
+const owned = (file, content, owner, strategy = 'init-if-missing') => ({ path: file, content, strategy, owner, version: '1.0.0' });
+test('orphan lock records are pruned only for owners rebuilt in this run whose file is gone', t => {
+  const f = fixture(t);
+  install(f, [owned('docs/old.md', 'old\n', 'architecture:docs'), owned('docs/keep.md', 'keep\n', 'architecture:docs'), owned('AGENTS.md', 'agents\n', 'agent', 'update')]);
+  fs.rmSync(path.join(f.target, 'docs/old.md'));
+  const agentOnly = planUpdate({ target: f.target, assets: [owned('AGENTS.md', 'agents\n', 'agent', 'update')] });
+  assert.deepEqual(agentOnly.lockPrunes, [], 'an owner absent from this run is not authoritative');
+  assert.equal(agentOnly.changes.length, 0);
+  const p = install(f, [owned('docs/keep.md', 'keep\n', 'architecture:docs'), owned('AGENTS.md', 'agents\n', 'agent', 'update')]);
+  assert.deepEqual(p.lockPrunes, ['docs/old.md']);
+  assert.ok(p.baselineRemovals.includes(hash('old\n')));
+  assert.equal(readLock(f.target).files['docs/old.md'], undefined);
+  assert.ok(readLock(f.target).files['docs/keep.md']);
+  assert.equal(fs.existsSync(path.join(f.target, `.xirang/baselines/${hash('old\n')}`)), false);
+  assert.equal(planUpdate({ target: f.target, assets: [owned('docs/keep.md', 'keep\n', 'architecture:docs'), owned('AGENTS.md', 'agents\n', 'agent', 'update')] }).changes.length, 0);
+});
+test('orphan lock records whose file still exists, or that belong to the shared engine, are kept', t => {
+  const f = fixture(t);
+  install(f, [owned('docs/old.md', 'old\n', 'architecture:docs'), owned('docs/keep.md', 'keep\n', 'architecture:docs'), owned('tooling/xirang/a.js', 'a\n', 'xirang:engine', 'overwrite'), owned('tooling/xirang/b.js', 'b\n', 'xirang:engine', 'overwrite')]);
+  fs.rmSync(path.join(f.target, 'tooling/xirang/a.js'));
+  const p = planUpdate({ target: f.target, assets: [owned('docs/keep.md', 'keep\n', 'architecture:docs'), owned('tooling/xirang/b.js', 'b\n', 'xirang:engine', 'overwrite')] });
+  assert.deepEqual(p.lockPrunes, []);
+  assert.equal(p.changes.length, 0);
+});

@@ -554,16 +554,82 @@ test('parsePrdStories 忽略围栏代码块里的表格，并且 BOM 与 CRLF �
 });
 
 test('parsePrdStories 完整保留含数字与多段的模块标识', () => {
-  const content = storyTable([
-    ['US-E2E-001', '夜间覆盖', 'P1', '-', '1d'],
+  const multi = storyTable([
     ['US-MODEL-CONFIG-001', '路由配置', 'P0', '-', '2d'],
     ['US-MODEL-CONFIG-002', '路由回退', 'P0', '-', '2d'],
   ]);
+  const digit = storyTable([['US-E2E-001', '夜间覆盖', 'P1', '-', '1d']]);
+
+  const multiResult = spec.parsePrdStories(multi, { file: PRD_FILE });
+  const digitResult = spec.parsePrdStories(digit, { file: PRD_FILE });
+
+  assert.deepEqual(multiResult.stories, ['US-MODEL-CONFIG-001', 'US-MODEL-CONFIG-002']);
+  assert.equal(multiResult.moduleId, 'MODEL-CONFIG');
+  assert.deepEqual(digitResult.stories, ['US-E2E-001']);
+  assert.equal(digitResult.moduleId, 'E2E');
+});
+
+test('parsePrdStories 不把其他表格首列里的外模块 Story 算作本模块', () => {
+  const content = [
+    storyTable(SHOP_STORY_ROWS),
+    '',
+    '## 跨模块依赖',
+    '',
+    mdTable(['Story', '提供方'], [['US-USER-001', '用户模块'], ['US-PAY-002', '支付模块']]),
+  ].join('\n');
 
   const result = spec.parsePrdStories(content, { file: PRD_FILE });
 
-  assert.deepEqual(result.stories, ['US-E2E-001', 'US-MODEL-CONFIG-001', 'US-MODEL-CONFIG-002']);
-  assert.equal(result.moduleId, 'MODEL-CONFIG');
+  assert.deepEqual(result.stories, ['US-SHOP-001', 'US-SHOP-002']);
+  assert.equal(result.moduleId, 'SHOP');
+});
+
+test('parsePrdStories 以 AC 表确定模块时同样剔除外模块的登记行', () => {
+  const content = [
+    mdTable(['Story', '提供方'], [['US-USER-001', '用户模块']]),
+    '',
+    prdDocument(),
+  ].join('\n');
+
+  const result = spec.parsePrdStories(content, { file: PRD_FILE });
+
+  assert.deepEqual(result.stories, ['US-SHOP-001', 'US-SHOP-002']);
+  assert.equal(result.moduleId, 'SHOP');
+});
+
+test('parsePrdStories 在有 Story 表时也收录以 Story ID 开头的标题，并按出现顺序排列', () => {
+  const content = [
+    storyTable([SHOP_STORY_ROWS[0]]),
+    '',
+    '## US-SHOP-005 退款申请',
+    '',
+    '### US-SHOP-006：商品评价',
+    '',
+    '## US-USER-009 外模块标题不计入',
+    '',
+    '## 关于 US-SHOP-007 的说明',
+    '',
+    '## US-SHOP-0081 编号不完整',
+    '',
+    '```markdown',
+    '## US-SHOP-099 围栏内的标题',
+    '```',
+  ].join('\n');
+
+  const result = spec.parsePrdStories(content, { file: PRD_FILE });
+
+  assert.deepEqual(result.stories, ['US-SHOP-001', 'US-SHOP-005', 'US-SHOP-006']);
+  assert.equal(result.defined, true);
+});
+
+test('parsePrdStories 在只有标题登记时也视为已定义', () => {
+  const content = ['# PRD', '', '## US-SHOP-001 结算', '', '正文提到 US-USER-001。', '', '## US-SHOP-002 条款'].join('\n');
+
+  const result = spec.parsePrdStories(content, { file: PRD_FILE });
+
+  assert.deepEqual(result.stories, ['US-SHOP-001', 'US-SHOP-002']);
+  assert.equal(result.defined, true);
+  assert.equal(result.moduleId, 'SHOP');
 });
 
 test('parsePrdStories 没有 Story 表也没有 AC 表时退化为按首次出现顺序去重的提及', () => {

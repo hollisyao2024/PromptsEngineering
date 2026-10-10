@@ -226,6 +226,14 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     const preservingAdoptedLocal = record?.adoptedLocal && asset.content === base && local !== base;
     if (asset.strategy === 'overwrite' && (adoptingLocal || preservingAdoptedLocal)) nextLock.files[asset.path].adoptedLocal = hash(local);
   }
+  // Drop records the template no longer ships: only for owners whose complete asset list is in this run (a scoped
+  // sync leaves other owners untouched) and only once the file is gone, so no project content loses its baseline.
+  // The shared engine is contributed by both the agent manifest and the architecture kit, so no single run is complete for it.
+  const rebuiltOwners = new Set(assets.map(asset => asset.owner).filter(owner => owner !== 'xirang:engine'));
+  const lockPrunes = Object.entries(previous.files)
+    .filter(([name, record]) => !seen.has(name.toLowerCase()) && rebuiltOwners.has(record.owner) && read(target, name) === null)
+    .map(([name]) => name).sort();
+  for (const name of lockPrunes) delete nextLock.files[name];
   const lockAfter = json(nextLock);
   const metadataChanges = [];
   const retainedBases = new Set(Object.values(nextLock.files).map(record => record.base));
@@ -237,7 +245,7 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     const p = `.xirang/baselines/${hash(entry.upstream)}`;
     if (read(target, p, true) === null && !metadataChanges.includes(p)) metadataChanges.push(p);
   }
-  const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineRemovals.map(digest => `.xirang/baselines/${digest}`)] };
+  const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, lockPrunes, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineRemovals.map(digest => `.xirang/baselines/${digest}`)] };
   if (legacy && lockBefore === null) plan.legacyBaselineCommit = legacy.commit;
   plan.id = hash(json(plan));
   return plan;
