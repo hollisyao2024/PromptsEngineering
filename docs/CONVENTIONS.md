@@ -276,7 +276,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 - linked worktree 中按当前 worktree、Git 主 worktree、进程环境依次解析 `GH_TOKEN`；已知示例占位值视为未配置并继续回退，显式的非占位 worktree 令牌仍优先。
 - PR 创建、查询和合并优先使用解析后的 `GH_TOKEN` 调用 GitHub REST API，不探测或依赖 `gh`；仅无令牌时保留现有 `gh` 兼容路径。选定 API 后，请求失败不切换到 `gh`；QA 原有本地固定 SHA 合并及门禁保持不变。CLI 路径通过环境变量接收令牌，`gh` 本身不负责读取项目 `.env.local`。
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
-- GitHub 网络入口自动解析显式代理、Git 配置及 macOS 已启用的 HTTP(S) 系统代理；未启用代理时直连，代理失败不自动直连重试。匿名模板拉取仍隔离凭据与个人 Git 配置，整体构建/部署环境不注入自动发现的代理。支持范围、Node 版本与退出配置见 `infra/scripts/shared/github-proxy.md`。
+- GitHub 网络入口自动解析显式代理、Git 配置及 macOS 已启用的 HTTP(S) 系统代理；未启用代理时直连，代理失败不自动直连重试；API 仅对幂等请求的瞬时代理连接错误经同一代理做有界重试。匿名模板拉取仍隔离凭据与个人 Git 配置，整体构建/部署环境不注入自动发现的代理。支持范围、Node 版本与退出配置见 `infra/scripts/shared/github-proxy.md`。
 - 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
 - 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理。
 - TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。
