@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 
 const { DEFAULT_CONFIG, loadConfig } = require('../../shared/config');
 const { resolveBusinessConfig } = require('../business-config');
@@ -22,6 +22,7 @@ const {
   lineOf,
   pathsDocument,
   runGit,
+  runNodeScript,
   shopPaths,
   shopProject,
 } = require('./fixtures/business-testing/builders');
@@ -142,13 +143,15 @@ function holdSuiteTimeout(t, timeoutSeconds) {
 }
 
 function runCli(project, args = []) {
-  return spawnSync(process.execPath, [SCRIPT, ...args], {
-    cwd: project.repo,
-    encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
-    timeout: 60000,
-  });
+  return runNodeScript(SCRIPT, { cwd: project.repo, args });
 }
+
+test('CLI 子进程无法启动时，断言消息里带出 signal/error', () => {
+  const missingCwd = path.join(SUITES, `missing-${process.pid}`);
+  const result = runNodeScript(SCRIPT, { cwd: missingCwd });
+  assert.ok(result.error, 'spawnSync 应当报告启动错误');
+  assert.match(result.stderr, /\[runNodeScript\] signal=- error=ENOENT /u);
+});
 
 function startCli(project) {
   const child = spawn(process.execPath, [SCRIPT], {

@@ -6,11 +6,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const { DEFAULT_CONFIG, loadConfig } = require('../../../../shared/config');
 const { RESULTS_FILE, readResults, resultsDirectory } = require('../../../business-results');
-const { commitAll, createProject, junitReport, runGit, shopProject } = require('./builders');
+const { commitAll, createProject, junitReport, runGit, runNodeScript, shopProject } = require('./builders');
 
 const QA_RUN = path.join(__dirname, '..', '..', '..', 'qa-run.js');
 const EMIT = path.join(__dirname, 'suites', 'emit.js');
@@ -69,12 +68,7 @@ function createScenario({ files = {}, shop = true } = {}) {
 
     // 运行真实的 qa run；套件有失败时它以非零退出，但结果照常写出。env 追加到子进程环境（如注入探针变量）。
     run({ env = {} } = {}) {
-      return spawnSync(process.execPath, [QA_RUN], {
-        cwd: project.repo,
-        encoding: 'utf8',
-        env: { ...process.env, NO_COLOR: '1', ...env },
-        timeout: 60000,
-      });
+      return runNodeScript(QA_RUN, { cwd: project.repo, env: { ...process.env, ...env } });
     },
 
     // 基线：web 与 ios 两个套件全部通过，AC-SHOP-002-01 是人工验收。

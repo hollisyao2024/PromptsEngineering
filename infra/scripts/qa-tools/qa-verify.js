@@ -311,8 +311,8 @@ function captureQaVerificationIdentity({
   });
 }
 
-function readFile(filePath) {
-  const fullPath = path.resolve(repoRoot, filePath);
+function readFile(filePath, root = repoRoot) {
+  const fullPath = path.resolve(root, filePath);
   if (!fs.existsSync(fullPath)) return null;
   return fs.readFileSync(fullPath, 'utf8');
 }
@@ -332,14 +332,14 @@ function uniqueMatches(content, regex) {
   return new Set(content.match(regex) || []);
 }
 
-function collectAllPrdStories() {
-  const modulesRoot = path.resolve(repoRoot, CONFIG.paths.prdModulesDir);
+function collectAllPrdStories(root = repoRoot) {
+  const modulesRoot = path.resolve(root, CONFIG.paths.prdModulesDir);
   const stories = new Set();
   if (!fs.existsSync(modulesRoot)) return stories;
 
   for (const entry of fs.readdirSync(modulesRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const content = readFile(path.posix.join(CONFIG.paths.prdModulesDir, entry.name, 'PRD.md'));
+    const content = readFile(path.posix.join(CONFIG.paths.prdModulesDir, entry.name, 'PRD.md'), root);
     for (const storyId of uniqueMatches(content, new RegExp(`\\b${STORY_ID_SOURCE}\\b`, 'g'))) {
       stories.add(storyId);
     }
@@ -473,8 +473,9 @@ function resolveSessionTargets(args, moduleEntries) {
   return resolveTargetsFromInference(moduleEntries);
 }
 
-function validateQaFile(filePath) {
-  const content = readFile(filePath);
+// root 仅供测试把夹具放在临时目录，生产调用沿用当前 worktree 根。
+function validateQaFile(filePath, { root = repoRoot } = {}) {
+  const content = readFile(filePath, root);
   const result = {
     target: filePath,
     errors: [],
@@ -527,7 +528,7 @@ function validateQaFile(filePath) {
   if (!moduleDir) return result;
 
   const prdPath = path.posix.join(CONFIG.paths.prdModulesDir, moduleDir, 'PRD.md');
-  const prdContent = readFile(prdPath);
+  const prdContent = readFile(prdPath, root);
   if (!prdContent) {
     result.warnings.push(`模块 PRD 不存在，跳过 Story 参照校验: ${prdPath}`);
     return result;
@@ -542,7 +543,7 @@ function validateQaFile(filePath) {
 
   // Cross-module aggregate QA files may reference Stories owned by sibling modules.
   // Validate references against the global PRD set while keeping coverage module-local.
-  const allPrdStories = collectAllPrdStories();
+  const allPrdStories = collectAllPrdStories(root);
   const invalidStoryRefs = storyIds.filter((id) => !allPrdStories.has(id));
   if (invalidStoryRefs.length > 0) {
     result.errors.push(`引用了 PRD 不存在的 Story: ${invalidStoryRefs.join(', ')}`);

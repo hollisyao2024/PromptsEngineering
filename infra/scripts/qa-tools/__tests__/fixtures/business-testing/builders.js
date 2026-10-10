@@ -199,6 +199,25 @@ function shopProject(overrides = {}, options = {}) {
   }, options);
 }
 
+// 以真实 CLI 子进程运行脚本。上限放宽到 5 分钟，以免并行全量回归时冷启动变慢被 spawnSync 误杀；
+// 若仍被终止或无法启动，把 signal/error 追加到 stderr，断言消息（stdout + stderr）即可直接看出原因。
+const CLI_TIMEOUT_MS = 300000;
+
+// env 是完整子进程环境（默认继承当前进程），调用方可借此删除变量而不会被重新合并回来。
+function runNodeScript(script, { cwd, args = [], env = process.env } = {}) {
+  const result = spawnSync(process.execPath, [script, ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...env, NO_COLOR: '1' },
+    timeout: CLI_TIMEOUT_MS,
+  });
+  if (result.signal || result.error) {
+    const reason = result.error ? `${result.error.code || ''} ${result.error.message}`.trim() : '-';
+    result.stderr = `${result.stderr || ''}\n[runNodeScript] signal=${result.signal || '-'} error=${reason}`;
+  }
+  return result;
+}
+
 module.exports = {
   AC_COLUMNS,
   PATHS_HEADERS,
@@ -214,6 +233,7 @@ module.exports = {
   pathsDocument,
   prdDocument,
   runGit,
+  runNodeScript,
   shopPaths,
   shopProject,
   writeFiles,

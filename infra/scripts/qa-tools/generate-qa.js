@@ -348,6 +348,9 @@ const NON_MODULE_PATH_PREFIXES = Object.freeze([
   '.github/',
   '.claude/',
   '.codex/',
+  // 架构标准与生成的数据文档归模板或工具所有，文件名与模块同名也不代表改动了该模块。
+  'docs/standards/',
+  'docs/data/',
 ]);
 
 function isNonModulePath(normalizedPath) {

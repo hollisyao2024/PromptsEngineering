@@ -8,6 +8,7 @@ const path = require('path');
 
 const {
   buildQaVerificationReceipt,
+  describeReceiptBusiness,
   getQaVerificationReceiptPath,
   readQaVerificationReceipt,
   validateMergedPrReceipt,
@@ -179,4 +180,19 @@ test('receipt validation compares identity only, so summarized and legacy receip
   }
   assert.throws(() => validateQaVerificationReceipt(summarized, { ...current, headSha: C, prHeadSha: C }),
     (error) => error.code === 'STALE_QA_RECEIPT' && /HEAD_SHA/u.test(error.message));
+});
+
+// qa merge 读取回执的 business 摘要并原样输出一行审计信息；摘要不参与复验，畸形摘要也只披露、不抛错。
+test('describeReceiptBusiness renders the audit line qa merge prints for a receipt', () => {
+  const receipt = buildQaVerificationReceipt({ ...IDENTITY, business: BUSINESS });
+  assert.equal(
+    describeReceiptBusiness(receipt),
+    `QA_RECEIPT_BUSINESS=PASS|required=P0,P1|acs_proven=4|risk_count=3|config_digest=${'d'.repeat(64)}`,
+  );
+  assert.equal(describeReceiptBusiness(buildQaVerificationReceipt(IDENTITY)), 'QA_RECEIPT_BUSINESS=NONE');
+  assert.equal(describeReceiptBusiness(null), 'QA_RECEIPT_BUSINESS=NONE');
+  assert.match(
+    describeReceiptBusiness({ ...receipt, business: { ...BUSINESS, gate: 'BLOCKED' } }),
+    /^QA_RECEIPT_BUSINESS=INVALID\|business\.gate must be PASS$/u,
+  );
 });

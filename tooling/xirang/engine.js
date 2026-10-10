@@ -165,7 +165,15 @@ function decide(asset, local, base, record, adopt) {
     if (local !== null && local !== upstream) throw new Error('append conflict: existing file is immutable');
     return upstream;
   }
-  if (asset.strategy === 'merge-yaml') return require('./yaml').mergeYaml(base, local, upstream, mergeJsonValue);
+  if (asset.strategy === 'merge-yaml') {
+    const yaml = require('./yaml');
+    // Same deletion semantics as merge-json: keep a project-deleted file deleted while upstream is unchanged.
+    if (local === null && base !== undefined) {
+      if (equal(yaml.parseDocument(base).value, yaml.parseDocument(upstream).value)) return null;
+      throw new Error('YAML file deleted locally but changed upstream');
+    }
+    return yaml.mergeYaml(base, local, upstream, mergeJsonValue);
+  }
   if (asset.strategy === 'merge-json') {
     const localValue = local === null ? undefined : parseJson(local, asset.path), upstreamValue = parseJson(upstream, asset.path);
     if (adopt && base === undefined) return jsonLike(adoptJson(localValue, upstreamValue), localValue);

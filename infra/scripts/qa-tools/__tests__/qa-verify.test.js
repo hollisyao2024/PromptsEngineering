@@ -189,7 +189,12 @@ test('qa verify rejects a local HEAD that differs from the pushed feature branch
   }), (error) => error.code === 'HEAD_NOT_PUSHED' && /local HEAD.*origin\/fix\/verified/i.test(error.message));
 });
 
-const repoRoot = path.resolve(__dirname, '../../../..');
+// validateQaFile 夹具写入临时根目录，避免并行测试或中断残留污染真实 docs/*-modules。
+function makeFixtureRoot(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-verify-fixture-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+}
 
 test('project verification appends configured required checks without allowing base checks to be downgraded', () => {
   const checks = resolveProjectChecks({
@@ -231,9 +236,10 @@ test('project verification invokes pnpm through hidden Node on Windows instead o
 });
 
 test('validateQaFile accepts module IDs that contain digits and multiple segments', (t) => {
+  const root = makeFixtureRoot(t);
   const moduleDir = `digit-id-fixture-${process.pid}`;
-  const prdDir = path.join(repoRoot, 'docs', 'prd-modules', moduleDir);
-  const qaDir = path.join(repoRoot, 'docs', 'qa-modules', moduleDir);
+  const prdDir = path.join(root, 'docs', 'prd-modules', moduleDir);
+  const qaDir = path.join(root, 'docs', 'qa-modules', moduleDir);
   const qaRelPath = path.posix.join('docs/qa-modules', moduleDir, 'QA.md');
 
   fs.mkdirSync(prdDir, { recursive: true });
@@ -254,7 +260,7 @@ test('validateQaFile accepts module IDs that contain digits and multiple segment
     'utf8'
   );
 
-  const result = validateQaFile(qaRelPath);
+  const result = validateQaFile(qaRelPath, { root });
 
   assert.equal(result.errors.length, 0);
   assert.equal(result.stats.storyCount, 2);
@@ -264,12 +270,13 @@ test('validateQaFile accepts module IDs that contain digits and multiple segment
 });
 
 test('validateQaFile accepts cross-module Story references without inflating local coverage', (t) => {
+  const root = makeFixtureRoot(t);
   const fixtureId = `${process.pid}-${Date.now()}`;
   const moduleDir = `cross-module-source-${fixtureId}`;
   const siblingModuleDir = `cross-module-target-${fixtureId}`;
-  const prdDir = path.join(repoRoot, 'docs', 'prd-modules', moduleDir);
-  const siblingPrdDir = path.join(repoRoot, 'docs', 'prd-modules', siblingModuleDir);
-  const qaDir = path.join(repoRoot, 'docs', 'qa-modules', moduleDir);
+  const prdDir = path.join(root, 'docs', 'prd-modules', moduleDir);
+  const siblingPrdDir = path.join(root, 'docs', 'prd-modules', siblingModuleDir);
+  const qaDir = path.join(root, 'docs', 'qa-modules', moduleDir);
   const qaRelPath = path.posix.join('docs/qa-modules', moduleDir, 'QA.md');
 
   fs.mkdirSync(prdDir, { recursive: true });
@@ -297,7 +304,7 @@ test('validateQaFile accepts cross-module Story references without inflating loc
     'utf8'
   );
 
-  const result = validateQaFile(qaRelPath);
+  const result = validateQaFile(qaRelPath, { root });
 
   assert.equal(result.errors.length, 0);
   assert.equal(result.stats.storyCount, 2);
@@ -306,9 +313,10 @@ test('validateQaFile accepts cross-module Story references without inflating loc
 });
 
 test('validateQaFile measures coverage against the Stories the module PRD defines, not the ones it only mentions', (t) => {
+  const root = makeFixtureRoot(t);
   const moduleDir = `story-table-fixture-${process.pid}`;
-  const prdDir = path.join(repoRoot, 'docs', 'prd-modules', moduleDir);
-  const qaDir = path.join(repoRoot, 'docs', 'qa-modules', moduleDir);
+  const prdDir = path.join(root, 'docs', 'prd-modules', moduleDir);
+  const qaDir = path.join(root, 'docs', 'qa-modules', moduleDir);
   const qaFile = path.join(qaDir, 'QA.md');
   const qaRelPath = path.posix.join('docs/qa-modules', moduleDir, 'QA.md');
 
@@ -350,7 +358,7 @@ test('validateQaFile measures coverage against the Stories the module PRD define
     ['# QA', '', '## Coverage', '- US-STBL-001 -> TC-STBL-001', '- US-STBL-002 -> TC-STBL-002'].join('\n'),
     'utf8'
   );
-  const full = validateQaFile(qaRelPath);
+  const full = validateQaFile(qaRelPath, { root });
 
   assert.deepEqual(full.errors, []);
   assert.equal(full.stats.storyCount, 2);
@@ -362,7 +370,7 @@ test('validateQaFile measures coverage against the Stories the module PRD define
     ['# QA', '', '## Coverage', '- US-STBL-001 -> TC-STBL-001'].join('\n'),
     'utf8'
   );
-  const partial = validateQaFile(qaRelPath);
+  const partial = validateQaFile(qaRelPath, { root });
 
   assert.deepEqual(partial.errors, []);
   assert.equal(partial.stats.validStoryRefCount, 1);

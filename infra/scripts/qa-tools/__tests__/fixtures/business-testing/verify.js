@@ -7,11 +7,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const { checkpointTask, createTask, readTaskState, runtimeContext } = require('../../../../agent-runner/agent-task');
 const { getQaVerificationReceiptPath, readQaVerificationReceipt } = require('../../../qa-verification-state');
-const { commitAll, runGit } = require('./builders');
+const { commitAll, runGit, runNodeScript } = require('./builders');
 const { IOS_CASES, WEB_CASES } = require('./scenario');
 
 const QA_VERIFY = path.join(__dirname, '..', '..', '..', 'qa-verify.js');
@@ -122,12 +121,7 @@ function advanceHead(scenario) {
 function runVerify(scenario, { args = [], env = {} } = {}) {
   const childEnv = { ...process.env, NO_COLOR: '1', GH_TOKEN: '', ...env };
   delete childEnv.QA_PLAN_SESSION_STATE_PATH;
-  const result = spawnSync(process.execPath, [QA_VERIFY, ...args], {
-    cwd: scenario.project.repo,
-    encoding: 'utf8',
-    env: childEnv,
-    timeout: 60000,
-  });
+  const result = runNodeScript(QA_VERIFY, { cwd: scenario.project.repo, args, env: childEnv });
   const text = stripAnsi(result.stdout || '');
   return {
     status: result.status,
