@@ -254,8 +254,11 @@ function parseAcTables(content, { file = '' } = {}) {
 
 // ---------------------------------------------------------------- PRD Story 清单
 
-// Story 的登记处是 Story 表：任意表格中第一格恰为 Story ID 的行（PRD 模板 §2.1）。
-// 依赖列、横幅、正文与 AC 表里出现的 ID 只是引用，不算登记；围栏代码块内的表格一律忽略。
+// Story 的登记处有两种：Story 表中第一格恰为 Story ID 的行（PRD 模板 §2.1），以及以 Story ID 开头的标题
+// （如 `## US-FP-023 客户报价` 或 `### US-FP-024：门户`）。依赖列、横幅、正文与 AC 表里出现的 ID 只是引用，
+// 不算登记；围栏代码块内的表格与标题一律忽略。
+const STORY_HEADING = new RegExp(`^ {0,3}#{1,6}[ \\t]+(${STORY_ID_SOURCE})(?![A-Za-z0-9-])`, 'u');
+
 function storyDefinitions(content) {
   const defined = [];
   let fence = null;
@@ -266,11 +269,18 @@ function storyDefinitions(content) {
     }
     fence = openingFence(line);
     if (fence) continue;
+    const heading = STORY_HEADING.exec(line);
+    if (heading) {
+      defined.push(heading[1]);
+      continue;
+    }
     const cells = splitTableRow(line);
     if (cells && STORY_ID.test(cells[0])) defined.push(cells[0]);
   }
   return defined;
 }
+
+const storyModule = (story) => story.slice(3, -4);
 
 // 出现次数最多的模块标识；并列取先出现者。
 function dominantModule(modules) {
@@ -284,19 +294,20 @@ function dominantModule(modules) {
 }
 
 // 模块 PRD 自己拥有的 Story，供 QA 文档生成与 qa verify 的覆盖率分母共用。
-// 登记行在前，只出现在 AC 表 Story 列（合法行）的 Story 依次补在其后，全部去重并保持首次出现顺序。
+// 登记（表格行与标题）在前，只出现在 AC 表 Story 列（合法行）的 Story 依次补在其后，全部去重并保持首次出现顺序。
 // 两处都没有时退化为全文中去重后的 Story ID 提及（defined=false），此时无从区分引用与登记。
-// moduleId 是本模块的标识：AC 编号里出现最多的模块，无 AC 时取登记行里最多的模块，退化时为 null。
+// moduleId 是本模块的标识：AC 编号里出现最多的模块，无 AC 时取登记里最多的模块，退化时为 null。
+// Story ID 按约定带本模块标记（US-{MODULE}-NNN），所以登记里其他模块的 Story（如跨模块依赖表首列）不计入。
 function parsePrdStories(content, { file = '' } = {}) {
   const text = content === undefined || content === null ? '' : String(content);
   const definitions = [...new Set(storyDefinitions(text))];
   const { acs } = parseAcTables(text, { file });
-  const stories = [...new Set([...definitions, ...acs.map((ac) => ac.story)])];
-  if (stories.length === 0) {
+  if (definitions.length === 0 && acs.length === 0) {
     return { stories: [...new Set(extractIds(text, STORY_ID_SOURCE))], defined: false, moduleId: null, acs: [] };
   }
-  const modules = acs.length > 0 ? acs.map((ac) => ac.module) : definitions.map((story) => story.slice(3, -4));
-  return { stories, defined: true, moduleId: dominantModule(modules), acs };
+  const moduleId = dominantModule(acs.length > 0 ? acs.map((ac) => ac.module) : definitions.map(storyModule));
+  const owned = definitions.filter((story) => storyModule(story) === moduleId);
+  return { stories: [...new Set([...owned, ...acs.map((ac) => ac.story)])], defined: true, moduleId, acs };
 }
 
 // ---------------------------------------------------------------- PATHS.md

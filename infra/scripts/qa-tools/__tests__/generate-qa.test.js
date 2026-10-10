@@ -254,24 +254,38 @@ test('parsePRD takes Stories from the Story table and the AC table, not from eve
 });
 
 test('parsePRD keeps module ids that contain digits or several segments', () => {
-  const content = [
+  const multiSegment = parsePRD([
     '# 多段模块 PRD',
     '',
     mdTable(STORY_TABLE_HEADER, [
-      ['US-E2E-001', '端到端', 'P0', '-', '1d'],
+      ['US-MODEL-CONFIG-001', '模型配置', 'P0', '-', '1d'],
+      ['US-MODEL-CONFIG-002', '模型切换', 'P1', '-', '1d'],
+    ]),
+    '',
+  ].join('\n'));
+  assert.deepEqual(multiSegment.stories.map((story) => story.id), ['US-MODEL-CONFIG-001', 'US-MODEL-CONFIG-002']);
+  assert.deepEqual(multiSegment.domains, ['MODEL-CONFIG']);
+  assert.equal(multiSegment.moduleId, 'MODEL-CONFIG');
+
+  const withDigits = parsePRD(['# 端到端 PRD', '', mdTable(STORY_TABLE_HEADER, [['US-E2E-001', '端到端', 'P0', '-', '1d']]), ''].join('\n'));
+  assert.deepEqual(withDigits.stories.map((story) => story.id), ['US-E2E-001']);
+  assert.equal(withDigits.moduleId, 'E2E');
+});
+
+test('parsePRD leaves Stories of other modules listed in the first column out of the module', () => {
+  const parsed = parsePRD([
+    '# 模型配置 PRD',
+    '',
+    mdTable(STORY_TABLE_HEADER, [
       ['US-MODEL-CONFIG-001', '模型配置', 'P0', '依赖 US-E2E-001', '1d'],
       ['US-MODEL-CONFIG-002', '模型切换', 'P1', '-', '1d'],
     ]),
     '',
-  ].join('\n');
+    mdTable(['依赖 Story', '提供方'], [['US-E2E-001', '端到端模块']]),
+    '',
+  ].join('\n'));
 
-  const parsed = parsePRD(content);
-
-  assert.deepEqual(
-    parsed.stories.map((story) => story.id),
-    ['US-E2E-001', 'US-MODEL-CONFIG-001', 'US-MODEL-CONFIG-002'],
-  );
-  assert.deepEqual(parsed.domains, ['E2E', 'MODEL-CONFIG']);
+  assert.deepEqual(parsed.stories.map((story) => story.id), ['US-MODEL-CONFIG-001', 'US-MODEL-CONFIG-002']);
   assert.equal(parsed.moduleId, 'MODEL-CONFIG');
 });
 

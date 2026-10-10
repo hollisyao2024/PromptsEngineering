@@ -677,7 +677,7 @@ pnpm agent -- qa merge
 | sync-prd-qa-ids.js | ✅ 已实现 | v1.0 | PRD ↔ QA ID 同步验证 |
 | generate-test-report.js | ✅ 已实现 | v1.0 | 测试报告生成 |
 | check-defect-blockers.js | ✅ 已实现 | v1.0 | 缺陷阻塞检查 |
-| business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用）；`parsePrdStories` 同时供 `qa:generate` 与 `qa verify` 的 Story 清单使用 |
+| business-spec.js | ✅ 已实现 | v1.0 | 解析 PRD 原子 AC 表与 `PATHS.md`（`qa paths`、`qa run`、门禁共用）；`parsePrdStories` 同时供 `qa:generate` 与 `qa verify` 的 Story 清单使用：Story 由表格首列或以 Story ID 开头的标题登记，只保留本模块标记（`US-{MODULE}-NNN`）的登记 |
 | qa-paths.js | ✅ 已实现 | v1.1 | `pnpm agent -- qa paths`：规格校验与追溯矩阵；含 `auto` AC 的域缺少 `PATHS.md` 时报 `PATHS_MISSING` |
 | business-config.js | ✅ 已实现 | v1.0 | 解析并校验 `qa.business` 配置 |
 | qa-run.js | ✅ 已实现 | v1.0 | `pnpm agent -- qa run`：运行套件、解析 JUnit XML、写入结果；必需优先级的自动化 AC 未证明时 `FAILED(AC_NOT_PROVEN)` |
