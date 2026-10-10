@@ -14,6 +14,8 @@ const {
   normalizeDevTarget,
   resolveBashCommand,
   resolveRuntimeCommand,
+  resolveSourceArgs,
+  templateCommand,
 } = require('../devops-run');
 
 test('normalizes common dev service targets', () => {
@@ -311,4 +313,104 @@ test('documents /private restart as the user shortcut instead of /restart --targ
   const expert = fs.readFileSync(path.join(repoRoot, 'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md'), 'utf8');
   assert.match(expert, /`\/private restart`/u);
   assert.doesNotMatch(expert, /`\/restart --target <profile>`/u);
+});
+
+const SHIP_SHA = 'ddc9528d6d35fc9884bc9b1b87aa8d0222e63d05';
+const SHIP_TEMPLATE = 'node scripts/ship.js production {source_args} {dry_run_arg}';
+
+test('expands --sha into a ship command that declares {source_args}', () => {
+  assert.deepEqual(resolveSourceArgs({ sha: SHIP_SHA }, 'ship', SHIP_TEMPLATE), { value: `--sha=${SHIP_SHA}` });
+  assert.deepEqual(resolveSourceArgs({ source: 'origin/release-1.2' }, 'cd', SHIP_TEMPLATE), {
+    value: '--source=origin/release-1.2',
+  });
+  assert.match(
+    templateCommand(SHIP_TEMPLATE, { source_args: `--sha=${SHIP_SHA}`, dry_run_arg: '--dry-run' }),
+    new RegExp(`ship\\.js production --sha=${SHIP_SHA} --dry-run$`)
+  );
+});
+
+test('keeps the command unchanged when no source is requested', () => {
+  assert.deepEqual(resolveSourceArgs({}, 'ship', SHIP_TEMPLATE), { value: '' });
+  assert.deepEqual(resolveSourceArgs({}, 'ship', 'node scripts/ship.js production'), { value: '' });
+  assert.deepEqual(resolveSourceArgs({}, 'build', 'pnpm build'), { value: '' });
+});
+
+test('rejects malformed or shell-unsafe source selections', () => {
+  for (const sha of [
+    true,
+    '',
+    SHIP_SHA.slice(0, 12),
+    SHIP_SHA.toUpperCase(),
+    `${SHIP_SHA};rm -rf /`,
+    `${SHIP_SHA} --force`,
+    `$(id)${SHIP_SHA.slice(5)}`,
+  ]) {
+    assert.ok(resolveSourceArgs({ sha }, 'ship', SHIP_TEMPLATE).error, `sha accepted: ${sha}`);
+  }
+  for (const source of [true, '', '-main', 'a..b', 'main;id', 'main id', '$(id)', 'main`id`', 'refs/heads/x.lock', 'x/']) {
+    assert.ok(resolveSourceArgs({ source }, 'ship', SHIP_TEMPLATE).error, `source accepted: ${source}`);
+  }
+  assert.match(resolveSourceArgs({ sha: SHIP_SHA, source: 'main' }, 'ship', SHIP_TEMPLATE).error, /either/);
+});
+
+test('fails closed when the configured command cannot receive the source selection', () => {
+  assert.match(
+    resolveSourceArgs({ sha: SHIP_SHA }, 'ship', 'node scripts/ship.js production').error,
+    /\{source_args\}/
+  );
+  assert.match(resolveSourceArgs({ sha: SHIP_SHA }, 'build', 'pnpm build {source_args}').error, /ship and cd/);
+});
+
+function runShipCli(t, args) {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-ship-sha-'));
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+  const fixture = path.join(container, 'repo');
+  fs.mkdirSync(fixture);
+  spawnSync('git', ['init', '-q'], { cwd: fixture });
+  fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify({
+    projectName: 'fixture',
+    devops: {
+      commands: {
+        ship: { production: 'node -e "" -- {source_args} {dry_run_arg}' },
+        cd: { production: 'node -e ""' },
+      },
+    },
+  }, null, 2)}\n`);
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js'), ...args], {
+    cwd: fixture,
+    env: {
+      ...process.env,
+      AGENT_TMP_DIR: path.join(container, 'tmp'),
+      AGENT_CACHE_DIR: path.join(container, 'cache'),
+      AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
+      AGENT_DEVOPS_DEPLOY_ENABLED: 'true',
+    },
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+}
+
+test('blocks an invalid --sha before printing or running any command', (t) => {
+  const result = runShipCli(t, ['--action=ship', '--env=production', '--sha=abc;id', '--dry-run']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.match(result.stderr, /REASON=--sha must be a full 40-character lowercase commit SHA/);
+  assert.doesNotMatch(result.stdout, /COMMAND=/);
+});
+
+test('blocks --sha for a configured command that does not declare {source_args}', (t) => {
+  // The fixture's cd command has no {source_args}; it must not silently drop the SHA.
+  const result = runShipCli(t, ['--action=cd', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.doesNotMatch(result.stdout, /COMMAND=/);
+});
+
+test('passes a validated --sha and delegated --dry-run to a command that declares them', (t) => {
+  const result = runShipCli(t, ['--action=ship', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`SOURCE_ARGS=--sha=${SHIP_SHA}`));
+  assert.match(result.stdout, /DRY_RUN_MODE=DELEGATED/);
+  assert.match(result.stdout, new RegExp(`COMMAND=.*--sha=${SHIP_SHA} --dry-run$`, 'm'));
 });

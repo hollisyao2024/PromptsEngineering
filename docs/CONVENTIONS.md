@@ -231,6 +231,7 @@ pnpm agent -- qa run
 - 本地服务：`devServer.commands.<start|restart|stop|status|logs>`；多 profile 使用对象精确声明。
 - 服务端构建与部署：`devops.commands.build` / `devops.commands.ship`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
 - 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
+- `ship`/`cd` 的 `--sha=<40位小写SHA>` 或 `--source=<ref>` 经严格校验后只通过命令中的 `{source_args}` 占位符透传；命令未声明该占位符、值非法或同时提供两者时 `STATUS=BLOCKED`，禁止静默忽略。命令声明 `{dry_run_arg}` 时，`--dry-run` 以 `--dry-run` 执行该命令自身的无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则只打印命令（`PRINT_ONLY`）。
 - 客户端开发、发行构建、服务端产物构建与真实部署是四种不同副作用边界，验收证据不得互相替代。
 
 ## 8. TDD、QA 与交付
