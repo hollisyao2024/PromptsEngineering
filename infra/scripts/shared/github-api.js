@@ -24,7 +24,18 @@ function parseGitHubRepoSlug(remoteUrl) {
   };
 }
 
-function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body, userAgent = 'xirang-agent', env = process.env, proxyOptions = {} } = {}) {
+// 代理偶发断连时仅重试幂等请求；仍经同一代理，绝不直连回退。
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD']);
+const TRANSIENT_PROXY_ERROR_CODES = new Set([
+  'ECONNRESET', // 含 socket hang up 与 TLS 握手前断开
+  'ETIMEDOUT',
+  'EPIPE',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+]);
+const DEFAULT_PROXY_RETRY_DELAYS_MS = [500, 1500];
+
+function githubApiRequestAttempt(method, apiPath, { token = process.env.GH_TOKEN, body, userAgent = 'xirang-agent', env = process.env, proxyOptions = {} } = {}) {
   return new Promise((resolve, reject) => {
     if (!token) {
       reject(new Error('GH_TOKEN is required for GitHub API fallback'));
@@ -102,19 +113,48 @@ function githubApiRequest(method, apiPath, { token = process.env.GH_TOKEN, body,
       }
     );
 
-    request.setTimeout(30000, () => request.destroy(new Error('GitHub API request timed out')));
-    const deadline = setTimeout(() => request.destroy(new Error('GitHub API request timed out')), 30000);
+    const timeoutError = () => Object.assign(new Error('GitHub API request timed out'), { code: 'ETIMEDOUT' });
+    request.setTimeout(30000, () => request.destroy(timeoutError()));
+    const deadline = setTimeout(() => request.destroy(timeoutError()), 30000);
     deadline.unref();
     request.on('close', () => clearTimeout(deadline));
     request.on('error', (error) => {
       agent.destroy();
       // Do not include proxy URLs (which may contain credentials) in diagnostics.
-      if (selectedProxy) reject(new Error(`GITHUB_PROXY_REQUEST_FAILED: ${error.code || 'connection failed'}; no direct retry`));
-      else reject(error);
+      if (!selectedProxy) {
+        reject(error);
+        return;
+      }
+      const proxyError = new Error(`GITHUB_PROXY_REQUEST_FAILED: ${error.code || 'connection failed'}`);
+      proxyError.code = error.code;
+      proxyError.proxyRequestFailed = true;
+      reject(proxyError);
     });
     if (payload) request.write(payload);
     request.end();
   });
+}
+
+async function githubApiRequest(method, apiPath, options = {}) {
+  const {
+    requestAttempt = githubApiRequestAttempt,
+    proxyRetryDelaysMs = DEFAULT_PROXY_RETRY_DELAYS_MS,
+  } = options;
+  const maxAttempts = IDEMPOTENT_METHODS.has(String(method).toUpperCase()) ? proxyRetryDelaysMs.length + 1 : 1;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await requestAttempt(method, apiPath, options);
+    } catch (error) {
+      if (!error || !error.proxyRequestFailed) throw error;
+      if (attempt < maxAttempts && TRANSIENT_PROXY_ERROR_CODES.has(error.code)) {
+        await new Promise((resolve) => setTimeout(resolve, proxyRetryDelaysMs[attempt - 1]));
+        continue;
+      }
+      const final = new Error(`${error.message}; attempts=${attempt}; no direct retry`);
+      final.code = error.code;
+      throw final;
+    }
+  }
 }
 
 function createGitHubBackend({

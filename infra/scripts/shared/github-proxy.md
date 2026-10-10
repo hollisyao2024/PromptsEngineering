@@ -13,6 +13,7 @@ GitHub 工具每次操作解析代理，不写入全局 Git 配置、shell 配�
 设置 `XIRANG_SYSTEM_PROXY=0` 仅关闭系统自动探测，保留显式环境变量和 Git 配置。
 要明确直连，可在该命令环境中设置空 `https_proxy`，并核对 Git 自身没有另外配置代理。
 已选择的代理失败时不自动切换直连；修正配置或关闭系统代理后再次运行。
+API 的幂等请求（GET/HEAD）遇到经代理的瞬时连接错误（`ECONNRESET`、`ETIMEDOUT`、`EPIPE`、`ECONNREFUSED`、`ECONNABORTED`，含 TLS 握手中断与 socket hang up）时，仍经同一代理指数退避重试，最多 3 次尝试；写请求、代理隧道拒绝（`ERR_PROXY_TUNNEL`）、HTTP 状态错误和直连错误不重试。最终错误保留 `GITHUB_PROXY_REQUEST_FAILED` 前缀并注明 `attempts=<n>`。
 
 ## 入口与约束
 
@@ -27,8 +28,8 @@ Git HTTPS 与 API 均支持此功能；SSH remote 的网络路由由 SSH 自身�
 自动探测暂不执行 PAC/WPAD，也不把仅 SOCKS 的系统配置误当作无代理：此时明确报错，需提供 HTTP(S) 代理或关闭自动探测。
 
 显式 `NO_PROXY` / `no_proxy` 优先（包括空值）。系统例外中的 `*.domain` 转为 `.domain`；CIDR 保留供 Git/curl 使用。`<local>` 仅指不带点的主机名，不适用于固定的 GitHub 公网主机。Node 对 CIDR 的支持不作保证，API 使用 DNS 主机名；这不是任意内部服务的通用系统代理适配器。
-错误日志不输出代理凭据。代理设置已启用不代表端口可达，实际访问错误会终止操作，无自动直连重试。
+错误日志不输出代理凭据。代理设置已启用不代表端口可达，实际访问错误在上述有界重试后终止操作，无自动直连重试。
 
 ## 验证
 
-`infra/scripts/shared/__tests__/github-system-proxy.test.js` 覆盖动态系统配置、显式优先级、禁用探测、直连例外、匿名认证隔离，并用本机 HTTP CONNECT 服务验证 Git 和 API 的真实路由及失败行为。
+`infra/scripts/shared/__tests__/github-system-proxy.test.js` 覆盖动态系统配置、显式优先级、禁用探测、直连例外、匿名认证隔离，并用本机 HTTP CONNECT 服务验证 Git 和 API 的真实路由及失败行为；`github-api.test.js` 覆盖幂等请求的有界代理重试与写请求不重试。

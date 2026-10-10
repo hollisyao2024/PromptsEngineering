@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.22] - 2026-10-10
+
+- `github-api.js` 经代理的 GitHub API 幂等请求（GET/HEAD）遇到瞬时连接错误（`ECONNRESET`、`ETIMEDOUT`、`EPIPE`、`ECONNREFUSED`、`ECONNABORTED`，含 TLS 握手中断与 socket hang up）时，经同一代理指数退避重试，最多 3 次尝试；写请求、`ERR_PROXY_TUNNEL`、HTTP 状态错误与直连错误不重试，绝不回退直连。最终错误保留 `GITHUB_PROXY_REQUEST_FAILED` 前缀并注明 `attempts=<n>`。
+
 ## [v3.11.21] - 2026-10-10
 
 - `template backfill` 写入官方源改为只使用官方源自身的 `GH_TOKEN`，不再把克隆的 `.env.local` 软链接到当前项目（项目 token 通常无官方仓库写权限）：凭据文件按 `--source-env <path>` > 环境变量 `XIRANG_SOURCE_ENV_FILE` > 项目 `.env.local` 同名键确定，须存在、含可用 `GH_TOKEN` 且不是项目自身 `.env.local`；未配置或无效时正式回灌在创建任务与 worktree 前阻断，`--dry-run` 输出 `TEMPLATE_SOURCE_AUTH` 与 `AUTH_WARNING`。克隆内指向漂移的软链接自动纠正，非软链接文件阻断；调用官方源 CLI 时剥离 `GH_TOKEN`、`GITHUB_TOKEN` 与 `AGENT_*`。
