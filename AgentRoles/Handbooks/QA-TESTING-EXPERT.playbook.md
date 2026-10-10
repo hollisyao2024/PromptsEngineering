@@ -438,6 +438,8 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 
 `qa verify` 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=`；上表的业务门禁码出现在 `BUSINESS_BLOCK=` 行，结果块的 `REASON=` 则是下面的流程码。`BLOCKED` 表示前置条件未满足、按 `NEXT_ACTION` 补齐后重跑即可；`FAILED` 表示命令本身没有跑完，先按 `tool_error` 留痕再决定是否重试，不改写命令或更换入口。
 
+前置条件 `QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE` 与 `FAILED` 类错误遇到即停止。前置条件通过后，架构检查、QA 文档（或 `--project` 的 projectChecks）、测试范围证据与业务验收门禁全部执行完再判定：各门禁照常打印明细（`❌` 文档错误、`BUSINESS_BLOCK=` 等），每个阻断另汇总为一行 `QA_VERIFY_BLOCK=<代码>|<摘要>`，排在结果块之前。只有一个阻断时结果块与单门禁一致；多个时 `REASON=` 取第一个（按上述执行顺序），`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 按 `<代码>: <处理>` 以「；」分隔列出。任一阻断都不签发回执。
+
 | 代码 | 状态 | 含义 | 处理 |
 |------|------|------|------|
 | `QA_BRANCH_REQUIRED` | BLOCKED | 当前不在任务功能分支（在配置主干或分离 HEAD） | 在任务功能分支的 worktree 中重跑 `pnpm agent -- qa verify` |

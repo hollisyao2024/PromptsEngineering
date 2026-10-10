@@ -256,3 +256,63 @@ test('开关键拼错（enable）时 qa verify 按启用处理并阻断（CONFIG
   assert.ok(has(verify, /^BUSINESS_BLOCK=CONFIG_INVALID\|qa\.business\.enable\|/u), verify.text);
   assert.equal(fs.existsSync(receiptPath(s)), false);
 });
+
+// ---------------------------------------------------------------------------
+// 一次运行列出全部阻断
+// ---------------------------------------------------------------------------
+
+test('多个门禁同时失败时 qa verify 一次列出全部阻断：架构、QA 文档、测试范围与业务门禁，非零退出、不签发回执', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
+  // 在已记录测试范围之后追加一个提交并推送，但不重新记录：范围证据与业务结果都不再绑定当前 HEAD。
+  s.project.write({
+    'architecture.config.json': '{}\n',
+    'docs/qa-modules/shop/QA.md': '# QA\n\n## 用例\n\n- TC-SHOP-901 覆盖 US-NOPE-999\n',
+  });
+  commitAll(s.project.repo, 'add architecture config and broken QA doc');
+  pushBranch(s);
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  const blocks = verify.lines.filter((line) => line.startsWith('QA_VERIFY_BLOCK='));
+  assert.deepEqual(blocks.map((line) => line.split('|')[0]), [
+    'QA_VERIFY_BLOCK=ARCHITECTURE_PACKAGE_MISSING',
+    'QA_VERIFY_BLOCK=QA_VERDICT_NO_GO',
+    'QA_VERIFY_BLOCK=TEST_SCOPE_EVIDENCE',
+    'QA_VERIFY_BLOCK=BUSINESS_GATE_BLOCKED',
+  ], verify.text);
+  assert.ok(has(verify, /❌ 引用了 PRD 不存在的 Story: US-NOPE-999/u), verify.text);
+  assert.ok(verify.lines.includes('BUSINESS_GATE=BLOCKED'), verify.text);
+  assert.ok(has(verify, /^BUSINESS_BLOCK=RESULTS_STALE_HEAD\|/u), verify.text);
+
+  // 结果块：首个阻断作 REASON，SUMMARY 点名全部代码，NEXT_ACTION 汇总各门禁的下一步。
+  const tail = verify.lines.slice(-4);
+  assert.equal(tail[0], 'STATUS=BLOCKED');
+  assert.equal(tail[1], 'REASON=ARCHITECTURE_PACKAGE_MISSING');
+  assert.match(tail[2], /^SUMMARY=4 项门禁阻断/u);
+  for (const code of ['ARCHITECTURE_PACKAGE_MISSING', 'QA_VERDICT_NO_GO', 'TEST_SCOPE_EVIDENCE', 'BUSINESS_GATE_BLOCKED']) {
+    assert.ok(tail[2].includes(code), tail[2]);
+    assert.ok(tail[3].includes(code), tail[3]);
+  }
+  assert.ok(indexOfLine(verify, 'QA_VERIFY_BLOCK=') < indexOfLine(verify, 'STATUS='), verify.text);
+  assert.equal(has(verify, /^QA_RECEIPT=/u), false, verify.text);
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});
+
+test('只有一个门禁阻断时结果块与改造前一致，另列一条 QA_VERIFY_BLOCK', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(
+    verify.lines.filter((line) => line.startsWith('QA_VERIFY_BLOCK=')).map((line) => line.split('|')[0]),
+    ['QA_VERIFY_BLOCK=BUSINESS_GATE_BLOCKED'],
+  );
+  assert.deepEqual(verify.lines.slice(-4), [
+    'STATUS=BLOCKED',
+    'REASON=BUSINESS_GATE_BLOCKED',
+    'SUMMARY=业务验收门禁未通过，回执未签发',
+    'NEXT_ACTION=按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
+  ]);
+});

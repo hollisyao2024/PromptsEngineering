@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.16] - 2026-10-10
+
+- `qa verify` 一次列出全部阻断：前置条件（不在功能分支、fetch 失败、本地 HEAD 未推送、功能分支落后主干）与未预期错误仍立即结束；之后的架构检查、QA 文档或 projectChecks、测试范围证据（`TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`）与业务验收门禁全部执行完再判定，每个阻断输出 `QA_VERIFY_BLOCK=<代码>|<摘要>`，`BUSINESS_BLOCK=`/`BUSINESS_RISK=` 等明细行格式不变。多个阻断时 `REASON=` 取第一个，`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 逐个代码列出处理；单个阻断与无阻断时输出、退出码和回执与此前一致。架构检查改在前置条件之后执行。新增 3 项定向测试。
+
 ## [v3.11.15] - 2026-10-10
 
 - 取消“回灌模板”命令，统一为“回灌息壤模板”：`pnpm agent -- template backfill` 不再接受 `<source>` 位置参数与 `--source/--target/--template`，移除 `template.sourceRepo` 配置项与 `AGENT_TEMPLATE_SOURCE_REPO` 环境变量，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`，在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中运行其自身的 `task start` 与 `worktree new` 创建新任务 worktree 并复制 template-owned 差异，输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`，再按息壤源的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并；`template.role=source` 时阻断。新增 `infra/scripts/setup/__tests__/backfill-template.test.js`。

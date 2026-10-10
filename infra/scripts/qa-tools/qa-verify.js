@@ -34,7 +34,7 @@ const { verifyTestScopeEvidence } = require('./qa-test-scope');
 const { verifyBusinessAcceptance } = require('./qa-business-gate');
 const { parsePrdStories } = require('./business-spec');
 const { exitOnHelp } = require('../shared/cli-help');
-const { resultBlockLines, resultExitCode } = require('../shared/result-block');
+const { oneLine, resultBlockLines, resultExitCode } = require('../shared/result-block');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 const MODULE_ID_SOURCE = '[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*';
@@ -200,7 +200,35 @@ const QA_VERIFY_FAILED_NEXT_ACTION = {
   QA_FETCH_FAILED: '核实网络、代理与 GH_TOKEN 后重试 pnpm agent -- qa verify；按 tool_error 留痕，不改写命令或更换入口',
 };
 
-function describeQaVerifyOutcome({ error, exitCode = 0, failureReason, receipt, receiptPath } = {}) {
+const QA_VERIFY_BLOCKED_SUMMARY = {
+  QA_VERDICT_NO_GO: 'QA 验收检查存在错误，回执未签发',
+  BUSINESS_GATE_BLOCKED: '业务验收门禁未通过，回执未签发',
+};
+
+// 门禁阻断 { reason, summary? } → 单条阻断时与改造前的结果块逐字一致；多条时 REASON 取第一条（按门禁执行顺序），
+// SUMMARY 点名全部代码，NEXT_ACTION 按代码汇总各门禁的下一步。
+function normalizeBlockers(blockers) {
+  return blockers.map(({ reason, summary }) => ({
+    reason,
+    summary: summary || QA_VERIFY_BLOCKED_SUMMARY[reason] || QA_VERIFY_BLOCKED_SUMMARY.QA_VERDICT_NO_GO,
+    nextAction: QA_VERIFY_BLOCKED_NEXT_ACTION[reason] || QA_VERIFY_BLOCKED_NEXT_ACTION.QA_VERDICT_NO_GO,
+  }));
+}
+
+function describeBlockers(blockers) {
+  const described = normalizeBlockers(blockers);
+  if (described.length === 1) return { status: 'BLOCKED', ...described[0] };
+  return {
+    status: 'BLOCKED',
+    reason: described[0].reason,
+    summary: `${described.length} 项门禁阻断（${described.map((item) => item.reason).join('、')}），回执未签发：`
+      + described.map((item) => `${item.reason}: ${item.summary}`).join('；'),
+    nextAction: described.map((item) => `${item.reason}: ${item.nextAction}`).join('；'),
+  };
+}
+
+function describeQaVerifyOutcome({ error, blockers, exitCode = 0, failureReason, receipt, receiptPath } = {}) {
+  if (blockers && blockers.length > 0) return describeBlockers(blockers);
   if (error) {
     const code = error.code;
     if (QA_VERIFY_BLOCKED_NEXT_ACTION[code]) {
@@ -216,15 +244,7 @@ function describeQaVerifyOutcome({ error, exitCode = 0, failureReason, receipt, 
       nextAction: '查看 stderr 中的堆栈，修复后重跑 pnpm agent -- qa verify',
     };
   }
-  if (exitCode !== 0) {
-    const reason = failureReason || 'QA_VERDICT_NO_GO';
-    return {
-      status: 'BLOCKED',
-      reason,
-      summary: reason === 'BUSINESS_GATE_BLOCKED' ? '业务验收门禁未通过，回执未签发' : 'QA 验收检查存在错误，回执未签发',
-      nextAction: QA_VERIFY_BLOCKED_NEXT_ACTION[reason] || QA_VERIFY_BLOCKED_NEXT_ACTION.QA_VERDICT_NO_GO,
-    };
-  }
+  if (exitCode !== 0) return describeBlockers([{ reason: failureReason || 'QA_VERDICT_NO_GO' }]);
   return {
     status: 'OK',
     summary: `QA 验收通过并签发回执 ${receiptPath}（BASE_SHA=${receipt.base_sha} HEAD_SHA=${receipt.head_sha}）`,
@@ -719,49 +739,71 @@ function checkBusinessGate({ config, mainRoot, headSha }) {
   };
 }
 
+// 只在单个门禁内被吞下的已知阻断码；其余异常（配置非法、未预期错误）照常抛出，以 FAILED 结束。
+function collectGateError(blockers, error) {
+  if (!QA_VERIFY_BLOCKED_NEXT_ACTION[error.code]) throw error;
+  blockers.push({ reason: error.code, summary: error.message });
+}
+
+// 执行分两段：
+// 1. 前置条件，失败即立即退出——后续门禁没有可信的判定对象：配置加载失败、不在功能分支（QA_BRANCH_REQUIRED）、
+//    fetch 失败（QA_FETCH_FAILED）、本地 HEAD 与远端分支不一致（HEAD_NOT_PUSHED）、功能分支落后配置主干
+//    （STALE_QA_BASE），以及任何未预期异常。
+// 2. 可独立评估的门禁，全部执行完再统一判定：架构检查、QA 文档或 projectChecks、测试范围证据、业务验收门禁。
+//    每个门禁照常打印自己的明细行（❌ 文档错误、BUSINESS_BLOCK= 等），阻断另汇总为 QA_VERIFY_BLOCK=<code>|<summary>；
+//    任一阻断即不签发回执。
 function main() {
   const args = parseArgs(process.argv.slice(2));
 
   const config = loadConfig({ repoRoot });
   const mainRoot = getMainRepoRoot(repoRoot);
   removeQaVerificationReceipt(config, mainRoot, repoRoot);
-  require('../shared/architecture-check').runArchitectureCheck(repoRoot);
 
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');
   log('============================================================', 'cyan');
 
+  const receipt = captureQaVerificationIdentity({ config });
+
+  const blockers = [];
+  try {
+    require('../shared/architecture-check').runArchitectureCheck(repoRoot);
+  } catch (error) {
+    collectGateError(blockers, error);
+  }
+
   const templateSource = (config.template && config.template.role === 'source') || isTemplateRepository();
-  let exitCode;
   if (templateSource) {
     log('模板源仓库：跳过业务 PRD/QA 验收门禁。', 'yellow');
-    exitCode = 0;
   } else {
-    exitCode = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
-  }
-  if (exitCode !== 0) return describeQaVerifyOutcome({ exitCode, failureReason: 'QA_VERDICT_NO_GO' });
+    const verdictExit = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
+    if (verdictExit !== 0) blockers.push({ reason: 'QA_VERDICT_NO_GO' });
 
-  const receipt = captureQaVerificationIdentity({ config });
-  if (!templateSource) {
     const taskContext = runtimeContext(repoRoot);
-    let scope;
     try {
-      scope = verifyTestScopeEvidence({
+      const scope = verifyTestScopeEvidence({
         states: listTaskStates({ runsRoot: taskContext.runsRoot }),
         context: taskContext,
         headSha: receipt.head_sha,
         runsRoot: taskContext.runsRoot,
       });
+      if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
+      else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
     } catch (error) {
       if (!error.code) error.code = 'TEST_SCOPE_EVIDENCE';
-      throw error;
+      collectGateError(blockers, error);
     }
-    if (scope.skipped) log('TEST_SCOPE_CHECK=SKIPPED_NON_MUTATION', 'gray');
-    else log(`TEST_SCOPE_TASK=${scope.taskId} TEST_SCOPE_MODE=${scope.mode}`, 'gray');
+
     const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
-    if (!gate.passed) return describeQaVerifyOutcome({ exitCode: 1, failureReason: 'BUSINESS_GATE_BLOCKED' });
-    if (gate.business) receipt.business = gate.business;
+    if (!gate.passed) blockers.push({ reason: 'BUSINESS_GATE_BLOCKED' });
+    else if (gate.business) receipt.business = gate.business;
   }
+
+  if (blockers.length > 0) {
+    for (const { reason, summary } of normalizeBlockers(blockers)) log(`QA_VERIFY_BLOCK=${reason}|${oneLine(summary)}`, 'red');
+    return describeQaVerifyOutcome({ blockers });
+  }
+
   const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
   log(`QA_RECEIPT=${receiptPath}`, 'green');
   log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
