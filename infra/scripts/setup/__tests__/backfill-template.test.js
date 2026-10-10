@@ -263,6 +263,42 @@ test('a dirty or diverged official clone blocks instead of being overwritten', t
   assert.throws(() => execute(project, upstream, ['--dry-run']), /clean|drift|diverged/iu);
 });
 
+function withEnv(t, key, value) {
+  const previous = process.env[key];
+  process.env[key] = value;
+  t.after(() => {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  });
+}
+
+function readExclude(sourceRoot) {
+  return fs.readFileSync(path.join(sourceRoot, '.git', 'info', 'exclude'), 'utf8');
+}
+
+test('a fresh official clone works when git init has no template info directory', t => {
+  const testRoot = tmpRoot(t, 'backfill-no-template');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  // The anonymous official environment sets init.templateDir='', so git init creates no .git/info.
+  const emptyTemplate = path.join(testRoot, 'empty-git-template');
+  fs.mkdirSync(emptyTemplate);
+  withEnv(t, 'GIT_TEMPLATE_DIR', emptyTemplate);
+  const { result } = execute(project, upstream, ['--dry-run']);
+  assert.match(readExclude(result.sourceRoot), /^\.env\.local$/mu);
+});
+
+test('a reused official clone restores a missing env exclusion exactly once', t => {
+  const testRoot = tmpRoot(t, 'backfill-exclude-repair');
+  const upstream = createUpstream(testRoot);
+  const project = createProject(testRoot);
+  const first = execute(project, upstream, ['--dry-run']).result;
+  fs.rmSync(path.join(first.sourceRoot, '.git', 'info'), { recursive: true, force: true });
+  execute(project, upstream, ['--dry-run']);
+  execute(project, upstream, ['--dry-run']);
+  assert.equal(readExclude(first.sourceRoot).match(/^\.env\.local$/gmu).length, 1);
+});
+
 test('project env credentials are shared with the official clone by symlink, never copied', t => {
   const testRoot = tmpRoot(t, 'backfill-auth-link');
   const upstream = createUpstream(testRoot);

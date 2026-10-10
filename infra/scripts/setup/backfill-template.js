@@ -240,6 +240,17 @@ function fetchEnvironment(repository) {
   return { authMode: 'PROJECT_DEFAULT', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } };
 }
 
+// The anonymous environment disables init.templateDir, so `git init` creates no
+// .git/info; create it and keep the entry idempotent for reused clones.
+function ensureLocalExclude(sourceRoot, entry) {
+  const excludePath = path.join(sourceRoot, '.git', 'info', 'exclude');
+  fs.mkdirSync(path.dirname(excludePath), { recursive: true });
+  const current = fs.existsSync(excludePath) ? fs.readFileSync(excludePath, 'utf8') : '';
+  if (current.split(/\r?\n/u).includes(entry)) return;
+  const separator = current && !current.endsWith('\n') ? '\n' : '';
+  fs.appendFileSync(excludePath, `${separator}${entry}\n`);
+}
+
 /**
  * Prepare (or fast-forward) the rebuildable clone of the official repository in
  * the project's cache container. Its base branch is never edited by hand.
@@ -257,7 +268,6 @@ function prepareSourceClone({ audit, cacheRoot, repository, timeoutMs }) {
     git(sourceRoot, ['init', '--quiet'], { env });
     git(sourceRoot, ['symbolic-ref', 'HEAD', `refs/heads/${branch}`], { env });
     git(sourceRoot, ['remote', 'add', 'origin', repository], { env });
-    fs.appendFileSync(path.join(sourceRoot, '.git', 'info', 'exclude'), '.env.local\n');
   } else {
     const top = run('git', ['rev-parse', '--show-toplevel'], { cwd: sourceRoot, env }).stdout.trim();
     if (!top || fs.realpathSync(top) !== fs.realpathSync(sourceRoot)) {
@@ -282,6 +292,8 @@ function prepareSourceClone({ audit, cacheRoot, repository, timeoutMs }) {
       );
     }
   }
+
+  ensureLocalExclude(sourceRoot, '.env.local');
 
   const fetched = run('git', ['fetch', '--quiet', '--no-tags', 'origin', `refs/heads/${branch}`], {
     cwd: sourceRoot,
