@@ -64,9 +64,18 @@ function parseTargetedTest(argv, cwd = process.cwd()) {
   return { runner, file };
 }
 
+// Jest 与 Playwright 把位置参数当正则匹配测试路径：`[id]` 会变成字符类而选不中文件，
+// 因此转义为字面模式；Jest 的 --runTestsByPath 按路径解析且可能在其他目录启动（如 --dir），改传绝对路径。
+function fileArgument(runner, file, cwd) {
+  const tool = runner.find((part) => ['jest', 'playwright'].includes(path.basename(part).replace(/\.cmd$/iu, '').toLowerCase()));
+  if (!tool) return file;
+  if (runner.includes('--runTestsByPath')) return fs.realpathSync(path.resolve(cwd, file));
+  return file.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
+}
+
 function runTargetedTest(argv, { cwd = process.cwd(), spawn = spawnSync } = {}) {
-  const { runner, file } = parseTargetedTest(argv, cwd);
-  const result = spawn(runner[0], [...runner.slice(1), file], {
+  const { runner, file, registered } = parseTargetedTest(argv, cwd);
+  const result = spawn(runner[0], [...runner.slice(1), registered ? file : fileArgument(runner, file, cwd)], {
     cwd,
     env: process.env,
     shell: false,
