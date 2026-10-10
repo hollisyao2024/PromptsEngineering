@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.19] - 2026-10-10
+
+- 修复定向测试入口 `pnpm agent -- test --file`：Jest 与 Playwright 会把文件参数当正则，路径含 `[id]` 等元字符（如 Next.js 动态路由测试）时报 “No tests found”；现对这两类运行器转义为字面模式，Jest 带 `--runTestsByPath` 时改传绝对路径（兼容 `pnpm --dir` 切换目录）。Vitest、Node test、Pytest、Go 与 `qa.business.suites` 登记套件的参数不变。
+
 ## [v3.11.18] - 2026-10-10
 
 - 修复在实际项目运行 `/qa automate` 时暴露的 10 处缺陷：
