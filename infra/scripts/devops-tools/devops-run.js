@@ -67,6 +67,38 @@ const PLATFORM_ALIASES = {
   linux: 'linux',
 };
 
+// --sha/--source select the deploy source. They reach a configured command only
+// through its {source_args} placeholder, after strict validation, so the value
+// can never inject shell syntax and is never silently dropped.
+const SOURCE_ARGS_ACTIONS = new Set(['ship', 'cd']);
+const FULL_SHA = /^[0-9a-f]{40}$/;
+const SOURCE_REF = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
+
+function resolveSourceArgs(cli, action, command) {
+  const hasSha = cli.sha !== undefined;
+  const hasSource = cli.source !== undefined;
+  if (!hasSha && !hasSource) return { value: '' };
+  if (!SOURCE_ARGS_ACTIONS.has(action)) return { error: '--sha/--source are only supported for ship and cd' };
+  if (hasSha && hasSource) return { error: 'use either --sha or --source, not both' };
+  if (hasSha) {
+    if (typeof cli.sha !== 'string' || !FULL_SHA.test(cli.sha)) {
+      return { error: '--sha must be a full 40-character lowercase commit SHA' };
+    }
+  } else if (
+    typeof cli.source !== 'string'
+    || !SOURCE_REF.test(cli.source)
+    || cli.source.includes('..')
+    || cli.source.endsWith('/')
+    || cli.source.endsWith('.lock')
+  ) {
+    return { error: '--source must be a plain git ref ([A-Za-z0-9._/-], no leading -, no ..)' };
+  }
+  if (!String(command || '').includes('{source_args}')) {
+    return { error: `the configured ${action} command does not declare {source_args}, so it cannot receive --sha/--source` };
+  }
+  return { value: hasSha ? `--sha=${cli.sha}` : `--source=${cli.source}` };
+}
+
 function normalizeEnv(env) {
   if (!env) return '';
   return ENV_ALIASES[String(env).toLowerCase()] || String(env).toLowerCase();
@@ -300,6 +332,20 @@ function main() {
     );
   }
 
+  const sourceArgs = resolveSourceArgs(cli, action, rawCommand);
+  if (sourceArgs.error) {
+    block(sourceArgs.error, 'Pass --sha=<40-hex> or --source=<ref> only to a ship/cd command whose agent.config.json entry contains {source_args}.', {
+      action,
+      env,
+      target: commandTarget,
+      run_dir: runDir,
+    });
+  }
+  const dryRun = Boolean(cli.dryRun || cli['dry-run']);
+  // A command that declares {dry_run_arg} runs its own dry-run (verification
+  // without side effects); other commands are only printed.
+  const delegatedDryRun = dryRun && rawCommand.includes('{dry_run_arg}');
+
   const commandContainerDirs = ensureContainerDirectories(
     config,
     mainRoot,
@@ -318,7 +364,9 @@ function main() {
     artifacts: commandContainerDirs.artifacts,
     cache: commandContainerDirs.cache,
     tmp: commandContainerDirs.tmp,
-  }));
+    source_args: sourceArgs.value,
+    dry_run_arg: delegatedDryRun ? '--dry-run' : '',
+  }).replace(/[ \t]+$/, ''));
   const command = resolveBashCommand(runtimeCommand);
   if (!command) {
     block(
@@ -336,7 +384,9 @@ function main() {
     command,
     cwd: repoRoot,
     run_dir: runDir,
-    dry_run: Boolean(cli.dryRun || cli['dry-run']),
+    dry_run: dryRun,
+    dry_run_mode: dryRun ? (delegatedDryRun ? 'delegated' : 'print-only') : '',
+    source_args: sourceArgs.value,
     quick,
   };
   fs.writeFileSync(path.join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`);
@@ -348,10 +398,12 @@ function main() {
   if (commandTarget) console.log(`TARGET=${commandTarget}`);
   console.log(`RUN_DIR=${runDir}`);
   console.log(`CWD=${repoRoot}`);
+  if (sourceArgs.value) console.log(`SOURCE_ARGS=${sourceArgs.value}`);
+  if (dryRun) console.log(`DRY_RUN_MODE=${delegatedDryRun ? 'DELEGATED' : 'PRINT_ONLY'}`);
   console.log(`COMMAND=${command}`);
   if (quick) console.log('QUICK=1');
 
-  if (result.dry_run) return;
+  if (dryRun && !delegatedDryRun) return;
 
   const commandEnv = buildGitHubShellEnv({
     repoRoot,
@@ -391,7 +443,7 @@ function main() {
     });
   }
 
-  console.log('STATUS=OK');
+  if (!dryRun) console.log('STATUS=OK');
 }
 
 if (require.main === module) {
@@ -409,4 +461,6 @@ module.exports = {
   readTargetCommand,
   resolveBashCommand,
   resolveRuntimeCommand,
+  resolveSourceArgs,
+  templateCommand,
 };

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.23] - 2026-10-11
+
+- `ship`/`cd` 支持 `--sha=<40位小写SHA>` 与 `--source=<ref>`：经严格校验（拒绝 shell 元字符、`..`、前导 `-` 等）后只通过配置命令中的 `{source_args}` 占位符透传；命令未声明占位符、值非法或同时给出两者时 `STATUS=BLOCKED`，不再静默忽略导致部署未锁定提交。新增 `{dry_run_arg}` 占位符：声明时 `--dry-run` 委托命令自身做无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则仅打印（`PRINT_ONLY`）。
+
 ## [v3.11.22] - 2026-10-10
 
 - `github-api.js` 经代理的 GitHub API 幂等请求（GET/HEAD）遇到瞬时连接错误（`ECONNRESET`、`ETIMEDOUT`、`EPIPE`、`ECONNREFUSED`、`ECONNABORTED`，含 TLS 握手中断与 socket hang up）时，经同一代理指数退避重试，最多 3 次尝试；写请求、`ERR_PROXY_TUNNEL`、HTTP 状态错误与直连错误不重试，绝不回退直连。最终错误保留 `GITHUB_PROXY_REQUEST_FAILED` 前缀并注明 `attempts=<n>`。
