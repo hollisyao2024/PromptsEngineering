@@ -595,7 +595,12 @@ function checkpointTask(options) {
     }
     const timestamp = nowIso(options.now);
     const stepId = String(options.stepId || '').trim();
-    const acceptanceId = String(options.acceptanceId || '').trim();
+    // 一次 checkpoint 可以完成多条验收：CLI 重复 --acceptance-id 收集为 acceptanceIds，旧调用仍可传单个 acceptanceId。
+    const acceptanceIds = [...new Set([
+      ...(Array.isArray(options.acceptanceIds) ? options.acceptanceIds : []),
+      options.acceptanceId,
+    ].map((item) => String(item || '').trim()).filter(Boolean))];
+    const acceptanceId = acceptanceIds.join(',');
     const failureKind = String(options.failureKind || '').trim();
     const executionState = String(options.executionState || '').trim();
     const recoveryEvidence = String(options.recoveryEvidence || '').trim();
@@ -624,14 +629,20 @@ function checkpointTask(options) {
     if (!stepId && !acceptanceId) {
       throw new Error('checkpoint requires --step, --acceptance-id, or both');
     }
-    if (acceptanceId) {
+    if (acceptanceIds.length > 0) {
       if (requestedStatus !== 'done') throw new Error('acceptance checkpoints only support status=done');
       if (evidence.length === 0) throw new Error('done checkpoints require evidence');
-      const criterion = state.acceptance_criteria.find((item) => item.id === acceptanceId);
-      if (!criterion) throw new Error(`unknown acceptance criterion: ${acceptanceId}`);
-      criterion.status = 'done';
-      criterion.evidence = [...criterion.evidence, ...evidence];
-      criterion.completed_at = timestamp;
+      // 先校验全部 ID 再写入，避免一个未知 ID 让前面的验收被部分标记。
+      const criteria = acceptanceIds.map((id) => {
+        const criterion = state.acceptance_criteria.find((item) => item.id === id);
+        if (!criterion) throw new Error(`unknown acceptance criterion: ${id}`);
+        return criterion;
+      });
+      for (const criterion of criteria) {
+        criterion.status = 'done';
+        criterion.evidence = [...criterion.evidence, ...evidence];
+        criterion.completed_at = timestamp;
+      }
     }
     if (stepId) {
       if (!STEP_STATUSES.has(requestedStatus) || requestedStatus === 'pending') {
@@ -1156,6 +1167,20 @@ function hashFile(filePath) {
   return hash.digest('hex');
 }
 
+const MAX_EXEC_LOG_SUFFIX = 999;
+
+function openUniqueLog(evidenceDir, name) {
+  for (let suffix = 1; suffix <= MAX_EXEC_LOG_SUFFIX; suffix += 1) {
+    const logPath = path.join(evidenceDir, suffix === 1 ? `${name}.log` : `${name}-${suffix}.log`);
+    try {
+      return { logPath, descriptor: fs.openSync(logPath, 'wx', 0o600) };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error(`task exec log names exhausted for ${name} (max ${MAX_EXEC_LOG_SUFFIX}); choose another --name`);
+}
+
 function executeTaskCommand(options) {
   const taskId = safeTaskId(options.taskId);
   const name = String(options.name || '').trim();
@@ -1176,13 +1201,12 @@ function executeTaskCommand(options) {
   const evidenceDir = path.join(taskDir, 'evidence');
   ensureRealDirectory(evidenceDir);
   if (!isPathInside(taskDir, evidenceDir)) throw new Error('task evidence path escapes the task directory');
-  const logPath = path.join(evidenceDir, `${name}.log`);
-  if (fs.existsSync(logPath)) throw new Error(`task exec log already exists: ${logPath}`);
   const cwd = path.resolve(state.worktree || state.project_root);
   const cwdStat = fs.lstatSync(cwd);
   if (cwdStat.isSymbolicLink() || !cwdStat.isDirectory()) throw new Error(`exec cwd must be a real directory: ${cwd}`);
 
-  const descriptor = fs.openSync(logPath, 'wx', 0o600);
+  // 同名证据不覆盖也不报错：依次尝试 <name>.log、<name>-2.log …，以 wx 独占创建，旧日志保持原样。
+  const { logPath, descriptor } = openUniqueLog(evidenceDir, name);
   const startedAt = Date.now();
   let result;
   try {
@@ -1222,6 +1246,7 @@ function parseCliArgs(argv) {
     acceptanceCriteria: [],
     constraints: [],
     evidence: [],
+    acceptanceIds: [],
     includes: [],
     execCommand: [],
     auto: false,
@@ -1297,7 +1322,10 @@ function parseCliArgs(argv) {
       if (key === 'acceptance') options.acceptanceCriteria.push(value);
       else if (key === 'constraint') options.constraints.push(value);
       else if (key === 'evidenceItem') options.evidence.push(value);
-      else options[key] = value;
+      else if (key === 'acceptanceId') {
+        options.acceptanceIds.push(value);
+        options[key] = value;
+      } else options[key] = value;
     } else if (arg.startsWith('--')) {
       const rawKey = arg.slice(2);
       const key = valueKeys.get(rawKey);
@@ -1307,7 +1335,10 @@ function parseCliArgs(argv) {
       if (key === 'acceptance') options.acceptanceCriteria.push(value);
       else if (key === 'constraint') options.constraints.push(value);
       else if (key === 'evidenceItem') options.evidence.push(value);
-      else options[key] = value;
+      else if (key === 'acceptanceId') {
+        options.acceptanceIds.push(value);
+        options[key] = value;
+      } else options[key] = value;
     } else {
       throw new Error(`unexpected argument: ${arg}`);
     }
@@ -1343,7 +1374,7 @@ function printHelp() {
   node infra/scripts/agent-runner/agent-task.js paths [--task <id>] (read-only; does not evaluate permissions)
   node infra/scripts/agent-runner/agent-task.js context --task <id> [--max-bytes <bytes>] [--include <path#Lx-Ly>]...
   node infra/scripts/agent-runner/agent-task.js start --task <id> --desc <goal> [--phase <phase>] [--type <type>] [--acceptance <criterion>] --step <safe-step> [--verify-step <effect-step>]
-  node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>] --status <status> [--evidence <text>] [--next <action>]
+  node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>]... --status <status> [--evidence <text>] [--next <action>]
     Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
     Recovery: --recovery-evidence <verified external outcome or restored authorization>
   node infra/scripts/agent-runner/agent-task.js exec --task <id> --name <evidence-name> -- <command...>
@@ -1356,7 +1387,8 @@ function printHelp() {
 
 Repeat step, acceptance, constraint, and evidence options as needed.
 Mutation tasks require at least one explicit --acceptance; diagnose, research, and operation tasks may use the goal by default.
-Provide --step, --acceptance-id, or both. A done step and acceptance can share one evidence checkpoint.
+Provide --step, --acceptance-id, or both. Repeat --acceptance-id to complete several criteria; a done step and acceptance can share one evidence checkpoint.
+exec reuses an evidence name by writing <name>-2.log, <name>-3.log ...; LOG_PATH reports the file actually written.
 Safe steps may be retried after interruption. Verify steps must be checked before replay.
 New tasks default to type=mutation; use diagnose, research, or operation only for work without tracked-file changes.
 diagnose, research, and operation are work classification types, not filesystem permission modes.

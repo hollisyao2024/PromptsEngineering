@@ -539,6 +539,26 @@ function suiteLine(suite) {
   ].join('|')}`;
 }
 
+// AC_OPEN 只列必需优先级；其余优先级未证明的自动化 AC 用 AC_UNPROVEN 列出（qa verify 只披露为风险），
+// 未通过的路径用 PATH_OPEN 列出其未通过的 TC，便于直接定位失败步骤。
+function detailLines(results, openIds) {
+  const lines = [];
+  for (const id of Object.keys(results.acs || {}).sort(compareText)) {
+    const record = results.acs[id];
+    if (!record || record.verification !== 'auto' || openIds.has(id)) continue;
+    const judged = judgeAc(record);
+    if (!judged.proven) lines.push(`AC_UNPROVEN=${id}|${record.priority}|${judged.state}|${oneLine(judged.reason)}`);
+  }
+  const tcStatus = (tc) => (results.tcs && results.tcs[tc] && results.tcs[tc].status) || 'missing';
+  for (const id of Object.keys(results.paths || {}).sort(compareText)) {
+    const record = results.paths[id];
+    if (!record || record.status === 'passed') continue;
+    const bad = (Array.isArray(record.tcs) ? record.tcs : []).filter((tc) => tcStatus(tc) !== 'passed');
+    lines.push(`PATH_OPEN=${id}|${record.status}|${bad.map((tc) => `${tc}=${tcStatus(tc)}`).join(',') || '-'}`);
+  }
+  return lines;
+}
+
 function formatRunReport(outcome) {
   const lines = [
     `STATUS=${outcome.status}`,
@@ -576,6 +596,7 @@ function formatRunReport(outcome) {
     if (results.unknown_ids.length > 0) lines.push(`UNKNOWN_IDS=${results.unknown_ids.join(',')}`);
   }
   lines.push(...outcome.acOpen.map((item) => `AC_OPEN=${item.id}|${item.priority}|${item.state}|${oneLine(item.reason)}`));
+  if (results) lines.push(...detailLines(results, new Set(outcome.acOpen.map((item) => item.id))));
   lines.push(...outcome.warnings.map((warning) => `WARNING=${oneLine(warning)}`));
   return lines;
 }

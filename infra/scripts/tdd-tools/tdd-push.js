@@ -239,14 +239,19 @@ function autoCommitWorkingTreeIfNeeded(branch, options = {}) {
   }
 
   console.log(`\x1b[33m检测到工作区存在 ${statusLines.length} 个未提交改动，开始自动提交到当前分支。\x1b[0m`);
-  runGit(['add', '-A']);
-  runGit(['commit', '-m', commitMessage, '-m', buildAutoCommitBody(statusLines)]);
+  const git = options.runGit || runGit;
+  git(['add', '-A']);
+  git(['commit', '-m', commitMessage, '-m', buildAutoCommitBody(statusLines)]);
+  const headSha = String(git(['rev-parse', 'HEAD'], { capture: true }) || '').trim();
   console.log(`\x1b[32m✓ 已自动提交当前工作区改动：${commitMessage}\x1b[0m`);
+  console.log(`AUTO_COMMIT_HEAD=${headSha}`);
+  console.log('HEAD 已变化（tdd sync 生成的 CODEBASE_MAP 等也在此提交）：绑定旧 HEAD 的 TEST_SCOPE_RESULT 与 qa run 结果已失效，须在新 HEAD 上重新记录/重跑后再 qa verify。');
 
   return {
     committed: true,
     commitMessage,
     changedFiles: statusLines.length,
+    headSha,
   };
 }
 

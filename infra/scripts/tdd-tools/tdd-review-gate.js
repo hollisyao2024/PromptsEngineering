@@ -301,7 +301,9 @@ const RECORD_DECISIONS = ['required', 'optional'];
 
 function parseCliArgs(argv) {
   const options = { baseBranch: '', json: false, record: '', reason: '', taskId: '' };
-  const assign = (key, value) => {
+  const assign = (key, rawValue) => {
+    // tdd push 以 REQUIRED/OPTIONAL 提示结论，记录时大小写不敏感，统一存小写。
+    const value = key === 'record' ? String(rawValue).toLowerCase() : rawValue;
     if (key === 'record' && !RECORD_DECISIONS.includes(value)) {
       throw new Error(`--record must be one of ${RECORD_DECISIONS.join('|')}, got "${value}"`);
     }

@@ -610,6 +610,9 @@ test('准则 all-transitions 下，失败路径独占的转移失去覆盖，阻
   assert.equal(outcome.blocks[0].subject, 'TRN-SHOP-003');
   assert.match(outcome.blocks[0].detail, /PTH-SHOP-002/u);
   assert.match(outcome.blocks[0].detail, /failed/u);
+  // 指出导致路径失败的具体 TC，便于定位或把路径拆短。
+  assert.match(outcome.blocks[0].detail, /TC-SHOP-003=failed/u);
+  assert.match(outcome.nextAction, /拆/u);
   assert.ok(codesOf(outcome.risks).includes('RISK_LOWER_PRIORITY'), '路径阻断时仍披露 AC 层面的风险');
 });
 

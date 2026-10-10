@@ -121,3 +121,24 @@ test('qa automate: agent CLI 路由到 qa-automate.js 并透传参数', () => {
   assert.match(resolved.script, /qa-tools\/qa-automate\.js$/);
   assert.deepEqual(resolved.args, ['--module', 'shop']);
 });
+
+test('qa automate: 模块名大小写不同也解析到已有目录，并输出解析结果', (t) => {
+  const scenario = createScenario({ files: SPEC_FILE });
+  t.after(() => scenario.cleanup());
+
+  const run = automate(scenario.project.repo, ['--module', 'SHOP']);
+  assert.equal(run.value('MODULE'), 'shop', run.result.stdout);
+  assert.equal(run.value('MODULE_RESOLVED'), 'SHOP->shop');
+  assert.deepEqual([1, 2, 3].map(run.state), ['done', 'done', 'done']);
+});
+
+test('qa automate: 模块目录不存在时列出已有模块，避免静默停在步骤 1', (t) => {
+  const project = createProject({ [PRD_FILE]: prdDocument() }, { git: true });
+  t.after(() => project.cleanup());
+
+  const run = automate(project.repo, ['--module', 'shopx']);
+  assert.equal(run.value('STATUS'), 'PENDING');
+  assert.equal(run.value('CURRENT_STEP'), '1');
+  assert.equal(run.value('AVAILABLE_MODULES'), 'shop');
+  assert.match(run.value('SUMMARY'), /docs\/prd-modules\/shopx\/ 不存在/);
+});

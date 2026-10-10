@@ -79,7 +79,7 @@ const HINTS = Object.freeze({
   REPORT_TAMPERED: RERUN,
   RESULTS_MISMATCH: RERUN,
   AC_NOT_PROVEN: '修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带上 AC-…/TC-… 标识）后重新运行 pnpm agent -- qa run；确属无法自动化的 AC 须在 PRD 中标为 manual',
-  PATH_COVERAGE_GAP: '补写或修复覆盖该路径的自动化用例使其通过，或修正 PATHS.md 的路径、关联 TC 与覆盖准则，然后重新运行 pnpm agent -- qa run',
+  PATH_COVERAGE_GAP: '路径按关联 TC 全有或全无判定，任一 TC 未通过会使整条路径经过的全部转移失去覆盖：修复明细中列出的未通过 TC，或补写覆盖该转移的自动化用例；若长路径中只有部分步骤未实现，可在 PATHS.md 把路径拆成更短的路径（各自关联 TC）使已通过部分独立计入覆盖，或修正覆盖准则，然后重新运行 pnpm agent -- qa run',
   GATE_ERROR: '业务验收门禁自身出错：带着该错误信息排查后重新运行 pnpm agent -- qa verify',
 });
 
@@ -353,7 +353,16 @@ function coverageBlocks(spec, results) {
     const describe = (transitionIds) => {
       const wanted = new Set(transitionIds);
       const through = doc.paths.filter((entry) => entry.sequence.some((id) => wanted.has(id)));
-      return through.length === 0 ? '没有任何路径经过它' : `含它的路径：${through.map((entry) => `${entry.id}(${statusOf(entry.id)})`).join('、')}`;
+      if (through.length === 0) return '没有任何路径经过它';
+      // 路径按其关联 TC 全有或全无判定：列出未通过的 TC，定位是哪一步让整条路径失效。
+      const badTcs = (pathId) => {
+        const record = hasOwn(results.paths, pathId) && isObject(results.paths[pathId]) ? results.paths[pathId] : {};
+        const tcIds = Array.isArray(record.tcs) ? record.tcs : [];
+        const tcStatus = (tc) => (isObject(results.tcs) && isObject(results.tcs[tc]) && results.tcs[tc].status) || 'missing';
+        const bad = tcIds.filter((tc) => tcStatus(tc) !== 'passed').map((tc) => `${tc}=${tcStatus(tc)}`);
+        return bad.length ? `，未通过 TC：${bad.join(',')}` : '';
+      };
+      return `含它的路径：${through.map((entry) => `${entry.id}(${statusOf(entry.id)}${statusOf(entry.id) === 'passed' ? '' : badTcs(entry.id)})`).join('、')}`;
     };
     if (byTransitions) {
       for (const item of coverage.uncoveredTransitions) {

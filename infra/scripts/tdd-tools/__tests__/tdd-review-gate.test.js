@@ -23,6 +23,11 @@ test('parseCliArgs accepts --record, --reason and --task and rejects unknown rec
   assert.throws(() => parseCliArgs(['--record', 'maybe']), /--record/u);
 });
 
+test('parseCliArgs accepts the REQUIRED/OPTIONAL spelling printed by tdd push', () => {
+  assert.equal(parseCliArgs(['--record', 'REQUIRED']).record, 'required');
+  assert.equal(parseCliArgs(['--record=Optional']).record, 'optional');
+});
+
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'review-gate-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
