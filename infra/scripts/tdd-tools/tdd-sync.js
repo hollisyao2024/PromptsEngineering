@@ -275,6 +275,8 @@ function main() {
     });
     if (codemapResult.status !== 0) {
       console.warn('⚠️  Codebase Map 生成失败（不影响 sync 结果）');
+    } else {
+      console.log('ℹ️  Codebase Map 改动留在工作区，tdd push 会自动提交并改变 HEAD；TEST_SCOPE_RESULT 与 qa run 请在 tdd push 之后基于最终 HEAD 记录/运行。');
     }
   }
 

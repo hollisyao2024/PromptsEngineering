@@ -92,7 +92,7 @@ const STEPS = [
     name: 'run-results',
     expert: 'QA',
     read: `${PLAYBOOK}#配置与使用顺序`,
-    action: () => '用 pnpm agent -- tdd commit 提交全部改动，在干净工作区执行 pnpm agent -- qa run；有失败先修用例或实现再重跑',
+    action: () => '先完成 tdd sync 与 tdd push（push 会自动提交 sync 生成的 CODEBASE_MAP 并改变 HEAD），再在干净工作区对最终 HEAD 执行 pnpm agent -- qa run；有失败先修用例或实现再重跑',
   },
 ];
 
@@ -114,6 +114,30 @@ function parseArgs(argv) {
 function git(repoRoot, args) {
   const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: 'pipe' });
   return { ok: result.status === 0, stdout: result.stdout || '' };
+}
+
+function listModuleDirs(repoRoot) {
+  const names = new Set();
+  for (const dir of [PRD_MODULES_DIR, QA_MODULES_DIR]) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(path.join(repoRoot, dir), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) if (entry.isDirectory() && MODULE_PATTERN.test(entry.name)) names.add(entry.name);
+  }
+  return [...names].sort();
+}
+
+// 模块名按已有目录解析：精确命中优先；否则大小写不敏感地唯一命中时改用目录名，
+// 避免 `--module ADMIN` 因目录是 admin 而静默停在步骤 1。都不命中时返回已有模块供提示。
+function resolveModule(repoRoot, requested) {
+  const available = listModuleDirs(repoRoot);
+  if (available.includes(requested)) return { module: requested, resolvedFrom: '', exists: true, available };
+  const matches = available.filter((name) => name.toLowerCase() === requested.toLowerCase());
+  if (matches.length === 1) return { module: matches[0], resolvedFrom: requested, exists: true, available };
+  return { module: requested, resolvedFrom: '', exists: false, available };
 }
 
 const inModule = (file, module) => file.startsWith(`${PRD_MODULES_DIR}/${module}/`) || file.startsWith(`${QA_MODULES_DIR}/${module}/`);
@@ -140,7 +164,7 @@ function referencedIds(repoRoot) {
   return ids;
 }
 
-function inspect({ repoRoot, mainRoot, config, module }) {
+function inspect({ repoRoot, mainRoot, config, module, exists = true }) {
   const analysis = analyzeSpec({ repoRoot });
   const business = resolveBusinessConfig(config);
   const required = new Set(business.requiredPriorities);
@@ -158,7 +182,8 @@ function inspect({ repoRoot, mainRoot, config, module }) {
   const risks = [];
 
   // 步骤 1：本模块有原子 AC，且本模块 PRD 内没有表格层面的违规。
-  if (acs.length === 0) states.push(['pending', `${PRD_MODULES_DIR}/${module}/ 下没有原子 AC 表`]);
+  if (!exists) states.push(['pending', `${PRD_MODULES_DIR}/${module}/ 不存在：新模块需先建目录与原子 AC 表，已有模块请核对 AVAILABLE_MODULES 中的名称`]);
+  else if (acs.length === 0) states.push(['pending', `${PRD_MODULES_DIR}/${module}/ 下没有原子 AC 表`]);
   else if (prdViolations.length > 0) states.push(['pending', `原子 AC 表有 ${prdViolations.length} 项违规`]);
   else states.push(['done', `${acs.length} 条原子 AC（auto ${autoAcs.length}，必需优先级 auto ${requiredAuto.length}）`]);
 
@@ -221,7 +246,7 @@ function resultsState({ repoRoot, mainRoot, config, business, requiredAuto }) {
   return ['done', `${requiredAuto.length} 条必需优先级 auto AC 全部通过（HEAD ${head.slice(0, 12)}）`];
 }
 
-function formatReport({ module, inspection }) {
+function formatReport({ module, inspection, resolution = null }) {
   const { acs, autoAcs, requiredAuto, states, extra, risks } = inspection;
   // 后续步骤依赖前一步：前面有未完成的步骤时，后面的 done 改报 pending，避免模型跳步。
   let firstOpen = -1;
@@ -243,6 +268,8 @@ function formatReport({ module, inspection }) {
       ? `NEXT_ACTION=${current.action(module)}；完成后重新执行 pnpm agent -- qa automate --module ${module}`
       : 'NEXT_ACTION=走项目自身的 TDD/QA 合并链（tdd sync → tdd push → qa plan → qa verify → qa merge），由 qa verify 业务门禁做全局终判',
     `MODULE=${module}`,
+    ...(resolution && resolution.resolvedFrom ? [`MODULE_RESOLVED=${resolution.resolvedFrom}->${module}`] : []),
+    ...(resolution && !resolution.exists ? [`AVAILABLE_MODULES=${resolution.available.join(',') || '-'}`] : []),
     `CURRENT_STEP=${current ? current.n : '-'}`,
     `EXPERT=${current ? current.expert : '-'}`,
     `ACTIVATE=${current ? `[[ACTIVATE: ${current.expert}]]` : '-'}`,
@@ -270,8 +297,10 @@ function main(argv = process.argv.slice(2)) {
   }
   const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
   const config = loadConfig({ repoRoot });
-  const inspection = inspect({ repoRoot, mainRoot: getMainRepoRoot(repoRoot), config, module });
-  const { status, lines } = formatReport({ module, inspection });
+  const resolution = resolveModule(repoRoot, module);
+  module = resolution.module;
+  const inspection = inspect({ repoRoot, mainRoot: getMainRepoRoot(repoRoot), config, module, exists: resolution.exists });
+  const { status, lines } = formatReport({ module, inspection, resolution });
   console.log(lines.join('\n'));
   process.exitCode = status === 'BLOCKED' ? 1 : 0;
 }
@@ -290,4 +319,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { STEPS, formatReport, inspect, parseArgs };
+module.exports = { STEPS, formatReport, inspect, parseArgs, resolveModule };

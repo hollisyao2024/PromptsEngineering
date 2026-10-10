@@ -803,12 +803,22 @@ test('task exec preserves logs, strips ANSI summaries, and returns the child exi
   assert.doesNotMatch(result.summary, /first/u);
   assert.ok(Buffer.byteLength(result.summary, 'utf8') <= 256);
   assert.match(result.logSha256, /^[a-f0-9]{64}$/u);
-  assert.throws(() => executeTaskCommand({
+  const rerun = executeTaskCommand({
+    ...paths,
+    taskId: 'durable-task',
+    name: 'focused-check',
+    command: [process.execPath, '-e', "process.stdout.write('rerun'); process.exit(0)"],
+  });
+  assert.equal(rerun.status, 'OK');
+  assert.match(rerun.logPath, /evidence[\\/]focused-check-2\.log$/u);
+  assert.match(fs.readFileSync(result.logPath, 'utf8'), /first/u, 'the earlier log stays untouched');
+  const third = executeTaskCommand({
     ...paths,
     taskId: 'durable-task',
     name: 'focused-check',
     command: [process.execPath, '-e', 'process.exit(0)'],
-  }), /already exists/u);
+  });
+  assert.match(third.logPath, /evidence[\\/]focused-check-3\.log$/u);
 });
 
 test('task exec rejects an implicit full test before creating a log or spawning', (t) => {
@@ -1206,4 +1216,25 @@ test('corrupt ordering blocks state reads and checkpoints without rewriting hist
   assert.throws(() => readTaskState(input), /evidence_order/);
   assert.throws(() => checkpointTask({ ...input, stepId: 'S1', status: 'running', evidence: ['new'] }), /evidence_order/);
   assert.equal(fs.readFileSync(file, 'utf8'), raw);
+});
+
+test('checkpoint marks every repeated --acceptance-id done with the shared evidence', (t) => {
+  const paths = fixture(t);
+  const input = startInput(paths, { acceptanceCriteria: ['first result', 'second result', 'third result'] });
+  createTask(input);
+  const cli = parseCliArgs([
+    'checkpoint', '--task', 'durable-task', '--acceptance-id', 'AC1', '--acceptance-id=AC3',
+    '--status', 'done', '--evidence', 'verified together',
+  ]);
+  assert.deepEqual(cli.acceptanceIds, ['AC1', 'AC3']);
+  const state = checkpointTask({ ...input, acceptanceIds: cli.acceptanceIds, status: 'done', evidence: ['verified together'] });
+  assert.deepEqual(state.acceptance_criteria.map((item) => item.status), ['done', 'pending', 'done']);
+  assert.deepEqual(state.acceptance_criteria[2].evidence, ['verified together']);
+
+  assert.throws(
+    () => checkpointTask({ ...input, acceptanceIds: ['AC2', 'AC9'], status: 'done', evidence: ['x'] }),
+    /unknown acceptance criterion: AC9/u,
+  );
+  const unchanged = checkpointTask({ ...input, acceptanceId: 'AC1', status: 'done', evidence: ['legacy single id'] });
+  assert.equal(unchanged.acceptance_criteria[1].status, 'pending', 'a rejected batch must not mark any criterion');
 });

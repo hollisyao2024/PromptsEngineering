@@ -77,7 +77,7 @@
 ## 执行规范
 
 ### 测试代码职责（QA 编写并执行）
-- **E2E 测试**（`packages/e2e/tests/<app>/*.e2e.spec.ts`，与架构包 e2e 脚手架一致）：基于 PRD 原子 AC 表的 Given-When-Then 与 `PATHS.md` 的路径，用 Playwright 编写用户路径脚本；测试名携带 AC/TC 标识
+- **E2E 测试**（采用架构包 e2e 脚手架时为 `packages/e2e/tests/<app>/*.e2e.spec.ts`；项目已有 E2E 目录与 Playwright 配置时沿用项目现有目录、命名与配置，不另建平行目录）：基于 PRD 原子 AC 表的 Given-When-Then 与 `PATHS.md` 的路径，用 Playwright 编写用户路径脚本；测试名携带 AC/TC 标识
   - 策略：Page Object Model + Fixtures；API 驱动创建测试数据（非 UI）；P0/P1 场景优先
   - 工具按项目选型；使用 Playwright 时可在本地分片执行，保留首次失败证据，重试不得掩盖回归。
 - **性能测试**（`perf/scenarios/*.k6.ts`）：基于 ARCH/PRD 的 NFR 指标，编写 k6 场景脚本

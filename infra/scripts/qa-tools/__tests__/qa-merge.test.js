@@ -35,3 +35,17 @@ test('reclaims an empty orphan worktree when its session proves ownership', (t) 
   assert.equal(fs.existsSync(stale), false);
   assert.equal(fs.existsSync(active), true);
 });
+
+test('deferred cleanup summary gives concrete commands for CLEANUP_STATUS=PENDING', (t) => {
+  const { printSummary } = require('../qa-merge');
+  const logs = [];
+  t.mock.method(console, 'log', (line = '') => logs.push(String(line)));
+  const mainRoot = fs.mkdtempSync(path.join(REAL_TMPDIR, 'qa-merge-pending-'));
+  printSummary({ number: 7, title: 'feat' }, 'feature/x', 'a'.repeat(40), 'gh', '', mainRoot,
+    { deferred: true, sealed: true, path: '/w/feature-x' }, 'main');
+  const output = logs.join('\n');
+  assert.match(output, /CLEANUP_STATUS=PENDING/);
+  assert.match(output, /NEXT_ACTION=.*pnpm agent -- worktree audit/);
+  assert.match(output, /pnpm agent -- finish/);
+  assert.ok(output.includes(mainRoot), output);
+});

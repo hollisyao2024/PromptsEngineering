@@ -32,12 +32,12 @@
 QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/降级测试由 TDD 专家在实现阶段编写。
 
 #### E2E 测试（Playwright）
-- **目录**：`packages/e2e/tests/<app>/`（与架构包 e2e 脚手架一致；Page Object 在 `packages/e2e/pages/`，Fixtures 在 `packages/e2e/fixtures/`）
+- **目录**：采用架构包 e2e 脚手架时为 `packages/e2e/tests/<app>/`（Page Object 在 `packages/e2e/pages/`，Fixtures 在 `packages/e2e/fixtures/`）；项目已有 E2E 目录（如 `e2e/<app>-tests/`）与 Playwright 配置时沿用现有目录、Fixtures 与配置，不另建平行目录，`qa.business.suites` 的 `command`/`report` 按实际配置登记
 - **策略**：Page Object Model + Fixtures；API 驱动创建前置数据（非 UI）；使用 web-first assertions（`await expect(locator).toBeVisible()`）
 - **优先级**：P0 核心用户旅程 → P1 关键业务场景 → P2 边界
 - **命名**：`{module}.e2e.spec.ts`（如 `auth.e2e.spec.ts`、`checkout.e2e.spec.ts`）
 - **工具**：Playwright + @faker-js/faker
-- **命令**：`pnpm --filter @project/e2e exec playwright test tests/<app>/<affected>.e2e.spec.ts`（headless 定向）；调试用 `--ui` 或 `--trace on`
+- **命令**：脚手架项目用 `pnpm --filter @project/e2e exec playwright test tests/<app>/<affected>.e2e.spec.ts`，已有目录的项目用其 Playwright 配置定向运行（headless）；调试用 `--ui` 或 `--trace on`
 - **本地执行**：需要时使用 `--shard=N/M` 与 headless 模式；失败 Trace 留在容器 tmp，重试不能替代失败分析，不将 GitHub CI 作为合并门禁。
 
 #### 性能测试（k6）
@@ -260,7 +260,7 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 | `none` | 不要求覆盖，只校验引用 | 暂无界面流程的模块，须在评审中说明理由 |
 
 - `all-*` 取值可用逗号组合（如 `all-transitions,all-states`），`none` 不与其他取值并存；重复声明或取值非法会报 `CRITERION_INVALID`。
-- 覆盖只统计结果为通过的路径：路径对应的用例失败、被跳过或缺失，相应的转移就算未覆盖，业务验收门禁报 `PATH_COVERAGE_GAP`。
+- 覆盖只统计结果为通过的路径：路径对应的用例失败、被跳过或缺失，相应的转移就算未覆盖，业务验收门禁报 `PATH_COVERAGE_GAP`。路径按关联 TC 全有或全无判定——长路径中任一步失败，会使整条路径经过的全部转移都未覆盖；设计路径时宜把可独立验证的段落拆成较短路径（各自关联 TC），避免一个未实现步骤遮蔽已可通过的转移。
 - 声明了 `none` 以外的准则后，每条 P0 的 `auto` AC 都必须被某条转移引用，否则 `qa paths` 报 `AC_UNLINKED`。
 - 取值差异（等价类、边界值、组合）是同一条路径上的数据行，不会改变覆盖准则要求的路径集合。
 - `manual` 的 AC 不需要转移，但会在门禁里披露为 `RISK_MANUAL_AC`，需要人工验收。
@@ -454,7 +454,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `REPORT_TAMPERED` | 报告副本的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
 | `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果，与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
 | `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」（`qa run` 以 `FAILED(REASON=AC_NOT_PROVEN)` 提前给出同一判定） | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
-| `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径及其状态 | 补写或修复覆盖该路径的用例使其通过，或修正 PATHS.md 的路径、关联 TC 与覆盖准则，再运行 `qa run` |
+| `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径、状态及其未通过的 TC | 修复列出的未通过 TC 或补写用例使路径通过；部分步骤未实现时可把路径拆短使已通过段落独立计入覆盖；或修正 PATHS.md 的关联 TC 与覆盖准则，再运行 `qa run` |
 | `GATE_ERROR` | 业务验收门禁自身出错 | 带着错误信息排查后重新运行 `pnpm agent -- qa verify` |
 
 ##### 流程阻断码（结果块 `REASON=`）

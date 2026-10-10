@@ -1133,3 +1133,37 @@ test('运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启
     s.cleanup();
   }
 });
+
+test('输出逐条列出非必需优先级的未证明自动化 AC 与未通过路径及其 TC', () => {
+  const { formatRunReport } = require('../qa-run');
+  const lines = formatRunReport({
+    status: 'FAILED', reason: 'SUITE_FAILED', summary: 's', nextAction: 'n', worktreeClean: true,
+    configErrors: [], violations: [], pathProblems: [], warnings: [],
+    acOpen: [{ id: 'AC-A-001-01', priority: 'P0', state: 'failed', reason: '存在失败用例' }],
+    resultsFile: '/tmp/r.json',
+    results: {
+      suites: [],
+      unknown_ids: [],
+      summary: {
+        acs: { total: 4, passed: 1, failed: 2, skipped: 0, missing: 0, manual: 1 },
+        cases: { total: 3, passed: 1, failed: 2, error: 0, skipped: 0 },
+        paths: { total: 2, passed: 1 },
+      },
+      tcs: { 'TC-A-1': { status: 'passed' }, 'TC-A-2': { status: 'failed' } },
+      acs: {
+        'AC-A-001-01': { verification: 'auto', priority: 'P0', status: 'failed', by_platform: {}, platforms: [] },
+        'AC-A-002-01': { verification: 'auto', priority: 'P1', status: 'failed', by_platform: {}, platforms: [] },
+        'AC-A-003-01': { verification: 'auto', priority: 'P1', status: 'passed', by_platform: {}, platforms: [] },
+        'AC-A-004-01': { verification: 'manual', priority: 'P2', status: 'missing', by_platform: {}, platforms: [] },
+      },
+      paths: {
+        'PTH-A-001': { status: 'failed', tcs: ['TC-A-1', 'TC-A-2', 'TC-A-3'] },
+        'PTH-A-002': { status: 'passed', tcs: ['TC-A-1'] },
+      },
+    },
+  });
+  const field = (name) => lines.filter((line) => line.startsWith(`${name}=`)).map((line) => line.slice(name.length + 1));
+  assert.deepEqual(field('AC_OPEN').map((line) => line.split('|')[0]), ['AC-A-001-01']);
+  assert.deepEqual(field('AC_UNPROVEN'), ['AC-A-002-01|P1|failed|存在失败用例']);
+  assert.deepEqual(field('PATH_OPEN'), ['PTH-A-001|failed|TC-A-2=failed,TC-A-3=missing']);
+});

@@ -1506,8 +1506,16 @@ function printSummary(
   console.log(cleanupResult.preserved
     ? '  本地内容已保留；处理这些内容后再运行 completion guard，当前不宣称生命周期清理完成。'
     : cleanupResult.deferred
-    ? `  切换到 ${baseBranch} 并执行 tdd-completion-guard；如检测到新提交，按 --recover-as 指引恢复。`
+    ? [
+      `  已合并；当前 worktree 的清理已交给后台补偿器（目录：${cleanupResult.path || '当前 worktree'}）。`,
+      `  1) 离开该目录：cd ${mainRepoRoot}（主 worktree，分支 ${baseBranch}）`,
+      '  2) 确认收敛：pnpm agent -- worktree audit；仍有待清理项时执行 pnpm agent -- worktree audit --apply',
+      '  3) 主干门禁：pnpm agent -- finish；如检测到新提交，按 --recover-as 指引恢复。',
+    ].join('\n')
     : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
+  if (cleanupResult.deferred && !cleanupResult.preserved) {
+    console.log(`NEXT_ACTION=cd ${mainRepoRoot} && pnpm agent -- worktree audit --apply && pnpm agent -- finish`);
+  }
   console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m');
 
   const { branches, stashes } = getResumableBranches(featureBranch, mainRepoRoot);

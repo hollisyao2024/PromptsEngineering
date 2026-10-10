@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+## [v3.11.18] - 2026-10-10
+
+- 修复在实际项目运行 `/qa automate` 时暴露的 10 处缺陷：
+  - `qa automate --module`：模块名先精确匹配 `docs/prd-modules`/`docs/qa-modules` 下的目录，否则按唯一的大小写不敏感匹配解析（输出 `MODULE_RESOLVED=`）；目录不存在时步骤 1 写明原因并输出 `AVAILABLE_MODULES=`，不再静默 PENDING。步骤 5 提示改为先 `tdd sync`/`tdd push` 再对最终 HEAD 运行 `qa run`。
+  - `task checkpoint`：可重复 `--acceptance-id` 一次完成多条验收项，任一编号不存在时整批拒绝（此前只保留最后一个）。
+  - `task exec`：evidence 名称已存在时依次写入 `<name>-2.log`、`<name>-3.log`…，`LOG_PATH` 报告实际文件（此前直接报错）。
+  - `tdd push`：自动提交工作区后输出 `AUTO_COMMIT_HEAD=<sha>`，并提示绑定旧 HEAD 的 `TEST_SCOPE_RESULT` 与 `qa run` 结果已失效；`tdd sync` 生成 Codebase Map 后说明其改动将由 push 提交。HEAD 绑定校验本身不放宽。
+  - `qa merge`：`CLEANUP_STATUS=PENDING` 时给出具体命令（回到主 worktree、`worktree audit [--apply]`、`pnpm agent -- finish`）并输出 `NEXT_ACTION=`。
+  - `tdd review-gate --record` 大小写不敏感，接受 `tdd push` 提示的 `REQUIRED`/`OPTIONAL`。
+  - QA 专家与 Playbook：E2E 目录在采用架构包脚手架时为 `packages/e2e/tests/<app>/`，项目已有 E2E 目录与 Playwright 配置时沿用，不另建平行目录。
+  - `docs/CONVENTIONS.md` §8 写明：未通过的业务套件不是 TEST_SCOPE 证据（`exit_code:0` 要求不变），由 `qa run` 与业务验收门禁判定；`TEST_SCOPE_RESULT` 与 `qa run` 应在 `tdd push` 之后基于最终 HEAD 记录。
+  - 业务验收门禁 `PATH_COVERAGE_GAP` 明细列出含该转移路径中未通过的 TC（`TC-…=failed`），`NEXT_ACTION` 与 Playbook 说明路径按关联 TC 全有或全无判定，可把长路径拆短；all-transitions 判定语义不变。
+  - `qa run` 另逐条输出非必需优先级未证明的 auto AC（`AC_UNPROVEN=`）与未通过路径及其未通过 TC（`PATH_OPEN=`）。
+  - 新增/更新定向测试：qa-automate、agent-task、tdd-push-pr-base、qa-merge、tdd-review-gate、qa-business-gate、qa-run。
+
 ## [v3.11.17] - 2026-10-10
 
 - 新增 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）：单模块业务测试自动化的只读编排入口，逐步检查 1 原子 AC 表 → 2 `PATHS.md` 且 `qa paths` 无本模块违规 → 3 测试文件引用每条必需优先级 auto AC 的 AC/TC 编号 → 4 `qa.business` 启用并登记套件 → 5 提交后 `qa run` 结果绑定当前 HEAD、干净工作区与配置摘要且本模块必需 AC 全部被证明；输出 `STATUS=OK|PENDING|BLOCKED`、`STEP=<n>|<name>|done|pending|blocked|<说明>`、`CURRENT_STEP=`、`EXPERT=`、`ACTIVATE=`、`READ=`、`UNREFERENCED_AC=`、`RISK=`。设计取舍：① AC、PATHS 与用例必须由模型按专家规范生成，脚本代写会把被测代码现状反写成规格，所以命令只读、不创建目录或写文件；② 复用 `analyzeSpec`、`resolveBusinessConfig`、`readResults`/`judgeAc`，与 `qa paths`、`qa run`、`qa verify` 同一口径；③ 套件配置的键是严格的、不带模块字段，所以步骤 4 只检查全局配置，步骤 3 改用静态扫描（`*.spec.*`/`*.test.*` 中的 AC/TC 编号），使“写了用例但没登记套件”能停在步骤 4；④ 步骤 5 只证明本模块，其他模块违规以 `RISK=SPEC_OTHER_MODULES` 提示，全局终判仍归 `qa verify`；⑤ 未完成是正常进度，`PENDING` 以 0 退出，便于“执行 → 复查”循环，只有配置非法、结果损坏或必需 AC 失败才 `BLOCKED` 非零退出；⑥ 前一步未完成时后续步骤一律报 `pending`，防止跳步。QA 专家命令表、Playbook「业务测试自动化」新增「单模块编排」小节（模型收到命令后以 mutation 任务 + worktree 推进、只问最少问题、完成后走 TDD/QA 合并链）、`agent-cli` 路由与帮助、qa-tools README 同步登记；按“新模板不继续扩张别名集合”，不新增 package alias。新增 `infra/scripts/qa-tools/__tests__/qa-automate.test.js` 7 项定向测试，`agent-cli.test.js` 帮助断言同步。
