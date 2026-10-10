@@ -67,6 +67,24 @@ function buildQaVerificationReceipt({
   return receipt;
 }
 
+// 回执 business 摘要的唯一读取方是 qa merge 的审计输出；它不参与复验，畸形摘要只披露为 INVALID。
+function describeReceiptBusiness(receipt) {
+  if (!receipt || receipt.business === undefined || receipt.business === null) return 'QA_RECEIPT_BUSINESS=NONE';
+  let summary;
+  try {
+    summary = normalizeBusinessSummary(receipt.business);
+  } catch (error) {
+    return `QA_RECEIPT_BUSINESS=INVALID|${String(error.message).replace(/\s+/gu, ' ')}`;
+  }
+  return [
+    `QA_RECEIPT_BUSINESS=${summary.gate}`,
+    `required=${summary.required_priorities.join(',')}`,
+    `acs_proven=${summary.acs_proven}`,
+    `risk_count=${summary.risk_count}`,
+    `config_digest=${summary.config_digest}`,
+  ].join('|');
+}
+
 function worktreeReceiptKey(worktreePath) {
   return createHash('sha256').update(path.resolve(worktreePath)).digest('hex').slice(0, 20);
 }
@@ -167,6 +185,7 @@ function validateMergedPrReceipt(receipt, pr, current = {}) {
 module.exports = {
   RECEIPT_SCHEMA_VERSION,
   buildQaVerificationReceipt,
+  describeReceiptBusiness,
   getQaVerificationReceiptPath,
   readQaVerificationReceipt,
   removeQaVerificationReceipt,

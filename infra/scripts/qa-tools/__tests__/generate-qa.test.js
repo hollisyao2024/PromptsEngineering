@@ -523,6 +523,19 @@ test('session modules ignore template tooling paths and repository root files', 
   );
 });
 
+test('session modules ignore template-owned standards and generated data documents', () => {
+  assert.deepEqual(
+    sessionModules(['data', 'ui', 'directories'], [
+      'docs/standards/ui.md',
+      'docs/standards/directories.md',
+      'docs/data/CODEBASE_MAP.md',
+      'docs/data/traceability-matrix.md',
+    ]),
+    [],
+  );
+  assert.deepEqual(sessionModules(['data', 'ui'], ['apps/web/src/ui/button.tsx']), ['ui']);
+});
+
 test('session modules still match source paths and the branch name without module documents', () => {
   assert.deepEqual(sessionModules(['billing', 'chat'], ['apps/desktop/src/billing/plan.ts']), ['billing']);
   assert.deepEqual(sessionModules(['billing', 'chat'], [], 'feature/chat-retry'), ['chat']);

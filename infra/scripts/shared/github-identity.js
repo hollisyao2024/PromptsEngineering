@@ -3,7 +3,7 @@
 /**
  * 提交身份：git 没有身份时，由 .env.local 的 GH_TOKEN 所属 GitHub 账号补齐。
  *
- * - 只对 commit 与注解 tag 生效；git 已有显式身份的角色（作者 / 提交者）保持不动。
+ * - 只对 commit、非快进 merge 与注解 tag 生效；git 已有显式身份的角色（作者 / 提交者）保持不动。
  * - 只通过本次 git 进程的 GIT_AUTHOR_* / GIT_COMMITTER_* 环境变量传递，不写任何 git 配置，也不落盘缓存。
  * - 账号查询放在子进程里完成：buildGitHubGitEnv 是同步接口，而 GitHub API 请求是异步的；
  *   令牌只经子进程环境变量传递，不进 argv，输出与错误中的令牌一律替换为 ***。
@@ -84,10 +84,14 @@ function isAnnotatedTagCommand(args) {
   return annotated;
 }
 
-// commit 需要作者与提交者；注解 tag 只需要提交者（tagger）；其余命令不需要身份。
+// commit 与非快进 merge 需要作者与提交者；注解 tag 只需要提交者（tagger）；其余命令不需要身份。
 function identityRolesForGitArgs(args = []) {
   const [command] = args;
   if (command === 'commit') return ['author', 'committer'];
+  // 非快进的 merge（含 --squash、--no-commit）在 git 里都会先校验身份；只有 --ff-only、--abort、--quit 不需要。
+  if (command === 'merge' && !args.some((arg) => ['--ff-only', '--abort', '--quit'].includes(arg))) {
+    return ['author', 'committer'];
+  }
   if (command === 'tag' && isAnnotatedTagCommand(args)) return ['committer'];
   return [];
 }

@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [v3.11.24] - 2026-10-11
+
+- `merge-yaml` 与 `merge-json` 的删除语义对齐：项目删除了模板所有的 YAML 文件、且上游内容未变时保持删除并收敛，上游已改动时报冲突（`YAML file deleted locally but changed upstream`），不再误报 “Required workspace entry removed locally”。
+- QA session 模块推断忽略 `docs/standards/` 与 `docs/data/`：架构标准与生成的数据文档与模块同名（如 `ui.md`、`data`）时不再被算作改动了该模块；`apps/**` 等真实模块路径不受影响。
+- `qa merge` 复验通过后输出 `QA_RECEIPT_BUSINESS=PASS|required=…|acs_proven=…|risk_count=…|config_digest=…`（无摘要 `NONE`、损坏 `INVALID|<原因>`），回执中的业务验收摘要有了审计读取方；它不参与合并放行判定，回执 `schema_version` 不变。
+- `validateQaFile` 支持 `{ root }`，其单元测试夹具改写到临时目录，不再在真实 `docs/prd-modules`、`docs/qa-modules` 下创建与删除目录。
+- `tdd sync` 的 Base Sync Gate 在 git 没有身份时不再以 “Committer identity unknown” 误报 `BASE_MERGE_CONFLICT`：共享 `buildGitHubGitEnv` 的身份补齐范围从 `commit`/注解 `tag` 扩展到非快进 `merge`（含 `--squash`、`--no-commit`；`--ff-only`、`--abort`、`--quit` 除外），同样只用 `GH_TOKEN` 所属账号、只作用于本次进程环境。
+- 业务测试 CLI 夹具统一经 `runNodeScript` 运行：子进程上限由 60 秒放宽到 300 秒，避免并行回归时被 `spawnSync` 误杀；被终止或无法启动时把 `signal`/`error` 追加到 stderr，断言消息直接显示原因。
+
 ## [v3.11.23] - 2026-10-11
 
 - `ship`/`cd` 支持 `--sha=<40位小写SHA>` 与 `--source=<ref>`：经严格校验（拒绝 shell 元字符、`..`、前导 `-` 等）后只通过配置命令中的 `{source_args}` 占位符透传；命令未声明占位符、值非法或同时给出两者时 `STATUS=BLOCKED`，不再静默忽略导致部署未锁定提交。新增 `{dry_run_arg}` 占位符：声明时 `--dry-run` 委托命令自身做无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则仅打印（`PRINT_ONLY`）。

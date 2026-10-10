@@ -272,7 +272,7 @@ test('buildGitHubGitEnv does no identity lookup for commands that need none, and
     ['status', '--porcelain'],
     ['add', '-A'],
     ['merge', '--ff-only', 'origin/main'],
-    ['merge', '--squash', 'feature/x'],
+    ['merge', '--abort'],
     ['tag', 'v1.0.0'],
     ['rev-parse', 'HEAD'],
   ]) {

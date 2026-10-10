@@ -53,6 +53,7 @@ const {
   repoApiPath,
 } = require('../shared/github-api');
 const {
+  describeReceiptBusiness,
   readQaVerificationReceipt,
   removeQaVerificationReceipt,
   validateMergedPrReceipt,
@@ -1603,6 +1604,7 @@ async function main() {
       resumedMerge = true;
       console.log(`\x1b[33mPR #${pr.number} 已在 QA 回执 HEAD_SHA=${qaReceipt.head_sha} 合并，恢复本地收尾。\x1b[0m`);
       console.log(`  URL: ${pr.url}`);
+      console.log(describeReceiptBusiness(qaReceipt));
     } else {
       console.log(`\x1b[32m找到 PR #${pr.number}: ${pr.title}\x1b[0m`);
       console.log(`  URL: ${pr.url}`);
@@ -1626,6 +1628,7 @@ async function main() {
         prHeadSha: pr.headRefOid,
       });
       console.log(`\x1b[32mQA 回执有效：BASE_SHA=${qaReceipt.base_sha} HEAD_SHA=${qaReceipt.head_sha}\x1b[0m`);
+      console.log(describeReceiptBusiness(qaReceipt));
     }
 
     if (!args.dryRun && !resumedMerge && pr.mergeable === 'CONFLICTING') {

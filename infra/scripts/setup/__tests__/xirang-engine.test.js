@@ -130,6 +130,26 @@ test('merge-json leaves a project-deleted file absent while upstream is unchange
   assert.equal(fs.existsSync(path.join(f.target, 'package.json')), false);
   assert.equal(planUpdate({ target: f.target, assets: [next] }).changes.length, 0);
 });
+// merge-yaml follows the merge-json deletion semantics: a project-deleted file stays deleted while upstream is unchanged.
+test('merge-yaml leaves a project-deleted file absent while upstream is unchanged; repeat converges', t => {
+  const f = fixture(t), next = asset('packages:\n  - apps/web\n', 'merge-yaml', 'pnpm-workspace.yaml');
+  install(f, [next]);
+  fs.rmSync(path.join(f.target, 'pnpm-workspace.yaml'));
+  const p = install(f, [next]);
+  assert.equal(p.conflicts.length, 0);
+  assert.equal(p.entries[0].after, null);
+  assert.equal(fs.existsSync(path.join(f.target, 'pnpm-workspace.yaml')), false);
+  assert.equal(planUpdate({ target: f.target, assets: [next] }).changes.length, 0);
+});
+test('merge-yaml reports a conflict when the project deleted a file that upstream changed', t => {
+  const f = fixture(t);
+  install(f, [asset('packages:\n  - apps/web\n', 'merge-yaml', 'pnpm-workspace.yaml')]);
+  fs.rmSync(path.join(f.target, 'pnpm-workspace.yaml'));
+  const p = planUpdate({ target: f.target, assets: [asset('packages:\n  - apps/web\n  - packages/*\n', 'merge-yaml', 'pnpm-workspace.yaml')] });
+  assert.equal(p.conflicts.length, 1);
+  assert.match(p.conflicts[0].reason, /deleted locally/);
+  assert.equal(fs.existsSync(path.join(f.target, 'pnpm-workspace.yaml')), false);
+});
 test('merge-json never reorders order-significant keys inside project values', t => {
   const f = fixture(t), a = s => asset(JSON.stringify(s), 'merge-json', 'package.json');
   install(f, [a({ marker: 1 })]);
