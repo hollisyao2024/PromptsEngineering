@@ -213,7 +213,7 @@ function buildGitHubGitEnv({
     env = buildProxyEnvironment({ ...proxyOptions, env, cwd });
   }
   const token = getProjectGitHubToken({ repoRoot, cwd, env });
-  // commit 与注解 tag 在 git 没有身份时，由 GH_TOKEN 所属账号补齐（仅限本次进程环境，不写 git 配置）。
+  // commit、非快进 merge 与注解 tag 在 git 没有身份时，由 GH_TOKEN 所属账号补齐（仅限本次进程环境，不写 git 配置）。
   const gitEnv = resolveCommitIdentity({ args, cwd, env, token, lookup: identityLookup }).env;
   if (!token) return gitEnv;
   if (!shouldInjectGitHubAuth({ cwd, args, env: gitEnv })) return gitEnv;

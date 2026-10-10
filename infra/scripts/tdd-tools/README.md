@@ -111,7 +111,7 @@ pnpm agent -- tdd commit [git commit 选项...]
 - git 没有身份、又读不到 `GH_TOKEN`，或账号查询失败时输出 `STATUS=BLOCKED` 并非零退出，不运行 git，也不退回 git 的 EMAIL / 主机名自动探测。
 - 输出 `STATUS`、`SUMMARY`、`NEXT_ACTION`、`IDENTITY_SOURCE`（`configured` / `github-token` / `unresolved`）、`IDENTITY`、`COMMIT`。
 
-**同一机制也作用于脚本内的 git 调用：** `tdd push` 的自动提交，以及 `qa merge` 的本地 squash 提交、发布/状态提交与注解 tag，经共享的 `buildGitHubGitEnv` 时按同样规则补身份，只对 `commit` 和注解 `tag` 生效。直接在终端裸执行的 `git commit`、以及 `github-auth-run.js -- git commit` 不经过这条路径，不会被补身份。git 没有身份又读不到 `GH_TOKEN` 时，这条脚本路径不补身份也不阻断，作者仍由 git 自己探测（与改动前一致）；只有 `tdd commit` 在这种情况下阻断。
+**同一机制也作用于脚本内的 git 调用：** `tdd push` 的自动提交，以及 `tdd sync` Base Sync Gate 的 `git merge --no-edit origin/<base>`，以及 `qa merge` 的本地 squash 提交、发布/状态提交与注解 tag，经共享的 `buildGitHubGitEnv` 时按同样规则补身份，只对 `commit`、非快进 `merge`（`--ff-only`、`--abort`、`--quit` 除外）和注解 `tag` 生效。直接在终端裸执行的 `git commit`、以及 `github-auth-run.js -- git commit` 不经过这条路径，不会被补身份。git 没有身份又读不到 `GH_TOKEN` 时，这条脚本路径不补身份也不阻断，作者仍由 git 自己探测（与改动前一致）；只有 `tdd commit` 在这种情况下阻断。
 
 ---
 

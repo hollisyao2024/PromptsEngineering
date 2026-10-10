@@ -106,12 +106,21 @@ function stubbedChildEnv({ status, body }) {
   };
 }
 
-test('identityRolesForGitArgs asks for identities only on commit and annotated tag', () => {
+test('identityRolesForGitArgs asks for identities on commit, non-fast-forward merge and annotated tag', () => {
   assert.deepEqual(identityRolesForGitArgs(['commit', '-m', 'x']), ['author', 'committer']);
   assert.deepEqual(
     identityRolesForGitArgs(['commit', '--no-verify', '-m', 'chore(release): v1.0.0']),
     ['author', 'committer']
   );
+  // tdd sync 的 Base Sync Gate 用 merge --no-edit；git 对 --squash、--no-commit 同样先校验身份。
+  for (const args of [
+    ['merge', '--no-edit', 'origin/main'],
+    ['merge', '--squash', 'feature/x'],
+    ['merge', '--no-commit', '--no-ff', 'origin/main'],
+    ['merge', '--continue'],
+  ]) {
+    assert.deepEqual(identityRolesForGitArgs(args), ['author', 'committer'], args.join(' '));
+  }
 
   for (const args of [
     ['tag', '-a', 'v1.0.0', '-m', 'note'],
@@ -131,7 +140,8 @@ test('identityRolesForGitArgs asks for identities only on commit and annotated t
     ['fetch', 'origin'],
     ['push', 'origin', 'HEAD'],
     ['merge', '--ff-only', 'origin/main'],
-    ['merge', '--squash', 'feature/x'],
+    ['merge', '--abort'],
+    ['merge', '--quit'],
     ['commit-tree', 'HEAD^{tree}'],
     ['tag'],
     ['tag', 'v1.0.0'],
@@ -256,7 +266,7 @@ test('resolveCommitIdentity does nothing for commands that need no identity and 
   const repo = createRepo(env);
   const calls = [];
 
-  for (const args of [['status'], ['merge', '--squash', 'feature/x'], ['tag', 'v1.0.0'], ['push', 'origin', 'HEAD']]) {
+  for (const args of [['status'], ['merge', '--ff-only', 'origin/main'], ['tag', 'v1.0.0'], ['push', 'origin', 'HEAD']]) {
     const resolved = resolveCommitIdentity({ args, cwd: repo, env, token: TOKEN, lookup: recordingLookup(calls) });
     assert.equal(resolved.source, 'not-needed', args.join(' '));
     assert.equal(resolved.env, env);
