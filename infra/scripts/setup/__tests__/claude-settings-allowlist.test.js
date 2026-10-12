@@ -91,14 +91,33 @@ test('team allowlist does not wildcard-allow project test scripts, which are not
   );
 });
 
-test('team allowlist no longer carries legacy pnpm rules that match no script of this template', () => {
-  // 这 7 条在模板源 package.json 中没有任何可匹配的脚本：`build`、`clean`、`dev` 从未存在；
-  // `priority:*`、`persona:*`、`goal:*` 对应的脚本已随 PRD 工具链精简在 dbf60fd 移除，且 `:*` 按词边界只匹配
-  // 无冒号后缀的 `pnpm run priority`。下游项目自带 `build`、`clean` 脚本时，需要免确认就在 settings.local.json 追加。
+test('team allowlist lets build and clean scripts run without prompts', () => {
+  // 模板源自身没有 `build`、`clean` 脚本，这三条规则在源仓里匹配不到任何脚本；它们是给下游项目的默认放行，
+  // 下游项目自带脚本时开箱即用，不必每个项目各自在 settings.local.json 追加。
   for (const rule of [
     'Bash(pnpm build*)',
     'Bash(pnpm run build*)',
     'Bash(pnpm run clean*)',
+  ]) {
+    assert.ok(settings.permissions.allow.includes(rule), `build/clean rule is missing: ${rule}`);
+  }
+  for (const command of [
+    'pnpm build',
+    'pnpm build:app:mac',
+    'pnpm run build',
+    'pnpm run build:dev',
+    'pnpm run clean',
+    'pnpm run clean:cache',
+  ]) {
+    assert.ok(isAllowed(command), `should be allowed: ${command}`);
+  }
+});
+
+test('team allowlist no longer carries legacy pnpm rules that match no script of this template', () => {
+  // 这 4 条在模板源 package.json 中没有任何可匹配的脚本：`priority:*`、`persona:*`、`goal:*` 对应的脚本已随
+  // PRD 工具链精简在 dbf60fd 移除，且 `:*` 按词边界只匹配无冒号后缀的 `pnpm run priority`；
+  // `Bash(pnpm dev)` 是 `Bash(pnpm dev:*)` 的子集。下游项目需要这些命令免确认时在 settings.local.json 追加。
+  for (const rule of [
     'Bash(pnpm dev)',
     'Bash(pnpm run priority:*)',
     'Bash(pnpm run persona:*)',
@@ -107,11 +126,6 @@ test('team allowlist no longer carries legacy pnpm rules that match no script of
     assert.ok(!settings.permissions.allow.includes(rule), `dead rule should be removed: ${rule}`);
   }
   for (const command of [
-    'pnpm build',
-    'pnpm build:app:mac',
-    'pnpm run build',
-    'pnpm run build:dev',
-    'pnpm run clean',
     'pnpm run priority',
     'pnpm run persona',
     'pnpm run goal',
