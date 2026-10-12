@@ -106,6 +106,7 @@ test('CLI discovers split module definitions, keeps PRD.md and ignores body-only
   try {
     for (const file of [
       'infra/scripts/arch-tools/sync-prd-arch-ids.js',
+      'infra/scripts/arch-tools/sync-prd-arch-ids-extract.js',
       'infra/scripts/arch-tools/protected-sections.js',
       'infra/scripts/shared/config.js',
       'infra/scripts/shared/governance-ids.js',

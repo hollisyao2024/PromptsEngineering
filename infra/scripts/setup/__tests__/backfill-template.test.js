@@ -57,6 +57,8 @@ function createUpstream(testRoot) {
   }, null, 2)}\n`);
   for (const file of [
     'infra/scripts/setup/update-template.js',
+    'infra/scripts/setup/update-template-git.js',
+    'infra/scripts/setup/update-template-local-config.js',
     'infra/scripts/setup/template-apply-engine.js',
     'infra/scripts/shared/config.js',
   ]) write(upstream, file, `// upstream ${file}\n`);

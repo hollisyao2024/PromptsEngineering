@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [v3.11.28] - 2026-10-13
+
+- 23 个超过 500 行的模板文件做纯结构拆分（行为、输出与 `module.exports` 键及对象引用不变，外部 require 路径与 CLI 入口不变，新模块不反向 require 原文件）：
+  - 源码 13 个：`tdd-push.js` → `tdd-push-pr-text.js`（提交信息与 PR 标题/正文）；`tdd-tick.js` → `tdd-tick-lines.js`；`schema-governance.js` → `schema-governance-sql.js`；`sync-prd-arch-ids.js` → `sync-prd-arch-ids-extract.js`；`worktree-audit.js` → `worktree-audit-evidence.js`；`business-results.js` → `business-results-junit.js`、`business-results-aggregate.js`；`qa-business-gate.js` → `qa-business-gate-integrity.js`；`qa-run.js` → `qa-run-reports.js`、`qa-run-process.js`、`qa-run-format.js`；`business-spec.js` → `business-spec-markdown.js`、`business-spec-paths.js`、`business-spec-schema.js`；`check-defect-blockers.js` → `check-defect-blockers-common.js`、`-defects.js`、`-nfr.js`；`update-template.js` → `update-template-git.js`、`update-template-local-config.js`；`template-sync.js` → `template-sync-checks.js`；`backfill-template.js` → `backfill-template-source.js`。
+  - 测试 10 个按主题拆为 `<name>.<topic>.test.js`，共享夹具放 `__tests__/<name>.helpers.js`：`agent-task`、`worktree-audit`、`template-surface`、`template-apply-engine`、`qa-run`、`business-closed-loop`、`business-results`、`business-spec`、`generate-qa`、`qa-business-gate`；用例名称、断言与顺序不变，每个文件可独立运行。
+  - 连带：`template sync` 的 `REQUIRED_SOURCE_FILES`（迁至 `template-sync-checks.js`）加入 `update-template-git.js` 与 `update-template-local-config.js`，`template-sync`/`backfill-template` 测试的上游夹具复制清单同步；`template-consumer-compat` 改为运行拆分后的全部 `template-surface.*` 文件；`multi-host-policy`、`agent-state-removed`、`business-guidance`、`sync-prd-arch-ids.compat` 的路径清单补入新文件。`template-sync.js` 去掉未使用的 `require('node:os')`。
+  - 版本与下游影响：新文件位于既有 `overwrite` 目录规则下，随模板同步自动分发；下游项目更新后旧的超长文件被替换，无需项目侧改动。
+  - 验证：13 个源文件导出快照拆分前后一致；全部结果文件 ≤ 500 行；各拆分组用例数前后相等（agent-task 47、worktree-audit 18、template-surface 56、template-apply-engine 36、qa-run 43、business-closed-loop 27、business-results 123、business-spec 68、generate-qa 32、qa-business-gate 52），根 `pnpm test` 全量用例总数与拆分前基线一致。
+
 ## [v3.11.27] - 2026-10-12
 
 - `pnpm agent -- test` 支持项目登记的文件级运行器：`agent.config.json` 新增 `testing.targetedRunners`（模板默认 `[]`），每项 `{ "command", "cwd", "fileArgument" }` 或命令字符串；运行器须与 `command` 逐词一致才放行，在 `cwd`（相对 worktree 根，默认 `.`）启动，文件按 `fileArgument` 以相对启动目录路径（默认 `path`）、真实绝对路径（`absolute`）或正则转义路径（`pattern`）追加。聚合命令拦截先于登记匹配、登记也不放行；`cwd` 越界/不存在、模式非法时 fail-closed。用于自带测试锁或内存预算的包装脚本（如 `node scripts/run-jest.cjs --runTestsByPath`，`cwd: apps/web`，`fileArgument: absolute`）。CONVENTIONS §8 同步说明。验证：`targeted-test.test.js` 新增用例（含未登记对照、参数变体、聚合拒绝、三类非法登记）后 5 条通过，`agent-cli`、`rules-context-contract`、`template-surface` 测试通过；下游项目以真实包装脚本定向运行一个 Jest 文件通过。未运行聚合 `pnpm test`（改动局限于定向测试入口及其专属测试与文档）。
