@@ -17,6 +17,7 @@ test('GitHub workflows remain project-owned and local gates never trigger workfl
 
   const localGateSources = [
     'infra/scripts/tdd-tools/tdd-push.js',
+    'infra/scripts/tdd-tools/tdd-push-pr-text.js',
     'infra/scripts/qa-tools/qa-verify.js',
     'infra/scripts/qa-tools/qa-merge.js',
   ].map((relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')).join('\n');

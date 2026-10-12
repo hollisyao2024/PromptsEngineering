@@ -9,15 +9,28 @@
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
 const { exitOnHelp } = require('../shared/cli-help');
 const {
   getMainRepoRoot,
   loadConfig,
   resolveFromRepo,
 } = require('../shared/config');
+const {
+  collectGitNameStatus,
+  createBackfillBaseline,
+  isGitWorktree,
+  run,
+} = require('./update-template-git');
+const {
+  CODEX_CONFIG_RELATIVE,
+  ENVIRONMENT_FILE_PAIRS,
+  initializeCodexConfig,
+  initializeEnvironmentFiles,
+  initializeProjectEnvironmentFiles,
+  reportCodexConfig,
+  reportProjectEnvironmentFiles,
+} = require('./update-template-local-config');
 
 function parseArgs(argv) {
   const cli = { include: [] };
@@ -75,25 +88,6 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function run(command, args, options = {}) {
-  // Executable and argv come from fixed Git/Node call sites below. Keep shell
-  // parsing disabled so target paths cannot become command syntax.
-  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    encoding: 'utf8',
-    stdio: 'pipe',
-    env: { ...process.env, ...(options.env || {}) },
-    shell: false,
-  });
-  return {
-    status: result.status,
-    stdout: result.stdout || '',
-    stderr: result.stderr || '',
-    output: `${result.stdout || ''}${result.stderr || ''}`,
-  };
-}
-
 function parseApplyCounts(output) {
   const lines = String(output || '').match(/^COUNTS=(.+)$/gmu) || [];
   if (lines.length === 0) throw new Error('template apply output is missing COUNTS');
@@ -140,308 +134,6 @@ function validateJsonFiles(targetRoot, files) {
       block(`Invalid JSON in ${file}: ${error.message}`, { file: filePath });
     }
   }
-}
-
-const ENVIRONMENT_FILE_PAIRS = Object.freeze([
-  Object.freeze({ example: '.env.example', runtime: '.env.local' }),
-  Object.freeze({ example: '.env.staging.example', runtime: '.env.staging' }),
-  Object.freeze({ example: '.env.production.example', runtime: '.env.production' }),
-]);
-
-function initializeEnvironmentFiles(targetRoot, write) {
-  if (write) {
-    for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
-      if (fs.existsSync(path.join(targetRoot, runtime))) continue;
-      if (!fs.existsSync(path.join(targetRoot, example))) {
-        throw new Error(`environment example missing: ${example}`);
-      }
-    }
-  }
-
-  return ENVIRONMENT_FILE_PAIRS.map(({ example, runtime }) => {
-    const runtimePath = path.join(targetRoot, runtime);
-    if (fs.existsSync(runtimePath)) {
-      return { status: 'unchanged', path: runtime, reason: 'target exists' };
-    }
-    if (!write) {
-      return { status: 'created', path: runtime, reason: 'initialized from corresponding example' };
-    }
-
-    const content = fs.readFileSync(path.join(targetRoot, example));
-    try {
-      fs.writeFileSync(runtimePath, content, { flag: 'wx', mode: 0o600 });
-      return { status: 'created', path: runtime, reason: 'initialized from corresponding example' };
-    } catch (error) {
-      if (error && error.code === 'EEXIST') {
-        return { status: 'unchanged', path: runtime, reason: 'target exists' };
-      }
-      throw error;
-    }
-  });
-}
-
-function reportEnvironmentFiles(results) {
-  for (const result of results) {
-    const key = result.path.replace(/^\./u, '').replace(/[^a-zA-Z0-9]+/gu, '_').toUpperCase();
-    console.log(`ENV_FILE_${key}=${result.status}`);
-    if (result.reason) console.log(`ENV_FILE_${key}_REASON=${result.reason}`);
-  }
-}
-
-// Environment files belong to the project's main checkout. Template-owned
-// tracked files still go through the normal development-worktree apply plan.
-function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
-  const gitTarget = isGitWorktree(targetRoot);
-  if (!gitTarget && lstatIfPresent(path.join(targetRoot, '.git'))) {
-    throw new Error('Cannot resolve environment project Git root');
-  }
-  const root = gitTarget ? getMainRepoRoot(targetRoot) : path.resolve(targetRoot);
-  if (gitTarget) {
-    const verified = run('git', ['rev-parse', '--show-toplevel'], { cwd: root });
-    if (verified.status !== 0 || path.resolve(verified.stdout.trim()) !== path.resolve(root)) {
-      throw new Error('Cannot verify environment main repo root');
-    }
-  }
-
-  // Read all required inputs before creating any environment files. Existing
-  // runtime files are never read, and existing examples always take priority.
-  const examples = ENVIRONMENT_FILE_PAIRS.map(({ example, runtime }) => {
-    const destination = path.join(root, example);
-    const exists = Boolean(lstatIfPresent(destination));
-    let content;
-    if (!exists) {
-      const source = path.join(sourceRoot, example);
-      if (!fs.existsSync(source)) throw new Error(`environment example source missing: ${example}`);
-      content = fs.readFileSync(source);
-    } else if (!lstatIfPresent(path.join(root, runtime))) {
-      fs.readFileSync(destination); // Preflight readability before any writes.
-    }
-    return { example, destination, exists, content };
-  });
-
-  if (write && gitTarget) {
-    // Protect local runtime files even before the tracked gitignore update is
-    // merged. These root-anchored rules do not ignore the example files.
-    const resolved = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd: root });
-    if (resolved.status !== 0 || !resolved.stdout.trim()) throw new Error('Cannot resolve environment Git exclude');
-    const exclude = resolved.stdout.trim();
-    const stat = lstatIfPresent(exclude);
-    if (stat && (!stat.isFile() || stat.isSymbolicLink())) throw new Error('Invalid environment Git exclude file');
-    const content = stat ? fs.readFileSync(exclude, 'utf8') : '';
-    const lines = new Set(content.split(/\r?\n/u));
-    const missing = ENVIRONMENT_FILE_PAIRS.map(({ runtime }) => `/${runtime}`).filter(line => !lines.has(line));
-    if (missing.length) {
-      fs.mkdirSync(path.dirname(exclude), { recursive: true });
-      fs.appendFileSync(exclude, `${content && !content.endsWith('\n') ? '\n' : ''}${missing.join('\n')}\n`);
-    }
-  }
-
-  const files = examples.map(({ example, destination, exists, content }) => {
-    if (exists) return { status: 'unchanged', path: example, reason: 'target exists' };
-    if (write) {
-      try { fs.writeFileSync(destination, content, { flag: 'wx', mode: 0o644 }); }
-      catch (error) {
-        if (error.code !== 'EEXIST') throw error;
-        return { status: 'unchanged', path: example, reason: 'target exists' };
-      }
-    }
-    return { status: 'created', path: example, reason: 'initialized from template example' };
-  });
-  files.push(...initializeEnvironmentFiles(root, write));
-  return { root, files };
-}
-
-function reportProjectEnvironmentFiles(result) {
-  console.log(`ENVIRONMENT_ROOT=${result.root}`);
-  reportEnvironmentFiles(result.files);
-}
-
-const CODEX_CONFIG_RELATIVE = '.codex/config.toml';
-const CODEX_COMPACTION_DEFAULTS = Object.freeze({
-  model_auto_compact_token_limit: '180000',
-  model_auto_compact_token_limit_scope: '"total"',
-});
-
-function lstatIfPresent(filePath) {
-  try { return fs.lstatSync(filePath); }
-  catch (error) {
-    if (error.code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
-function readUtf8Exactly(filePath) {
-  const bytes = fs.readFileSync(filePath);
-  const content = bytes.toString('utf8');
-  if (!Buffer.from(content, 'utf8').equals(bytes)) {
-    throw new Error(`${CODEX_CONFIG_RELATIVE} is not valid UTF-8`);
-  }
-  return content;
-}
-
-function configuredCodexCompactionKeys(content) {
-  const found = new Set();
-  const keys = Object.keys(CODEX_COMPACTION_DEFAULTS);
-  for (const line of content.replace(/^\uFEFF/u, '').split(/\r?\n/u)) {
-    const text = line.trimStart();
-    if (!text || text.startsWith('#')) continue;
-    // A tiny, conservative top-level scanner is enough for these two keys.
-    // Refuse ambiguous multiline strings rather than misreading their contents.
-    if (text.includes('"""') || text.includes("'''")) {
-      throw new Error(`Cannot safely inspect multiline TOML in ${CODEX_CONFIG_RELATIVE}`);
-    }
-    if (text.startsWith('[')) {
-      if (!/^\[\[?[^\]]+\]\]?\s*(?:#.*)?$/u.test(text)) {
-        throw new Error(`Cannot safely inspect table header in ${CODEX_CONFIG_RELATIVE}`);
-      }
-      break;
-    }
-    for (const key of keys) {
-      if (new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*=`, 'u').test(text)) found.add(key);
-      else if (new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*\\.`, 'u').test(text)) {
-        throw new Error(`Cannot safely update dotted ${key} in ${CODEX_CONFIG_RELATIVE}`);
-      }
-    }
-  }
-  return found;
-}
-
-function writePrivateConfigAtomically(filePath, content, mode, previous) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const temporary = path.join(path.dirname(filePath), `.config.toml.xirang-${process.pid}-${Date.now()}`);
-  try {
-    const handle = fs.openSync(temporary, 'wx', mode);
-    try {
-      fs.writeFileSync(handle, content, 'utf8');
-      fs.fsyncSync(handle);
-    } finally {
-      fs.closeSync(handle);
-    }
-    const current = lstatIfPresent(filePath);
-    if (previous === null ? current !== null : !current || !current.isFile() || readUtf8Exactly(filePath) !== previous) {
-      throw new Error(`${CODEX_CONFIG_RELATIVE} changed during template sync`);
-    }
-    fs.renameSync(temporary, filePath);
-  } finally {
-    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
-  }
-}
-
-function initializeCodexConfig(targetRoot, write) {
-  const mainRoot = isGitWorktree(targetRoot) ? getMainRepoRoot(targetRoot) : targetRoot;
-  const mainConfig = path.join(mainRoot, CODEX_CONFIG_RELATIVE);
-  const linkedConfig = path.join(targetRoot, CODEX_CONFIG_RELATIVE);
-  const mainStat = lstatIfPresent(mainConfig);
-  const linkedStat = linkedConfig === mainConfig ? mainStat : lstatIfPresent(linkedConfig);
-  if (mainStat && !mainStat.isFile()) {
-    throw new Error(`${CODEX_CONFIG_RELATIVE} in the main project must be a regular file`);
-  }
-  if (linkedConfig !== mainConfig && linkedStat) {
-    if (!linkedStat.isSymbolicLink()) {
-      throw new Error(`${CODEX_CONFIG_RELATIVE} in the linked worktree conflicts with the main project config`);
-    }
-    if (!mainStat || fs.realpathSync(linkedConfig) !== fs.realpathSync(mainConfig)) {
-      throw new Error(`${CODEX_CONFIG_RELATIVE} worktree symlink does not point to the main project config`);
-    }
-  }
-
-  const oldContent = mainStat ? readUtf8Exactly(mainConfig) : '';
-  const present = configuredCodexCompactionKeys(oldContent);
-  const missing = Object.keys(CODEX_COMPACTION_DEFAULTS).filter(key => !present.has(key));
-  const status = !mainStat ? 'created' : missing.length ? 'updated' : 'unchanged';
-  const linkStatus = linkedConfig !== mainConfig && !linkedStat ? 'created' : 'unchanged';
-  if (missing.length && isGitWorktree(mainRoot)) {
-    const tracked = run('git', ['ls-files', '--error-unmatch', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
-    if (tracked.status === 0) throw new Error(`${CODEX_CONFIG_RELATIVE} is tracked; refusing to change a project-owned file`);
-    const ignored = run('git', ['check-ignore', '--quiet', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
-    if (ignored.status !== 0) throw new Error(`${CODEX_CONFIG_RELATIVE} must be ignored by the main project before initialization`);
-  }
-  if (!write) return { status, linkStatus, missing };
-
-  if (missing.length) {
-    const newline = oldContent.includes('\r\n') ? '\r\n' : '\n';
-    const bom = oldContent.startsWith('\uFEFF') ? '\uFEFF' : '';
-    const body = bom ? oldContent.slice(1) : oldContent;
-    const additions = missing.map(key => `${key} = ${CODEX_COMPACTION_DEFAULTS[key]}`).join(newline);
-    const next = bom + additions + newline + (body ? newline + body : '');
-    writePrivateConfigAtomically(mainConfig, next, mainStat ? mainStat.mode & 0o777 : 0o600,
-      mainStat ? oldContent : null);
-  }
-  if (linkStatus === 'created') {
-    fs.mkdirSync(path.dirname(linkedConfig), { recursive: true });
-    fs.symlinkSync(mainConfig, linkedConfig);
-  }
-  return { status, linkStatus, missing };
-}
-
-function reportCodexConfig(result) {
-  console.log(`CODEX_CONFIG_STATUS=${result.status}`);
-  console.log(`CODEX_CONFIG_LINK_STATUS=${result.linkStatus}`);
-  console.log(`CODEX_CONFIG_MISSING_KEYS=${result.missing.join(',') || '(none)'}`);
-}
-
-function isGitWorktree(targetRoot) {
-  const result = run('git', ['rev-parse', '--is-inside-work-tree'], { cwd: targetRoot });
-  return result.status === 0 && result.stdout.trim() === 'true';
-}
-
-function createBackfillBaseline(targetRoot) {
-  if (!isGitWorktree(targetRoot)) {
-    return { status: 'skipped', reason: 'target is not a git worktree' };
-  }
-
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-backfill-baseline-'));
-  const env = { GIT_INDEX_FILE: path.join(tempDir, 'index') };
-  try {
-    const head = run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: targetRoot });
-    const readTreeArgs = head.status === 0 ? ['read-tree', 'HEAD'] : ['read-tree', '--empty'];
-    const readTree = run('git', readTreeArgs, { cwd: targetRoot, env });
-    if (readTree.status !== 0) throw new Error(`git ${readTreeArgs.join(' ')} failed: ${readTree.output.trim()}`);
-
-    const add = run('git', ['add', '--all'], { cwd: targetRoot, env });
-    if (add.status !== 0) throw new Error(`git add --all failed: ${add.output.trim()}`);
-
-    const tree = run('git', ['write-tree'], { cwd: targetRoot, env });
-    if (tree.status !== 0) throw new Error(`git write-tree failed: ${tree.output.trim()}`);
-
-    const commitArgs = ['commit-tree', tree.stdout.trim(), '-m', 'agent: backfill baseline'];
-    if (head.status === 0) commitArgs.push('-p', head.stdout.trim());
-    const commit = run('git', commitArgs, {
-      cwd: targetRoot,
-      env: {
-        ...env,
-        GIT_AUTHOR_NAME: 'Agent Template',
-        GIT_AUTHOR_EMAIL: 'agent-template@local.invalid',
-        GIT_COMMITTER_NAME: 'Agent Template',
-        GIT_COMMITTER_EMAIL: 'agent-template@local.invalid',
-      },
-    });
-    if (commit.status !== 0) throw new Error(`git commit-tree failed: ${commit.output.trim()}`);
-
-    const baseline = commit.stdout.trim();
-    const updateRef = run('git', ['update-ref', 'refs/agent/backfill-baseline', baseline], { cwd: targetRoot });
-    if (updateRef.status !== 0) throw new Error(`git update-ref failed: ${updateRef.output.trim()}`);
-    return { status: 'created', ref: 'refs/agent/backfill-baseline', commit: baseline };
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-}
-
-function collectGitNameStatus(targetRoot) {
-  const output = [];
-  const diff = run('git', ['diff', '--name-status'], { cwd: targetRoot });
-  if (diff.status === 0 && diff.stdout.trim()) {
-    output.push(...diff.stdout.trimEnd().split('\n'));
-  }
-
-  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], { cwd: targetRoot });
-  if (untracked.status === 0 && untracked.stdout.trim()) {
-    for (const file of untracked.stdout.trimEnd().split('\n')) {
-      output.push(`A\t${file}`);
-    }
-  }
-
-  return output;
 }
 
 function main() {

@@ -47,6 +47,7 @@ test('template-owned docs and tools do not route milestone state through AGENT_S
     'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md',
     'AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md',
     'infra/scripts/tdd-tools/tdd-push.js',
+    'infra/scripts/tdd-tools/tdd-push-pr-text.js',
     'infra/scripts/qa-tools/generate-qa.js',
     'infra/scripts/qa-tools/qa-verify.js',
     'infra/scripts/qa-tools/qa-merge.js',

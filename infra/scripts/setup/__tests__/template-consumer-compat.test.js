@@ -34,6 +34,8 @@ test('installed template contracts accept the consumer package identity and vers
   delete childEnv.NODE_TEST_CONTEXT;
   const check = spawnSync(process.execPath, [
     '--test', path.join(target, 'infra/scripts/setup/__tests__/template-surface.test.js'),
+    ...['design', 'protocol', 'conventions', 'ownership']
+      .map((topic) => path.join(target, `infra/scripts/setup/__tests__/template-surface.${topic}.test.js`)),
     path.join(target, 'infra/scripts/setup/__tests__/template-boundaries.test.js'),
   ], { cwd: target, encoding: 'utf8', env: childEnv });
   assert.match(check.stdout, /Xirang identity, official upstream/);

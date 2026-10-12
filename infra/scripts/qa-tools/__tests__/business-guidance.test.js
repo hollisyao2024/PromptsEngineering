@@ -142,10 +142,10 @@ function assertRows(label, body, labels, columns = 2) {
   assert.deepEqual(hollow, [], `${label} 的表格行存在空单元格或列数不足：${hollow.join('、')}`);
 }
 
-// 扫描 business-spec 与 qa-paths 里产生违规的代码；断言数量下限，扫描规则失效时直接报错。
+// 扫描 business-spec（含其拆分模块）与 qa-paths 里产生违规的代码；断言数量下限，扫描规则失效时直接报错。
 function scanViolationCodes() {
   const found = new Set();
-  for (const file of ['business-spec.js', 'qa-paths.js']) {
+  for (const file of ['business-spec.js', 'business-spec-markdown.js', 'business-spec-paths.js', 'qa-paths.js']) {
     const source = fs.readFileSync(path.join(QA_TOOLS, file), 'utf8');
     for (const match of source.matchAll(/(?:report\(|code:\s*)'([A-Z][A-Z_]+)'/gu)) found.add(match[1]);
   }
