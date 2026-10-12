@@ -90,3 +90,53 @@ test('targeted test entry passes regex-pattern runners a literal file pattern so
   assert.equal(run(['pnpm', 'exec', 'vitest', 'run']), file);
   assert.equal(run(['node', '--test']), file);
 });
+
+test('targeted test entry accepts runners registered under testing.targetedRunners with their cwd and file argument mode', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-targeted-test-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join('apps', 'web', 'src', '[id]', 'route.test.ts');
+  fs.mkdirSync(path.join(root, 'apps', 'web', 'src', '[id]'), { recursive: true });
+  fs.writeFileSync(path.join(root, file), '');
+  const writeConfig = (targetedRunners) => fs.writeFileSync(path.join(root, 'agent.config.json'), `${JSON.stringify({
+    testing: { targetedRunners },
+  }, null, 2)}\n`);
+  const run = (runner) => {
+    let spawned;
+    const status = runTargetedTest(['--file', file, '--', ...runner], { cwd: root, spawn: (bin, parameters, options) => {
+      spawned = { bin, parameters, cwd: options.cwd };
+      return { status: 0 };
+    } });
+    return { status, spawned };
+  };
+  const wrapper = ['node', 'scripts/run-jest.cjs', '--runTestsByPath'];
+  // 对照：未登记时项目自有的包装脚本被拒绝
+  assert.throws(() => run(wrapper), /file-scoped runner/u);
+
+  writeConfig([
+    { command: wrapper.join(' '), cwd: 'apps/web', fileArgument: 'absolute' },
+    { command: 'node scripts/run-e2e.cjs', cwd: 'apps/web', fileArgument: 'pattern' },
+    { command: 'node tools/run-unit.cjs' },
+    'pnpm test',
+  ]);
+  const webRoot = path.join(root, 'apps', 'web');
+  assert.deepEqual(run(wrapper), { status: 0, spawned: {
+    bin: 'node', parameters: ['scripts/run-jest.cjs', '--runTestsByPath', fs.realpathSync(path.join(root, file))], cwd: webRoot,
+  } });
+  const relativeToWeb = path.join('src', '[id]', 'route.test.ts');
+  assert.deepEqual(run(['node', 'scripts/run-e2e.cjs']).spawned, {
+    bin: 'node', parameters: ['scripts/run-e2e.cjs', relativeToWeb.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&')], cwd: webRoot,
+  });
+  // 默认 cwd 为当前 worktree 根，默认 fileArgument=path 原样追加
+  assert.deepEqual(run(['node', 'tools/run-unit.cjs']).spawned, { bin: 'node', parameters: ['tools/run-unit.cjs', file], cwd: root });
+  // 逐词精确匹配：参数变体不放行；登记也不能放行聚合命令
+  assert.throws(() => run([...wrapper, '--coverage']), /file-scoped runner/u);
+  assert.throws(() => run(['pnpm', 'test']), /aggregate test command/u);
+
+  // 无效登记 fail-closed：cwd 越出 worktree、不存在或 fileArgument 非法
+  writeConfig([{ command: 'node ../x.cjs', cwd: '..' }]);
+  assert.throws(() => run(['node', '../x.cjs']), /testing\.targetedRunners cwd/u);
+  writeConfig([{ command: 'node x.cjs', cwd: 'missing' }]);
+  assert.throws(() => run(['node', 'x.cjs']), /testing\.targetedRunners cwd/u);
+  writeConfig([{ command: 'node x.cjs', fileArgument: 'glob' }]);
+  assert.throws(() => run(['node', 'x.cjs']), /testing\.targetedRunners fileArgument/u);
+});

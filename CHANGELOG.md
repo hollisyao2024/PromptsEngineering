@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `pnpm agent -- test` 支持项目登记的文件级运行器：`agent.config.json` 新增 `testing.targetedRunners`（模板默认 `[]`），每项 `{ "command", "cwd", "fileArgument" }` 或命令字符串；运行器须与 `command` 逐词一致才放行，在 `cwd`（相对 worktree 根，默认 `.`）启动，文件按 `fileArgument` 以相对启动目录路径（默认 `path`）、真实绝对路径（`absolute`）或正则转义路径（`pattern`）追加。聚合命令拦截先于登记匹配、登记也不放行；`cwd` 越界/不存在、模式非法时 fail-closed。用于自带测试锁或内存预算的包装脚本（如 `node scripts/run-jest.cjs --runTestsByPath`，`cwd: apps/web`，`fileArgument: absolute`）。CONVENTIONS §8 同步说明。验证：`targeted-test.test.js` 新增用例（含未登记对照、参数变体、聚合拒绝、三类非法登记）后 5 条通过，`agent-cli`、`rules-context-contract`、`template-surface` 测试通过；下游项目以真实包装脚本定向运行一个 Jest 文件通过。未运行聚合 `pnpm test`（改动局限于定向测试入口及其专属测试与文档）。
+
 ## [v3.11.26] - 2026-10-12
 
 - 团队放行清单（`.claude/settings.json`）加入 `Bash(pnpm build*)`、`Bash(pnpm run build*)`、`Bash(pnpm run clean*)`：下游项目自带 `build`、`clean` 脚本时无需再逐项目在 `settings.local.json` 追加。模板源自身没有这两个脚本，规则在源仓里不匹配任何命令；`pnpm dev`、`priority`、`persona`、`goal` 四条死规则仍保持移除。`claude-settings-allowlist.test.js` 把原来断言三条规则缺失的用例改为断言放行，其余死规则断言不变。验证：该测试文件 7 条通过，`settings.json` 条目唯一；未运行聚合 `pnpm test`（只改一个 JSON 配置与其专属测试，不满足全量触发条件）。

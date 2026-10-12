@@ -14,6 +14,39 @@ function isRegisteredSuite(runner, cwd) {
   return isRegisteredSuiteCommand(runner, registeredSuiteCommands(loadConfig({ repoRoot: cwd })));
 }
 
+const FILE_ARGUMENT_MODES = new Set(['path', 'absolute', 'pattern']);
+
+// testing.targetedRunners 登记项目自有的文件级运行器（如带锁或内存预算的包装脚本），逐词精确匹配 command 才放行。
+// cwd 是相对当前 worktree 根的启动目录且必须留在 worktree 内；fileArgument 决定追加形式：
+// path（相对启动目录，默认）、absolute（真实绝对路径）、pattern（正则转义的相对路径）。登记无效时 fail-closed。
+function registeredTargetedRunner(runner, cwd) {
+  const entries = loadConfig({ repoRoot: cwd }).testing?.targetedRunners;
+  if (!Array.isArray(entries)) return null;
+  for (const entry of entries) {
+    const spec = typeof entry === 'string' ? { command: entry } : entry;
+    if (!spec || typeof spec !== 'object' || !isRegisteredSuiteCommand(runner, [spec.command])) continue;
+    const fileArgument = spec.fileArgument ?? 'path';
+    if (!FILE_ARGUMENT_MODES.has(fileArgument)) {
+      throw new Error('testing.targetedRunners fileArgument must be path, absolute, or pattern');
+    }
+    const directory = spec.cwd ?? '.';
+    const runCwd = typeof directory === 'string' && !path.isAbsolute(directory) ? path.resolve(cwd, directory) : '';
+    if (!runCwd || !fs.existsSync(runCwd) || !fs.statSync(runCwd).isDirectory()) {
+      throw new Error('testing.targetedRunners cwd must be an existing relative directory inside the current worktree');
+    }
+    const relative = path.relative(fs.realpathSync(cwd), fs.realpathSync(runCwd));
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error('testing.targetedRunners cwd must be an existing relative directory inside the current worktree');
+    }
+    return { cwd: runCwd, fileArgument };
+  }
+  return null;
+}
+
+function escapePattern(file) {
+  return file.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
+}
+
 function parseTargetedTest(argv, cwd = process.cwd()) {
   if (argv[0] !== '--file' || !argv[1]) {
     throw new Error('test requires --file <existing test file> -- <runner> [args]');
@@ -49,6 +82,8 @@ function parseTargetedTest(argv, cwd = process.cwd()) {
         || (first === 'exec' && runner[2] === 'turbo')))) {
     throw new Error('aggregate test command is not accepted; pass a file-scoped runner');
   }
+  const project = registeredTargetedRunner(runner, cwd);
+  if (project) return { runner, file, project };
   const direct = ['vitest', 'jest', 'pytest'].includes(executable)
     || (executable === 'playwright' && first === 'test')
     || (executable === 'node' && first === '--test')
@@ -70,13 +105,22 @@ function fileArgument(runner, file, cwd) {
   const tool = runner.find((part) => ['jest', 'playwright'].includes(path.basename(part).replace(/\.cmd$/iu, '').toLowerCase()));
   if (!tool) return file;
   if (runner.includes('--runTestsByPath')) return fs.realpathSync(path.resolve(cwd, file));
-  return file.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
+  return escapePattern(file);
+}
+
+function projectFileArgument({ cwd: runCwd, fileArgument }, file, cwd) {
+  const absolute = fs.realpathSync(path.resolve(cwd, file));
+  if (fileArgument === 'absolute') return absolute;
+  const relative = path.relative(fs.realpathSync(runCwd), absolute);
+  return fileArgument === 'pattern' ? escapePattern(relative) : relative;
 }
 
 function runTargetedTest(argv, { cwd = process.cwd(), spawn = spawnSync } = {}) {
-  const { runner, file, registered } = parseTargetedTest(argv, cwd);
-  const result = spawn(runner[0], [...runner.slice(1), registered ? file : fileArgument(runner, file, cwd)], {
-    cwd,
+  const { runner, file, registered, project } = parseTargetedTest(argv, cwd);
+  let argument = registered ? file : fileArgument(runner, file, cwd);
+  if (project) argument = projectFileArgument(project, file, cwd);
+  const result = spawn(runner[0], [...runner.slice(1), argument], {
+    cwd: project ? project.cwd : cwd,
     env: process.env,
     shell: false,
     stdio: 'inherit',

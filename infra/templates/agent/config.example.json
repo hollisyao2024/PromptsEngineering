@@ -47,6 +47,9 @@
       "exemptTables": []
     }
   },
+  "testing": {
+    "targetedRunners": []
+  },
   "paths": {
     "primaryApp": "",
     "appDirs": [],
