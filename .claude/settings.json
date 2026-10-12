@@ -30,6 +30,9 @@
       "Bash(pnpm run type-check*)",
       "Bash(pnpm run codemap*)",
       "Bash(pnpm run precommit*)",
+      "Bash(pnpm build*)",
+      "Bash(pnpm run build*)",
+      "Bash(pnpm run clean*)",
 
       "Bash(pnpm run dev*)",
       "Bash(pnpm dev:*)",

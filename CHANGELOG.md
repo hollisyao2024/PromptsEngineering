@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.26] - 2026-10-12
+
+- 团队放行清单（`.claude/settings.json`）加入 `Bash(pnpm build*)`、`Bash(pnpm run build*)`、`Bash(pnpm run clean*)`：下游项目自带 `build`、`clean` 脚本时无需再逐项目在 `settings.local.json` 追加。模板源自身没有这两个脚本，规则在源仓里不匹配任何命令；`pnpm dev`、`priority`、`persona`、`goal` 四条死规则仍保持移除。`claude-settings-allowlist.test.js` 把原来断言三条规则缺失的用例改为断言放行，其余死规则断言不变。验证：该测试文件 7 条通过，`settings.json` 条目唯一；未运行聚合 `pnpm test`（只改一个 JSON 配置与其专属测试，不满足全量触发条件）。
+
 ## [v3.11.25] - 2026-10-11
 
 - `parsePrdStories` 的 Story 登记识别：以 Story ID 开头的标题（如 `### US-FOUND-005 …`）与表格首列同样算作登记，按出现顺序合并；登记只保留与模块标识（AC 表的模块，无 AC 时取登记中的多数）一致的 Story，跨模块依赖表首列里的外模块 Story 不再计入本模块。
