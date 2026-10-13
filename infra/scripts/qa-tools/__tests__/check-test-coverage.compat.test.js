@@ -74,4 +74,3 @@ test('coverage gate fails closed below the configured threshold', () => {
   assert.equal(coverageExitCode(85, 85), 0);
   assert.equal(coverageExitCode(100, 85), 0);
 });
-

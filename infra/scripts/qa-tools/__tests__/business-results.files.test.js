@@ -318,4 +318,3 @@ test('xmlEscape 构造的特殊字符套件名称与命令原样往返', () => w
   writeResults({ directory, results, reportCopies: {} });
   assert.equal(readResults(directory).results.suites[0].command, command);
 })));
-
