@@ -212,6 +212,7 @@ function removeWorktreeSafely(options = {}) {
     worktreePath,
     worktreesRoot,
     force = false,
+    dryRun = false,
   } = options;
   for (const [name, value] of Object.entries({ mainRoot, worktreePath, worktreesRoot })) {
     if (!value || !path.isAbsolute(value)) {
@@ -273,6 +274,25 @@ function removeWorktreeSafely(options = {}) {
     if (status.trim()) throw new Error(`worktree has uncommitted changes: ${worktreePath}`);
   }
 
+  // Dry-run stops after every read-only preflight check, before chdir, deletion or prune.
+  if (dryRun) {
+    let uncommittedChanges = false;
+    if (!recoverablePartial) {
+      try {
+        uncommittedChanges = Boolean(runGitStrict(worktreePath, ['status', '--porcelain']).trim());
+      } catch {
+        uncommittedChanges = 'unknown';
+      }
+    }
+    return {
+      removed: false,
+      dryRun: true,
+      path: path.resolve(worktreePath),
+      branch: registered.branch || '',
+      uncommittedChanges,
+    };
+  }
+
   let cwd = '';
   try {
     cwd = process.cwd();
@@ -313,8 +333,33 @@ function removeWorktreeSafely(options = {}) {
   };
 }
 
+/**
+ * Print a side-effect-free removal plan. Preflight failures are reported as
+ * WOULD_BLOCK so a dry-run never escalates into the destructive path.
+ */
+function printDryRunPlan({ action, found, sessions = [], planned, preflight }) {
+  let result = null;
+  let blocked = '';
+  try {
+    result = preflight();
+  } catch (error) {
+    blocked = error.message;
+  }
+  const hasSession = Boolean(found.branch) && sessions.some((session) => session && session.branch === found.branch);
+  console.log('STATUS=DRY_RUN');
+  console.log(`ACTION=${action}`);
+  console.log(`WORKTREE_PATH=${path.resolve(found.path)}`);
+  if (found.branch) console.log(`BRANCH_NAME=${found.branch}`);
+  console.log(`SESSION=${hasSession ? 'present' : 'absent'}`);
+  console.log(`PLANNED=${planned.join(',')}`);
+  if (result) console.log(`UNCOMMITTED_CHANGES=${result.uncommittedChanges}`);
+  if (blocked) console.log(`WOULD_BLOCK=${blocked}`);
+  console.log(`NEXT_ACTION=${blocked ? 'Resolve WOULD_BLOCK before running' : 'Rerun'} without --dry-run to apply.`);
+}
+
 module.exports = {
   isPathInside,
+  printDryRunPlan,
   retryWritable,
   isSamePath,
   parseWorktreePorcelain,

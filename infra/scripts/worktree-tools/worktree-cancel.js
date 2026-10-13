@@ -14,6 +14,7 @@ const {
   resolveContainerPath,
 } = require('./worktree-core');
 const { removalRootForWorktree } = require('./desktop-worktree');
+const { printDryRunPlan } = require('./worktree-safe-remove');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
 
@@ -23,9 +24,8 @@ function main() {
     const cli = parseCliArgs(argv);
     const target = cli.branch || argv.find((arg) => arg !== '--' && !arg.startsWith('--'));
     if (!target) throw new Error('target branch or worktree path is required');
-    if (!cli.force) {
-      throw new Error('cancelling a task discards uncommitted work; pass --force after explicit user approval');
-    }
+    const forceRequired = 'cancelling a task discards uncommitted work; pass --force after explicit user approval';
+    if (!cli.force && !cli.dryRun) throw new Error(forceRequired);
 
     const mainRoot = getMainRepoRoot(process.cwd());
     const config = loadConfig({ repoRoot: getWorktreeRoot(process.cwd()), cli });
@@ -36,15 +36,31 @@ function main() {
       throw new Error(`target is not a managed branch worktree: ${target}`);
     }
 
+    const sessions = readSessions(config, mainRoot);
+    const worktreesRoot = removalRootForWorktree(
+      mainRoot,
+      resolveContainerPath(config, mainRoot, 'worktrees'),
+      found.path,
+      sessions,
+    );
+    if (cli.dryRun) {
+      printDryRunPlan({
+        action: 'cancel',
+        found,
+        sessions,
+        planned: ['remove_worktree_directory', 'prune_worktree_metadata', 'remove_session', 'delete_local_branch'],
+        preflight: () => {
+          if (!cli.force) throw new Error(forceRequired);
+          return removeWorktreeSafely({ mainRoot, worktreePath: found.path, worktreesRoot, force: true, dryRun: true });
+        },
+      });
+      return;
+    }
+
     const result = removeWorktreeSafely({
       mainRoot,
       worktreePath: found.path,
-      worktreesRoot: removalRootForWorktree(
-        mainRoot,
-        resolveContainerPath(config, mainRoot, 'worktrees'),
-        found.path,
-        readSessions(config, mainRoot),
-      ),
+      worktreesRoot,
       force: true,
     });
     removeSession(config, mainRoot, found.branch);
@@ -70,5 +86,5 @@ function main() {
   }
 }
 
-exitOnHelp('Usage: pnpm agent -- worktree cancel <branch|path>\n\nCancel a managed worktree session.');
+exitOnHelp('Usage: pnpm agent -- worktree cancel <branch|path> --force [--dry-run]\n\nCancel a managed worktree session.\n--dry-run runs the preflight checks and prints the plan without removing anything.');
 main();

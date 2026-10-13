@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.29] - 2026-10-13
+
+- 修复 `pnpm agent -- worktree remove|cancel --dry-run` 会真实删除 worktree、分支与 session 的问题：`--dry-run` 现为零副作用演练，只执行只读预检并输出 `STATUS=DRY_RUN`、`ACTION`、`WORKTREE_PATH`、`BRANCH_NAME`、`SESSION`、`PLANNED`、`UNCOMMITTED_CHANGES` 或 `WOULD_BLOCK`、`NEXT_ACTION`，退出码 0。`removeWorktreeSafely` 新增 `dryRun` 选项（默认关闭，`qa merge` 与封印补偿器路径行为不变），新增导出 `printDryRunPlan`；`cancel --dry-run` 无需 `--force`，缺少 `--force` 以 `WOULD_BLOCK` 披露；两条命令帮助文本补充 `--dry-run`。回灌自下游项目 LinghuiAI #3360。验证：新增 `worktree-remove-dry-run.test.js` 21 条通过，`worktree-core`（42）、`desktop-worktree`（14）、`worktree-audit`（7）、`worktree-audit.recovery`（5）回归通过。未运行聚合 `pnpm test`（改动局限于 worktree-tools 删除路径，消费者已定向覆盖）。
+
 ## [v3.11.28] - 2026-10-13
 
 - 23 个超过 500 行的模板文件做纯结构拆分（行为、输出与 `module.exports` 键及对象引用不变，外部 require 路径与 CLI 入口不变，新模块不反向 require 原文件）：
