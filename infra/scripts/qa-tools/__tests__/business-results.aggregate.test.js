@@ -276,4 +276,3 @@ test('同一端的多个套件合并计算该端状态', () => withShop(({ spec 
   });
   assert.equal(aggregate.acs['AC-SHOP-001-01'].by_platform.web, 'failed');
 }));
-

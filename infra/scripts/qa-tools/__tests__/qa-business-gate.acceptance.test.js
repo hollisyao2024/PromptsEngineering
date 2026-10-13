@@ -235,4 +235,3 @@ test('没有原子 AC 表的模块其验收不受门禁约束，披露为 RISK_M
   assert.ok(risk, show(outcome));
   assert.match(risk.detail, /legacy/u);
 });
-

@@ -297,4 +297,3 @@ test('reportProblem 不压过 spawn_error 与 timeout，但压过 report_missing
   assert.equal(evaluateSuiteOutcome({ exitCode: 2, reportBytes: GOOD_REPORT, reportProblem: 'p' }).status, 'report_invalid');
   assert.equal(evaluateSuiteOutcome({ exitCode: 0, reportBytes: null, reportProblem: null }).status, 'report_missing');
 });
-

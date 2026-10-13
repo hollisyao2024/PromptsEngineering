@@ -181,4 +181,3 @@ test('差异很多时只列前 10 项，并给出未列出的数量', (t) => {
   assert.equal(mismatches.slice(0, 10).every((block) => block.subject.startsWith('acs.')), true);
   assert.match(mismatches[10].detail, /另有 2 项差异未列出/u);
 });
-

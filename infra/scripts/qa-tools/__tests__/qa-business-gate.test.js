@@ -237,4 +237,3 @@ test('套件没产出报告或报告不可解析是硬失败，逐个列出且�
   assert.deepEqual(outcome.risks, []);
   assert.match(outcome.nextAction, /qa run/u);
 });
-
