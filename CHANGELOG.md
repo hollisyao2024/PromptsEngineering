@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.31] - 2026-10-17
+
+- `/ship` 稳定入口新增可选的部署防回退与跨电脑租约 `devops.rollbackGuard`（模板默认 `enabled:false`，`environments` 默认 `staging`/`production`，`remote` 默认 `origin`，`lockTtlSeconds` 3600，`readDeployedCommand` 可选），与项目部署实现无关：在项目远端的 `refs/xirang/deploy/<scope>` 记录已部署提交、`refs/xirang/deploy-lock/<scope>` 作为租约，所有写入均为 `--force-with-lease` CAS，结果不明时 `ls-remote` 核实不重放。判定 `PASS`/`NO_BASELINE` 放行，`ROLLBACK`/`DIVERGED` 阻断（`DEPLOY_ALLOW_ROLLBACK=1` 显式放行），`UNKNOWN`/`UNREADABLE` fail-closed；锁占用阻断并给出持有者、`LOCK_STALE` 与 `--release-lock=<sha>` 手动释放命令；部署后可选线上回读校验再推进 ref。开启后 ship 命令必须声明 `{source_args}`，部署固定为 `--sha=<SHA>` 并注入 `AGENT_DEPLOY_SHA`；`--dry-run` 只读。实现为 `devops-tools/deploy-guard.js`、`deploy-guard-git.js`、`deploy-guard-ship.js`（新文件在既有 `overwrite` 目录规则下随模板同步分发），`devops-run.js` 只做接线。CONVENTIONS §7 新增协议段，§9 说明 `refs/xirang/*` 不触发 CI、不属分支保护且只经 lease 写入。验证：新增 `deploy-guard.test.js` 19 条通过（以真实临时 bare 仓库与两个克隆覆盖全部判定、override、浅克隆、远端不可达、锁占用与 stale、抢锁失败、deploy ref CAS 失败、部署失败、推送结果不明核实、释放失败、线上回读漂移/失败/不一致、手动释放，以及 2 条 `devops-run` CLI 集成），`devops-run.test.js` 24 条与 `template-surface.*` 56 条回归通过。未运行聚合 `pnpm test`（默认关闭，改动局限于 ship 路径、配置默认值与文档）。
+
 ## [v3.11.30] - 2026-10-13
 
 - 修复 v3.11.28 拆分后 7 个 qa-tools 测试文件末尾多一个空行、被 `git diff --check` 拦下的问题（`business-results`、`business-results.aggregate`、`business-results.files`、`check-test-coverage.compat`、`qa-business-gate`、`qa-business-gate.acceptance`、`qa-business-gate.integrity` 的 `.test.js`）：只删除末尾空行，用例与断言不变。

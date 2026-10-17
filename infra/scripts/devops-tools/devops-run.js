@@ -20,6 +20,7 @@ const {
 } = require('../shared/config');
 const { buildGitHubShellEnv } = require('../shared/github-auth');
 const { exitOnHelp } = require('../shared/cli-help');
+const { prepareShipGuard } = require('./deploy-guard-ship');
 
 const ENV_ALIASES = {
   dev: 'dev',
@@ -352,6 +353,40 @@ function main() {
     ['tmp', 'cache', 'artifacts'],
   );
 
+  const commandEnvFor = (extra = {}) => buildGitHubShellEnv({
+    repoRoot,
+    cwd: repoRoot,
+    // This environment belongs to an entire build/deploy command, not just GitHub.
+    // Actual GitHub callers discover proxies at their own network boundary.
+    discoverProxy: false,
+    env: {
+      ...process.env,
+      AGENT_DEVOPS_ACTION: action,
+      AGENT_ENV: env,
+      AGENT_TARGET: commandTarget,
+      AGENT_PLATFORM: platform,
+      AGENT_QUICK: quick ? '1' : '0',
+      SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
+      AGENT_RUN_DIR: runDir,
+      AGENT_ARTIFACTS_DIR: commandContainerDirs.artifacts,
+      AGENT_CACHE_DIR: commandContainerDirs.cache,
+      AGENT_TMP_DIR: commandContainerDirs.tmp,
+      ...extra,
+    },
+  });
+
+  // Cross-machine rollback guard + deploy lease (docs/CONVENTIONS.md §7).
+  const guardMeta = { action, env, target: commandTarget, run_dir: runDir };
+  const shipGuard = prepareShipGuard({ config, cli, action, env, target: commandTarget, rawCommand, repoRoot, dryRun, commandEnvFor });
+  for (const line of shipGuard.lines) console.log(line);
+  if (shipGuard.failure) block(shipGuard.failure.reason, shipGuard.failure.next, { ...guardMeta, code: shipGuard.failure.code });
+  if (shipGuard.released) {
+    console.log('STATUS=OK');
+    return;
+  }
+  const guarded = shipGuard.guarded;
+  if (guarded) sourceArgs.value = `--sha=${guarded.targetSha}`;
+
   const runtimeCommand = resolveRuntimeCommand(templateCommand(rawCommand, {
     action,
     env,
@@ -388,6 +423,7 @@ function main() {
     dry_run_mode: dryRun ? (delegatedDryRun ? 'delegated' : 'print-only') : '',
     source_args: sourceArgs.value,
     quick,
+    deploy_guard: shipGuard.summary,
   };
   fs.writeFileSync(path.join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`);
 
@@ -405,26 +441,18 @@ function main() {
 
   if (dryRun && !delegatedDryRun) return;
 
-  const commandEnv = buildGitHubShellEnv({
-    repoRoot,
-    cwd: repoRoot,
-    // This environment belongs to an entire build/deploy command, not just GitHub.
-    // Actual GitHub callers discover proxies at their own network boundary.
-    discoverProxy: false,
-    env: {
-      ...process.env,
-      AGENT_DEVOPS_ACTION: action,
-      AGENT_ENV: env,
-      AGENT_TARGET: commandTarget,
-      AGENT_PLATFORM: platform,
-      AGENT_QUICK: quick ? '1' : '0',
-      SKIP_CI: quick ? 'true' : process.env.SKIP_CI,
-      AGENT_RUN_DIR: runDir,
-      AGENT_ARTIFACTS_DIR: commandContainerDirs.artifacts,
-      AGENT_CACHE_DIR: commandContainerDirs.cache,
-      AGENT_TMP_DIR: commandContainerDirs.tmp,
-    },
+  const commandEnv = commandEnvFor(guarded ? { AGENT_DEPLOY_SHA: guarded.targetSha } : {});
+
+  const executed = shipGuard.execute(() => {
+    const run = spawnSync(command, { cwd: repoRoot, env: commandEnv, shell: true, stdio: 'inherit' });
+    return typeof run.status === 'number' ? run.status : 1;
   });
+  if (executed) {
+    for (const line of executed.lines) console.log(line);
+    if (executed.failure) block(executed.failure.reason, executed.failure.next, { ...guardMeta, platform, code: executed.failure.code });
+    console.log('STATUS=OK');
+    return;
+  }
 
   const spawned = spawnSync(command, {
     cwd: repoRoot,

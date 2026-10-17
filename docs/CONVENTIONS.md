@@ -234,6 +234,16 @@ pnpm agent -- qa run
 - `ship`/`cd` 的 `--sha=<40位小写SHA>` 或 `--source=<ref>` 经严格校验后只通过命令中的 `{source_args}` 占位符透传；命令未声明该占位符、值非法或同时提供两者时 `STATUS=BLOCKED`，禁止静默忽略。命令声明 `{dry_run_arg}` 时，`--dry-run` 以 `--dry-run` 执行该命令自身的无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则只打印命令（`PRINT_ONLY`）。
 - 客户端开发、发行构建、服务端产物构建与真实部署是四种不同副作用边界，验收证据不得互相替代。
 
+### 部署防回退与跨电脑租约（可选）
+
+`devops.rollbackGuard` 默认关闭（`enabled:false`）；开启后只作用于 `ship` 且环境列入 `environments`（默认 `staging`、`production`）的调用，实现位于 `infra/scripts/devops-tools/deploy-guard*.js`，与项目部署脚本无关。scope 为环境名，private profile 为 `private-<env>`。协调状态放在项目 `remote`（默认 `origin`）的自定义 ref：`refs/xirang/deploy/<scope>` 指向上次部署成功的提交，`refs/xirang/deploy-lock/<scope>` 是租约（无父提交，消息为持有者 JSON：host、user、pid、createdAt、ttlSeconds、targetSha、nonce）。
+
+- 目标：`--sha`/`--source` 解析为固定提交，未提供时取 `<remote>/<baseBranch>`；ship 命令必须声明 `{source_args}`，执行时改写为 `--sha=<固定SHA>` 并注入 `AGENT_DEPLOY_SHA`，未声明则 `STATUS=BLOCKED`。
+- 判定：一次 `fetch --prune --no-tags` 同时取分支与两类 ref 的快照；浅克隆、远端不可读为 `UNREADABLE`，目标不可解析为 `DEPLOY_TARGET_UNKNOWN`。无基线 `NO_BASELINE` 与目标包含已部署提交 `PASS` 放行；目标是已部署提交的祖先 `ROLLBACK`、两者分叉 `DIVERGED` 默认阻断，仅 `DEPLOY_ALLOW_ROLLBACK=1` 可显式放行并输出 `DEPLOY_ROLLBACK_OVERRIDE=1`；已部署提交在本地不存在 `UNKNOWN`、`UNREADABLE` 一律 fail-closed，不可覆盖。
+- 线上回读：`readDeployedCommand` 可选，须只读且只输出 40 位 SHA；配置后 ref 与线上值分别判定取更严重者，二者不一致输出 `DEPLOYED_STATE_DRIFT`，命令失败或输出非法为 `UNREADABLE`；部署后回读必须等于目标，否则 `DEPLOYED_STATE_MISMATCH` 且不推进 ref。
+- 租约：每次 ref 写入都是 `git push --porcelain --no-verify --force-with-lease=<ref>:<期望值>`，期望为空表示 ref 必须不存在，由远端原子 CAS。流程为抢锁 → 二次快照确认锁归属并重新判定 → 执行部署 → 回读校验 → 以二次快照值为 lease 推进 deploy ref → 释放锁。结果不明的推送用 `ls-remote` 核实，绝不重放。锁被占用为 `DEPLOY_LOCKED`，输出 `DEPLOY_LOCK_HOLDER`，超过 `lockTtlSeconds`（默认 3600）另输出 `LOCK_STALE=1`，但不自动夺锁；确认持有者已终止后执行输出的 `MANUAL_RELEASE_COMMAND`（`pnpm agent -- [private] ship <env> --release-lock=<锁提交SHA>`），仅当远端锁仍等于该 SHA 时删除。部署失败也释放锁；锁丢失（`DEPLOY_LOCK_LOST`）时不碰他人锁；释放失败不改变部署结果，输出 `DEPLOY_LOCK_RELEASE=FAILED` 与手动释放命令。
+- `--dry-run` 只读：取快照、判定、报告锁，不抢锁、不写 ref；回读命令只在 dry-run 预检和真实部署内执行。结果写入运行目录 `result.json` 的 `deploy_guard`。
+
 ## 8. TDD、QA 与交付
 
 ### 测试范围与证据复用
@@ -279,7 +289,8 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
 - GitHub 网络入口自动解析显式代理、Git 配置及 macOS 已启用的 HTTP(S) 系统代理；未启用代理时直连，代理失败不自动直连重试；API 仅对幂等请求的瞬时代理连接错误经同一代理做有界重试。匿名模板拉取仍隔离凭据与个人 Git 配置，整体构建/部署环境不注入自动发现的代理。支持范围、Node 版本与退出配置见 `infra/scripts/shared/github-proxy.md`。
 - 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
-- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理。
+- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理，以及 §7 部署防回退对 `refs/xirang/deploy/*`、`refs/xirang/deploy-lock/*` 的 CAS 写入。
+- `refs/xirang/*` 不在 `refs/heads/` 或 `refs/tags/` 下：推送不触发 GitHub Actions 的 push 事件，不受分支保护或 ruleset 管辖，不参与 PR 与 `qa merge`。只允许经共享 GitHub 鉴权封装、带精确 lease 的 push 写入，禁止裸 push、强推或手工删除；部署用克隆不得为浅克隆。
 - TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。
 - branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。
 - 不提交凭据、`.env.local`、用户数据、未脱敏日志或本地绝对路径快照。
