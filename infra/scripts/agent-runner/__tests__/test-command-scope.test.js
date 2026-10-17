@@ -48,6 +48,27 @@ test('task exec permits explicit file runners and the guarded template route', (
   ]) assert.doesNotThrow(() => assertTestCommandScope(command, { steps: [] }));
 });
 
+test('agent tdd commit treats commit messages as metadata, not test commands', () => {
+  for (const message of ['test: reconcile diagnostic traceability and workspace fixtures', 'test', 'vitest', 'pnpm']) {
+    for (const prefix of [
+      ['pnpm', 'agent', '--'],
+      ['node', 'infra/scripts/agent-runner/agent-cli.js'],
+      ['node', './infra/scripts/agent-runner/agent-cli.js', '--'],
+    ]) {
+      assert.doesNotThrow(() => assertTestCommandScope([...prefix, 'tdd', 'commit', '-m', message], { steps: [] }));
+    }
+  }
+});
+
+test('commit metadata handling does not exempt other agent commands or nested test execution', () => {
+  for (const command of [
+    ['pnpm', 'agent', '--', 'tdd', 'run', 'test:all'],
+    ['pnpm', 'agent', '--', 'task', 'exec', '--task', 'fixture', '--', 'pnpm', 'test'],
+    ['node', 'infra/scripts/agent-runner/agent-cli.js', 'task', 'exec', '--task', 'fixture', '--', 'pnpm', 'test'],
+    ['pnpm', 'other-agent', '--', 'tdd', 'commit', 'test:all'],
+  ]) assert.throws(() => assertTestCommandScope(command, { steps: [] }), /TEST_SCOPE_DECISION/u);
+});
+
 test('task exec treats direct agent-cli test --file calls like the pnpm agent route', () => {
   const cli = 'infra/scripts/agent-runner/agent-cli.js';
   for (const command of [

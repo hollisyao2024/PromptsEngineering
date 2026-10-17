@@ -117,9 +117,27 @@ function validateResult(value, decision, headSha, evidenceContext = {}) {
   }
 }
 
+// A phase transition may defer one proven-not-started, independent cleanup failure.
+// This only selects its test evidence; the blocked step and task completion guard remain intact.
+function canSupplyQaEvidence(state) {
+  if (state.status === 'running') return true;
+  if (state.status !== 'blocked' || !['qa', 'devops'].includes(state.current_phase)) return false;
+  const entry = state.phase_history?.at(-1);
+  const deferred = entry?.phase === state.current_phase ? entry.deferred_cleanup : null;
+  if (!deferred || !nonempty(deferred.evidence) || !Number.isInteger(deferred.failure_index)
+    || deferred.failure_index < 0) return false;
+  const unresolved = (state.steps || []).filter(step => ['blocked', 'verify_required'].includes(step.status));
+  if (unresolved.length !== 1) return false;
+  const step = unresolved[0];
+  return step.id === deferred.step_id && step.status === 'blocked'
+    && deferred.failure_index === (step.failures?.length || 0) - 1
+    && step.failures[deferred.failure_index].execution_state === 'not_started'
+    && !step.recoveries?.some(item => item.failure_index === deferred.failure_index);
+}
+
 function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateSource = false }) {
   if (templateSource) return { skipped: true };
-  const matches = states.filter((state) => state.status === 'running'
+  const matches = states.filter((state) => canSupplyQaEvidence(state)
     && samePath(state.project_root, context.projectRoot)
     && samePath(state.worktree, context.worktree)
     && state.branch === context.branch);

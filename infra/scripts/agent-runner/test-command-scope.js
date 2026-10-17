@@ -23,6 +23,12 @@ function isAgentCliFileTest(args) {
   return rest[0] === 'test' && rest[1] === '--file';
 }
 
+function isAgentCliCommit(args) {
+  if (!/(?:^|\/)infra\/scripts\/agent-runner\/agent-cli\.js$/u.test((args[0] || '').replace(/\\/gu, '/'))) return false;
+  const rest = args[1] === '--' ? args.slice(2) : args.slice(1);
+  return rest[0] === 'tdd' && rest[1] === 'commit';
+}
+
 function commandRisk(command) {
   const executable = path.basename(command[0] || '').replace(/\.cmd$/iu, '').toLowerCase();
   const args = command.slice(1);
@@ -33,6 +39,9 @@ function commandRisk(command) {
   }
   if (PACKAGE_MANAGERS.has(executable)) {
     if (args[0] === 'agent' && args[1] === '--' && args[2] === 'test' && args[3] === '--file') return '';
+    // The exact commit route forwards metadata to git commit, never to a test runner.
+    // In particular, a conventional "test:" message is not a package test script.
+    if (args[0] === 'agent' && args[1] === '--' && args[2] === 'tdd' && args[3] === 'commit') return '';
     const runnerIndex = args.findIndex((arg) => RUNNERS.has(arg));
     if (runnerIndex >= 0) return hasTestFile(args.slice(runnerIndex + 1)) ? '' : 'unbounded';
     if (args.includes('turbo') && args.includes('test')) return 'aggregate';
@@ -42,6 +51,7 @@ function commandRisk(command) {
   if (executable === 'npx') return commandRisk(args);
   if (executable === 'node') {
     if (isAgentCliFileTest(args)) return '';
+    if (isAgentCliCommit(args)) return '';
     if (args.includes('--test') && !hasTestFile(args)) return 'unbounded';
     const nestedIndex = args.findIndex((arg) => NESTED_EXECUTABLES.has(path.basename(arg).toLowerCase())
       || /^python(?:3(?:\.\d+)?)?$/u.test(path.basename(arg).toLowerCase()));

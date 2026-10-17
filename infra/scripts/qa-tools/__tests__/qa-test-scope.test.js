@@ -113,6 +113,63 @@ test('missing, foreign and ambiguous mutation tasks cannot supply QA evidence', 
   assert.throws(() => verify([state(undefined, { branch: 'other-branch' })]), /matching mutation task/);
 });
 
+function deferredCleanupState(phase = 'qa') {
+  const task = state(undefined, {
+    status: 'blocked', current_phase: phase,
+    phase_history: [{ phase, deferred_cleanup: {
+      step_id: 'S8', failure_index: 0, evidence: 'Excluded files stay untouched; verified commit is independent.',
+    } }],
+  });
+  task.steps.push({ id: 'S8', status: 'blocked', evidence: [], failures: [
+    { execution_state: 'not_started', failure_kind: 'policy_denied' },
+  ] });
+  return task;
+}
+
+test('QA accepts recorded independent cleanup deferral without clearing the failure or task blocker', () => {
+  for (const phase of ['qa', 'devops']) {
+    const task = deferredCleanupState(phase);
+    const before = structuredClone(task);
+    assert.equal(verify([task]).taskId, 'change');
+    assert.deepEqual(task, before);
+    assert.equal(task.steps[1].status, 'blocked');
+  }
+});
+
+test('cleanup deferral never admits stale, unproven, recovered or other unresolved blockers', () => {
+  const changes = [
+    task => { task.current_phase = 'tdd'; },
+    task => { task.phase_history.push({ phase: 'qa' }); },
+    task => { task.phase_history[0].phase = 'devops'; },
+    task => { delete task.phase_history[0].deferred_cleanup; },
+    task => { task.phase_history[0].deferred_cleanup.evidence = ' '; },
+    task => { task.phase_history[0].deferred_cleanup.failure_index = -1; },
+    task => { task.phase_history[0].deferred_cleanup.failure_index = '0'; },
+    task => { task.steps[1].failures.push({ execution_state: 'not_started' }); },
+    task => { task.steps[1].recoveries = [{ failure_index: 0 }]; },
+    task => { task.steps[1].failures[0].execution_state = 'unknown'; },
+    task => { task.steps[1].failures[0].execution_state = 'started'; },
+    task => { task.steps[1].status = 'verify_required'; },
+    task => { task.steps.push({ id: 'S9', status: 'blocked' }); },
+    task => { task.steps.push({ id: 'S9', status: 'verify_required' }); },
+    task => { task.steps[1].id = 'other'; },
+    task => { task.status = 'cleanup_pending'; },
+    task => { task.status = 'completed'; },
+  ];
+  for (const change of changes) {
+    const task = deferredCleanupState();
+    change(task);
+    assert.throws(() => verify([task]), /matching mutation task/);
+  }
+});
+
+test('deferred tasks still require current evidence and cannot resolve ambiguous task ownership', () => {
+  const task = deferredCleanupState();
+  assert.throws(() => verify([state(), task]), /ambiguous mutation tasks/);
+  task.steps[0].evidence[1] = `TEST_SCOPE_RESULT=${JSON.stringify(result({ head_sha: 'b'.repeat(40) }))}`;
+  assert.throws(() => verify([task]), /head_sha/);
+});
+
 test('an exact non-mutation task keeps the existing QA path', () => {
   assert.deepEqual(verify([state([], { task_type: 'operation' })]), { skipped: true });
 });

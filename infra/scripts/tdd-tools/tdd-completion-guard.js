@@ -285,19 +285,23 @@ function collectGitState(repoRoot) {
   };
 }
 
-function collectLifecycleState(repoRoot) {
+function collectLifecycleState(repoRoot, options = {}) {
   const mainRoot = getMainRepoRoot(repoRoot);
   const config = loadConfig({ repoRoot: mainRoot });
+  const taskId = normalizeTaskId(options.taskId);
   const audit = auditManagedWorktrees({
     mainRoot,
     config,
     cwd: repoRoot,
-    apply: true,
+    apply: !taskId,
+    ...(taskId ? { taskId } : {}),
     skipWorktreePath: repoRoot,
   });
   return {
     audit,
-    lifecycleSessions: mergeLifecycleSessions(readSessions(config, mainRoot), audit.records),
+    lifecycleSessions: mergeLifecycleSessions(
+      lifecycleSessionsForTask(readSessions(config, mainRoot), taskId), audit.records,
+    ),
   };
 }
 
@@ -389,7 +393,7 @@ function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
     const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
-    const lifecycle = collectLifecycleState(repoRoot);
+    const lifecycle = collectLifecycleState(repoRoot, args);
     const state = { ...collectGitState(repoRoot), ...lifecycle, taskId: args.taskId };
     const result = evaluateCompletionGuard(state);
     printResult(result);

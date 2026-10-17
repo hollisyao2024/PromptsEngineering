@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 
 const {
   describeLifecycleBlocker,
@@ -11,6 +13,49 @@ const {
   parseArgs,
   splitStatusLines,
 } = require('../tdd-completion-guard');
+
+test('task finish collects lifecycle evidence read-only before filtering persisted sessions', () => {
+  const unrelated = {
+    branch: 'fix/unrelated', status: 'recovery_required',
+    lifecycle: { keys: ['task:unrelated'] },
+  };
+  const owned = {
+    branch: 'fix/demo', status: 'cleanup_pending', lifecycle: { keys: ['task:demo'] },
+  };
+  const sessions = [unrelated, owned];
+  const before = JSON.stringify(sessions);
+  const calls = [];
+  const audit = require('../../worktree-tools/worktree-audit');
+  const imports = {
+    '../shared/config': { loadConfig: () => ({}) },
+    '../worktree-tools/worktree-core': {
+      getMainRepoRoot: () => '/container/repo', readSessions: () => sessions,
+    },
+    '../worktree-tools/worktree-audit': {
+      ...audit,
+      auditManagedWorktrees: (options) => { calls.push(options); return { records: [] }; },
+    },
+  };
+  // Stub module boundaries before calling the collector, including on the RED implementation.
+  const sandbox = {
+    module: { exports: {} }, process, console,
+    require: (name) => imports[name] || require(name),
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../tdd-completion-guard'), 'utf8'), sandbox);
+  const { collectLifecycleState } = sandbox.module.exports;
+  const result = collectLifecycleState('/container/repo', { taskId: 'DEMO' });
+  assert.equal(calls[0].taskId, 'demo');
+  assert.equal(calls[0].apply, false);
+  assert.deepEqual(Array.from(result.lifecycleSessions, (s) => s.branch), ['fix/demo']);
+  assert.equal(JSON.stringify(sessions), before);
+  assert.equal(evaluateCompletionGuard({
+    branch: 'main', statusLines: [], taskId: 'demo', ...result,
+  }).ok, false, 'the finishing task must retain its own cleanup blocker');
+
+  collectLifecycleState('/container/repo');
+  assert.equal(calls[1].apply, true, 'repository finish retains its existing full audit');
+  assert.equal(calls[1].taskId, undefined);
+});
 
 test('completion guard passes on a clean main branch', () => {
   const result = evaluateCompletionGuard({
