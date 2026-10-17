@@ -188,6 +188,13 @@
     "buildCommand": "",
     "startCommand": "",
     "healthCheckPath": "/",
+    "rollbackGuard": {
+      "enabled": false,
+      "environments": ["staging", "production"],
+      "remote": "origin",
+      "lockTtlSeconds": 3600,
+      "readDeployedCommand": ""
+    },
     "commands": {
       "build": {
         "dev": "pnpm build:dev",
