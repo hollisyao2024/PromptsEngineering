@@ -47,6 +47,7 @@ function collectAuditRecords(options) {
     baseRef,
     cwd,
     now,
+    taskId,
     dependencies = {},
   } = options;
   const read = dependencies.readSessions || readSessions;
@@ -75,7 +76,9 @@ function collectAuditRecords(options) {
     pairs.set(key, pair);
   }
 
-  const managedRecords = [...pairs.values()].map(({ session, entry }) => {
+  const managedRecords = [...pairs.values()]
+    .filter(({ session }) => !taskId || sessionTaskIds(session).includes(taskId))
+    .map(({ session, entry }) => {
     const branch = String(session?.branch || entry?.branch || '');
     const worktreePath = String(session?.worktree || entry?.path || '');
     const markerOwned = Boolean(entry && branch && ownsMarker(mainRoot, entry.path, branch));
@@ -118,6 +121,7 @@ function collectAuditRecords(options) {
       },
     };
   });
+  if (taskId) return managedRecords;
   const knownPaths = [
     ...sessions.map((session) => session && session.worktree),
     ...entries.map((entry) => entry && entry.path),
@@ -265,6 +269,9 @@ function summarize(records, mode, reconciliation = null, qaPlanStates = null) {
 }
 
 function auditManagedWorktrees(options = {}) {
+  const taskId = normalizeTaskId(options.taskId);
+  if (options.taskId !== undefined && !taskId) throw new Error('task scope requires a task id');
+  if (taskId && options.apply) throw new Error('task-scoped audit is read-only');
   const cwd = path.resolve(options.cwd || process.cwd());
   const mainRoot = path.resolve(options.mainRoot || getMainRepoRoot(cwd));
   const config = options.config || loadConfig({ repoRoot: getWorktreeRoot(cwd) });
@@ -275,7 +282,7 @@ function auditManagedWorktrees(options = {}) {
   if (options.excludeBranch) excluded.add(options.excludeBranch);
   const skipPath = options.skipWorktreePath ? path.resolve(options.skipWorktreePath) : '';
   const collect = () => collectAuditRecords({
-    mainRoot, config, baseRef, cwd, now: options.now || new Date(), dependencies,
+    mainRoot, config, baseRef, cwd, now: options.now || new Date(), dependencies, taskId,
   }).map((record) => {
     if (excluded.has(record.branch)) return { ...record, state: 'active', reason: 'excluded-branch' };
     if (skipPath && record.path && (isSamePath(skipPath, record.path) || isPathInside(record.path, skipPath))) {
@@ -296,7 +303,7 @@ function auditManagedWorktrees(options = {}) {
     });
   };
 
-  if (!options.apply) return summarize(collect(), 'dry-run', null, auditQaStates(false));
+  if (!options.apply) return summarize(collect(), 'dry-run', null, taskId ? null : auditQaStates(false));
 
   const lockDir = resolveRuntimePath(config, mainRoot, config.worktree && config.worktree.lockDir, 'agent-locks');
   const release = dependencies.acquireLock

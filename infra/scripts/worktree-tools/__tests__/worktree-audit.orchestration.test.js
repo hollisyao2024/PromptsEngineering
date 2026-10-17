@@ -23,6 +23,56 @@ test('audit dry-run is read-only and reports a proven candidate', () => {
   assert.deepEqual(fixture.state.calls, []);
 });
 
+test('task-scoped audit inspects only explicitly owned worktrees and leaves unrelated evidence untouched', () => {
+  const fixture = orchestrationFixture();
+  const owned = fixture.state.sessions[0];
+  const unrelated = {
+    ...owned,
+    branch: 'feature/OTHER',
+    worktree: '/container/worktrees/other',
+    lifecycle: { keys: ['task:other'] },
+    status: 'recovery_required',
+  };
+  fixture.state.sessions.push(unrelated);
+  fixture.state.entries.push({
+    ...fixture.state.entries[0], branch: unrelated.branch, path: unrelated.worktree,
+  });
+  const before = JSON.stringify(fixture.state);
+  const inspected = [];
+  fixture.dependencies.inspectGitEvidence = (_root, _base, session) => {
+    inspected.push(session.branch);
+    assert.equal(session.branch, owned.branch, 'must filter before inspecting another task');
+    return { dirty: true, uniqueCommits: 0 };
+  };
+  fixture.dependencies.collectUnregisteredDirectoryRecords = () => {
+    assert.fail('an unregistered directory has no explicit task ownership');
+  };
+  fixture.dependencies.auditQaPlanSessionStates = () => {
+    assert.fail('task finish must not sweep repository-wide QA state');
+  };
+  const result = auditManagedWorktrees({
+    mainRoot: '/container/repo', cwd: '/container/repo',
+    config: { containerDirs: { worktrees: '/container/worktrees', tmp: '/container/tmp' } },
+    baseRef: 'main', now: NOW, taskId: 'DEMO', dependencies: fixture.dependencies,
+  });
+  assert.deepEqual(inspected, [owned.branch]);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.records[0].state, 'recovery_required');
+  assert.equal(JSON.stringify(fixture.state), before);
+});
+
+test('task-scoped audit cannot apply repository cleanup or silently accept an empty scope', () => {
+  for (const options of [{ taskId: 'demo', apply: true }, { taskId: '  ' }]) {
+    const fixture = orchestrationFixture();
+    assert.throws(() => auditManagedWorktrees({
+      mainRoot: '/container/repo', cwd: '/container/repo',
+      config: { containerDirs: { worktrees: '/container/worktrees', tmp: '/container/tmp' } },
+      baseRef: 'main', dependencies: fixture.dependencies, ...options,
+    }), /task.*(?:read.only|requires.*id)/i);
+    assert.deepEqual(fixture.state.calls, []);
+  }
+});
+
 test('audit apply revalidates, persists intent, and verifies exact cleanup', () => {
   const fixture = orchestrationFixture();
   const result = auditManagedWorktrees({

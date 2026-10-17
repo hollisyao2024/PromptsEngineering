@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [v3.11.32] - 2026-10-17
+
+- 回灌自下游项目 LinghuiAI（#3404、#3484、#3491）的 3 项作业包修复，消除下游 `template sync` 的 9 个 overwrite 漂移冲突：
+  - 任务级审计与完成门禁：`worktree-audit` 新增只读 `taskId` 作用域（按 session 任务归属过滤受管记录，带 `taskId` 时禁止 `apply`、跳过 QA 状态审计），`tdd-completion-guard` 的 `collectLifecycleState` 接收任务参数，任务级 `task finish` 只审计本任务绑定的 worktree，不再对无关 worktree 执行修复写入。
+  - 定向测试拦截：`test-command-scope` 把 `pnpm agent -- tdd commit` 与 `agent-cli.js tdd commit` 视为提交路由而非测试命令，`test:` 前缀的约定式提交信息不再被误判为聚合测试脚本。
+  - QA 证据选择：`qa-test-scope` 允许当前 QA/DEVOPS 阶段最新转换带 `deferred_cleanup`、且唯一未决步骤恰为该已证明 `not_started` 的 `blocked` 清理步骤的任务继续提供测试证据；不改变清理失败状态，也不豁免 `task finish`。`qa-tools/README.md` 同步说明。
+  - 验证：`worktree-audit*`（22）、`qa-plan-state-audit`（5）、`tdd-completion-guard`（23）、`test-command-scope`（15）、`qa-test-scope`（15）与 `template-surface.*`（56）定向通过。未运行聚合 `pnpm test`（改动局限于上述 4 个模块及其专属测试与文档）。
+
 ## [v3.11.31] - 2026-10-17
 
 - `/ship` 稳定入口新增可选的部署防回退与跨电脑租约 `devops.rollbackGuard`（模板默认 `enabled:false`，`environments` 默认 `staging`/`production`，`remote` 默认 `origin`，`lockTtlSeconds` 3600，`readDeployedCommand` 可选），与项目部署实现无关：在项目远端的 `refs/xirang/deploy/<scope>` 记录已部署提交、`refs/xirang/deploy-lock/<scope>` 作为租约，所有写入均为 `--force-with-lease` CAS，结果不明时 `ls-remote` 核实不重放。判定 `PASS`/`NO_BASELINE` 放行，`ROLLBACK`/`DIVERGED` 阻断（`DEPLOY_ALLOW_ROLLBACK=1` 显式放行），`UNKNOWN`/`UNREADABLE` fail-closed；锁占用阻断并给出持有者、`LOCK_STALE` 与 `--release-lock=<sha>` 手动释放命令；部署后可选线上回读校验再推进 ref。开启后 ship 命令必须声明 `{source_args}`，部署固定为 `--sha=<SHA>` 并注入 `AGENT_DEPLOY_SHA`；`--dry-run` 只读。实现为 `devops-tools/deploy-guard.js`、`deploy-guard-git.js`、`deploy-guard-ship.js`（新文件在既有 `overwrite` 目录规则下随模板同步分发），`devops-run.js` 只做接线。CONVENTIONS §7 新增协议段，§9 说明 `refs/xirang/*` 不触发 CI、不属分支保护且只经 lease 写入。验证：新增 `deploy-guard.test.js` 19 条通过（以真实临时 bare 仓库与两个克隆覆盖全部判定、override、浅克隆、远端不可达、锁占用与 stale、抢锁失败、deploy ref CAS 失败、部署失败、推送结果不明核实、释放失败、线上回读漂移/失败/不一致、手动释放，以及 2 条 `devops-run` CLI 集成），`devops-run.test.js` 24 条与 `template-surface.*` 56 条回归通过。未运行聚合 `pnpm test`（默认关闭，改动局限于 ship 路径、配置默认值与文档）。
