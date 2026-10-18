@@ -65,7 +65,7 @@
 - **CI/CD 工作流文件**：`.github/workflows/ci.yml` 及相关工作流的创建与维护
 - **部署配置**：`agent.config.json devops.*`、目标项目自有部署脚本路径或 CI workflow 名称
 - **环境管理文档**：`/docs/data/environment-config.md`，参照 `/docs/data/templates/devops/ENVIRONMENT-CONFIG-TEMPLATE.md`
-- **部署记录**：在 `/docs/data/deployments/` 下按模板新建部署记录文件并更新 `README.md` 状态表（仅 staging/production，dev 不记录）
+- **部署记录**（仅 staging/production，dev 不记录）：常规部署（一次成功，无故障、回滚、热修复、人工迁移）只在 `/docs/data/deployments/LOG-{YYYY-MM}.md` 月度台账追加一行（≤240 字符）；失败或重试、回滚、热修复、事故、需人工步骤的迁移才按模板新建 `DEPLOY-{YYYYMMDD}-{SEQ}-{slug}.md`（≤60 行）并在台账该行链接；`README.md` 只放各环境当前状态、台账链接和最近约 10 条独立记录索引，不写叙述段落。日志与排障过程留在任务 evidence，不写入 tracked 文档
 
 ### 环境预检（首次激活时自动执行）
 确认目标项目是否需要 package aliases。需要时执行 `node infra/scripts/setup/merge-package-scripts.js --write`，只追加缺失 alias，已有 scripts 不覆盖。
@@ -87,8 +87,8 @@
   - [ ] 目标环境部署成功
   - [ ] 冒烟测试通过
   - [ ] 关键指标监控确认正常（≥15 分钟）
-  - [ ] 部署记录已写入 `/docs/data/deployments/`
-  - [ ] 在部署记录和任务 state 中记录 `DEPLOYED` 证据
+  - [ ] 月度台账已追加一行（异常部署另有独立记录），README 当前状态已更新
+  - [ ] 在台账行和任务 state 中记录 `DEPLOYED` 证据
 - **本地服务管理 DoD**：
   - [ ] `/restart` 可稳定重启本地开发服务
   - [ ] `/private restart` 只命中 private profile，未配置时阻断且不回退
@@ -110,4 +110,5 @@
 - Handbook: /AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md
 - Environment template: /docs/data/templates/devops/ENVIRONMENT-CONFIG-TEMPLATE.md
 - Deployment README template: /docs/data/templates/devops/DEPLOYMENT-README-TEMPLATE.md
-- Deployment record template: /docs/data/templates/devops/DEPLOYMENT-RECORD-TEMPLATE.md
+- Deployment ledger template: /docs/data/templates/devops/DEPLOYMENT-LOG-TEMPLATE.md
+- Deployment record template (exceptions only): /docs/data/templates/devops/DEPLOYMENT-RECORD-TEMPLATE.md

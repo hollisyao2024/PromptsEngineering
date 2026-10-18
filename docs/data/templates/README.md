@@ -93,8 +93,9 @@ templates/
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
 | `ENVIRONMENT-CONFIG-TEMPLATE.md` | 环境配置文档模板 | dev/staging/prod 环境说明 |
-| `DEPLOYMENT-RECORD-TEMPLATE.md` | 部署记录模板 | 每次部署的详细记录 |
-| `DEPLOYMENT-README-TEMPLATE.md` | 部署说明文档模板 | 部署流程、操作手册 |
+| `DEPLOYMENT-LOG-TEMPLATE.md` | 月度部署台账模板 | 每次部署追加一行 |
+| `DEPLOYMENT-RECORD-TEMPLATE.md` | 独立部署记录模板 | 仅失败、回滚、热修复、事故、人工迁移 |
+| `DEPLOYMENT-README-TEMPLATE.md` | 部署目录 README 模板 | 各环境当前状态与索引 |
 | `CI-WORKFLOW-TEMPLATE.yml` | CI 流水线模板 | GitHub Actions/GitLab CI |
 
 **注意**：

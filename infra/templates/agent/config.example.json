@@ -45,6 +45,16 @@
     "schemaGate": {
       "semantic": "required",
       "exemptTables": []
+    },
+    "docSize": {
+      "enabled": false,
+      "changelogFiles": ["CHANGELOG.md", "docs/adr/CHANGELOG.md"],
+      "changelogMaxLineChars": 120,
+      "deploymentsDir": "docs/data/deployments",
+      "ledgerMaxLineChars": 240,
+      "readmeMaxBytes": 8192,
+      "recordMaxLines": 60,
+      "recordMaxBytes": 6144
     }
   },
   "testing": {

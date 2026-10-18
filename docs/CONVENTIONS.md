@@ -271,6 +271,8 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 
+记录类文档默认只写一行事实：CHANGELOG 每个 PR 一行；常规部署只追加 `docs/data/deployments/LOG-{YYYY-MM}.md` 一行，异常部署才建 `DEPLOY-*.md`；部署 README 只放当前状态。`tdd.docSize.enabled=true` 时 `tdd sync` 在项目硬门禁之前按 `tdd.docSize` 上限（默认 CHANGELOG 行 120 字符、台账行 240 字符、README 8KB、新建独立记录 60 行且 6KB）只检查相对配置主干的改动，违规即阻断；默认关闭。
+
 ### 业务验收门禁（可选）
 
 默认关闭。项目在 `agent.config.json` 设置 `qa.business.enabled=true` 并登记 `qa.business.suites` 后，`qa verify` 在测试范围校验之后、签发回执之前增加业务验收门禁；官方息壤源不启用此门禁。规格只来自 PRD 原子 AC 表，预期结果取自 PRD、数据字典、UX 规范与 ARCH 接口契约，不得取自被测代码的当前输出；推导与判定细则见 QA 手册「业务测试自动化」一章。

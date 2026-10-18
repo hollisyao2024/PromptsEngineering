@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.34] - 2026-10-18
+
+- 记录类文档默认一行：CHANGELOG 每 PR 一行、部署改月度台账，新增默认关闭的 tdd.docSize 门禁（回灌 LinghuiAI #3554）
+
 ## [v3.11.33] - 2026-10-18
 
 - 回灌自下游项目 LinghuiAI（#3547、#3548）的部署防回退网络容错修复。起因：下游 staging 部署成功后，推进 `refs/xirang/deploy/staging` 的推送因本机代理 `SSL_ERROR_SYSCALL` 中断。旧协议不重放结果不明的推送，报 `DEPLOY_REF_CAS_FAILED`，ref 落后于线上；同 SHA 重发时，锁内二次快照在短退避下连续失败，fail-closed 未部署。

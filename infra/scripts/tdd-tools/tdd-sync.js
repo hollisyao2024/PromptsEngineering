@@ -147,6 +147,24 @@ function runMigrationRegistryCheck(config, options = {}) {
   return false;
 }
 
+function runDocSizeCheck(config, options = {}) {
+  if (config.tdd?.docSize?.enabled !== true) return true;
+  console.log('▶ Doc Size Gate');
+  const run = options.spawn || spawnSync;
+  const result = run(process.execPath, [path.join(__dirname, 'check-doc-size.js')], {
+    cwd: options.cwd || repoRoot,
+    stdio: 'inherit',
+    encoding: 'utf8',
+    env: options.env || process.env,
+  });
+  if (result.status === 0) {
+    console.log('✅ Doc Size Gate 通过');
+    return true;
+  }
+  console.error(`❌ Doc Size Gate 失败 (exit ${result.status})`);
+  return false;
+}
+
 // ── Base Sync Gate ──────────────────────────────────────────────────────────
 // /tdd sync 在文档门禁之前把 origin/<base> 合并进当前功能分支：远端 base 前进后，qa verify 会以 STALE_QA_BASE 阻断，
 // 而这件事执行器本可以在本地解决。冲突时中止合并并给出稳定错误码，不把半合并状态留给后续门禁。
@@ -236,6 +254,10 @@ function main() {
     console.error('❌ /tdd sync 失败：Migration Registry Gate 未通过');
     process.exit(1);
   }
+  if (!runDocSizeCheck(config)) {
+    console.error('❌ /tdd sync 失败：Doc Size Gate 未通过');
+    process.exit(1);
+  }
   if (!runProjectChecks(config)) {
     console.error('❌ /tdd sync 失败：项目硬门禁未通过');
     process.exit(1);
@@ -288,6 +310,7 @@ if (require.main === module) main();
 module.exports = {
   createPnpmRunInvocation,
   resolveProjectChecks,
+  runDocSizeCheck,
   runMigrationRegistryCheck,
   runProjectChecks,
   syncWithBase,
