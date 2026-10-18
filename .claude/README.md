@@ -18,6 +18,10 @@
 
 团队配置在 `.claude/settings.json` 的 `env` 中设置 `CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000` 和 `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=90`，使支持自动压缩的 Claude Code 会话约在 180k token 触发。实际窗口受所用模型上限约束；用户可在 `.claude/settings.local.json` 的 `env` 中覆盖这两项。已运行的会话需重新启动才会读取新配置。
 
+## 云端会话自举
+
+`settings.json` 的 SessionStart hook（`startup|resume`）运行 `node infra/scripts/agent-runner/agent-cli.js cloud bootstrap`：仅在 Claude Code Cloud（`CLAUDE_CODE_REMOTE=true`）且 `agent.config.json` 开启 `cloud.enabled` 时安装依赖、启动 `compose.dev.yml`、迁移与脱敏 seed，本地输出 `STATUS=SKIPPED` 无副作用；失败只报告 `STATUS=FAILED`，不阻断会话。机制见 `docs/CONVENTIONS.md` §11，Environment 配置见 `docs/runbooks/cloud-dev.md`。
+
 ## 🎯 配置策略
 
 ### 团队共享配置 (`settings.json`)

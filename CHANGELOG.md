@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.35] - 2026-10-18
+
+- 新增 Claude Code Cloud 会话自举：cloud bootstrap/setup-script/doctor，云端 proxy 凭据与分支清理适配（回灌 LinghuiAI #3575）
+
 ## [v3.11.34] - 2026-10-18
 
 - 记录类文档默认一行：CHANGELOG 每 PR 一行、部署改月度台账，新增默认关闭的 tdd.docSize 门禁（回灌 LinghuiAI #3554）

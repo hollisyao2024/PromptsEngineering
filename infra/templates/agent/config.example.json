@@ -257,5 +257,18 @@
   },
   "features": {
     "devopsDeploy": false
+  },
+  "cloud": {
+    "_notice": "Claude Code cloud sessions: pnpm agent -- cloud bootstrap|setup-script|doctor. Bootstrap only runs when CLAUDE_CODE_REMOTE=true and enabled=true; see docs/CONVENTIONS.md §11.",
+    "enabled": false,
+    "setup": { "images": [], "prefetch": "pnpm fetch", "extra": [] },
+    "session": {
+      "install": "pnpm install --frozen-lockfile --prefer-offline",
+      "installHashFiles": ["pnpm-lock.yaml", "package.json", ".npmrc", ".nvmrc"],
+      "compose": { "file": "", "project": "", "services": [], "waitTimeoutSec": 120 },
+      "envFile": { "target": ".env.local", "template": ".env.example", "overrides": {}, "generateSecrets": [] },
+      "steps": [],
+      "exportEnv": {}
+    }
   }
 }

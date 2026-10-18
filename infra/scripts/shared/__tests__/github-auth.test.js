@@ -103,6 +103,52 @@ test('buildGitHubShellEnv prepares gh and nested git commands for GitHub origin'
   assert.equal(env.GIT_CONFIG_KEY_0, 'http.https://github.com/.extraheader');
 });
 
+// Claude Code cloud sessions route GitHub traffic through a proxy that owns the git credential; GH_TOKEN reads as
+// `proxy-injected`. An extraheader built from it would override the proxy's scoped credential and break push.
+test('buildGitHubGitEnv leaves git credentials to the Claude Code cloud proxy', () => {
+  const repoRoot = createGitRepo('https://github.com/example/repo.git');
+  const proxyEnv = { CLAUDE_CODE_REMOTE: 'true', GH_TOKEN: 'proxy-injected' };
+
+  const pushed = buildGitHubGitEnv({ repoRoot, cwd: repoRoot, args: ['push', 'origin', 'HEAD'], env: proxyEnv });
+  assert.equal(pushed.GIT_CONFIG_COUNT, undefined);
+  assert.equal(JSON.stringify(pushed).includes('extraheader'), false);
+  // REST callers still receive the placeholder so the proxy can substitute it.
+  assert.equal(pushed.GH_TOKEN, 'proxy-injected');
+
+  // A token configured in the cloud environment does not take over git credentials either.
+  const configured = buildGitHubGitEnv({
+    repoRoot,
+    cwd: repoRoot,
+    args: ['fetch', 'origin'],
+    env: { CLAUDE_CODE_REMOTE: 'true', GH_TOKEN: 'cloud-configured-token' },
+  });
+  assert.equal(configured.GIT_CONFIG_COUNT, undefined);
+
+  // The literal placeholder never becomes a header outside cloud sessions as well.
+  const local = buildGitHubGitEnv({ repoRoot, cwd: repoRoot, args: ['push', 'origin', 'HEAD'], env: { GH_TOKEN: 'proxy-injected' } });
+  assert.equal(local.GIT_CONFIG_COUNT, undefined);
+});
+
+test('buildGitHubShellEnv keeps GH_TOKEN for REST but adds no git header in cloud sessions', () => {
+  const repoRoot = createGitRepo('https://github.com/example/repo.git');
+  const env = buildGitHubShellEnv({
+    repoRoot,
+    cwd: repoRoot,
+    env: { CLAUDE_CODE_REMOTE: 'true', GH_TOKEN: 'proxy-injected' },
+    discoverProxy: false,
+  });
+  assert.equal(env.GH_TOKEN, 'proxy-injected');
+  assert.equal(env.GIT_CONFIG_COUNT, undefined);
+});
+
+test('usesGitHubCredentialProxy detects cloud sessions and the proxy placeholder only', () => {
+  const { usesGitHubCredentialProxy } = require('../github-auth');
+  assert.equal(usesGitHubCredentialProxy({ env: { CLAUDE_CODE_REMOTE: 'true' } }), true);
+  assert.equal(usesGitHubCredentialProxy({ env: {}, token: 'proxy-injected' }), true);
+  assert.equal(usesGitHubCredentialProxy({ env: { CLAUDE_CODE_REMOTE: 'false' }, token: 'real' }), false);
+  assert.equal(usesGitHubCredentialProxy({ env: {}, token: '' }), false);
+});
+
 test('loadProjectGitHubToken skips a linked-worktree placeholder and preserves explicit overrides', () => {
   const mainRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-auth-main-'));
   const worktreeRoot = `${mainRoot}-worktree`;

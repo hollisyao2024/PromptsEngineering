@@ -10,8 +10,10 @@ const {
   buildGhMergeArgs,
   buildBasePushArgs,
   buildFeatureDeleteArgs,
+  closeAndCleanup,
   deleteRemoteFeatureBranch,
   parseGitHubRepoSlug,
+  remoteBranchCleanupStatus,
   tryGhMerge,
 } = require('./qa-merge');
 
@@ -138,6 +140,65 @@ test('feature cleanup verifies a failed delete as already absent or head drift',
   assert.equal(drifted.deleted, false);
   assert.equal(drifted.reason, 'head_drift');
   assert.equal(drifted.actualHeadSha, changed);
+});
+
+test('feature cleanup defers a proxy-rejected delete in Claude Code cloud sessions only', () => {
+  const expected = 'a'.repeat(40);
+  const rejectingGit = (args) => {
+    if (args[0] === 'push') throw new Error('! [remote rejected] fix/example (permission denied: 403)');
+    return `${expected}\trefs/heads/fix/example\n`;
+  };
+  const cloud = deleteRemoteFeatureBranch('fix/example', 'stable', expected, {
+    runGit: rejectingGit,
+    env: { CLAUDE_CODE_REMOTE: 'true', GH_TOKEN: 'proxy-injected' },
+  });
+  assert.equal(cloud.deleted, false);
+  assert.equal(cloud.reason, 'deferred_by_proxy');
+  assert.equal(cloud.actualHeadSha, expected);
+  assert.equal(remoteBranchCleanupStatus(cloud), 'DEFERRED_BY_PROXY');
+
+  const local = deleteRemoteFeatureBranch('fix/example', 'stable', expected, {
+    runGit: rejectingGit,
+    env: { GH_TOKEN: 'ghp_local' },
+  });
+  assert.equal(local.reason, 'delete_failed');
+  assert.equal(remoteBranchCleanupStatus(local), 'FAILED');
+
+  assert.equal(remoteBranchCleanupStatus({ deleted: true }), 'COMPLETE');
+  assert.equal(remoteBranchCleanupStatus({ deleted: true, alreadyAbsent: true }), 'COMPLETE');
+  assert.equal(remoteBranchCleanupStatus({ deleted: false, reason: 'head_drift' }), 'FAILED');
+});
+
+test('closeAndCleanup still closes the PR when the cloud proxy defers remote branch deletion', async () => {
+  const expected = 'a'.repeat(40);
+  const closed = [];
+  const result = await closeAndCleanup('fix/example', { number: 7 }, 'fix: x', {
+    baseBranch: 'stable',
+    expectedHeadSha: expected,
+    env: { CLAUDE_CODE_REMOTE: 'true' },
+    runGit(args) {
+      if (args[0] === 'push') throw new Error('remote rejected');
+      return `${expected}\trefs/heads/fix/example\n`;
+    },
+    closePr: async (number) => { closed.push(number); return { status: 0 }; },
+  });
+  assert.deepEqual(closed, [7]);
+  assert.equal(result.reason, 'deferred_by_proxy');
+
+  await assert.rejects(
+    closeAndCleanup('fix/example', { number: 8 }, 'fix: x', {
+      baseBranch: 'stable',
+      expectedHeadSha: expected,
+      env: {},
+      runGit(args) {
+        if (args[0] === 'push') throw new Error('remote rejected');
+        return `${expected}\trefs/heads/fix/example\n`;
+      },
+      closePr: async (number) => { closed.push(number); return { status: 0 }; },
+    }),
+    /preserved and the PR was not closed/u,
+  );
+  assert.deepEqual(closed, [7]);
 });
 
 test('closePullRequest and read helpers use API', async () => {

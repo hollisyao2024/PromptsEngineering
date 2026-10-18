@@ -38,6 +38,8 @@ const ROUTES = new Map([
 const DEV_SERVICE_ACTIONS = new Set(['start', 'restart', 'stop', 'status', 'logs']);
 const APP_ACTIONS = new Set(['dev', 'build']);
 const DEVOPS_RUNNER = 'infra/scripts/devops-tools/devops-run.js';
+const CLOUD_ACTIONS = new Set(['bootstrap', 'setup-script', 'doctor']);
+const CLOUD_RUNNER = 'infra/scripts/setup/cloud-session.js';
 
 function normalizeArgv(argv) {
   return argv[0] === '--' ? argv.slice(1) : argv;
@@ -74,6 +76,10 @@ function resolveCommand(argv) {
   if (domain === 'task') {
     if (!action) throw new Error('task requires an action');
     return { script: 'infra/scripts/agent-runner/agent-task.js', args: [action, ...rest] };
+  }
+  if (domain === 'cloud') {
+    if (!CLOUD_ACTIONS.has(action)) throw new Error('cloud requires bootstrap, setup-script, or doctor');
+    return { script: CLOUD_RUNNER, args: [action, ...rest] };
   }
   if (domain === 'dev') {
     if (action === 'app') return slashAppRoute('dev', rest);
@@ -127,6 +133,7 @@ Core commands:
   tdd <sync|push|commit|review-gate|finish|guard>
   qa <plan|automate|paths|run|verify|merge>
   template <sync|update|backfill>
+  cloud <bootstrap|setup-script|doctor>
   architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>
   dev <start|restart|stop|status|logs>
   dev app <platform>

@@ -310,3 +310,14 @@ skipped_count
 ```
 
 并满足 `matched_count = modified_count + skipped_count`。范围变化时创建新 manifest，不得静默缩小。
+
+## 11. 云端会话
+
+`pnpm agent -- cloud bootstrap|setup-script|doctor` 让 Claude Code Cloud 全新会话自举开发环境，实现位于 `infra/scripts/setup/cloud-session.js`，配置为 `cloud` 节（默认 `enabled:false`，项目在稀疏 `agent.config.json` 中开启）。
+
+- 两层缓存：Cloud Environment 的 Setup Script（`cloud setup-script` 生成，root 运行、须 5 分钟内且恒 `exit 0`）只预热镜像、pnpm store 与浏览器等文件快照；仓库 `.claude/settings.json` 的 SessionStart hook 每会话运行 `cloud bootstrap`，按输入文件哈希跳过未变化的安装与步骤。
+- 门禁：仅 `CLAUDE_CODE_REMOTE=true` 且 `cloud.enabled=true` 时执行，否则 `STATUS=SKIPPED` 且无副作用，本地开发不受影响。
+- 顺序：生成 env 文件（目标已存在则绝不覆盖，`generateSecrets` 随机生成，从不写入 `GH_TOKEN`/`GITHUB_TOKEN`）→ 依赖安装 → 启动 dockerd 与 `docker compose up -d --wait` → 依次执行 `steps`（带 `hashFiles` 的按哈希跳过，服务容器重建时重跑；无 `hashFiles` 的每次执行，须自身幂等）→ 把 `exportEnv` 写入 `CLAUDE_ENV_FILE`。步骤以 env 文件和 `exportEnv` 为环境运行。
+- 失败语义：任一步失败输出 `STATUS=FAILED` 与 `NEXT_ACTION`，停止后续步骤且不记录其哈希，但 hook 仍 `exit 0`，不阻断会话。状态与日志写入容器 `tmp/cloud/`。
+- GitHub：云端 proxy 注入 scoped 凭据，`GH_TOKEN` 读为 `proxy-injected` 时为 proxy 模式，git 命令不注入 `extraheader`，REST 请求照常携带占位值由 proxy 替换。proxy 拒绝 GraphQL、推 tag 与删除远端分支；`qa merge` 将删除被拒归类为 `REMOTE_BRANCH_CLEANUP=DEFERRED_BY_PROXY`，本地 worktree 与 session 照常清理，远端分支按输出的下一动作人工删除；建议仓库开启 “Automatically delete head branches”。
+- `cloud doctor` 只读输出 Node/pnpm、docker、容器目录可写性、`GH_TOKEN_MODE=proxy|token|missing`、REST 与 `ls-remote` 可达性和代理变量。

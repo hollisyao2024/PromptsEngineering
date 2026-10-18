@@ -247,6 +247,8 @@ test('qa merge starts cleanup only after the final base push and remote SHA veri
 test('qa merge preserves local recovery state when remote feature cleanup detects drift', () => {
   const source = fs.readFileSync(path.join(__dirname, 'qa-merge.js'), 'utf8');
   const mainBody = source.slice(source.indexOf('async function main()'));
-  assert.match(mainBody, /const remoteCleanup = deleteRemoteFeatureBranch/u);
-  assert.match(mainBody, /if \(!remoteCleanup\.deleted\)[\s\S]*changed after QA/u);
+  assert.match(mainBody, /remoteCleanup = deleteRemoteFeatureBranch/u);
+  // 只有云端 proxy 延后（引用仍为已验证 SHA）可放行；漂移、删除失败与无法确认仍阻断清理。
+  assert.match(mainBody, /if \(!isRemoteCleanupAccepted\(remoteCleanup\)\)[\s\S]*changed after QA/u);
+  assert.ok(mainBody.indexOf('isRemoteCleanupAccepted(remoteCleanup)') < mainBody.indexOf('cleanupResult = cleanupWorktree'));
 });
