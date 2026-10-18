@@ -205,7 +205,7 @@ test('tdd expert states where run evidence goes once', () => {
   assert.doesNotMatch(tdd, /^- 运行证据写 session 或长任务状态，不写入阶段文件。$/mu);
   assert.doesNotMatch(tdd, /运行证据留在 task state、QA 报告和部署记录；/u);
   assert.ok(tdd.includes('- 不维护 tracked 阶段状态文档；运行证据写 session、长任务状态、QA 报告和部署记录，不写入阶段文件。'));
-  assert.ok(tdd.includes('- 用户可见变化更新 CHANGELOG；'));
+  assert.ok(tdd.includes('- 用户可见变化更新 CHANGELOG：每个 PR 一行、≤120 字符，只写用户可感知的变化'));
 });
 
 test('expert and handbook path-base notes point at the conventions topology section instead of a missing agents section', () => {

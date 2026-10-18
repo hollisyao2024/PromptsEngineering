@@ -128,7 +128,7 @@ schema 变更必须在同一交付中同时包含：schema 源修改、由 schem
 仅更新与行为直接相关的文档：
 
 - 治理任务更新 TASK 模块、追踪矩阵和必要的 PRD/ARCH 引用；
-- 用户可见变化更新 CHANGELOG；
+- 用户可见变化更新 CHANGELOG：每个 PR 一行、≤120 字符，只写用户可感知的变化，不写实现细节、测试过程或文件清单；细节留在 PR 与 git 历史。项目开启 `tdd.docSize.enabled` 后由 `tdd sync` 阻断超长记录；
 - 不维护 tracked 阶段状态文档；运行证据写 session、长任务状态、QA 报告和部署记录，不写入阶段文件。
 
 ## 强制交付流水线

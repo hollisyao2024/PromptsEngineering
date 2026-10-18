@@ -203,3 +203,27 @@ test('/tdd sync runs the base sync before the document gates and blocks on its c
   assert.ok(syncAt < script.indexOf('runMigrationRegistryCheck(config)'));
   assert.match(script, /BASE_SYNC=/);
 });
+
+test('/tdd sync skips the doc size gate unless tdd.docSize.enabled is true', () => {
+  const { runDocSizeCheck } = require('../tdd-sync');
+  let called = false;
+  assert.equal(runDocSizeCheck({ tdd: { docSize: { enabled: false } } }, {
+    spawn: () => {
+      called = true;
+      return { status: 0 };
+    },
+  }), true);
+  assert.equal(called, false);
+});
+
+test('/tdd sync blocks when the enabled doc size gate fails', () => {
+  const { runDocSizeCheck } = require('../tdd-sync');
+  let args;
+  assert.equal(runDocSizeCheck({ tdd: { docSize: { enabled: true } } }, {
+    spawn: (_bin, spawnArgs) => {
+      args = spawnArgs;
+      return { status: 1 };
+    },
+  }), false);
+  assert.match(args[0], /check-doc-size\.js$/);
+});
