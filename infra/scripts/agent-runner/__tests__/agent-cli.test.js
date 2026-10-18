@@ -80,6 +80,28 @@ test('unified agent CLI routes stable workflow commands', () => {
   });
 });
 
+test('unified agent CLI routes cloud session commands and lists them in help', () => {
+  const { main } = require('../agent-cli');
+  for (const action of ['bootstrap', 'setup-script', 'doctor']) {
+    assert.deepEqual(resolveCommand(['cloud', action, '--json']), {
+      script: 'infra/scripts/setup/cloud-session.js',
+      args: [action, '--json'],
+    });
+  }
+  assert.throws(() => resolveCommand(['cloud']), /cloud requires bootstrap, setup-script, or doctor/u);
+  assert.throws(() => resolveCommand(['cloud', 'nope']), /cloud requires bootstrap, setup-script, or doctor/u);
+
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    assert.equal(main(['--help']), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.match(lines.join('\n'), /cloud <bootstrap\|setup-script\|doctor>/u);
+});
+
 test('unified agent CLI routes tdd commit to the GH_TOKEN-identity commit entry and lists it in help', () => {
   const { main } = require('../agent-cli');
   assert.deepEqual(resolveCommand(['tdd', 'commit', '-m', 'feat: x', '--no-verify']), {

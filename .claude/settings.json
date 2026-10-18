@@ -109,6 +109,16 @@
             "command": "bash -c 'set -a; [ -f .env.local ] && . .env.local; set +a; [ -n \"$GH_TOKEN\" ] && echo \"export GH_TOKEN=$GH_TOKEN\" >> \"$CLAUDE_ENV_FILE\"'"
           }
         ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/infra/scripts/agent-runner/agent-cli.js\" cloud bootstrap",
+            "timeout": 1200
+          }
+        ]
       }
     ]
   },

@@ -201,6 +201,15 @@ function buildGitHubExtraHeader(token) {
   return `AUTHORIZATION: basic ${encoded}`;
 }
 
+// Claude Code cloud sessions send GitHub traffic through a proxy that owns the git credential (GH_TOKEN reads as
+// this placeholder). A git extraheader would override that scoped credential, so git is left to the proxy while
+// REST callers keep the placeholder for the proxy to substitute.
+const CLOUD_PROXY_TOKEN = 'proxy-injected';
+
+function usesGitHubCredentialProxy({ env = process.env, token = '' } = {}) {
+  return env.CLAUDE_CODE_REMOTE === 'true' || String(token || '').trim() === CLOUD_PROXY_TOKEN;
+}
+
 function buildGitHubGitEnv({
   repoRoot = '',
   cwd = process.cwd(),
@@ -217,6 +226,7 @@ function buildGitHubGitEnv({
   const gitEnv = resolveCommitIdentity({ args, cwd, env, token, lookup: identityLookup }).env;
   if (!token) return gitEnv;
   if (!shouldInjectGitHubAuth({ cwd, args, env: gitEnv })) return gitEnv;
+  if (usesGitHubCredentialProxy({ env, token })) return withProjectGitHubToken(gitEnv, token);
   return appendGitConfigEnv(
     withProjectGitHubToken(gitEnv, token),
     'http.https://github.com/.extraheader',
@@ -235,6 +245,7 @@ function buildGitHubShellEnv({
   const token = getProjectGitHubToken({ repoRoot, cwd, env });
   if (!token) return env;
   const tokenEnv = withProjectGitHubToken(env, token);
+  if (usesGitHubCredentialProxy({ env, token })) return tokenEnv;
   if (!shouldInjectGitHubAuth({ cwd, args: ['fetch', 'origin'], env: tokenEnv })) return tokenEnv;
   return appendGitConfigEnv(
     tokenEnv,
@@ -257,4 +268,5 @@ module.exports = {
   sanitizeGitHubRemoteUrl,
   shouldInjectGitHubAuth,
   usableGitHubToken,
+  usesGitHubCredentialProxy,
 };

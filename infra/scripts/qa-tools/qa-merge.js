@@ -46,6 +46,7 @@ const {
   buildGitHubGitEnv,
   loadProjectGitHubToken,
   sanitizeGitHubRemoteUrl,
+  usesGitHubCredentialProxy,
 } = require('../shared/github-auth');
 const {
   createGitHubBackend: createSharedGitHubBackend,
@@ -695,6 +696,7 @@ async function closeAndCleanup(
     runGit: _runGit = runGit,
     closePr: _closePr = closePullRequest,
     expectedHeadSha = '',
+    env = process.env,
   } = {}
 ) {
   if (featureBranch === baseBranch) {
@@ -703,8 +705,9 @@ async function closeAndCleanup(
   console.log(`\x1b[36m删除已验证远程分支 ${featureBranch}，再关闭 PR #${pr.number}...\x1b[0m`);
   const deletion = deleteRemoteFeatureBranch(featureBranch, baseBranch, expectedHeadSha, {
     runGit: _runGit,
+    env,
   });
-  if (!deletion.deleted) {
+  if (!isRemoteCleanupAccepted(deletion)) {
     throw new Error(
       `remote feature branch ${featureBranch} changed after QA; it was preserved and the PR was not closed.`,
     );
@@ -721,6 +724,28 @@ async function closeAndCleanup(
   } catch {
     console.log('\x1b[33m  PR 关闭失败（不影响已验证合并结果）\x1b[0m');
   }
+  return deletion;
+}
+
+// 远端分支清理结论：COMPLETE（已删除或已不存在）、DEFERRED_BY_PROXY（云端 GitHub proxy 拒绝删除、
+// 引用仍为已验证 SHA，需人工删除或开启 GitHub 自动删除 head 分支）、FAILED（漂移或无法确认，必须阻断）。
+function remoteBranchCleanupStatus(result = {}) {
+  if (result.deleted) return 'COMPLETE';
+  if (result.reason === 'deferred_by_proxy') return 'DEFERRED_BY_PROXY';
+  return 'FAILED';
+}
+
+function isRemoteCleanupAccepted(result) {
+  return remoteBranchCleanupStatus(result) !== 'FAILED';
+}
+
+function reportDeferredRemoteBranch(featureBranch, result) {
+  if (remoteBranchCleanupStatus(result) !== 'DEFERRED_BY_PROXY') return;
+  console.log('REMOTE_BRANCH_CLEANUP=DEFERRED_BY_PROXY');
+  console.log(
+    `REMOTE_BRANCH_CLEANUP_NEXT_ACTION=delete remote branch ${featureBranch} (sha ${result.actualHeadSha}) ` +
+    'manually, or enable GitHub "Automatically delete head branches"',
+  );
 }
 
 function buildFeatureDeleteArgs(featureBranch, baseBranch, expectedHeadSha) {
@@ -740,7 +765,7 @@ function deleteRemoteFeatureBranch(
   featureBranch,
   baseBranch,
   expectedHeadSha,
-  { runGit: _runGit = runGit } = {},
+  { runGit: _runGit = runGit, env = process.env } = {},
 ) {
   try {
     _runGit(buildFeatureDeleteArgs(featureBranch, baseBranch, expectedHeadSha), { capture: true });
@@ -775,6 +800,11 @@ function deleteRemoteFeatureBranch(
         };
       }
 
+      // Claude Code 云端的 GitHub proxy 不允许删除远端分支；引用仍为已验证 SHA 时不构成漂移，延后为人工清理。
+      if (usesGitHubCredentialProxy({ env, token: env.GH_TOKEN })) {
+        console.log(`\x1b[33m  云端 GitHub proxy 拒绝删除远程分支 ${featureBranch}，引用仍为已验证 SHA，延后清理\x1b[0m`);
+        return { deleted: false, reason: 'deferred_by_proxy', actualHeadSha, error: error.message };
+      }
       console.log(`\x1b[33m  远程分支删除失败且引用仍为已验证 SHA：${error.message}\x1b[0m`);
       return { deleted: false, reason: 'delete_failed', actualHeadSha, error: error.message };
     } catch (verificationError) {
@@ -1823,18 +1853,19 @@ async function main() {
     const verifiedBase = verifyRemoteBase(mainWorkspacePath, baseBranch);
     console.log(`\x1b[32m  远端复核通过：${baseBranch}=${verifiedBase.remoteSha}\x1b[0m`);
 
+    let remoteCleanup;
     if (strategy === 'local') {
-      await closeAndCleanup(currentBranch, pr, localCommitMsg, {
+      remoteCleanup = await closeAndCleanup(currentBranch, pr, localCommitMsg, {
         baseBranch,
         expectedHeadSha: qaReceipt.head_sha,
       });
     } else {
-      const remoteCleanup = deleteRemoteFeatureBranch(
+      remoteCleanup = deleteRemoteFeatureBranch(
         currentBranch,
         baseBranch,
         qaReceipt.head_sha,
       );
-      if (!remoteCleanup.deleted) {
+      if (!isRemoteCleanupAccepted(remoteCleanup)) {
         throw new Error(
           `remote feature branch ${currentBranch} changed after QA or could not be verified; ` +
           'the branch and local recovery state were preserved.',
@@ -1886,6 +1917,7 @@ async function main() {
       cleanupResult,
       baseBranch,
     );
+    reportDeferredRemoteBranch(currentBranch, remoteCleanup);
     printCleanupSummary(mainRepoRoot, baseBranch);
   } catch (error) {
     console.error(`\x1b[31m/qa merge 失败: ${error.message}\x1b[0m`);
@@ -1908,6 +1940,7 @@ module.exports = {
   buildFeatureDeleteArgs,
   buildGhMergeArgs,
   deleteRemoteFeatureBranch,
+  remoteBranchCleanupStatus,
   fetchRemoteRefs,
   fetchWithRetry,
   findMergedPullRequest,
