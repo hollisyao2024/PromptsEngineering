@@ -78,6 +78,7 @@ function guardFor(overrides = {}) {
     deployRef: DEPLOY_REF,
     lockRef: LOCK_REF,
     releaseCommand: 'pnpm agent -- ship production',
+    retry: { delaysMs: [0, 0, 0], sleep: () => {} },
     ...overrides,
   };
 }
@@ -114,6 +115,16 @@ test('resolveGuardConfig is opt-in and scoped by env and profile', () => {
   assert.equal(priv.releaseCommand, 'pnpm agent -- private ship staging');
   assert.match(resolveGuardConfig({ devops: { rollbackGuard: { enabled: true, environments: ['production'], remote: '-x' } } }, 'production', '').error, /remote/);
   assert.match(resolveGuardConfig({ devops: { rollbackGuard: { enabled: true, environments: ['production'], remote: 'origin', lockTtlSeconds: 0 } } }, 'production', '').error, /lockTtlSeconds/);
+});
+
+test('resolveGuardConfig defaults and validates remoteRetryDelaysMs', () => {
+  const base = { enabled: true, environments: ['production'] };
+  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: base } }, 'production', '').retry.delaysMs, [2000, 5000, 10000, 20000, 30000]);
+  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [] } } }, 'production', '').retry.delaysMs, []);
+  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [5, 10] } } }, 'production', '').retry.delaysMs, [5, 10]);
+  for (const bad of [5, [-1], [1.5], ['1'], new Array(11).fill(1)]) {
+    assert.match(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: bad } } }, 'production', '').error, /remoteRetryDelaysMs/);
+  }
 });
 
 test('parsePushPorcelain distinguishes ok, rejected and unknown', () => {
@@ -338,6 +349,115 @@ test('a lock release that cannot be confirmed reports the manual command but kee
   assert.ok(executed.lines.includes('DEPLOY_LOCK_RELEASE=FAILED'));
   assert.ok(executed.lines.some((line) => line.startsWith('MANUAL_RELEASE_COMMAND=pnpm agent -- ship production --release-lock=')));
   assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c3);
+});
+
+// Fails the first `times` calls matching `match` with a TLS-style error, like the flaky local proxy.
+function flaky(times, match) {
+  let left = times;
+  return (inner) => (args, options) => {
+    if (left > 0 && match(args)) {
+      left -= 1;
+      return { status: 128, stdout: '', stderr: 'fatal: unable to access: LibreSSL SSL_connect: SSL_ERROR_SYSCALL' };
+    }
+    return inner(args, options);
+  };
+}
+
+function counting(counter, match) {
+  return (inner) => (args, options) => {
+    if (match(args)) counter.count += 1;
+    return inner(args, options);
+  };
+}
+
+const pushTo = (ref) => (args) => args[0] === 'push' && args.some((arg) => arg.endsWith(`:${ref}`));
+const lsRemoteOf = (ref) => (args) => args[0] === 'ls-remote' && args.includes(ref);
+
+test('a push that never reached the remote is retried under the same lease until it lands', (t) => {
+  const fx = setupFixture(t);
+  // push fails, the verifying ls-remote fails too, then everything recovers.
+  const pushFlaky = flaky(1, pushTo(DEPLOY_REF));
+  const lsFlaky = flaky(1, lsRemoteOf(DEPLOY_REF));
+  const git = gitIn(fx.a, (inner) => pushFlaky(lsFlaky(inner)));
+  const result = pushWithLease(git, { remote: 'origin', ref: DEPLOY_REF, newSha: fx.c2, expected: '', retry: guardFor().retry });
+  assert.equal(result.result, 'ok', result.detail);
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c2);
+});
+
+test('a push that landed but could not be confirmed is verified, not pushed again', (t) => {
+  const fx = setupFixture(t);
+  const pushes = { count: 0 };
+  // The push lands but its report is lost, and the remote is briefly unreadable.
+  const lsFlaky = flaky(2, lsRemoteOf(DEPLOY_REF));
+  const git = gitIn(fx.a, (inner) => counting(pushes, pushTo(DEPLOY_REF))(lsFlaky((args, options) => {
+    const result = inner(args, options);
+    return args[0] === 'push' ? { ...result, status: 128, stdout: '' } : result;
+  })));
+  const result = pushWithLease(git, { remote: 'origin', ref: DEPLOY_REF, newSha: fx.c2, expected: '', retry: guardFor().retry });
+  assert.equal(result.result, 'ok', result.detail);
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c2);
+  // The retry after the unreadable checks is rejected by the lease and then verified as already applied.
+  assert.ok(pushes.count <= 3, `pushed ${pushes.count} times`);
+});
+
+test('a retried push whose lease no longer matches reports rejected', (t) => {
+  const fx = setupFixture(t);
+  sh(fx.b, ['push', '-q', 'origin', `${fx.c1}:${DEPLOY_REF}`]);
+  const git = gitIn(fx.a, flaky(1, pushTo(DEPLOY_REF)));
+  const result = pushWithLease(git, { remote: 'origin', ref: DEPLOY_REF, newSha: fx.c3, expected: '', retry: guardFor().retry });
+  assert.equal(result.result, 'rejected');
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c1);
+});
+
+test('retries are bounded and wait the configured delays', (t) => {
+  const fx = setupFixture(t);
+  const waits = [];
+  const down = () => ({ status: 128, stdout: '', stderr: 'network down' });
+  const git = gitIn(fx.a, (inner) => (args, options) => (args[0] === 'push' || args[0] === 'ls-remote' ? down() : inner(args, options)));
+  const result = pushWithLease(git, { remote: 'origin', ref: DEPLOY_REF, newSha: fx.c2, expected: '', retry: { delaysMs: [7, 11], sleep: (ms) => waits.push(ms) } });
+  assert.equal(result.result, 'unknown');
+  assert.deepEqual(waits, [7, 11]);
+  assert.match(result.detail, /unreadable/);
+});
+
+test('a transient network failure while advancing the deployed ref is retried and the deploy completes', (t) => {
+  const fx = setupFixture(t);
+  const guard = guardFor();
+  // Reproduces the 2026-10-18 staging run: the advance push and its ls-remote check both hit SSL_ERROR_SYSCALL.
+  const pushFlaky = flaky(1, pushTo(DEPLOY_REF));
+  const lsFlaky = flaky(1, lsRemoteOf(DEPLOY_REF));
+  const git = gitIn(fx.a, (inner) => pushFlaky(lsFlaky(inner)));
+  const prepared = prepareGuardedShip({ git, guard, baseBranch: 'main', now: Date.now() });
+  const executed = executeGuardedShip({ git, guard, prepared, now: Date.now(), execute: () => 0 });
+  assert.equal(executed.ok, true, executed.reason);
+  assert.ok(executed.lines.includes('DEPLOY_REF_ADVANCE=OK'));
+  assert.ok(executed.lines.includes('DEPLOY_LOCK_RELEASE=OK'));
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c3);
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+});
+
+test('a deployed-ref advance that stays unknown gets its own code and a rerun command, and releases the lock', (t) => {
+  const fx = setupFixture(t);
+  const guard = guardFor();
+  const down = () => ({ status: 128, stdout: '', stderr: 'network down' });
+  const git = gitIn(fx.a, (inner) => (args, options) => (pushTo(DEPLOY_REF)(args) || lsRemoteOf(DEPLOY_REF)(args) ? down() : inner(args, options)));
+  const prepared = prepareGuardedShip({ git, guard, baseBranch: 'main', now: Date.now() });
+  const executed = executeGuardedShip({ git, guard, prepared, now: Date.now(), execute: () => 0 });
+  assert.equal(executed.ok, false);
+  assert.equal(executed.code, 'DEPLOY_REF_ADVANCE_UNKNOWN');
+  assert.ok(executed.lines.includes('DEPLOY_REF_ADVANCE=UNKNOWN'));
+  assert.ok(executed.lines.includes('DEPLOY_LOCK_RELEASE=OK'));
+  assert.ok(executed.next.includes(`pnpm agent -- ship production --sha=${fx.c3}`), executed.next);
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), '');
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+});
+
+test('a transient fetch failure in the snapshot is retried', (t) => {
+  const fx = setupFixture(t);
+  const git = gitIn(fx.a, flaky(2, (args) => args[0] === 'fetch'));
+  const prepared = prepareGuardedShip({ git, guard: guardFor(), baseBranch: 'main', now: Date.now() });
+  assert.equal(prepared.ok, true, prepared.reason);
+  assert.equal(prepared.targetSha, fx.c3);
 });
 
 test('readDeployed cross-checks the live version and blocks on drift, failure or mismatch', (t) => {

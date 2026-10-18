@@ -193,6 +193,7 @@
       "environments": ["staging", "production"],
       "remote": "origin",
       "lockTtlSeconds": 3600,
+      "remoteRetryDelaysMs": [2000, 5000, 10000, 20000, 30000],
       "readDeployedCommand": ""
     },
     "commands": {

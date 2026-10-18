@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [v3.11.33] - 2026-10-18
+
+- 回灌自下游项目 LinghuiAI（#3547、#3548）的部署防回退网络容错修复。起因：下游 staging 部署成功后，推进 `refs/xirang/deploy/staging` 的推送因本机代理 `SSL_ERROR_SYSCALL` 中断。旧协议不重放结果不明的推送，报 `DEPLOY_REF_CAS_FAILED`，ref 落后于线上；同 SHA 重发时，锁内二次快照在短退避下连续失败，fail-closed 未部署。
+  - `deploy-guard-git.js`：快照 fetch、`ls-remote` 与 lease 推送按退避有界重试。推送结果不明时用 `ls-remote` 核实：远端已等于目标即成功；仍等于 lease 期望值或不可读，就在同一 lease 下重推（已生效的推送重推只会被 lease 拒绝，不会重复写入）；为其他值即视为被拒。首次即被远端拒绝不重试。
+  - `deploy-guard.js`：新增配置 `devops.rollbackGuard.remoteRetryDelaysMs`，默认 `[2000,5000,10000,20000,30000]`（约 67 秒，覆盖代理成段故障），至多 10 项，每项为 0–60000 的整数，非法即阻断。部署成功但 deploy ref 推进重试耗尽仍不明时，改报 `DEPLOY_REF_ADVANCE_UNKNOWN`：锁照常释放，提示远端可达后用同一 `--sha` 重跑 ship 补记；期间线上回读仍阻断回退。
+  - `config.example.json` 登记默认值；`docs/CONVENTIONS.md` §7「租约」一条补写重试与裁决规则（38,286 → 38,991 B，+705 B）。
+  - 验证：`deploy-guard.test.js` 27 条（新增 fetch 瞬时失败重试、推送结果不明的三种裁决、首次拒绝不重试、ref 推进不明单独报码与配置校验）与 `template-surface.*` 56 条定向通过，`git diff --check` 无输出。未运行聚合 `pnpm test`：改动限于 deploy-guard 模块、其专属测试、默认配置与一条文档规则。下游已在真实 staging 用同 SHA 重发验证 ref 推进成功。
+  - 下游影响：`rollbackGuard` 默认关闭，未启用的项目行为不变；已启用的项目 `template sync` 后自动获得重试，远端持续不可达时每个远端操作最多多等约 67 秒再按原规则失败，可用 `remoteRetryDelaysMs: []` 关闭重试。
+
 ## [v3.11.32] - 2026-10-17
 
 - 回灌自下游项目 LinghuiAI（#3404、#3484、#3491）的 3 项作业包修复，消除下游 `template sync` 的 9 个 overwrite 漂移冲突：
