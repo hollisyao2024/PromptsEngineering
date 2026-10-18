@@ -1,8 +1,11 @@
 /**
  * Git primitives for the deploy guard (see deploy-guard.js): one-snapshot
  * fetch of branches and the refs/xirang deploy namespaces, ancestry
- * classification, and lease pushes whose unknown results are verified with
- * ls-remote instead of being replayed.
+ * classification, and lease pushes. Remote calls retry with bounded backoff:
+ * reads are idempotent, and a lease push is only re-sent while ls-remote shows
+ * the ref still at the lease value or cannot be read. A re-sent push cannot
+ * apply twice, because the lease rejects it once the ref has moved; the remote
+ * value then decides whether that was this run's write or someone else's.
  */
 
 const os = require('os');
@@ -12,6 +15,30 @@ const { buildGitHubGitEnv } = require('../shared/github-auth');
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const LOCK_AUTHOR = { name: 'xirang deploy guard', email: 'deploy-guard@xirang.invalid' };
+// The local proxy fails in bursts lasting tens of seconds; ~67s of backoff rides one out.
+const DEFAULT_RETRY_DELAYS_MS = [2000, 5000, 10000, 20000, 30000];
+
+function sleepSync(ms) {
+  if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function retryPlan(retry = {}) {
+  return {
+    delays: Array.isArray(retry.delaysMs) ? retry.delaysMs : DEFAULT_RETRY_DELAYS_MS,
+    sleep: typeof retry.sleep === 'function' ? retry.sleep : sleepSync,
+  };
+}
+
+// Runs attempt() up to delays.length + 1 times until it reports done.
+function withRetries(retry, attempt) {
+  const { delays, sleep } = retryPlan(retry);
+  let outcome = attempt(0);
+  for (let index = 0; !outcome.done && index < delays.length; index += 1) {
+    sleep(delays[index]);
+    outcome = attempt(index + 1);
+  }
+  return outcome;
+}
 
 function createGitRunner({ repoRoot, cwd, env = process.env, spawn = spawnSync } = {}) {
   return (args, options = {}) => {
@@ -55,15 +82,18 @@ function fetchSnapshot(git, guard) {
     return { ok: false, error: 'shallow clone cannot prove deployment ancestry; run git fetch --unshallow first' };
   }
   const { remote } = guard;
-  const fetched = git([
-    'fetch',
-    '--prune',
-    '--no-tags',
-    remote,
-    `+refs/heads/*:refs/remotes/${remote}/*`,
-    `+refs/xirang/deploy/*:refs/xirang-remote/${remote}/deploy/*`,
-    `+refs/xirang/deploy-lock/*:refs/xirang-remote/${remote}/deploy-lock/*`,
-  ]);
+  const { result: fetched } = withRetries(guard.retry, () => {
+    const result = git([
+      'fetch',
+      '--prune',
+      '--no-tags',
+      remote,
+      `+refs/heads/*:refs/remotes/${remote}/*`,
+      `+refs/xirang/deploy/*:refs/xirang-remote/${remote}/deploy/*`,
+      `+refs/xirang/deploy-lock/*:refs/xirang-remote/${remote}/deploy-lock/*`,
+    ]);
+    return { done: result.status === 0, result };
+  });
   if (fetched.status !== 0) {
     return { ok: false, error: `git fetch ${remote} failed: ${lastLine(fetched.stderr) || `exit ${fetched.status}`}` };
   }
@@ -120,25 +150,36 @@ function lsRemote(git, remote, ref) {
 }
 
 // newSha '' deletes; expected '' requires the ref to be absent.
-function pushWithLease(git, { remote, ref, newSha = '', expected = '' }) {
-  const pushed = git([
-    'push',
-    '--porcelain',
-    '--no-verify',
-    `--force-with-lease=${ref}:${expected}`,
-    remote,
-    `${newSha}:${ref}`,
-  ]);
-  const result = parsePushPorcelain(pushed.stdout, ref);
-  if (result !== 'unknown') return { result, detail: lastLine(pushed.stderr) };
-  const remoteState = lsRemote(git, remote, ref);
-  if (remoteState.ok && remoteState.sha === newSha) return { result: 'ok', verified: true };
-  return {
-    result: 'unknown',
-    detail: remoteState.ok
-      ? `push result unknown; ${ref} is ${remoteState.sha || 'absent'} on ${remote}`
-      : `push result unknown and ${remote} is unreadable: ${remoteState.error || lastLine(pushed.stderr)}`,
-  };
+// A first-attempt rejection is final. Any other non-ok attempt is judged by the
+// remote value: newSha means applied, expected or unreadable means push again,
+// anything else means another writer won the lease.
+function pushWithLease(git, { remote, ref, newSha = '', expected = '', retry }) {
+  return withRetries(retry, (attempt) => {
+    const pushed = git([
+      'push',
+      '--porcelain',
+      '--no-verify',
+      `--force-with-lease=${ref}:${expected}`,
+      remote,
+      `${newSha}:${ref}`,
+    ]);
+    const result = parsePushPorcelain(pushed.stdout, ref);
+    if (result === 'ok' || (result === 'rejected' && attempt === 0)) {
+      return { done: true, result, detail: lastLine(pushed.stderr) };
+    }
+    const remoteState = lsRemote(git, remote, ref);
+    if (remoteState.ok && remoteState.sha === newSha) return { done: true, result: 'ok', verified: true };
+    if (remoteState.ok && remoteState.sha !== expected) {
+      return { done: true, result: 'rejected', detail: `${ref} is ${remoteState.sha || 'absent'} on ${remote}, expected ${expected || 'absent'}` };
+    }
+    return {
+      done: false,
+      result: 'unknown',
+      detail: remoteState.ok
+        ? `push result unknown after ${attempt + 1} attempt(s); ${ref} is still ${remoteState.sha || 'absent'} on ${remote}: ${lastLine(pushed.stderr)}`
+        : `push result unknown after ${attempt + 1} attempt(s) and ${remote} is unreadable: ${remoteState.error || lastLine(pushed.stderr)}`,
+    };
+  });
 }
 
 function createLockCommit(git, guard, targetSha, now) {
@@ -174,6 +215,7 @@ function createLockCommit(git, guard, targetSha, now) {
 }
 
 module.exports = {
+  DEFAULT_RETRY_DELAYS_MS,
   FULL_SHA,
   classifyDeployment,
   createGitRunner,

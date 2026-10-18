@@ -7,12 +7,15 @@
  *   refs/xirang/deploy-lock/<scope>  lease: a parentless commit whose message
  *                                    is JSON holder metadata
  * Every write is a `git push --force-with-lease=<ref>:<expected>`, so the
- * remote performs an atomic compare-and-swap. Unknown push results are
- * verified with ls-remote and never replayed. Unreadable state fails closed.
+ * remote performs an atomic compare-and-swap. Remote reads and lease pushes
+ * retry with bounded backoff (remoteRetryDelaysMs); a push is re-sent only
+ * while ls-remote shows the ref unchanged or unreadable, so the lease keeps a
+ * retry from applying twice. Unreadable state fails closed.
  */
 
 const { spawnSync } = require('child_process');
 const {
+  DEFAULT_RETRY_DELAYS_MS,
   FULL_SHA,
   classifyDeployment,
   createGitRunner,
@@ -29,6 +32,8 @@ const SCOPE_TOKEN = /^[a-z0-9]+$/;
 const ENV_NAMES = { prod: 'production', production: 'production', stage: 'staging', staging: 'staging', dev: 'dev', development: 'dev' };
 const DEFAULT_ENVIRONMENTS = ['staging', 'production'];
 const DEFAULT_TTL_SECONDS = 3600;
+const MAX_RETRY_ATTEMPTS = 10;
+const MAX_RETRY_DELAY_MS = 60_000;
 const VERDICT_SEVERITY = { NO_BASELINE: 0, PASS: 1, ROLLBACK: 2, DIVERGED: 3, UNKNOWN: 4, UNREADABLE: 5 };
 
 function resolveGuardConfig(config, env, target = '') {
@@ -45,6 +50,14 @@ function resolveGuardConfig(config, env, target = '') {
   const lockTtlSeconds = raw.lockTtlSeconds === undefined ? DEFAULT_TTL_SECONDS : raw.lockTtlSeconds;
   if (!Number.isInteger(lockTtlSeconds) || lockTtlSeconds <= 0) {
     return { enabled: true, error: 'devops.rollbackGuard.lockTtlSeconds must be a positive integer' };
+  }
+  const delaysMs = raw.remoteRetryDelaysMs === undefined ? DEFAULT_RETRY_DELAYS_MS : raw.remoteRetryDelaysMs;
+  if (
+    !Array.isArray(delaysMs)
+    || delaysMs.length > MAX_RETRY_ATTEMPTS
+    || !delaysMs.every((ms) => Number.isInteger(ms) && ms >= 0 && ms <= MAX_RETRY_DELAY_MS)
+  ) {
+    return { enabled: true, error: `devops.rollbackGuard.remoteRetryDelaysMs must be at most ${MAX_RETRY_ATTEMPTS} integers between 0 and ${MAX_RETRY_DELAY_MS}` };
   }
   const profile = target && target !== 'default' ? target : '';
   if (!SCOPE_TOKEN.test(env) || (profile && !SCOPE_TOKEN.test(profile))) {
@@ -65,6 +78,7 @@ function resolveGuardConfig(config, env, target = '') {
     remote,
     lockTtlSeconds,
     readDeployedCommand,
+    retry: { delaysMs: [...delaysMs] },
     deployRef: `refs/xirang/deploy/${scope}`,
     lockRef: `refs/xirang/deploy-lock/${scope}`,
     releaseCommand: profile ? `pnpm agent -- ${profile} ship ${env}` : `pnpm agent -- ship ${env}`,
@@ -149,7 +163,7 @@ function describeLock(git, guard, lockSha, now) {
 }
 
 function releaseLock(git, guard, lockSha) {
-  const released = pushWithLease(git, { remote: guard.remote, ref: guard.lockRef, newSha: '', expected: lockSha });
+  const released = pushWithLease(git, { remote: guard.remote, ref: guard.lockRef, newSha: '', expected: lockSha, retry: guard.retry });
   if (released.result === 'ok') return { ok: true, lines: ['DEPLOY_LOCK_RELEASE=OK'] };
   return {
     ok: false,
@@ -211,7 +225,7 @@ function executeGuardedShip({ git, guard, prepared, execute, readDeployed, now =
   const lock = createLockCommit(git, guard, targetSha, now);
   if (lock.error) return failure('DEPLOY_LOCK_UNAVAILABLE', `cannot create the lock commit: ${lock.error}`, 'Check the local git repository, then retry.', lines);
 
-  const acquired = pushWithLease(git, { remote: guard.remote, ref: guard.lockRef, newSha: lock.sha, expected: '' });
+  const acquired = pushWithLease(git, { remote: guard.remote, ref: guard.lockRef, newSha: lock.sha, expected: '', retry: guard.retry });
   if (acquired.result === 'rejected') {
     lines.push('DEPLOY_LOCK=HELD');
     return failure('DEPLOY_LOCKED', `another ${guard.scope} deployment acquired the lock first`, 'Rerun the ship to see the holder, then wait for it to finish.', lines);
@@ -261,7 +275,15 @@ function executeGuardedShip({ git, guard, prepared, execute, readDeployed, now =
     }
   }
 
-  const advanced = pushWithLease(git, { remote: guard.remote, ref: guard.deployRef, newSha: targetSha, expected: snapshot.deployedSha });
+  const advanced = pushWithLease(git, { remote: guard.remote, ref: guard.deployRef, newSha: targetSha, expected: snapshot.deployedSha, retry: guard.retry });
+  if (advanced.result === 'unknown') {
+    lines.push('DEPLOY_REF_ADVANCE=UNKNOWN');
+    return releaseThenFail(
+      'DEPLOY_REF_ADVANCE_UNKNOWN',
+      `the deploy succeeded but ${guard.deployRef} could not be advanced or confirmed (${advanced.detail})`,
+      `The environment runs ${targetSha}. When ${guard.remote} is reachable, rerun ${guard.releaseCommand} --sha=${targetSha} to record it; until then the live-version check still blocks rollbacks.`,
+    );
+  }
   if (advanced.result !== 'ok') {
     lines.push('DEPLOY_REF_ADVANCE=FAILED');
     return releaseThenFail(
