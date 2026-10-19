@@ -48,16 +48,35 @@ test('installed template contracts accept the consumer package identity and vers
   ], { cwd: target, encoding: 'utf8', env: childEnv });
   assert.match(coverage.stdout, /^ok \d+ - root test script covers .* # SKIP /mu);
   assert.equal(coverage.status, 0, coverage.stdout + coverage.stderr);
+  // Also execute the regression from an installed, restricted consumer, rather than only the source.
+  const rootConfig = JSON.parse(fs.readFileSync(path.join(source, 'agent.config.json'), 'utf8'));
+  if (rootConfig.template?.role === 'source') {
+    const active = path.join(target, '.claude/settings.json');
+    const restricted = JSON.stringify({ permissions: { allow: ['Read(src/**)'] } }) + '\n';
+    fs.writeFileSync(active, restricted);
+    const consumer = spawnSync(process.execPath, [
+      '--test', '--test-name-pattern=default allowlist contracts',
+      path.join(target, 'infra/scripts/setup/__tests__/template-consumer-compat.test.js'),
+    ], { cwd: target, encoding: 'utf8', env: childEnv });
+    assert.equal(consumer.status, 0, consumer.stdout + consumer.stderr);
+    assert.equal(fs.readFileSync(active, 'utf8'), restricted);
+  }
 });
 
 test('default allowlist contracts preserve consumer restrictions and detect damaged defaults', (t) => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-consumer-allowlist-'));
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
-  const apply = spawnSync(process.execPath, [
-    path.join(source, 'infra/scripts/setup/template-apply-engine.js'),
-    '--source', source, '--target', target, '--write',
-  ], { cwd: target, encoding: 'utf8' });
-  assert.equal(apply.status, 0, apply.stdout + apply.stderr);
+  // A consumer is not an upstream source: do not export its active settings into a new template.
+  // The preceding integration test covers installation; this fixture isolates the shipped contract.
+  const config = JSON.parse(fs.readFileSync(path.join(source, 'agent.config.json'), 'utf8'));
+  const defaultsPath = config.template?.role === 'source'
+    ? '.claude/settings.json' : '.claude/settings.template.json';
+  const contract = 'infra/scripts/setup/__tests__/claude-settings-allowlist.test.js';
+  fs.mkdirSync(path.dirname(path.join(target, contract)), { recursive: true });
+  fs.mkdirSync(path.join(target, '.claude'));
+  fs.copyFileSync(path.join(source, contract), path.join(target, contract));
+  fs.copyFileSync(path.join(source, defaultsPath), path.join(target, '.claude/settings.template.json'));
+  fs.writeFileSync(path.join(target, 'agent.config.json'), '{}\n');
   const projectSettings = path.join(target, '.claude/settings.json');
   const restricted = JSON.stringify({ permissions: { allow: ['Read(src/**)'] } }) + '\n';
   fs.writeFileSync(projectSettings, restricted);
