@@ -1,0 +1,11 @@
+{
+  "name": "xirang-plugins",
+  "owner": { "name": "hollisyao2024" },
+  "plugins": [
+    {
+      "name": "xirang",
+      "source": "./plugins/xirang",
+      "description": "接入息壤、启动隔离任务、恢复工作与检查交付。需要项目文件和本地 shell。"
+    }
+  ]
+}

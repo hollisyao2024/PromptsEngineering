@@ -4,7 +4,7 @@
 
 把 vibe coding 接入任务、独立 Git worktree、测试、QA 与合并流程，让每项修改有验收、每次交付有证据、中断后有恢复入口。
 
-[快速上手](docs/guides/quickstart.md) · [并行协作教程](docs/guides/parallel-collaboration.md) · [完整使用参考](docs/guides/template-reference.md) · [English](README.en.md)
+[快速上手](docs/guides/quickstart.md) · [插件入口](docs/guides/plugin-quickstart.md) · [并行协作教程](docs/guides/parallel-collaboration.md) · [完整使用参考](docs/guides/template-reference.md) · [English](README.en.md)
 
 ## 你可能遇到的问题
 
@@ -61,6 +61,8 @@ pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent
 | `GEMINI.md`、`.gemini/` | Gemini CLI 的规则入口与配置材料 |
 
 有入口文件不等于所有客户端、版本和权限组合都已经验证。接入时确认工具实际读取了基础规则，并能运行仓库命令；权限由运行环境决定。详见[工具接入检查](docs/guides/quickstart.md#工具接入检查)。
+
+已有 `0.1.0` 轻量插件，提供接入、启动任务、恢复、检查交付四项技能；Claude Code 与 OpenAI 本地市场清单指向同一份源码。安装步骤与实际验证范围见[插件上手](docs/guides/plugin-quickstart.md)。尚未提交公共市场，插件安装也不代表目标项目已接入模板。
 
 ## 按需采用架构能力
 

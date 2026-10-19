@@ -78,4 +78,4 @@ Repository: [Xirang](https://github.com/hollisyao2024/PromptsEngineering)
 
 拟议描述：帮助开发者在支持项目文件与 shell 的环境中接入息壤，启动隔离任务、恢复工作并检查交付条件。复用项目内 CLI 与规则，不替代宿主权限或自动授予仓库权限。
 
-此描述仅在插件实现并通过适配验收后用于提交。当前发布的是仓库模板与文档，插件功能见[待实现范围](distribution.md#首版插件建议能力)。
+首版技能与本地分发包已提供，实际验证范围见[插件上手](../guides/plugin-quickstart.md)。公共提交前还需完成客户端试用、许可核对与发布者材料；插件功能见[首版能力](distribution.md#首版插件能力)。
