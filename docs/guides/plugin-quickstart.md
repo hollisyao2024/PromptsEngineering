@@ -28,7 +28,9 @@ claude plugin install xirang@xirang-plugins
 
 移除时使用 Claude Code 的插件管理界面卸载 `xirang@xirang-plugins`；不再使用该市场时执行 `claude plugin marketplace remove xirang-plugins`。移除插件不会卸载已接入项目的模板文件或删除项目任务。
 
-本轮环境未发现 Claude Code CLI，因此这些步骤依据[官方市场文档](https://code.claude.com/docs/en/plugin-marketplaces)，尚待真实客户端安装与技能触发验证。
+2026-10-20 已用 Claude Code `2.1.299` 从 GitHub 市场 `hollisyao2024/PromptsEngineering` 实际安装、核对四项技能并卸载，见下方验证范围。
+
+首次接入已有 Git 项目时，若主项目尚未忽略 `.codex/config.toml`，预演会 `STATUS=BLOCKED`；先在该项目 `.gitignore` 加入此路径。接入分支合回主工作区前，删除初始化在主工作区留下、且与提交内容一致的未跟踪 `.env*.example`。
 
 ## Codex / ChatGPT 桌面本地市场
 
@@ -78,7 +80,8 @@ codex plugin marketplace remove xirang-plugins
 | Codex CLI | `0.163.0-alpha.10.2`，0.1.0 已实际安装、调用四项技能并卸载，个人配置恢复；0.1.1 仅更新元数据与许可 |
 | 插件 ZIP | 解压后独立运行探测器，包内引用有效，凭据与无关文件不进入归档 |
 | 项目接入与隔离 | 自动测试调用真实 updater、任务与 worktree 命令；使用隔离的本地 bare remote |
-| Claude Code / ChatGPT 图形界面 | 尚未做客户端安装、四技能真实触发与卸载实测 |
+| Claude Code | `2.1.299`，0.1.1 从 GitHub 市场安装，`plugin details` 列出四项技能、无 MCP/hook；在一次性 Git 项目完成接入收敛、隔离 worktree、中断恢复（转为待核实）与只读交付检查（前后快照一致）；卸载后个人插件配置与备份一致。CLI 未登录，未做模型驱动的技能触发 |
+| ChatGPT 图形界面 | 尚未做客户端安装、四技能真实触发与卸载实测 |
 | 真实远端交付 | 0.1.0 在已有下游项目的隔离 worktree 内移除再接入模板，完成真实 GitHub PR → QA → 合并与推送；未据此宣称多人跨电脑验证 |
 
 支持信息、失败位置和是否需作者介入，记录到[试用表](../promotion/trial-feedback.md)。MIT 正文见[许可](../../LICENSE)。公开提交需要发布者身份验证和平台检查；模板安装、提交审核、公开上架须分别报告。Claude Desktop 的提交操作见[可复制提示词](claude-marketplace-submit-prompt.md)。
