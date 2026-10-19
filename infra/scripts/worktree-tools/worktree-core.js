@@ -207,6 +207,13 @@ function verifiedRecoveryTaskIds(config, mainRoot, session, options = {}) {
   return [...new Set([...explicit, ...matching])].sort();
 }
 
+// resume 未显式传 --task 时沿用既有 session 已登记的 task 键，避免任务位置停留在旧目录或主 worktree。
+function withSessionTaskKeys(lifecycle, session) {
+  const keys = new Set(lifecycle.keys);
+  for (const taskId of lifecycleTaskIds(session)) keys.add(`task:${taskId}`);
+  return { ...lifecycle, keys: [...keys].sort() };
+}
+
 function bindLifecycleTaskLocations(config, mainRoot, session, worktree, branch, options = {}) {
   const taskIds = Array.isArray(options.taskIds)
     ? [...new Set(options.taskIds.map(slugify).filter(Boolean))].sort()
@@ -1380,7 +1387,7 @@ function createOrResumeWorktree(options = {}) {
   const config = loadConfig({ repoRoot: configRoot, cli });
   // Validate before fetch, branch creation, worktree registration, session writes, or links.
   validateSharedLinkConfig(config);
-  assertSessionCanResume(config, mainRoot, branch);
+  const previousSession = assertSessionCanResume(config, mainRoot, branch);
   const desktopEntry = detectDesktopAdoption(config, mainRoot, cwd);
   if (desktopEntry) {
     return adoptDesktopWorktree({
@@ -1429,7 +1436,7 @@ function createOrResumeWorktree(options = {}) {
     const taskBindings = bindLifecycleTaskLocations(
       config,
       mainRoot,
-      { branch, lifecycle },
+      { branch, lifecycle: withSessionTaskKeys(lifecycle, previousSession) },
       existing.path,
       branch,
       options,

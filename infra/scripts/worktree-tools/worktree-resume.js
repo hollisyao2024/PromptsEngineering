@@ -2,15 +2,18 @@
 
 const {
   assertSessionCanResume,
+  bindLifecycleTaskLocations,
   createOrResumeWorktree,
   findWorktreeByBranch,
   getMainRepoRoot,
   getWorktreeRoot,
+  lifecycleTaskIds,
   listWorktrees,
   parseCliArgs,
   readSessions,
   recoverSessionAsBranch,
   runWorktreeBootstrap,
+  slugify,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
@@ -52,7 +55,10 @@ function main() {
         console.log(`NEXT_CWD=${recovered.worktreePath}`);
         return;
       }
-      assertSessionCanResume(config, mainRoot, target);
+      const session = assertSessionCanResume(config, mainRoot, target);
+      // 恢复已有 worktree 时把 session 登记的任务（及显式 --task）重新绑定到该目录，修复主 worktree 操作造成的绑定漂移。
+      const taskIds = [...lifecycleTaskIds(session), ...(cli.task ? [slugify(cli.task)] : [])];
+      const taskBindings = bindLifecycleTaskLocations(config, mainRoot, session, existing.path, target, { taskIds });
       const bootstrap = runWorktreeBootstrap({
         worktreePath: existing.path,
         config,
@@ -63,6 +69,7 @@ function main() {
       console.log(`BRANCH_NAME=${target}`);
       console.log(`WORKTREE_PATH=${existing.path}`);
       console.log(`NEXT_CWD=${existing.path}`);
+      for (const binding of taskBindings) console.log(`TASK_BINDING=${binding.taskId}|${binding.status}`);
       console.log(`BOOTSTRAP_STATUS=${bootstrap.status}`);
       if (bootstrap.mode) console.log(`BOOTSTRAP_MODE=${bootstrap.mode}`);
       if (bootstrap.reason) console.log(`BOOTSTRAP_REASON=${bootstrap.reason}`);

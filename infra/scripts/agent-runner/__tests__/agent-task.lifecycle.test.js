@@ -438,3 +438,31 @@ test('explicit lifecycle binding moves an active task to its managed worktree', 
     branch: 'recovery/durable-task',
   }).task_id, 'durable-task');
 });
+
+test('main worktree checkpoints and transitions keep a live linked worktree binding', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { phase: 'tdd' }));
+  const fromMain = { ...paths, worktree: paths.projectRoot, branch: 'main', taskId: 'durable-task' };
+
+  checkpointTask({ ...fromMain, stepId: 'S1', status: 'done', evidence: ['inspected from main'] });
+  transitionTaskPhase({ ...fromMain, phase: 'qa', evidence: ['TDD_DONE from main'] });
+  let state = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(state.worktree, paths.worktree);
+  assert.equal(state.branch, 'feature/durable-task');
+
+  const movedWorktree = path.join(paths.root, 'moved-worktree');
+  fs.mkdirSync(movedWorktree);
+  checkpointTask({
+    ...paths, worktree: movedWorktree, branch: 'feature/moved', taskId: 'durable-task',
+    stepId: 'S2', status: 'running', evidence: ['moved explicitly'],
+  });
+  state = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(state.worktree, movedWorktree);
+  assert.equal(state.branch, 'feature/moved');
+
+  fs.rmSync(movedWorktree, { recursive: true, force: true });
+  checkpointTask({ ...fromMain, stepId: 'S2', status: 'done', evidence: ['merged and cleaned'] });
+  state = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(state.worktree, paths.projectRoot);
+  assert.equal(state.branch, 'main');
+});

@@ -432,6 +432,27 @@ function createTask(options) {
   });
 }
 
+// checkpoint/transition 按调用位置更新任务绑定：linked worktree 中的调用照常迁移绑定；
+// 主 worktree 中的协调调用不得抢走仍存在的 linked worktree 绑定，只在该目录已被合并清理后回落到主 worktree。
+function applyCallerLocation(state, options) {
+  if (!options.projectRoot || !isSamePath(options.projectRoot, state.project_root) || !options.worktree) return;
+  const worktree = path.resolve(options.worktree);
+  const boundLinked = state.worktree && !isSamePath(state.worktree, state.project_root) ? state.worktree : '';
+  if (isSamePath(worktree, state.project_root) && boundLinked && isRealDirectory(boundLinked)) return;
+  state.worktree = worktree;
+  if (options.branch) state.branch = String(options.branch);
+}
+
+function isRealDirectory(target) {
+  try {
+    const stat = fs.lstatSync(target);
+    return stat.isDirectory() && !stat.isSymbolicLink();
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return false;
+    throw error;
+  }
+}
+
 function bindTaskLocation(options) {
   const taskId = safeTaskId(options.taskId);
   if (!path.isAbsolute(options.projectRoot || '')) {
@@ -564,10 +585,7 @@ function transitionTaskPhase(options) {
       ...(deferredCleanup ? { deferred_cleanup: deferredCleanup } : {}),
     });
     state.current_phase = targetPhase;
-    if (options.projectRoot && isSamePath(options.projectRoot, state.project_root)) {
-      if (options.worktree) state.worktree = path.resolve(options.worktree);
-      if (options.branch) state.branch = String(options.branch);
-    }
+    applyCallerLocation(state, options);
     state.updated_at = timestamp;
     return writeAtomicState({ runsRoot: options.runsRoot, taskId, state });
   });
@@ -697,10 +715,7 @@ function checkpointTask(options) {
       }
     }
 
-    if (options.projectRoot && isSamePath(options.projectRoot, state.project_root)) {
-      if (options.worktree) state.worktree = path.resolve(options.worktree);
-      if (options.branch) state.branch = String(options.branch);
-    }
+    applyCallerLocation(state, options);
     const current = firstIncompleteStep(state);
     state.current_step = current ? current.id : '';
     state.next_action = String(options.nextAction || (current && (current.next_action || current.title)) || 'Run finish gate');
