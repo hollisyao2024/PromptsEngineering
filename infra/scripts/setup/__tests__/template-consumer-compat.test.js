@@ -49,3 +49,33 @@ test('installed template contracts accept the consumer package identity and vers
   assert.match(coverage.stdout, /^ok \d+ - root test script covers .* # SKIP /mu);
   assert.equal(coverage.status, 0, coverage.stdout + coverage.stderr);
 });
+
+test('default allowlist contracts preserve consumer restrictions and detect damaged defaults', (t) => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-consumer-allowlist-'));
+  t.after(() => fs.rmSync(target, { recursive: true, force: true }));
+  const apply = spawnSync(process.execPath, [
+    path.join(source, 'infra/scripts/setup/template-apply-engine.js'),
+    '--source', source, '--target', target, '--write',
+  ], { cwd: target, encoding: 'utf8' });
+  assert.equal(apply.status, 0, apply.stdout + apply.stderr);
+  const projectSettings = path.join(target, '.claude/settings.json');
+  const restricted = JSON.stringify({ permissions: { allow: ['Read(src/**)'] } }) + '\n';
+  fs.writeFileSync(projectSettings, restricted);
+  const childEnv = { ...process.env };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const check = () => spawnSync(process.execPath, [
+    '--test', path.join(target, 'infra/scripts/setup/__tests__/claude-settings-allowlist.test.js'),
+  ], { cwd: target, encoding: 'utf8', env: childEnv });
+  const valid = check();
+  assert.equal(valid.status, 0, valid.stdout + valid.stderr);
+  assert.equal(fs.readFileSync(projectSettings, 'utf8'), restricted);
+  // The shipped default is still a strict contract; project customization cannot mask a regression.
+  const snapshot = path.join(target, '.claude/settings.template.json');
+  const defaults = JSON.parse(fs.readFileSync(snapshot, 'utf8'));
+  defaults.permissions.allow = defaults.permissions.allow.filter(rule => rule !== 'Bash(pnpm build*)');
+  fs.writeFileSync(snapshot, JSON.stringify(defaults));
+  const damaged = check();
+  assert.notEqual(damaged.status, 0);
+  assert.match(damaged.stdout, /build\/clean rule is missing: Bash\(pnpm build\*\)/u);
+  assert.equal(fs.readFileSync(projectSettings, 'utf8'), restricted);
+});
