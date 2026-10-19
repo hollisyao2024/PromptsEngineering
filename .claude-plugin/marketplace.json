@@ -1,6 +1,7 @@
 {
   "name": "xirang-plugins",
   "owner": { "name": "hollisyao2024" },
+  "description": "Xirang plugin marketplace: set up Xirang, isolate coding tasks in Git worktrees, resume work, and verify delivery.",
   "plugins": [
     {
       "name": "xirang",
