@@ -51,7 +51,7 @@ If another task merges first, sync and validate against the updated base as requ
 
 ## Coding tools and optional architecture
 
-The repository provides `AGENTS.md`, Claude Code entry files, Codex configuration materials, and Gemini CLI entry files. Validate rule loading, command execution, permissions, and client compatibility in your environment. Repository entry files are not a published marketplace plugin.
+The repository provides `AGENTS.md`, Claude Code entry files, Codex configuration materials, and Gemini CLI entry files. A separate `0.1.0` plugin packages four workflows for adoption, isolated tasks, recovery, and delivery checks. Claude Code and OpenAI local catalogs point to the same package. Validate rule loading, permissions, and client behavior in your environment; no public directory submission has been made. See [plugin setup and tested scope (Chinese)](docs/guides/plugin-quickstart.md).
 
 Adopt the workflow without changing your application stack. Add `--include architecture` separately when you want the lightweight architecture entry, then select and initialize the modules your project needs. Do not combine that option with `--scope agent`. See the [architecture package](architecture/README.md) and [catalog](architecture/open-source-catalog.json) for available implementations and boundaries.
 
@@ -60,6 +60,6 @@ Adopt the workflow without changing your application stack. Add `--include archi
 - Report reproducible issues through [GitHub Issues](https://github.com/hollisyao2024/PromptsEngineering/issues). Remove tokens, personal data, and raw production logs.
 - Share adoption reports with environment, source revision, commands, outcomes, and remaining friction. See [contributing](CONTRIBUTING.md).
 - Read the [changelog](CHANGELOG.md) and [upgrade reference](docs/guides/template-reference.md) before updating an existing installation.
-- Marketplace adapters are a proposed distribution path, not a released feature. See the [distribution assessment](docs/promotion/distribution.md).
+- Local plugin distribution files are available; public marketplace publication remains a separate step. See the [distribution assessment](docs/promotion/distribution.md).
 
 License status: `package.json` declares MIT, but the repository currently lacks a root license text. Third-party components retain their own licenses; confirm the applicable terms before redistribution.

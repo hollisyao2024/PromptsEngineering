@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "xirang",
+  "version": "0.1.0",
+  "description": "Adopt Xirang, start isolated tasks, resume work and verify delivery in a local coding workspace.",
+  "author": { "name": "hollisyao2024", "url": "https://github.com/hollisyao2024" },
+  "homepage": "https://github.com/hollisyao2024/PromptsEngineering",
+  "repository": "https://github.com/hollisyao2024/PromptsEngineering",
+  "keywords": ["ai-coding", "git-worktree", "collaboration"],
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "onboardingSkill": "./skills/xirang-setup/SKILL.md",
+      "interface": {
+        "displayName": "息壤 Xirang",
+        "shortDescription": "AI 编程任务、隔离与交付",
+        "longDescription": "在可访问项目文件与 shell 的环境中接入息壤，启动隔离任务、恢复工作并检查交付。复用项目内 CLI，不自动调度代理或授予权限。",
+        "developerName": "hollisyao2024",
+        "category": "Developer Tools",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://github.com/hollisyao2024/PromptsEngineering",
+        "defaultPrompt": ["给这个项目接入息壤，先展示变更范围。", "用息壤启动一个独立任务。", "恢复这个息壤任务并说明下一步。"],
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/icon.svg"
+      }
+    }
+  }
+}
