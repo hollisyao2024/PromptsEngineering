@@ -2,7 +2,7 @@
 
 [推广方案](README.md) · [项目首页](../../README.md)
 
-核对日期：2026-10-19。产品入口和审核要求可能调整，提交前重新核对下方官方文档。已提供 [0.1.0 本地适配包与安装指南](../guides/plugin-quickstart.md)，尚未提交公共市场。
+核对日期：2026-10-20。产品入口和审核要求可能调整，提交前重新核对下方官方文档。已提供 [0.1.1 适配包与安装指南](../guides/plugin-quickstart.md)；包准备、提交与审核上架是独立结果。
 
 ## 建议路线
 
@@ -26,7 +26,7 @@ GitHub 用于源码与长文档，插件用于进入工作流。两者可以共�
 
 官方支持把 `.claude-plugin/marketplace.json` 放在 Git 托管仓库中，用户注册市场后安装插件。本仓库已提供市场清单和四项技能；本轮未发现 Claude Code 客户端，安装与触发步骤仍需按指南实测。[创建市场](https://code.claude.com/docs/en/plugin-marketplaces)
 
-Claude 官方市场提供 “Submit a plugin” 入口。自建市场可安装与官方收录是两个结果，不能相互替代。[Claude 官方插件市场](https://claude.com/marketplace/plugins)
+Claude 公开目录通过开发者门户提交，需要具备资格的付费 Claude 账号。该目录与 `claude-plugins-official` 不同，后者的收录由 Anthropic 合作渠道处理。自建市场可安装不代表官方收录。[官方发布说明](https://code.claude.com/docs/en/plugins/publish)、[开发者门户](https://claude.ai/directory/manage)
 
 适配包应自包含：技能引用的文件必须随包提供，不能假设安装缓存旁边存在源仓库。源模板的项目初始化与生命周期规则保留在真实项目中执行；插件不应仅靠装入全局指令就绕过 worktree 和状态门禁。
 
@@ -60,4 +60,6 @@ OpenAI 官方文档说明 ChatGPT 和 Codex 共享公共插件目录；插件可
 - 补齐发布者身份、图标、描述、支持入口、许可正文及适用的审核材料；不得虚构批准、评分或用户数据。
 - 市场提交与公开发布分别取得维护者授权；保留提交状态与结果证据。
 
-当前已完成技能源码、双宿主本地清单、只读探测器和独立 ZIP 打包。Codex CLI 通过显式本地市场参数发现插件；客户端安装、技能真实触发、卸载和多人完整交付仍需按[试用表](trial-feedback.md)记录，再申请公共收录。
+当前已完成技能源码、双宿主清单、只读探测器、MIT 正文和独立 ZIP 打包。0.1.0 已验证 Codex CLI 安装、四技能调用与卸载，以及下游项目真实 GitHub PR、QA、合并与推送；0.1.1 只调整发布材料。Claude Code、ChatGPT 图形界面和多人跨电脑使用尚未独立验证。
+
+息壤保留 `requires_local_executor: true`，按无 MCP 的桌面执行插件提交。官方当前说明此类目录插件从 ChatGPT 桌面端安装，仅在本地线程使用；不要据此承诺所有 Codex 客户端一键安装。若门户不接受此字段，核实提交组织准入，不移除真实执行限制来绕过检查。[桌面限定插件](https://developers.openai.com/plugins/deploy/desktop-only)

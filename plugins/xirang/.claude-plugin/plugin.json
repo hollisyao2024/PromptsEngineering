@@ -1,9 +1,10 @@
 {
   "name": "xirang",
-  "version": "0.1.0",
-  "description": "接入息壤、启动隔离任务、恢复工作与检查交付；需要项目文件和 shell。",
+  "version": "0.1.1",
+  "description": "Set up Xirang, isolate coding tasks in Git worktrees, resume work, and verify delivery. Requires local project files and a shell.",
   "author": { "name": "hollisyao2024", "url": "https://github.com/hollisyao2024" },
   "homepage": "https://github.com/hollisyao2024/PromptsEngineering",
   "repository": "https://github.com/hollisyao2024/PromptsEngineering",
+  "license": "MIT",
   "skills": "./skills/"
 }
