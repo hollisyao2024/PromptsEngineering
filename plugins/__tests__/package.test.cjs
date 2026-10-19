@@ -32,6 +32,7 @@ test('ZIP is self-contained and executable after unpacking without its source re
   const report=packagePlugin({source:f.plugin,output:f.output});
   assert.ok(report.files.includes('plugin.json'));
   assert.ok(report.files.includes('LICENSE'), 'a redistributable archive must carry its license');
+  assert.ok(report.files.includes('PRIVACY.md'), 'the archive must carry the privacy policy its manifest declares');
   assert.ok(!report.files.some(p=>/\.env|node_modules/u.test(p)));
   const unpacked=path.join(f.root,'unpacked');fs.mkdirSync(unpacked);
   const unzip=spawnSync('unzip',['-q',f.output,'-d',unpacked],{encoding:'utf8'});assert.equal(unzip.status,0,unzip.stderr);
@@ -49,6 +50,17 @@ test('ZIP is self-contained and executable after unpacking without its source re
       assert.ok(fs.existsSync(path.resolve(path.dirname(entry),relative)),skill+': '+relative);
     }
   }
+});
+test('privacy policy URL resolves to the packaged policy on the official main branch',()=>{
+  const claude=JSON.parse(fs.readFileSync(path.join(source,'.claude-plugin/plugin.json')));
+  assert.equal(claude.privacyPolicyUrl,
+    'https://github.com/hollisyao2024/PromptsEngineering/blob/main/plugins/xirang/PRIVACY.md');
+  assert.ok(fs.statSync(path.join(source,'PRIVACY.md')).isFile());
+});
+test('missing privacy policy blocks redistribution when the manifest declares one',t=>{
+  const f=fixture(t);fs.rmSync(path.join(f.plugin,'PRIVACY.md'),{force:true});
+  assert.throws(()=>packagePlugin({source:f.plugin,output:f.output}),/missing payload PRIVACY\.md/u);
+  assert.ok(!fs.existsSync(f.output));
 });
 test('missing license blocks redistribution before an archive is created',t=>{
   const f=fixture(t);

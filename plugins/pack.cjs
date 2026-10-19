@@ -7,7 +7,7 @@ const {spawnSync} = require('node:child_process');
 
 const SKILLS = ['xirang-setup','xirang-task','xirang-resume','xirang-deliver'];
 // Explicit payload prevents repository state, credentials and unrelated files entering a release.
-const PAYLOAD = ['plugin.json','.claude-plugin/plugin.json','README.md','LICENSE','references/workflow.md',
+const PAYLOAD = ['plugin.json','.claude-plugin/plugin.json','README.md','LICENSE','PRIVACY.md','references/workflow.md',
   'scripts/inspect-project.cjs','assets/icon.svg',...SKILLS.map(name => `skills/${name}/SKILL.md`)];
 
 function collectFiles(source) {

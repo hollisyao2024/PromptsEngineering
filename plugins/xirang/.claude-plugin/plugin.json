@@ -1,10 +1,11 @@
 {
   "name": "xirang",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Set up Xirang, isolate coding tasks in Git worktrees, resume work, and verify delivery. Requires local project files and a shell.",
   "author": { "name": "hollisyao2024", "url": "https://github.com/hollisyao2024" },
   "homepage": "https://github.com/hollisyao2024/PromptsEngineering",
   "repository": "https://github.com/hollisyao2024/PromptsEngineering",
   "license": "MIT",
+  "privacyPolicyUrl": "https://github.com/hollisyao2024/PromptsEngineering/blob/main/plugins/xirang/PRIVACY.md",
   "skills": "./skills/"
 }

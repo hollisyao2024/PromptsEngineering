@@ -1,4 +1,4 @@
-# Xirang / 息壤 plugin 0.1.1
+# Xirang / 息壤 plugin 0.1.2
 
 Four skills for local AI coding projects: adopt Xirang, start isolated tasks, resume work, and verify delivery. Skills define the workflows; the plugin packages them for installation and updates; the project template supplies the CLI, rules, ownership baselines, and lifecycle gates.
 
@@ -26,7 +26,7 @@ Claude Code 的完整技能名形如 `/xirang:xirang-setup`。其他宿主按其
 
 ## 包内资源
 
-`plugin.json` 是 OpenAI portable 入口，`.claude-plugin/plugin.json` 是 Claude Code 入口。两者共享 `skills/`、`references/`、`scripts/` 和 `assets/`，无需从插件缓存跨目录引用源仓库。
+`plugin.json` 是 OpenAI portable 入口，`.claude-plugin/plugin.json` 是 Claude Code 入口。两者共享 `skills/`、`references/`、`scripts/`、`assets/` 与 `PRIVACY.md`，无需从插件缓存跨目录引用源仓库。
 
 只读探测示例，在解压后的插件目录运行：
 
@@ -44,11 +44,11 @@ Claude Code：从完整息壤仓库注册其市场，再安装 `xirang@xirang-pl
 
 ## 验证与许可边界
 
-本包用于仓库分发和公共市场提交准备；打包成功不代表市场审核通过。0.1.0 已在 Codex CLI 做实际安装、技能调用与卸载，并在下游项目验证真实 GitHub PR、QA 与合并；0.1.1 仅调整元数据、许可和说明。Claude Code 与 ChatGPT 图形界面仍需独立实测。不承诺所有客户端或纯网页会话可执行本地 Git/pnpm。
+本包用于仓库分发和公共市场提交准备；打包成功不代表市场审核通过。0.1.0 已在 Codex CLI 做实际安装、技能调用与卸载，并在下游项目验证真实 GitHub PR、QA 与合并；0.1.1 仅调整元数据、许可和说明。Claude Code `2.1.299` 已验证 0.1.1 的市场安装、四项技能清单、一次性项目流程与卸载，模型驱动的技能触发未验证；0.1.2 仅新增隐私政策。ChatGPT 图形界面仍需独立实测。不承诺所有客户端或纯网页会话可执行本地 Git/pnpm。
 
 ## Data and permissions
 
-The packaged inspector reads the selected project's local metadata without changing it. Skills can ask the host to run project commands after the applicable user and project gates. Those commands may read or modify project files and contact GitHub or the configured template source. Credentials stay in the project's existing ignored configuration; do not place them in this package or paste them into a chat. The host's model, data, and permission policies still apply. No separate Xirang account or hosted service is provided by this package.
+The packaged inspector reads the selected project's local metadata without changing it. Skills can ask the host to run project commands after the applicable user and project gates. Those commands may read or modify project files and contact GitHub or the configured template source. Credentials stay in the project's existing ignored configuration; do not place them in this package or paste them into a chat. The host's model, data, and permission policies still apply. No separate Xirang account or hosted service is provided by this package. See the [privacy policy](PRIVACY.md).
 
 ## License and support
 
