@@ -1319,3 +1319,44 @@ test('recovery branch rebind resumes from its persisted intent after task bindin
   assert.equal(readSessions(created.config, repo).some((session) => session.branch === created.branch), false);
   assert.equal(runGit(repo, ['branch', '--list', created.branch]), '');
 });
+
+test('resuming without --task rebinds the tasks recorded on the existing session', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-task-rebind-'));
+  const repo = path.join(container, 'repo');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  fs.writeFileSync(path.join(repo, 'agent.config.json'), JSON.stringify({
+    baseBranch: 'main',
+    containerDirs: { worktrees: '../worktrees' },
+    worktree: { sessionDir: '../tmp/sessions', envSymlinks: [], sharedConfigSymlinks: [] },
+  }, null, 2));
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const cli = { 'skip-fetch': true, phase: 'tdd', kind: 'fix', desc: 'session task binding' };
+  const created = createOrResumeWorktree({
+    cwd: repo,
+    cli: { ...cli, task: 'session-task' },
+    bindTaskLocation: (input) => ({ status: 'MISSING', taskId: input.taskId }),
+  });
+
+  const bindings = [];
+  const resumed = createOrResumeWorktree({
+    cwd: repo,
+    cli,
+    bindTaskLocation: (input) => {
+      bindings.push(input);
+      return { status: 'BOUND', taskId: input.taskId };
+    },
+  });
+
+  assert.equal(resumed.resumed, true);
+  assert.equal(resumed.branch, created.branch);
+  assert.deepEqual(bindings.map((item) => item.taskId), ['session-task']);
+  assert.equal(bindings[0].worktree, created.worktreePath);
+  assert.equal(bindings[0].branch, created.branch);
+});

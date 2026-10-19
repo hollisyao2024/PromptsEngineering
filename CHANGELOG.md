@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.39] - 2026-10-19
+
+- 任务绑定不再漂移：主 worktree 的 checkpoint/transition 保留 linked 绑定，`worktree resume` 按 session 任务重绑。
+
 ## [v3.11.38] - 2026-10-19
 
 - `tdd sync` 放行无 TASK ID 的 `claude/` 云端会话分支，不再需要 `TDD_BRANCH` 覆盖。
