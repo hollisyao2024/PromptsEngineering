@@ -1,4 +1,17 @@
-# 息壤 Xirang 插件 0.1.0
+# Xirang / 息壤 plugin 0.1.1
+
+Four skills for local AI coding projects: adopt Xirang, start isolated tasks, resume work, and verify delivery. Skills define the workflows; the plugin packages them for installation and updates; the project template supplies the CLI, rules, ownership baselines, and lifecycle gates.
+
+Requires local project files and a shell, Git, Node.js, and pnpm. This skills-only package has no MCP server, hooks, telemetry service, or automatic agent scheduler. Installing it does not install the project template or authorize commits, pushes, or merges.
+
+Install in Claude Code:
+
+```bash
+claude plugin marketplace add hollisyao2024/PromptsEngineering
+claude plugin install xirang@xirang-plugins
+```
+
+For Codex CLI installation and removal, see the [online guide](https://github.com/hollisyao2024/PromptsEngineering/blob/main/docs/guides/plugin-quickstart.md). Public-directory approval is a separate result. A web chat without local execution cannot run these workflows.
 
 给支持本地项目文件和 shell 的 AI 编程环境增加四个入口：接入息壤、启动隔离任务、恢复任务、检查或完成交付。插件复用目标项目 CLI；不包含完整模板、MCP 服务、hook 或自动代理调度。
 
@@ -31,6 +44,12 @@ Claude Code：从完整息壤仓库注册其市场，再安装 `xirang@xirang-pl
 
 ## 验证与许可边界
 
-本包是首版本地分发材料，尚未提交公共市场。自动化检查与实际客户端激活是不同证据；具体实测范围以项目的插件上手文档为准。不承诺所有客户端或纯网页会话可执行本地 Git/pnpm。
+本包用于仓库分发和公共市场提交准备；打包成功不代表市场审核通过。0.1.0 已在 Codex CLI 做实际安装、技能调用与卸载，并在下游项目验证真实 GitHub PR、QA 与合并；0.1.1 仅调整元数据、许可和说明。Claude Code 与 ChatGPT 图形界面仍需独立实测。不承诺所有客户端或纯网页会话可执行本地 Git/pnpm。
 
-源项目 package.json 声明 MIT，但根目录许可正文尚待核对补齐；此包不扩展第三方授权。公开再分发前先确认适用条款。
+## Data and permissions
+
+The packaged inspector reads the selected project's local metadata without changing it. Skills can ask the host to run project commands after the applicable user and project gates. Those commands may read or modify project files and contact GitHub or the configured template source. Credentials stay in the project's existing ignored configuration; do not place them in this package or paste them into a chat. The host's model, data, and permission policies still apply. No separate Xirang account or hosted service is provided by this package.
+
+## License and support
+
+MIT; see [LICENSE](LICENSE). This grant does not replace third-party license terms. Report reproducible problems through [GitHub Issues](https://github.com/hollisyao2024/PromptsEngineering/issues); include the client version and a redacted error, without tokens or project secrets.

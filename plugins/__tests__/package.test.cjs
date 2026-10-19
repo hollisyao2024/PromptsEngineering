@@ -31,10 +31,13 @@ test('ZIP is self-contained and executable after unpacking without its source re
   fs.mkdirSync(path.join(f.plugin,'node_modules'));fs.writeFileSync(path.join(f.plugin,'node_modules/leak'),'secret');
   const report=packagePlugin({source:f.plugin,output:f.output});
   assert.ok(report.files.includes('plugin.json'));
+  assert.ok(report.files.includes('LICENSE'), 'a redistributable archive must carry its license');
   assert.ok(!report.files.some(p=>/\.env|node_modules/u.test(p)));
   const unpacked=path.join(f.root,'unpacked');fs.mkdirSync(unpacked);
   const unzip=spawnSync('unzip',['-q',f.output,'-d',unpacked],{encoding:'utf8'});assert.equal(unzip.status,0,unzip.stderr);
   assert.deepEqual(collectFiles(unpacked),report.files);
+  assert.equal(fs.readFileSync(path.join(unpacked,'LICENSE'),'utf8'),
+    fs.readFileSync(path.resolve(source,'../../LICENSE'),'utf8'));
   const target=path.join(f.root,'target');fs.mkdirSync(target);
   const run=spawnSync(process.execPath,[path.join(unpacked,'scripts/inspect-project.cjs'),'--project',target],{encoding:'utf8'});
   assert.equal(run.status,0,run.stderr);assert.equal(JSON.parse(run.stdout).status,'UNMANAGED');
@@ -46,6 +49,14 @@ test('ZIP is self-contained and executable after unpacking without its source re
       assert.ok(fs.existsSync(path.resolve(path.dirname(entry),relative)),skill+': '+relative);
     }
   }
+});
+test('missing license blocks redistribution before an archive is created',t=>{
+  const f=fixture(t);
+  // Keep the failure about payload validation, including on an older source without a license.
+  fs.writeFileSync(path.join(f.plugin,'LICENSE'),'fixture license');
+  fs.unlinkSync(path.join(f.plugin,'LICENSE'));
+  assert.throws(()=>packagePlugin({source:f.plugin,output:f.output}),/missing payload LICENSE/u);
+  assert.ok(!fs.existsSync(f.output));
 });
 test('existing archive and invalid output paths are never overwritten',t=>{
   const f=fixture(t);fs.writeFileSync(f.output,'sentinel');

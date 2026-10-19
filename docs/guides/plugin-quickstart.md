@@ -1,4 +1,4 @@
-# 插件上手：息壤 0.1.0
+# 插件上手：息壤 0.1.1
 
 [首页](../../README.md) · [模板接入](quickstart.md) · [双任务演练](parallel-collaboration.md) · [试用记录表](../promotion/trial-feedback.md)
 
@@ -48,7 +48,7 @@ codex plugin add xirang@xirang-plugins
 codex -c 'marketplaces.xirang-plugins.source_type="local"' -c 'marketplaces.xirang-plugins.source="/息壤源绝对路径"' plugin list --marketplace xirang-plugins --available --json
 ```
 
-成功输出应包含 `pluginId: xirang@xirang-plugins`、`version: 0.1.0` 和 `installPolicy: AVAILABLE`。若只有空列表，先确认市场是否被当前客户端加载；命令退出 0 不能当作插件已发现。
+成功输出应包含 `pluginId: xirang@xirang-plugins`、`version: 0.1.1` 和 `installPolicy: AVAILABLE`。若只有空列表，先确认市场是否被当前客户端加载；命令退出 0 不能当作插件已发现。
 
 移除：
 
@@ -75,10 +75,10 @@ codex plugin marketplace remove xirang-plugins
 
 | 项目 | 本轮证据范围 |
 | --- | --- |
-| Codex CLI | `0.163.0-alpha.10.2`，显式本地市场参数成功发现插件；未安装到个人配置 |
+| Codex CLI | `0.163.0-alpha.10.2`，0.1.0 已实际安装、调用四项技能并卸载，个人配置恢复；0.1.1 仅更新元数据与许可 |
 | 插件 ZIP | 解压后独立运行探测器，包内引用有效，凭据与无关文件不进入归档 |
 | 项目接入与隔离 | 自动测试调用真实 updater、任务与 worktree 命令；使用隔离的本地 bare remote |
 | Claude Code / ChatGPT 图形界面 | 尚未做客户端安装、四技能真实触发与卸载实测 |
-| 双任务完整远端交付 | 本地隔离演练不代替 GitHub PR、QA、合并与多人跨电脑验证 |
+| 真实远端交付 | 0.1.0 在已有下游项目的隔离 worktree 内移除再接入模板，完成真实 GitHub PR → QA → 合并与推送；未据此宣称多人跨电脑验证 |
 
-支持信息、失败位置和是否需作者介入，记录到[试用表](../promotion/trial-feedback.md)。发布公共市场前还需补齐适用许可正文与发布者审核材料。
+支持信息、失败位置和是否需作者介入，记录到[试用表](../promotion/trial-feedback.md)。MIT 正文见[许可](../../LICENSE)。公开提交需要发布者身份验证和平台检查；模板安装、提交审核、公开上架须分别报告。Claude Desktop 的提交操作见[可复制提示词](claude-marketplace-submit-prompt.md)。
