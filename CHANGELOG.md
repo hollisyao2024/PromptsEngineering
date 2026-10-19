@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.36] - 2026-10-19
+
+- 新增中英文推广入口、首次接入与并行协作教程、贡献指南及插件分发方案，保留原说明为技术参考。
+
 ## [v3.11.35] - 2026-10-18
 
 - 新增 Claude Code Cloud 会话自举：cloud bootstrap/setup-script/doctor，云端 proxy 凭据与分支清理适配（回灌 LinghuiAI #3575）
