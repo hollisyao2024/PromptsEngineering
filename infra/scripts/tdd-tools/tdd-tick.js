@@ -6,7 +6,7 @@
  * 1. 从当前 Git 分支名解析 TASK ID（支持 feature/TASK-123 或 TASK-PAY-005+TASK-NOTIF-002）。
  * 2. 在任务文档中查找以 "- [ ]" 开头且包含相应 TASK ID 的行，并改为 "- [x]".
  * 3. 若任务已勾选，则仅计为已处理，不重复修改。
- * 4. 非编码阶段分支（fix/*、feature/*、docs/*、ops/*、chore/*、hotfix/* 且不含 TASK ID）允许 no-op 放行。
+ * 4. 非编码阶段分支（fix/*、feature/*、docs/*、ops/*、chore/*、hotfix/*、codex/*、claude/* 且不含 TASK ID）允许 no-op 放行。
  * 5. 其他分支找不到 TASK ID 时脚本报错，用以阻止漏勾选的提交。
  */
 
@@ -66,7 +66,8 @@ function isNoTaskBranchAllowed(branchName) {
   // 非编码阶段（PRD/ARCH/TASK/QA/DevOps）与小需求/补丁分支允许 no-op 放行。
   // 与 worktree-core.js 的 phase→branch 前缀映射保持一致：
   //   prd|arch|task → docs/, qa → qa/, devops → ops/, fix → fix/, feature → feature/
-  const allowedPrefixes = ['fix/', 'feature/', 'docs/', 'qa/', 'ops/', 'chore/', 'hotfix/', 'codex/'];
+  // codex/、claude/ 为 Codex 与 Claude Code 云端会话指定的工作分支前缀，无 TASK ID 时同样 no-op。
+  const allowedPrefixes = ['fix/', 'feature/', 'docs/', 'qa/', 'ops/', 'chore/', 'hotfix/', 'codex/', 'claude/'];
   return allowedPrefixes.some((prefix) => normalized.startsWith(prefix));
 }
 
