@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "xirang",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Adopt Xirang, start isolated tasks, resume work and verify delivery in a local coding workspace.",
   "author": { "name": "hollisyao2024", "url": "https://github.com/hollisyao2024" },
   "homepage": "https://github.com/hollisyao2024/PromptsEngineering",
