@@ -6,7 +6,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
-const settings = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude/settings.json'), 'utf8'));
+const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'agent.config.json'), 'utf8'));
+// Consumers may restrict their active permissions. Validate the shipped defaults without changing them.
+const settingsPath = config.template?.role === 'source'
+  ? '.claude/settings.json' : '.claude/settings.template.json';
+const settings = JSON.parse(fs.readFileSync(path.join(ROOT, settingsPath), 'utf8'));
 
 // Claude Code 前缀规则：`Bash(<prefix>:*)` 按词边界匹配，`Bash(<cmd>)` 精确匹配。
 function bashRules() {

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.40] - 2026-10-19
+
+- 模板权限自检兼容下游项目的收紧配置，继续严格检查分发默认规则，不改动项目实际权限。
+
 ## [v3.11.39] - 2026-10-19
 
 - 任务绑定不再漂移：主 worktree 的 checkpoint/transition 保留 linked 绑定，`worktree resume` 按 session 任务重绑。
