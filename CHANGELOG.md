@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.48] - 2026-10-22
+
+- CLI 帮助与约定文档指引 Windows 用户以 node 直调入口传递换行、%VAR%、反斜杠与 JSON 参数（回灌自 GuiXu）。
+
 ## [v3.11.47] - 2026-10-22
 
 - Windows 下 worktree 列表路径统一为原生写法，修复无 --task 恢复时重绑任务；基线测试适配 Windows（回灌自 GuiXu）。

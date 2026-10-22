@@ -150,6 +150,53 @@ test('unified agent CLI routes qa paths and qa run to the business-test entries 
   assert.match(lines.join('\n'), /qa <plan\|automate\|paths\|run\|verify\|merge>/u);
 });
 
+test('unified agent CLI help points Windows callers at the direct node entry for fragile arguments', () => {
+  const { main } = require('../agent-cli');
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    assert.equal(main(['--help']), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  const help = lines.join('\n');
+  assert.match(help, /^Windows:/mu);
+  // pnpm forwards script arguments through cmd.exe on Windows and corrupts them before this CLI runs.
+  assert.match(help, /newline/u);
+  assert.match(help, /%VAR%/u);
+  assert.match(help, /backslash/u);
+  // Windows PowerShell 5.1 strips embedded double quotes for every native command, node included.
+  assert.match(help, /PowerShell 5\.1/u);
+  assert.match(help, /node infra\/scripts\/agent-runner\/agent-cli\.js <command> \[args\]/u);
+  assert.match(help, /node infra\/scripts\/agent-runner\/agent-cli\.js --% <command> \[args\]/u);
+});
+
+test('unified agent CLI direct node entry forwards fragile arguments to the routed script unchanged', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-cli-argv-'));
+  try {
+    const script = path.join(cwd, 'infra/scripts/agent-runner/agent-task.js');
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    fs.writeFileSync(script, 'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n');
+    const fragile = [
+      '--evidence', 'TEST_SCOPE_DECISION={"version":1,"impact_paths":["a b"],"reason":"中文 理由"}',
+      '--next', 'line1\nline2 C:\\dir\\x "q" 100% %USERNAME% end\\',
+    ];
+    const result = spawnSync(process.execPath, [path.resolve(__dirname, '../agent-cli.js'), 'task', 'checkpoint', ...fragile], {
+      cwd,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), ['checkpoint', ...fragile]);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('private service shortcut only accepts lifecycle actions', () => {
   assert.throws(() => resolveCommand(['private', 'unknown']), /private requires/u);
 });
