@@ -62,7 +62,9 @@ function snapshot(fixture) {
   return {
     worktreeExists: fs.existsSync(fixture.worktree),
     wip: fs.existsSync(path.join(fixture.worktree, 'WIP.md')),
-    registered: runGit(fixture.repo, ['worktree', 'list', '--porcelain']).includes(fixture.worktree),
+    // git 在 Windows 输出正斜杠路径，按本平台原生写法比较登记项。
+    registered: runGit(fixture.repo, ['worktree', 'list', '--porcelain']).split(/\r?\n/u)
+      .some((line) => line.startsWith('worktree ') && path.normalize(line.slice(9)) === fixture.worktree),
     branch: runGit(fixture.repo, ['branch', '--list', BRANCH]).length > 0,
     session: fs.existsSync(fixture.sessionFile) ? fs.readFileSync(fixture.sessionFile, 'utf8') : null,
     lock: fs.existsSync(fixture.lockFile),

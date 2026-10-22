@@ -8,8 +8,9 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 
+// 契约断言以 LF 书写；core.autocrlf=true 的检出（Windows 常见）把文件换成 CRLF，读入时统一回 LF。
 function read(relativePath) {
-  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8').replace(/\r\n/gu, '\n');
 }
 
 function lineCount(relativePath) {

@@ -11,7 +11,9 @@ const {
   acquireLock,
   assertNoConflictingRecovery,
   createOrResumeWorktree,
+  getMainRepoRoot,
   isPathInside,
+  listWorktrees,
   materializeReusablePaths,
   planSupersededSessions,
   readSessions,
@@ -1473,4 +1475,25 @@ test('resuming without --task rebinds the tasks recorded on the existing session
   assert.deepEqual(bindings.map((item) => item.taskId), ['session-task']);
   assert.equal(bindings[0].worktree, created.worktreePath);
   assert.equal(bindings[0].branch, created.branch);
+});
+
+test('listWorktrees reports paths in the native spelling used by getMainRepoRoot and path.join', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-list-native-'));
+  const repo = path.join(container, 'repo');
+  const linked = path.join(container, 'linked');
+  fs.mkdirSync(repo);
+  runGit(repo, ['init', '-b', 'main']);
+  runGit(repo, ['config', 'user.email', 'test@example.com']);
+  runGit(repo, ['config', 'user.name', 'Test User']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  runGit(repo, ['add', '.']);
+  runGit(repo, ['commit', '-m', 'init']);
+  runGit(repo, ['worktree', 'add', '-b', 'feature/native', linked]);
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const mainRoot = getMainRepoRoot(repo);
+  const entries = listWorktrees(mainRoot);
+  // worktree list/resume 以 entry.path !== mainRoot 排除主 worktree，写法不一致时 Windows 上会把主 worktree 当成任务 worktree。
+  assert.deepEqual(entries.filter((entry) => entry.path !== mainRoot).map((entry) => entry.branch), ['feature/native']);
+  assert.equal(entries.find((entry) => entry.branch === 'feature/native').path, path.normalize(fs.realpathSync(linked)));
 });
