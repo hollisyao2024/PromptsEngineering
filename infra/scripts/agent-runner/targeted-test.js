@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { loadConfig } = require('../shared/config');
+const { createWindowsSpawnInvocation } = require('../shared/toolchain-env');
 const { isRegisteredSuiteCommand } = require('./test-command-scope');
 
 // 与 task exec 同一口径：qa.business.suites 里逐词一致的登记命令视为项目已审定的套件入口，
@@ -115,13 +116,20 @@ function projectFileArgument({ cwd: runCwd, fileArgument }, file, cwd) {
   return fileArgument === 'pattern' ? escapePattern(relative) : relative;
 }
 
-function runTargetedTest(argv, { cwd = process.cwd(), spawn = spawnSync } = {}) {
+// 默认启动器：Windows 上把 pnpm/npx 等 .cmd shim 改经受限引用的 cmd.exe 启动，其余平台与原生可执行文件原样 spawn。
+// 注入的 spawn 仍收到逻辑运行器（runner[0] + 参数），平台适配只发生在真实启动这一层。
+function spawnRunner(bin, args, options) {
+  const invocation = createWindowsSpawnInvocation(bin, args, options);
+  return spawnSync(invocation.bin, invocation.args, invocation.options);
+}
+
+function runTargetedTest(argv, { cwd = process.cwd(), env = process.env, spawn = spawnRunner } = {}) {
   const { runner, file, registered, project } = parseTargetedTest(argv, cwd);
   let argument = registered ? file : fileArgument(runner, file, cwd);
   if (project) argument = projectFileArgument(project, file, cwd);
   const result = spawn(runner[0], [...runner.slice(1), argument], {
     cwd: project ? project.cwd : cwd,
-    env: process.env,
+    env,
     shell: false,
     stdio: 'inherit',
   });

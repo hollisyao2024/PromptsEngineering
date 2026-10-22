@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.45] - 2026-10-22
+
+- Windows 定向测试经 PATH+PATHEXT 解析 `.cmd/.bat` 运行器，改由受限引用的 `cmd.exe` 启动（回灌自 GuiXu）。
+
 ## [v3.11.44] - 2026-10-20
 
 - 息壤插件升至 0.1.2：新增包内隐私政策与 `privacyPolicyUrl`，修正 README 中 Claude Code 未实测的过期描述。

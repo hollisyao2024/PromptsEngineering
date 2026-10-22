@@ -123,6 +123,57 @@ function createWindowsCmdInvocation(bin, args, options = {}, platform = process.
   };
 }
 
+// Windows 上 spawn(shell:false) 只补全 .com/.exe，Node 也拒绝直接启动 .cmd/.bat（EINVAL，CVE-2024-27980），
+// 因此 `pnpm`、`npx` 这类批处理 shim 会报 ENOENT/EINVAL。按 PATH + PATHEXT 解析到批处理文件时，
+// 改经 cmd.exe /d /s /c 启动并逐参数加引号；引号内仍会被 cmd 展开或截断的 " % ! 与换行直接拒绝，不尝试转义。
+// 原生可执行文件和无法解析的命令原样返回，由 spawn 直接启动或报出原始错误。
+function createWindowsSpawnInvocation(bin, args = [], options = {}, platform = process.platform) {
+  if (platform !== 'win32') return { bin, args, options };
+  const resolved = resolveWindowsCommand(bin, options.cwd, options.env || process.env);
+  if (!/\.(?:cmd|bat)$/iu.test(resolved)) return { bin, args, options };
+  const unsafe = [resolved, ...args].find((value) => /["%!\r\n]/u.test(String(value)));
+  if (unsafe !== undefined) {
+    throw new Error(`Windows batch runner argument cannot be passed safely through cmd.exe (contains ", %, ! or a line break): ${unsafe}`);
+  }
+  return {
+    bin: createCmdCommandLine(resolved, args),
+    args: [],
+    options: { ...options, shell: true, windowsHide: true },
+  };
+}
+
+// 与 cmd.exe 的查找顺序一致：逐个目录、按 PATHEXT 顺序补全扩展名；带路径的命令相对 cwd 解析。
+// 不搜索当前目录，避免工作区内同名文件劫持 PATH 上的运行器。找不到时返回空串。
+function resolveWindowsCommand(bin, cwd = process.cwd(), env = process.env) {
+  const command = String(bin || '');
+  if (!command) return '';
+  const lookup = (name) => {
+    const key = Object.keys(env).find((item) => item.toLowerCase() === name);
+    return key ? String(env[key] || '') : '';
+  };
+  const extensions = (lookup('pathext') || '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const names = extensions.includes(path.extname(command).toLowerCase())
+    ? [command]
+    : extensions.map((extension) => `${command}${extension}`);
+  const directories = /[\\/]/u.test(command)
+    ? [path.resolve(cwd || process.cwd())]
+    : lookup('path').split(';').map((item) => item.trim().replace(/^"(.*)"$/u, '$1')).filter(Boolean);
+  for (const directory of directories) {
+    for (const name of names) {
+      const candidate = path.resolve(directory, name);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch {
+        // 候选不存在或不可访问：继续下一个。
+      }
+    }
+  }
+  return '';
+}
+
 function createCmdCommandLine(bin, args = []) {
   return [quoteCmdArg(bin), ...args.map(quoteCmdArg)].join(' ');
 }
@@ -159,6 +210,7 @@ module.exports = {
   createCmdCommandLine,
   createToolchainEnv,
   createWindowsCmdInvocation,
+  createWindowsSpawnInvocation,
   prependPath,
   quoteCmdArg,
   resolvePnpmBin,
@@ -166,4 +218,5 @@ module.exports = {
   resolvePnpmNearNodeRuntime,
   resolvePnpmJsNearNodeRuntime,
   resolveToolchainPathDirs,
+  resolveWindowsCommand,
 };
