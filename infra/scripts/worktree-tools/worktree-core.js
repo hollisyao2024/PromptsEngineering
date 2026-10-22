@@ -336,7 +336,8 @@ function listWorktrees(mainRoot) {
   for (const line of output.split('\n')) {
     if (line.startsWith('worktree ')) {
       if (current.path) entries.push(current);
-      current = { path: line.slice(9).trim() };
+      // git 在 Windows 输出正斜杠路径；统一成本平台原生写法，与 path.join/getMainRepoRoot 的结果可直接比较。
+      current = { path: path.normalize(line.slice(9).trim()) };
     } else if (line.startsWith('HEAD ')) {
       current.head = line.slice(5).trim();
     } else if (line.startsWith('branch ')) {

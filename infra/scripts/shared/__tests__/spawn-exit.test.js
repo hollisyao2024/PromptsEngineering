@@ -22,8 +22,19 @@ test('spawnExitCode maps signal termination to a non-zero shell code', () => {
 
 test('github-auth-run fails when the wrapped command is killed by a signal', () => {
   const runner = path.resolve(__dirname, '..', 'github-auth-run.js');
-  const result = spawnSync(process.execPath, [
-    runner, '--', process.execPath, '-e', "process.kill(process.pid, 'SIGKILL')",
-  ], { encoding: 'utf8', env: { ...process.env, GH_TOKEN: '' } });
-  assert.equal(result.status, 128 + os.constants.signals.SIGKILL);
+  const killed = [process.execPath, '-e', "process.kill(process.pid, 'SIGKILL')"];
+  const result = spawnSync(process.execPath, [runner, '--', ...killed], {
+    encoding: 'utf8',
+    env: { ...process.env, GH_TOKEN: '' },
+  });
+  if (process.platform !== 'win32') {
+    assert.equal(result.status, 128 + os.constants.signals.SIGKILL);
+    return;
+  }
+  // Windows 没有 POSIX 信号：被 SIGKILL 终止的进程只留下普通退出码（signal 为 null），
+  // 包装器必须原样传递这个非零退出码，而不是吞成成功。
+  const direct = spawnSync(killed[0], killed.slice(1), { encoding: 'utf8' });
+  assert.equal(direct.signal, null);
+  assert.notEqual(direct.status, 0);
+  assert.equal(result.status, direct.status);
 });

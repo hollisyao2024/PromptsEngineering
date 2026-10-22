@@ -27,12 +27,15 @@ const IDENTITY = Object.freeze({
   login: 'octo-cat',
 });
 
+// Git for Windows 不接受 os.devNull（\\.\nul）作为配置文件，只认 NUL。
+const gitNullDevice = process.platform === 'win32' ? 'NUL' : os.devNull;
+
 // 隔离的 git 环境：没有系统/全局配置、HOME 是一次性目录，本机自己的身份不可能混进来。
 function gitEnv(extra = {}) {
   return {
     PATH: process.env.PATH,
     HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'identity-home-')),
-    GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_CONFIG_GLOBAL: gitNullDevice,
     GIT_CONFIG_NOSYSTEM: '1',
     ...extra,
   };

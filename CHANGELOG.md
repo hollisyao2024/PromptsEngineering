@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.47] - 2026-10-22
+
+- Windows 下 worktree 列表路径统一为原生写法，修复无 --task 恢复时重绑任务；基线测试适配 Windows（回灌自 GuiXu）。
+
 ## [v3.11.46] - 2026-10-22
 
 - GitHub 工具在 Windows 上每次读取系统代理（注册表 ProxyServer），端口切换无需改配置；PAC、仅 SOCKS 或非法设置明确报错（回灌自 GuiXu）。
