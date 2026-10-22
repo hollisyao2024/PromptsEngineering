@@ -145,7 +145,15 @@ Core commands:
   private build <env> | private ship <env>
   finish
 
-Existing package aliases remain compatible for migrated projects.`);
+Existing package aliases remain compatible for migrated projects.
+
+Windows: pnpm forwards script arguments through cmd.exe, which drops everything after
+a newline (including later arguments), expands %VAR% and doubles backslashes before
+this CLI runs. For such arguments call the entry directly from Git Bash or cmd:
+  node infra/scripts/agent-runner/agent-cli.js <command> [args]
+Windows PowerShell 5.1 strips embedded double quotes from every native command,
+node included; stop parsing so JSON reaches the CLI intact:
+  node infra/scripts/agent-runner/agent-cli.js --% <command> [args]`);
 }
 
 const MISSING_SCRIPT_NEXT_ACTION = [

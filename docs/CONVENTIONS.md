@@ -179,6 +179,8 @@ pnpm agent -- template <action>
 pnpm agent -- dev|app|build|ship|private|finish
 ```
 
+Windows 上 pnpm 经 cmd.exe 转发 script 参数，会丢弃换行后的全部内容（含后续参数）、展开 `%VAR%`、加倍反斜杠，破坏发生在 CLI 收到参数之前；参数含这些字符时在 Git Bash 或 cmd 直调 `node infra/scripts/agent-runner/agent-cli.js <command> [args]`。Windows PowerShell 5.1 对所有原生命令（含 node）剥除参数内双引号，JSON 参数须用 `node infra/scripts/agent-runner/agent-cli.js --% <command> [args]`。
+
 任务上下文与长命令输出使用：
 
 ```bash
