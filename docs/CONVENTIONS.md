@@ -108,6 +108,8 @@ pnpm agent -- worktree list
 
 任务标识、分支名或描述至少提供一个。创建成功后必须切换到脚本输出的 `NEXT_CWD`。禁止从 worktree A 用绝对路径调用 worktree B 或主仓库脚本。
 
+`worktree bootstrap` 以 auto 模式执行 `worktree.bootstrap.command`；`--skip-bootstrap` 显式跳过。未配置命令时，仅当根 `package.json` 与工作区成员均未声明依赖、且根目录无锁文件或其他生态依赖清单时输出 `BOOTSTRAP_STATUS=SKIPPED`；有依赖迹象或无法判定一律 `STATUS=BLOCKED`。
+
 创建全新 worktree 时，默认必须在 branch、worktree 和 session 副作用前成功执行 `git fetch --prune origin`，严格解析 `refs/remotes/origin/<baseBranch>` 的 commit，并以该固定 SHA 创建新分支。fetch 或远端 base 解析失败时必须 `STATUS=BLOCKED`，禁止继续使用缓存、本地 base 或任意 `HEAD`。如果 required fetch 后已经存在 `refs/remotes/origin/<branch>`，`worktree new` 必须阻断并提示显式恢复或更名；只有 `worktree resume` 可以从远端分支固定 SHA 创建本机 tracking branch、worktree 和 session。只有显式 `--skip-fetch`（或兼容环境变量）可以不联网；该路径只允许缓存 remote base 或本地 base，必须输出 `BASE_FRESHNESS=UNVERIFIED`，两者都不存在时阻断。dry-run 与已有本机 worktree resume 不触发 fetch，也不自动 rebase；远端恢复必须先刷新目标远端引用。
 
 Claude Desktop 的 “start with worktree” 在 `<repo>/.claude/worktrees/<name>`（分支 `claude/<name>`）创建未受管 worktree。在其中执行 `worktree new` 时原地接管而不新建：存在未提交变更即阻断；照常 required fetch 并固定 `origin/<baseBranch>` SHA；无自有提交时重置到该 SHA，有自有提交且已包含 base 时保留，有自有提交且落后时阻断并要求手工 rebase/merge，禁止自动 rebase；随后把分支改名为规范名（如 `feature/<TASK>`），写入所有权标记与 session，session 的 `provenance` 记录 `origin=claude-desktop`、原分支和精确路径，再执行链接与 bootstrap，输出 `STATUS=ADOPTED`、`WORKTREE_ORIGIN`、`ORIGINAL_BRANCH`、`ADOPTION_RESET`。合并后清理（`qa merge`、封印补偿器、`worktree audit`、finish guard、`worktree remove|cancel`）对 Desktop 路径仅在 session provenance 指向 `.claude/worktrees/` 的直接子目录且该根为真实目录（非符号链接）时，以该根作为删除边界；缺少或不匹配 provenance 的 Desktop worktree 视为未受管，保持跳过、不得删除。`.claude/worktrees/` 由 `.gitignore` 忽略。

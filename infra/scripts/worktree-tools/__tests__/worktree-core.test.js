@@ -1042,6 +1042,131 @@ test('auto bootstrap can always reconcile dependencies even when the readiness c
   assert.equal(fs.readFileSync(path.join(repo, 'node_modules', 'bootstrap-count'), 'utf8'), '1');
 });
 
+// 未配置 bootstrap 命令时：仅在可证明项目零依赖时跳过；有依赖或无法判定仍 fail closed。
+const worktreeBootstrapScript = path.resolve(__dirname, '..', 'worktree-bootstrap.js');
+
+function unconfiguredBootstrapFixture(t, files = {}) {
+  const repo = initRepo();
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+  for (const [relativePath, content] of Object.entries(files)) {
+    const target = path.join(repo, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`);
+  }
+  if (Object.keys(files).length > 0) {
+    runGit(repo, ['add', '-A']);
+    runGit(repo, ['commit', '-m', 'add manifests']);
+  }
+  const config = {
+    projectName: 'bootstrap-unconfigured-test',
+    containerDirs: { tmp: path.join(repo, '.git', 'runtime') },
+    worktree: {
+      lockDir: path.join(repo, '.git', 'runtime', 'bootstrap-locks'),
+      bootstrap: { mode: 'skip', command: '', checkCommand: '', inputs: [] },
+    },
+  };
+  // 与 worktree-bootstrap.js 一致：显式 bootstrap 命令以 auto 模式运行。
+  const run = (cli = {}) => runWorktreeBootstrap({
+    worktreePath: repo,
+    mainRoot: repo,
+    config,
+    cli: { ...cli, bootstrap: cli.bootstrap || 'auto' },
+    defaultMode: 'auto',
+  });
+  return { repo, run };
+}
+
+function assertBootstrapBlocked(run) {
+  assert.throws(run, (error) => {
+    assert.equal(error.bootstrapStatus, 'BLOCKED');
+    assert.match(error.message, /command is not configured/);
+    assert.match(error.nextManualAction, /worktree\.bootstrap\.command/);
+    return true;
+  });
+}
+
+test('unconfigured bootstrap skips when package.json declares no dependencies', (t) => {
+  const { run } = unconfiguredBootstrapFixture(t, {
+    'package.json': { name: 'zero-deps', scripts: { test: 'node --test' }, devDependencies: {} },
+  });
+  const result = run();
+  assert.equal(result.status, 'SKIPPED');
+  assert.equal(result.mode, 'auto');
+  assert.match(result.reason, /no dependencies declared/);
+});
+
+test('unconfigured bootstrap skips a pnpm workspace whose globs match no packages', (t) => {
+  const { run } = unconfiguredBootstrapFixture(t, {
+    'package.json': { name: 'zero-deps-workspace', devDependencies: {} },
+    'pnpm-workspace.yaml': 'packages:\n  - "apps/*"\n  - "packages/*"\n  - "tooling/*"\n',
+    'tooling/xirang/README.md': '# not a package\n',
+  });
+  assert.equal(run().status, 'SKIPPED');
+});
+
+for (const [name, files] of [
+  ['dependencies', { 'package.json': { name: 'x', dependencies: { lodash: '^4.0.0' } } }],
+  ['devDependencies', { 'package.json': { name: 'x', devDependencies: { vitest: '^3.0.0' } } }],
+  ['optionalDependencies', { 'package.json': { name: 'x', optionalDependencies: { fsevents: '^2.0.0' } } }],
+  ['missing package.json', {}],
+  ['malformed package.json', { 'package.json': '{ not json' }],
+  ['a lockfile', { 'package.json': { name: 'x' }, 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n" }],
+  ['another ecosystem manifest', { 'package.json': { name: 'x' }, 'requirements.txt': 'requests\n' }],
+  ['workspace member dependencies', {
+    'package.json': { name: 'x' },
+    'pnpm-workspace.yaml': 'packages:\n  - "apps/*"\n',
+    'apps/web/package.json': { name: 'web', dependencies: { react: '^19.0.0' } },
+  }],
+  ['package.json workspaces member dependencies', {
+    'package.json': { name: 'x', workspaces: ['packages/*'] },
+    'packages/lib/package.json': { name: 'lib', devDependencies: { typescript: '^5.0.0' } },
+  }],
+  ['an unsupported workspace glob', {
+    'package.json': { name: 'x' },
+    'pnpm-workspace.yaml': 'packages:\n  - "packages/**"\n',
+  }],
+]) {
+  test(`unconfigured bootstrap stays blocked with ${name}`, (t) => {
+    const { run } = unconfiguredBootstrapFixture(t, files);
+    assertBootstrapBlocked(run);
+  });
+}
+
+test('explicitly disabled bootstrap skips even when dependencies are declared', (t) => {
+  const { run } = unconfiguredBootstrapFixture(t, {
+    'package.json': { name: 'x', dependencies: { lodash: '^4.0.0' } },
+  });
+  for (const cli of [{ 'skip-bootstrap': true }, { bootstrap: 'skip' }]) {
+    const result = run(cli);
+    assert.equal(result.status, 'SKIPPED');
+    assert.equal(result.mode, 'skip');
+    assert.equal(result.reason, 'dependency bootstrap disabled');
+  }
+});
+
+test('worktree bootstrap CLI reports OK for zero dependencies and BLOCKED when dependencies are declared', (t) => {
+  const runCli = (repo) => spawnSync(process.execPath, [worktreeBootstrapScript], {
+    cwd: repo,
+    encoding: 'utf8',
+  });
+
+  const zero = unconfiguredBootstrapFixture(t, { 'package.json': { name: 'zero-deps' } });
+  const ok = runCli(zero.repo);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /^STATUS=OK$/m);
+  assert.match(ok.stdout, /^BOOTSTRAP_STATUS=SKIPPED$/m);
+  assert.match(ok.stdout, /^BOOTSTRAP_REASON=no dependencies declared/m);
+
+  const withDeps = unconfiguredBootstrapFixture(t, {
+    'package.json': { name: 'with-deps', dependencies: { lodash: '^4.0.0' } },
+  });
+  const blocked = runCli(withDeps.repo);
+  assert.equal(blocked.status, 1);
+  assert.match(blocked.stderr, /^STATUS=BLOCKED$/m);
+  assert.match(blocked.stderr, /^BOOTSTRAP_STATUS=BLOCKED$/m);
+  assert.match(blocked.stderr, /^NEXT_MANUAL_ACTION=.*worktree\.bootstrap\.command/m);
+});
+
 // 依赖输入（lockfile 等）的哈希戳：bootstrap 成功后记录，输入变化时即使 readiness check 通过也视为过期。
 function stampBootstrapFixture(t) {
   const repo = initRepo();
