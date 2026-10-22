@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.11.49] - 2026-10-23
+
+- `worktree bootstrap` 未配置命令时，仅在可证明项目无依赖（根与工作区成员 package.json 无依赖、无锁文件或其他生态清单）时输出 SKIPPED，其余仍 BLOCKED（回灌自 GuiXu）。
+
 ## [v3.11.48] - 2026-10-22
 
 - CLI 帮助与约定文档指引 Windows 用户以 node 直调入口传递换行、%VAR%、反斜杠与 JSON 参数（回灌自 GuiXu）。

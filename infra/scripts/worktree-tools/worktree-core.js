@@ -1110,6 +1110,118 @@ function writeBootstrapStamp(evaluation) {
   fs.renameSync(temporaryPath, evaluation.stampPath);
 }
 
+// 未配置 bootstrap 命令时，只有能证明项目零依赖才允许跳过；任何依赖迹象或无法判定都返回 none=false，
+// 由调用方继续 fail closed，避免把“有依赖但漏配命令”误报为 SKIPPED。
+const PACKAGE_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies', 'bundledDependencies'];
+const DEPENDENCY_EVIDENCE_FILES = [
+  'pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'bun.lock', 'bun.lockb',
+  'requirements.txt', 'pyproject.toml', 'Pipfile', 'setup.py', 'go.mod', 'Cargo.toml', 'Gemfile',
+  'composer.json', 'pom.xml', 'build.gradle', 'build.gradle.kts',
+];
+
+function readPackageManifest(filePath) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : null;
+  } catch {
+    return null;
+  }
+}
+
+function manifestDeclaresDependencies(manifest) {
+  return PACKAGE_DEPENDENCY_FIELDS.some((field) => {
+    const value = manifest[field];
+    if (value == null) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    return typeof value !== 'object' || Object.keys(value).length > 0;
+  });
+}
+
+// 只解析块列表形式的 pnpm-workspace.yaml packages；其他写法返回 null（无法判定）。
+function readPnpmWorkspacePatterns(filePath) {
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  const patterns = [];
+  let inPackages = false;
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\s+#.*$/, '');
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    if (/^\S/.test(line)) {
+      if (/^packages\s*:\s*$/.test(line)) {
+        inPackages = true;
+        continue;
+      }
+      if (/^packages\s*:/.test(line)) return null;
+      inPackages = false;
+      continue;
+    }
+    if (!inPackages) continue;
+    const match = line.match(/^\s+-\s+(?:"([^"]*)"|'([^']*)'|(\S+))\s*$/);
+    if (!match) return null;
+    patterns.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return patterns;
+}
+
+// 支持字面目录与单层 `<dir>/*`；排除模式（!）只会缩小范围，忽略后检查更多目录仍偏保守。
+function resolveWorkspaceMembers(worktreePath, patterns) {
+  const members = [];
+  for (const rawPattern of patterns) {
+    const pattern = String(rawPattern || '').trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+    if (!pattern || pattern.startsWith('!')) continue;
+    if (path.posix.isAbsolute(pattern) || pattern.split('/').includes('..')) return null;
+    const wildcard = pattern.endsWith('/*') ? pattern.slice(0, -2) : pattern;
+    if (/[*?[\]{}]/.test(wildcard)) return null;
+    const base = path.join(worktreePath, ...wildcard.split('/').filter(Boolean));
+    if (!pattern.endsWith('/*')) {
+      members.push(base);
+      continue;
+    }
+    if (!fs.existsSync(base)) continue;
+    if (!fs.statSync(base).isDirectory()) continue;
+    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+      if (entry.isDirectory()) members.push(path.join(base, entry.name));
+    }
+  }
+  return members;
+}
+
+function detectNoDeclaredDependencies(worktreePath) {
+  const undetermined = (reason) => ({ none: false, reason });
+  const evidence = DEPENDENCY_EVIDENCE_FILES.find((name) => fs.existsSync(path.join(worktreePath, name)));
+  if (evidence) return undetermined(`dependency evidence found: ${evidence}`);
+
+  const rootManifestPath = path.join(worktreePath, 'package.json');
+  if (!fs.existsSync(rootManifestPath)) return undetermined('package.json not found');
+  const rootManifest = readPackageManifest(rootManifestPath);
+  if (!rootManifest) return undetermined('package.json is not a valid JSON object');
+  if (manifestDeclaresDependencies(rootManifest)) return undetermined('package.json declares dependencies');
+
+  const patterns = [];
+  const workspaces = rootManifest.workspaces;
+  if (workspaces != null) {
+    const list = Array.isArray(workspaces) ? workspaces : workspaces && workspaces.packages;
+    if (!Array.isArray(list)) return undetermined('package.json workspaces cannot be resolved');
+    patterns.push(...list);
+  }
+  const pnpmWorkspacePath = path.join(worktreePath, 'pnpm-workspace.yaml');
+  if (fs.existsSync(pnpmWorkspacePath)) {
+    const pnpmPatterns = readPnpmWorkspacePatterns(pnpmWorkspacePath);
+    if (!pnpmPatterns) return undetermined('pnpm-workspace.yaml packages cannot be resolved');
+    patterns.push(...pnpmPatterns);
+  }
+  const members = resolveWorkspaceMembers(worktreePath, patterns);
+  if (!members) return undetermined('workspace patterns cannot be resolved');
+  for (const member of members) {
+    const memberManifestPath = path.join(member, 'package.json');
+    if (!fs.existsSync(memberManifestPath)) continue;
+    const memberManifest = readPackageManifest(memberManifestPath);
+    const relative = path.relative(worktreePath, memberManifestPath).replace(/\\/g, '/');
+    if (!memberManifest) return undetermined(`${relative} is not a valid JSON object`);
+    if (manifestDeclaresDependencies(memberManifest)) return undetermined(`${relative} declares dependencies`);
+  }
+  return { none: true, reason: 'no dependencies declared in package.json or workspace members' };
+}
+
 function nextBootstrapAction(command, worktreePath) {
   return command
     ? `cd "${worktreePath}" && ${command}`
@@ -1165,7 +1277,12 @@ function runWorktreeBootstrap(options = {}) {
   }
 
   if (!command) {
-    throw bootstrapError('worktree bootstrap mode is auto but command is not configured', {
+    // 零依赖项目无需安装；有依赖迹象或无法判定时仍阻断，提示配置命令或显式跳过。
+    const dependencies = detectNoDeclaredDependencies(worktreePath);
+    if (dependencies.none) {
+      return { status: 'SKIPPED', mode, reason: dependencies.reason, ...reuse };
+    }
+    throw bootstrapError(`worktree bootstrap mode is auto but command is not configured (${dependencies.reason})`, {
       worktreePath,
       bootstrapStatus: 'BLOCKED',
       nextManualAction: 'Set worktree.bootstrap.command or rerun with --skip-bootstrap.',
