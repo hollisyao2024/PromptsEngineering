@@ -102,18 +102,70 @@ function runGitResult(cwd, args) {
   };
 }
 
+function sameRealPath(left, right) {
+  const real = (value) => {
+    try {
+      return fs.realpathSync.native(value);
+    } catch {
+      return path.resolve(value);
+    }
+  };
+  return samePath(real(left), real(right));
+}
+
+/**
+ * 读取 worktree HEAD/dirty 前确认目标路径自身就是 Git 顶层。
+ * Desktop worktree 位于主 worktree 内部：路径缺 .git 时 Git 会向上找到父仓库，
+ * 因此缺失、空目录或无 .git 的残留一律不运行 git，直接归类返回。
+ * kind: missing | empty-residue | nonempty-residue | not-toplevel | worktree
+ */
+function inspectWorktreeRoot(worktreePath) {
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(worktreePath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return { kind: 'missing' };
+    throw error;
+  }
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return { kind: 'nonempty-residue' };
+  try {
+    fs.lstatSync(path.join(worktreePath, '.git'));
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') throw error;
+    return { kind: inspectEmptyDirectoryTree(worktreePath).empty ? 'empty-residue' : 'nonempty-residue' };
+  }
+  const top = runGitResult(worktreePath, ['rev-parse', '--show-toplevel']);
+  if (!top.ok) return { kind: 'not-toplevel', reason: top.reason || 'cannot resolve git toplevel' };
+  const toplevel = top.stdout.trim();
+  if (!toplevel || !sameRealPath(toplevel, worktreePath)) {
+    return { kind: 'not-toplevel', reason: `git toplevel ${toplevel || '(empty)'} is not ${worktreePath}` };
+  }
+  return { kind: 'worktree' };
+}
+
 function inspectGitEvidence(mainRoot, baseRef, session, entry, options = {}) {
   if (!entry || !entry.path || !fs.existsSync(entry.path)) {
     return { dirty: null, uniqueCommits: null };
   }
-  const status = runGitResult(entry.path, ['status', '--porcelain', '--untracked-files=all']);
   const branch = String((session && session.branch) || entry.branch || '');
   const merged = options.mergedBranches;
+  // 独有提交按分支在主仓库计算，与目标目录状态无关。
   const unique = merged && merged.supported && branch
     ? { ok: true, stdout: merged.branches.has(branch) ? '0' : '1', reason: '' }
     : (branch && baseRef
       ? runGitResult(mainRoot, ['rev-list', '--count', `${baseRef}..${branch}`])
       : { ok: false, stdout: '', reason: 'branch or base ref missing' });
+  const root = inspectWorktreeRoot(entry.path);
+  if (root.kind !== 'worktree') {
+    // 内容已删除的残留：不借用父仓库的 status；空目录没有可丢失的内容，其余残留状态未知。
+    return {
+      dirty: root.kind === 'empty-residue' ? false : null,
+      uniqueCommits: unique.ok ? Number(unique.stdout.trim()) : null,
+      residue: root.kind,
+      inspectionError: root.reason || (unique.ok ? '' : unique.reason || 'git inspection failed'),
+    };
+  }
+  const status = runGitResult(entry.path, ['status', '--porcelain', '--untracked-files=all']);
   return {
     dirty: status.ok ? Boolean(status.stdout.trim()) : null,
     uniqueCommits: unique.ok ? Number(unique.stdout.trim()) : null,
@@ -235,6 +287,7 @@ module.exports = {
   collectUnregisteredDirectoryRecords,
   inspectEmptyDirectoryTree,
   inspectGitEvidence,
+  inspectWorktreeRoot,
   leaseIsActive,
   mergedBranchSnapshot,
   normalizeTaskId,

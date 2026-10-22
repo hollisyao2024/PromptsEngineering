@@ -38,14 +38,12 @@ function commitAll(root, message) {
   return git(root, ['rev-parse', 'HEAD']);
 }
 
-function createUpstream(testRoot) {
-  const upstream = path.join(testRoot, 'upstream');
-  initRepo(upstream);
-  write(upstream, 'infra/templates/agent/config.example.json', `${JSON.stringify({
-    template: { identity: IDENTITY },
-  }, null, 2)}\n`);
-  write(upstream, 'infra/templates/agent/template.manifest.json', `${JSON.stringify({
+// options.manifest adds top-level manifest fields, options.rules extra rules and
+// options.files extra upstream files, so scenarios can extend the shared fixture.
+function upstreamManifest(options = {}) {
+  return {
     schemaVersion: 1,
+    ...options.manifest,
     template: { ...IDENTITY, repository: OFFICIAL_REPOSITORY, branch: 'main' },
     capabilities: { officialSync: { schemaVersion: 1, convergenceRequired: true } },
     rules: [
@@ -53,8 +51,19 @@ function createUpstream(testRoot) {
       { path: 'AgentRoles', strategy: 'overwrite' },
       { path: 'README.md', strategy: 'overwrite' },
       { path: 'src', strategy: 'project-owned' },
+      ...(options.rules || []),
     ],
+  };
+}
+
+function createUpstream(testRoot, options = {}) {
+  const upstream = path.join(testRoot, 'upstream');
+  initRepo(upstream);
+  write(upstream, 'infra/templates/agent/config.example.json', `${JSON.stringify({
+    template: { identity: IDENTITY },
   }, null, 2)}\n`);
+  write(upstream, 'infra/templates/agent/template.manifest.json', `${JSON.stringify(upstreamManifest(options), null, 2)}\n`);
+  for (const [file, content] of Object.entries(options.files || {})) write(upstream, file, content);
   for (const file of [
     'infra/scripts/setup/update-template.js',
     'infra/scripts/setup/update-template-git.js',
@@ -80,6 +89,7 @@ function createProject(testRoot, options = {}) {
   if (options.role) {
     write(mainRoot, 'agent.config.json', `${JSON.stringify({ template: { role: options.role } })}\n`);
   }
+  for (const [file, content] of Object.entries(options.baseline || {})) write(mainRoot, file, content);
   const baseline = commitAll(mainRoot, 'project baseline');
   if (!options.noBaseline) git(mainRoot, ['update-ref', 'refs/agent/backfill-baseline', baseline]);
   write(mainRoot, 'infra/scripts/tool.js', '// project improved tool v2\n');
@@ -87,7 +97,10 @@ function createProject(testRoot, options = {}) {
   write(mainRoot, 'AgentRoles/TDD.md', '# project edited role\n');
   write(mainRoot, 'README.md', '# project readme changed\n');
   write(mainRoot, 'src/business.js', 'module.exports = 2;\n');
+  for (const [file, content] of Object.entries(options.edits || {})) write(mainRoot, file, content);
   commitAll(mainRoot, 'project template-owned edits');
+  // Simulates a core.autocrlf=true checkout: committed blobs stay LF, the working tree is CRLF.
+  for (const [file, content] of Object.entries(options.workingTree || {})) write(mainRoot, file, content);
   return { container, mainRoot };
 }
 
@@ -207,6 +220,73 @@ test('apply creates a task and worktree inside the official clone and copies onl
   assert.equal(git(result.sourceRoot, ['status', '--porcelain']), '');
   assert.equal(git(result.sourceRoot, ['branch', '--list', 'ops/backfill-template']), '');
   assert.equal(fs.existsSync(path.join(project.container, 'worktrees', 'ops-backfill-template')), false);
+});
+
+test('CRLF working-tree files compare by normalized content and backfill as LF', t => {
+  const testRoot = tmpRoot(t, 'backfill-crlf');
+  const upstream = createUpstream(testRoot, { files: { 'infra/scripts/synced.js': '// synced line 1\n// synced line 2\n' } });
+  const project = createProject(testRoot, {
+    baseline: { 'infra/scripts/synced.js': '// old synced\n' },
+    edits: { 'infra/scripts/synced.js': '// synced line 1\n// synced line 2\n' },
+    workingTree: {
+      'infra/scripts/synced.js': '// synced line 1\r\n// synced line 2\r\n',
+      'infra/scripts/tool.js': '// project improved tool v2\r\n',
+      'AgentRoles/TDD.md': '# project edited role\r\n',
+    },
+  });
+  const dry = execute(project, upstream, ['--dry-run']).result;
+  const byFile = Object.fromEntries(dry.items.map((item) => [item.file, item.status]));
+  assert.equal(byFile['infra/scripts/synced.js'], 'unchanged', 'a CRLF-only difference is not a backfill candidate');
+  assert.equal(byFile['infra/scripts/tool.js'], 'updated');
+  const { result } = execute(project, upstream, []);
+  assert.deepEqual(result.modified.map((item) => item.file).sort(), ['AgentRoles/TDD.md', 'infra/scripts/new-tool.js', 'infra/scripts/tool.js']);
+  // The official source stores LF; copied text must not carry the project's CRLF checkout.
+  assert.equal(fs.readFileSync(path.join(result.worktree.path, 'infra/scripts/tool.js'), 'utf8'), '// project improved tool v2\n');
+  assert.equal(fs.readFileSync(path.join(result.worktree.path, 'AgentRoles/TDD.md'), 'utf8'), '# project edited role\n');
+});
+
+test('rules with a source mapping backfill to the source path instead of the installed target path', t => {
+  const testRoot = tmpRoot(t, 'backfill-source-map');
+  const rules = [{ path: '.claude/settings.template.json', source: '.claude/settings.json', strategy: 'overwrite' }];
+  const upstream = createUpstream(testRoot, { rules, files: { '.claude/settings.json': '{\n  "a": 1\n}\n' } });
+  const project = createProject(testRoot, {
+    baseline: { '.claude/settings.template.json': '{\n  "a": 1\n}\n' },
+    edits: { '.claude/settings.template.json': '{\n  "a": 2\n}\n' },
+  });
+  const dry = execute(project, upstream, ['--dry-run']).result;
+  const mapped = dry.items.find((item) => item.file === '.claude/settings.template.json');
+  assert.equal(mapped.target, '.claude/settings.json');
+  assert.equal(mapped.status, 'updated');
+  const { result } = execute(project, upstream, []);
+  assert.equal(fs.readFileSync(path.join(result.worktree.path, '.claude/settings.json'), 'utf8'), '{\n  "a": 2\n}\n');
+  assert.equal(fs.existsSync(path.join(result.worktree.path, '.claude/settings.template.json')), false,
+    'the installed target path must never be created in the official source');
+});
+
+test('backfill keeps the official release version fields instead of downgrading them', t => {
+  const testRoot = tmpRoot(t, 'backfill-version');
+  const rules = [{ path: 'agent', strategy: 'overwrite' }, { path: 'infra/templates', strategy: 'overwrite' }];
+  const agentManifest = (version, extra = {}) => `${JSON.stringify({ name: 'xirang-agent', version, ...extra, files: ['AGENTS.md'] }, null, 2)}\n`;
+  const templateManifest = (version) => `${JSON.stringify(upstreamManifest({ rules, manifest: { templateVersion: version } }), null, 2)}\n`;
+  const upstream = createUpstream(testRoot, {
+    rules,
+    manifest: { templateVersion: '3.11.44' },
+    files: { 'agent/manifest.json': agentManifest('3.11.44') },
+  });
+  const project = createProject(testRoot, {
+    baseline: { 'agent/manifest.json': agentManifest('3.11.40'), 'infra/templates/agent/template.manifest.json': templateManifest('3.11.40') },
+    edits: { 'agent/manifest.json': agentManifest('3.11.41', { note: 'project' }), 'infra/templates/agent/template.manifest.json': templateManifest('3.11.41') },
+  });
+  const dry = execute(project, upstream, ['--dry-run']).result;
+  const byFile = Object.fromEntries(dry.items.map((item) => [item.file, item.status]));
+  assert.equal(byFile['infra/templates/agent/template.manifest.json'], 'unchanged', 'an older version alone is not a backfill change');
+  assert.equal(byFile['agent/manifest.json'], 'updated');
+  const { result } = execute(project, upstream, []);
+  const agent = JSON.parse(fs.readFileSync(path.join(result.worktree.path, 'agent/manifest.json'), 'utf8'));
+  assert.equal(agent.version, '3.11.44');
+  assert.equal(agent.note, 'project');
+  const applied = JSON.parse(fs.readFileSync(path.join(result.worktree.path, 'infra/templates/agent/template.manifest.json'), 'utf8'));
+  assert.equal(applied.templateVersion, '3.11.44');
 });
 
 test('legacy sourceRepo config and AGENT_TEMPLATE_SOURCE_REPO never redirect the destination', t => {

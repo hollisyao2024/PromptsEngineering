@@ -22,8 +22,12 @@ const {
   resolveDesktopWorktreesRoot,
   resolveSessionRemovalRoot,
 } = require('../desktop-worktree');
-const { markCleanupPending, reconcilePendingCleanups } = require('../deferred-cleanup-state');
-const { auditManagedWorktrees } = require('../worktree-audit');
+const {
+  inspectCleanupState,
+  markCleanupPending,
+  reconcilePendingCleanups,
+} = require('../deferred-cleanup-state');
+const { auditManagedWorktrees, inspectGitEvidence } = require('../worktree-audit');
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
 const worktreeNewScript = path.resolve(__dirname, '..', 'worktree-new.js');
@@ -303,6 +307,133 @@ test('post-merge lifecycle removes an adopted Desktop worktree, branch, and sess
   assert.equal(sessionFor(fixture, adopted.branch), null);
   assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /brave-otter/u);
   assert.equal(fs.existsSync(path.join(fixture.repo, '.claude', 'worktrees')), true, 'the Desktop root itself is kept');
+});
+
+// Merges an adopted Desktop worktree, advances main past the merged head and
+// strips every child (including .git) so only an empty directory remains inside
+// the parent repository — the state a Windows EBUSY rmdir leaves behind.
+function mergedEmptyDesktopResidue(t, name = 'brave-otter') {
+  const fixture = initDesktopFixture(t);
+  const desktop = addDesktopWorktree(fixture, name);
+  const adopted = adopt(desktop.worktreePath);
+  const head = commitFile(desktop.worktreePath, 'feature.txt', 'feature\n', 'feature');
+  runGit(fixture.repo, ['merge', '--ff-only', adopted.branch]);
+  const mainHead = commitFile(fixture.repo, 'later.txt', 'later\n', 'main advances after merge');
+  markCleanupPending({
+    config: fixture.config,
+    mainRoot: fixture.repo,
+    branch: adopted.branch,
+    worktreePath: adopted.worktreePath,
+    expectedHead: head,
+  });
+  process.chdir(realTemporaryRoot);
+  for (const child of fs.readdirSync(desktop.worktreePath)) {
+    safeRemoveTreeNoFollow(path.join(desktop.worktreePath, child), { allowedRoot: desktop.worktreePath });
+  }
+  assert.deepEqual(fs.readdirSync(desktop.worktreePath), []);
+  return { fixture, desktop, adopted, head, mainHead };
+}
+
+test('cleanup inspection never resolves an empty Desktop residue through the parent repository', (t) => {
+  const { fixture, adopted, head, mainHead } = mergedEmptyDesktopResidue(t);
+  assert.notEqual(mainHead, head);
+
+  const inspection = inspectCleanupState(fixture.repo, sessionFor(fixture, adopted.branch));
+
+  assert.equal(inspection.branchHead, head);
+  assert.equal(inspection.worktreeHead, '', 'the parent repository HEAD must not be reported');
+  assert.equal(inspection.dirty, false);
+  assert.equal(inspection.residue, 'empty-residue');
+  assert.equal(inspection.inspectionError || '', '');
+});
+
+test('post-merge cleanup converges an empty Desktop residue left inside the parent repository', (t) => {
+  const { fixture, desktop, adopted } = mergedEmptyDesktopResidue(t);
+
+  const result = reconcilePendingCleanups({ mainRoot: fixture.repo, config: fixture.config, branch: adopted.branch });
+
+  assert.deepEqual(result.recoveryRequired, []);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.completed, [adopted.branch]);
+  assert.equal(fs.existsSync(desktop.worktreePath), false);
+  assert.equal(runGit(fixture.repo, ['branch', '--list', adopted.branch]), '');
+  assert.equal(sessionFor(fixture, adopted.branch), null);
+  assert.doesNotMatch(runGit(fixture.repo, ['worktree', 'list', '--porcelain']), /brave-otter/u);
+  assert.equal(fs.existsSync(path.join(fixture.repo, '.claude', 'worktrees')), true, 'the Desktop root itself is kept');
+});
+
+test('a busy empty Desktop residue stays cleanup_pending with an explicit next action', (t) => {
+  const { fixture, desktop, adopted } = mergedEmptyDesktopResidue(t);
+  const realRmdir = fs.rmdirSync;
+  const busy = t.mock.method(fs, 'rmdirSync', (target, ...rest) => {
+    if (path.resolve(String(target)) === path.resolve(desktop.worktreePath)) {
+      throw Object.assign(new Error(`EBUSY: resource busy or locked, rmdir '${target}'`), { code: 'EBUSY' });
+    }
+    return realRmdir(target, ...rest);
+  });
+
+  const first = reconcilePendingCleanups({ mainRoot: fixture.repo, config: fixture.config, branch: adopted.branch });
+
+  assert.deepEqual(first.recoveryRequired, []);
+  assert.deepEqual(first.completed, []);
+  assert.deepEqual(first.pending, [adopted.branch]);
+  assert.match(first.errors[0].nextAction, /worktree audit --apply/u);
+  const pendingSession = sessionFor(fixture, adopted.branch);
+  assert.equal(pendingSession.status, 'cleanup_pending');
+  assert.equal(pendingSession.cleanup.reason, 'worktree-busy');
+  assert.match(pendingSession.cleanup.nextAction, /worktree audit --apply/u);
+  assert.match(pendingSession.cleanup.nextAction, new RegExp(path.basename(desktop.worktreePath), 'u'));
+  assert.equal(fs.existsSync(desktop.worktreePath), true);
+  assert.match(runGit(fixture.repo, ['branch', '--list', adopted.branch]), /TASK-ADOPT-001/u);
+
+  // A retry after the holder releases the directory still converges instead of
+  // misreading the parent repository HEAD as post-merge drift.
+  busy.mock.restore();
+  const second = reconcilePendingCleanups({ mainRoot: fixture.repo, config: fixture.config, branch: adopted.branch });
+  assert.deepEqual(second.recoveryRequired, []);
+  assert.deepEqual(second.completed, [adopted.branch]);
+  assert.equal(fs.existsSync(desktop.worktreePath), false);
+  assert.equal(sessionFor(fixture, adopted.branch), null);
+});
+
+test('an empty Desktop residue still blocks when its branch gained commits after the seal', (t) => {
+  const { fixture, desktop, adopted, head } = mergedEmptyDesktopResidue(t);
+  const scratch = path.join(fixture.container, 'scratch');
+  runGit(fixture.repo, ['worktree', 'add', '--detach', scratch, adopted.branch]);
+  runGit(scratch, ['config', 'user.email', 'test@example.com']);
+  runGit(scratch, ['config', 'user.name', 'Test User']);
+  const extra = commitFile(scratch, 'extra.txt', 'extra\n', 'post-merge work');
+  runGit(fixture.repo, ['update-ref', `refs/heads/${adopted.branch}`, extra, head]);
+
+  const result = reconcilePendingCleanups({ mainRoot: fixture.repo, config: fixture.config, branch: adopted.branch });
+
+  assert.deepEqual(result.recoveryRequired, [adopted.branch]);
+  assert.match(result.errors[0].error, /branch HEAD advanced after merge/u);
+  assert.equal(fs.existsSync(desktop.worktreePath), true);
+  assert.equal(runGit(fixture.repo, ['rev-parse', adopted.branch]), extra);
+});
+
+test('a non-empty Desktop residue without .git is preserved for review before deletion starts', (t) => {
+  const { fixture, desktop, adopted } = mergedEmptyDesktopResidue(t);
+  fs.writeFileSync(path.join(desktop.worktreePath, 'notes.txt'), 'keep me\n');
+
+  const result = reconcilePendingCleanups({ mainRoot: fixture.repo, config: fixture.config, branch: adopted.branch });
+
+  assert.deepEqual(result.recoveryRequired, [adopted.branch]);
+  assert.match(result.errors[0].error, /not empty/u);
+  assert.doesNotMatch(result.errors[0].error, /HEAD advanced/u);
+  assert.equal(fs.readFileSync(path.join(desktop.worktreePath, 'notes.txt'), 'utf8'), 'keep me\n');
+});
+
+test('audit git evidence does not borrow the parent repository for an empty registered residue', (t) => {
+  const { fixture, desktop, adopted } = mergedEmptyDesktopResidue(t);
+  fs.writeFileSync(path.join(fixture.repo, 'parent-dirty.txt'), 'parent only\n');
+  const entry = { path: desktop.worktreePath, branch: adopted.branch, head: '' };
+
+  const evidence = inspectGitEvidence(fixture.repo, 'main', sessionFor(fixture, adopted.branch), entry);
+
+  assert.equal(evidence.residue, 'empty-residue');
+  assert.equal(evidence.dirty, false);
 });
 
 test('worktree audit leaves a never-adopted Desktop worktree untouched', (t) => {

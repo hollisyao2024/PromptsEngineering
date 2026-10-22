@@ -88,7 +88,9 @@ function describeLifecycleBlocker(session) {
   const branch = String(session.branch || '');
   const worktree = String(session.worktree || '');
   const auditReason = String(session.auditReason || '');
-  const reason = auditReason || String(session.audit?.reason || '') || 'unknown';
+  // cleanup_pending 的补偿器会在 cleanup.reason 写入失败原因（如 worktree-busy）。
+  const reason = auditReason || String(session.audit?.reason || '')
+    || String(session.cleanup?.reason || '') || 'unknown';
   if (session.status === 'cleanup_pending') {
     return {
       branch,

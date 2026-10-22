@@ -302,3 +302,27 @@ test('state reads reject a symlinked task runs root', (t) => {
   );
   assert.equal(readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' }).status, 'running');
 });
+
+test('task exec launches Windows batch shims found on PATH through quoted cmd.exe', { skip: process.platform !== 'win32' }, (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { worktree: paths.worktree }));
+  const bin = path.join(paths.root, 'shim-bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'probe.js'), 'console.log("ARGS=" + process.argv.slice(2).join("|")); process.exit(5);\n');
+  fs.writeFileSync(path.join(bin, 'fake-runner.cmd'), '@node "%~dp0probe.js" %*\r\n');
+  const env = { ...process.env, Path: [bin, process.env.Path || process.env.PATH].join(path.delimiter) };
+  delete env.PATH;
+  const exec = (name, command) => executeTaskCommand({ ...paths, taskId: 'durable-task', name, command, env });
+
+  const result = exec('batch-shim', ['fake-runner', 'run', 'a b.test.ts']);
+  assert.equal(result.spawnError, '');
+  assert.equal(result.exitCode, 5);
+  assert.match(result.summary, /ARGS=run\|a b\.test\.ts/u);
+
+  // cmd.exe 引号内仍会展开 % 的参数不得启动，并以失败结果留痕而不是抛出
+  const unsafe = exec('batch-shim-unsafe', ['fake-runner', '%PATH%']);
+  assert.equal(unsafe.status, 'FAILED');
+  assert.equal(unsafe.exitCode, 127);
+  assert.match(unsafe.spawnError, /cmd\.exe/u);
+  assert.equal(fs.existsSync(unsafe.logPath), true);
+});

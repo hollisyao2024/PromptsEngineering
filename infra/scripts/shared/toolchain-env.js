@@ -106,9 +106,13 @@ function createWindowsCmdInvocation(bin, args, options = {}, platform = process.
       options: { ...commandOptions, windowsHide: true },
     };
   }
-  if (platform === 'win32' && /\.cmd$/i.test(bin)) {
+  if (platform === 'win32' && /\.(?:cmd|bat)$/i.test(bin)) {
+    // cmd.exe 以“带引号的裸名”经 PATH 启动批处理时，把 %~dp0 算成当前目录而非脚本目录，
+    // npm 全局 pnpm.cmd 因而去 <cwd>\node_modules\pnpm\bin\pnpm.mjs 找入口并失败。
+    // 裸名先按子进程将看到的 PATH + PATHEXT 解析成绝对路径；找不到时保留原名，由 cmd.exe 报出原始错误。
+    const resolved = /[\\/]/u.test(bin) ? bin : (resolveWindowsCommand(bin, options.cwd, commandEnv) || bin);
     return {
-      bin: createCmdCommandLine(bin, args),
+      bin: createCmdCommandLine(resolved, args),
       args: [],
       options: { ...commandOptions, shell: true, windowsHide: true },
     };

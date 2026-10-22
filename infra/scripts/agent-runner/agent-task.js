@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { StringDecoder } = require('string_decoder');
 const { spawnSync } = require('child_process');
 const { assertTestCommandScope } = require('./test-command-scope');
+const { createWindowsSpawnInvocation } = require('../shared/toolchain-env');
 const { orderedStepEvidence, appendStepEvidence } = require('../shared/task-evidence');
 const {
   getMainRepoRoot,
@@ -1225,13 +1226,18 @@ function executeTaskCommand(options) {
   const startedAt = Date.now();
   let result;
   try {
-    result = spawnSync(command[0], command.slice(1), {
+    // Windows 上 shell:false 无法启动 pnpm/npx 等 .cmd shim（ENOENT/EINVAL）：与 targeted-test 共用受限引用的 cmd.exe 启动层。
+    // 无法安全经 cmd.exe 传递的参数不启动子进程，按启动失败（exit 127）留痕，而不是抛出丢失已建日志。
+    const invocation = createWindowsSpawnInvocation(command[0], command.slice(1), {
       cwd,
-      env: process.env,
+      env: options.env || process.env,
       shell: false,
       stdio: ['ignore', descriptor, descriptor],
       windowsHide: true,
     });
+    result = spawnSync(invocation.bin, invocation.args, invocation.options);
+  } catch (error) {
+    result = { error };
   } finally {
     fs.closeSync(descriptor);
   }

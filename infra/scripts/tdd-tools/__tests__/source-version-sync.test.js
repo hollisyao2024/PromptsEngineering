@@ -46,6 +46,13 @@ test('changelog unreleased entries move under the synchronized release heading',
  assert.equal(releaseChangelog(head+'- fix b\n\n## [v3.6.3] - 2026-10-04\n\n- fix a\n\n'+old,'3.6.3','2026-10-05'),head+'## [v3.6.3] - 2026-10-04\n\n- fix b\n- fix a\n\n'+old);
  assert.equal(releaseChangelog('# Changelog\n\n- no unreleased\n','3.6.3','2026-10-04'),'# Changelog\n\n- no unreleased\n');
 });
+test('changelog release keeps working in a CRLF checkout',()=>{
+ const {releaseChangelog}=require('../source-version-sync');
+ const crlf=text=>text.replace(/\n/g,'\r\n');
+ const head='# Changelog\n\n## [Unreleased]\n\n',old='## [v3.6.2] - 2026-09-28\n\n- old\n';
+ assert.equal(releaseChangelog(crlf(head+'- fix a\n\n'+old),'3.6.3','2026-10-04'),crlf(head+'## [v3.6.3] - 2026-10-04\n\n- fix a\n\n'+old));
+ assert.equal(releaseChangelog(crlf(head+'- fix b\n\n## [v3.6.3] - 2026-10-04\n\n- fix a\n\n'+old),'3.6.3','2026-10-05'),crlf(head+'## [v3.6.3] - 2026-10-04\n\n- fix b\n- fix a\n\n'+old));
+});
 test('source sync releases changelog entries with the manifest version',t=>{
  const f=fixture(t);fs.writeFileSync(path.join(f.work,'CHANGELOG.md'),'# Changelog\n\n## [Unreleased]\n\n- fix a\n');
  syncSourceVersions({repoRoot:f.work,config,fetchBase:f.fetchBase,today:'2026-10-04'});

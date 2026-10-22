@@ -6,6 +6,7 @@ const { spawnExitCode } = require('../shared/spawn-exit');
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { resolveMigrationRegistryConfig } = require('./check-migration-registry');
 const { buildGitHubGitEnv } = require('../shared/github-auth');
+const { getMainRepoRoot, runWorktreeBootstrap } = require('../worktree-tools/worktree-core');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -231,6 +232,31 @@ function syncWithBase({ repoRoot: cwd, baseBranch, runGit }) {
   return { status: 'OK', baseRef, baseSha, merged: true };
 }
 
+// ── Deps Sync Gate ──────────────────────────────────────────────────────────
+// Base Sync 合并主干后，lockfile 等依赖输入可能已变化；bootstrap 只在 worktree new/resume 时运行，
+// 这里复用 worktree.bootstrap（inputs 哈希戳）判定依赖是否过期：auto 模式自动刷新，check 模式阻断并给出命令。
+// 允许已有未提交改动，但安装命令不得改变工作区状态。
+function depsSyncError(code, message, nextAction) {
+  const error = new Error(message);
+  error.code = code;
+  error.nextAction = nextAction || '修复后重跑 pnpm agent -- tdd sync';
+  return error;
+}
+
+function syncDependencies({ repoRoot: cwd, config, bootstrap = runWorktreeBootstrap }) {
+  let result;
+  try {
+    result = bootstrap({ worktreePath: cwd, config, cli: {}, mainRoot: getMainRepoRoot(cwd), allowDirty: true });
+  } catch (error) {
+    throw depsSyncError('DEPS_SYNC_FAILED', error.message, error.nextManualAction);
+  }
+  if (result.status === 'MISSING') {
+    throw depsSyncError('DEPS_STALE', result.reason || 'dependencies are stale', result.nextManualAction);
+  }
+  const status = result.status === 'READY' && result.refreshed ? 'REFRESHED' : result.status;
+  return { status, reason: result.reason || '' };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (isHelp(argv)) {
@@ -246,6 +272,16 @@ function main() {
     console.log(`BASE_SYNC=${baseSync.status}${baseSync.baseSha ? `  BASE_REF=${baseSync.baseRef}  BASE_SHA=${baseSync.baseSha}  MERGED=${baseSync.merged}` : `  REASON=${baseSync.reason}`}`);
   } catch (error) {
     console.error(`STATUS=BLOCKED\nREASON=${error.code || 'BASE_SYNC_FAILED'}\nSUMMARY=${error.message}\nNEXT_ACTION=${error.nextAction || '修复后重跑 pnpm agent -- tdd sync'}`);
+    process.exit(1);
+  }
+  try {
+    const deps = syncDependencies({ repoRoot, config });
+    console.log(`DEPS_SYNC=${deps.status}${deps.reason ? `  REASON=${deps.reason}` : ''}`);
+  } catch (error) {
+    console.error(`STATUS=BLOCKED
+REASON=${error.code || 'DEPS_SYNC_FAILED'}
+SUMMARY=${error.message}
+NEXT_ACTION=${error.nextAction}`);
     process.exit(1);
   }
   try { require('../shared/architecture-check').runArchitectureCheck(repoRoot); }
@@ -313,5 +349,6 @@ module.exports = {
   runDocSizeCheck,
   runMigrationRegistryCheck,
   runProjectChecks,
+  syncDependencies,
   syncWithBase,
 };

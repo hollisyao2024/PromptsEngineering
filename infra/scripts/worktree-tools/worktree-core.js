@@ -5,7 +5,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { randomUUID } = require('crypto');
+const crypto = require('crypto');
+const { randomUUID } = crypto;
 const { spawnSync } = require('child_process');
 const {
   ensureContainerDirectories,
@@ -1019,6 +1020,95 @@ function runBootstrapCheck(worktreePath, command, timeoutMs) {
   };
 }
 
+// ── 依赖输入戳 ───────────────────────────────────────────────────────────────
+// worktree.bootstrap.inputs 列出决定依赖内容的文件（如 pnpm-lock.yaml）。bootstrap 成功后把输入与命令的
+// 哈希写入当前 worktree 私有 git 目录；之后输入变化（例如 tdd sync 合并主干带来新 lockfile）即使
+// readiness check 通过也视为依赖过期。未配置 inputs 时行为与以前一致。
+const BOOTSTRAP_STAMP_FILE = 'agent-bootstrap-stamp.json';
+const BOOTSTRAP_STAMP_VERSION = 1;
+
+function normalizeBootstrapInputs(entries) {
+  if (entries == null) return [];
+  if (!Array.isArray(entries)) {
+    throw bootstrapError('worktree.bootstrap.inputs must be an array of repo-relative file paths', {
+      bootstrapStatus: 'BLOCKED',
+      nextManualAction: 'Fix worktree.bootstrap.inputs in agent.config.json.',
+    });
+  }
+  return [...new Set(entries.map((entry) => {
+    const normalized = String(entry == null ? '' : entry).trim().replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!normalized || path.posix.isAbsolute(normalized) || /^[A-Za-z]:/.test(normalized) || normalized.split('/').includes('..')) {
+      throw bootstrapError(`bootstrap input must be a relative path inside the repo: ${entry || '(empty)'}`, {
+        bootstrapStatus: 'BLOCKED',
+        nextManualAction: 'Fix worktree.bootstrap.inputs in agent.config.json.',
+      });
+    }
+    return normalized;
+  }))].sort();
+}
+
+function computeBootstrapInputsHash(worktreePath, inputs, command) {
+  const digest = crypto.createHash('sha256');
+  digest.update(`v${BOOTSTRAP_STAMP_VERSION}\0${command}\0`);
+  for (const relativePath of inputs) {
+    const filePath = path.resolve(worktreePath, relativePath);
+    let fileHash = 'missing';
+    try {
+      if (fs.statSync(filePath).isFile()) {
+        fileHash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+      }
+    } catch (error) {
+      if (!error || error.code !== 'ENOENT') throw error;
+    }
+    digest.update(`${relativePath}\0${fileHash}\n`);
+  }
+  return digest.digest('hex');
+}
+
+function bootstrapStampPath(worktreePath) {
+  // --git-path 解析到当前 worktree 的私有 git 目录：不进入工作区状态，worktree 删除时一并清除。
+  const output = runGit(['rev-parse', '--git-path', BOOTSTRAP_STAMP_FILE], { cwd: worktreePath, capture: true });
+  return path.resolve(worktreePath, output.trim());
+}
+
+function readBootstrapStamp(stampPath) {
+  try {
+    const stamp = JSON.parse(fs.readFileSync(stampPath, 'utf8'));
+    return stamp && stamp.version === BOOTSTRAP_STAMP_VERSION && typeof stamp.inputsHash === 'string' ? stamp : null;
+  } catch {
+    // 缺失或损坏的戳都按“未知”处理，由调用方重新执行 bootstrap。
+    return null;
+  }
+}
+
+function evaluateBootstrapInputs(worktreePath, settings, command) {
+  const inputs = normalizeBootstrapInputs(settings.inputs);
+  if (inputs.length === 0) return { configured: false, fresh: true };
+  const stampPath = bootstrapStampPath(worktreePath);
+  const inputsHash = computeBootstrapInputsHash(worktreePath, inputs, command);
+  const stamp = readBootstrapStamp(stampPath);
+  if (!stamp) {
+    return { configured: true, fresh: false, inputs, inputsHash, stampPath, reason: 'no bootstrap stamp recorded for dependency inputs' };
+  }
+  if (stamp.inputsHash !== inputsHash) {
+    return { configured: true, fresh: false, inputs, inputsHash, stampPath, reason: `dependency inputs changed since last bootstrap (${inputs.join(', ')})` };
+  }
+  return { configured: true, fresh: true, inputs, inputsHash, stampPath };
+}
+
+function writeBootstrapStamp(evaluation) {
+  if (!evaluation.configured) return;
+  ensureDir(path.dirname(evaluation.stampPath));
+  const temporaryPath = `${evaluation.stampPath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify({
+    version: BOOTSTRAP_STAMP_VERSION,
+    inputs: evaluation.inputs,
+    inputsHash: evaluation.inputsHash,
+    updatedAt: new Date().toISOString(),
+  }, null, 2)}\n`);
+  fs.renameSync(temporaryPath, evaluation.stampPath);
+}
+
 function nextBootstrapAction(command, worktreePath) {
   return command
     ? `cd "${worktreePath}" && ${command}`
@@ -1026,7 +1116,8 @@ function nextBootstrapAction(command, worktreePath) {
 }
 
 function runWorktreeBootstrap(options = {}) {
-  const { worktreePath, config, cli = {}, mainRoot, defaultMode = '' } = options;
+  // allowDirty：tdd sync 等开发中途调用时允许已有未提交改动，改为校验命令前后工作区状态不变。
+  const { worktreePath, config, cli = {}, mainRoot, defaultMode = '', allowDirty = false } = options;
   const settings = bootstrapConfig(config);
   const mode = bootstrapMode(config, cli, defaultMode);
   const command = settings.command || '';
@@ -1053,15 +1144,19 @@ function runWorktreeBootstrap(options = {}) {
   }
 
   const check = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
-  if ((mode !== 'auto' || !alwaysRun) && check.configured && check.ok) {
-    return { status: 'READY', mode, checkCommand, ...reuse };
+  const inputs = evaluateBootstrapInputs(worktreePath, settings, command);
+  if ((mode !== 'auto' || !alwaysRun) && check.configured && check.ok && inputs.fresh) {
+    return { status: 'READY', mode, checkCommand, refreshed: false, ...reuse };
   }
+  const staleReason = check.configured && !check.ok
+    ? `check command exited ${check.status}`
+    : inputs.reason || (check.configured ? 'alwaysRun is enabled' : 'no checkCommand configured');
 
   if (mode === 'check') {
     return {
-      status: check.configured ? 'MISSING' : 'SKIPPED',
+      status: check.configured || inputs.configured ? 'MISSING' : 'SKIPPED',
       mode,
-      reason: check.configured ? `check command exited ${check.status}` : 'no checkCommand configured',
+      reason: staleReason,
       checkCommand,
       nextManualAction: nextBootstrapAction(command, worktreePath),
       ...reuse,
@@ -1077,7 +1172,7 @@ function runWorktreeBootstrap(options = {}) {
   }
 
   const beforeStatus = getStatusLines(worktreePath);
-  if (beforeStatus.length > 0) {
+  if (beforeStatus.length > 0 && !allowDirty) {
     throw bootstrapError('worktree has existing non-ignored changes before bootstrap', {
       worktreePath,
       bootstrapStatus: 'BLOCKED',
@@ -1108,7 +1203,7 @@ function runWorktreeBootstrap(options = {}) {
   }
 
   const afterStatus = getStatusLines(worktreePath);
-  if (afterStatus.length > 0) {
+  if (afterStatus.join('\n') !== beforeStatus.join('\n')) {
     throw bootstrapError('worktree bootstrap produced non-ignored changes', {
       worktreePath,
       bootstrapStatus: 'BLOCKED',
@@ -1128,7 +1223,9 @@ function runWorktreeBootstrap(options = {}) {
     });
   }
 
-  return { status: 'READY', mode, command, checkCommand, ...reuse };
+  // 重新计算输入哈希再写戳，记录命令实际面对的输入。
+  writeBootstrapStamp(evaluateBootstrapInputs(worktreePath, settings, command));
+  return { status: 'READY', mode, command, checkCommand, refreshed: true, reason: staleReason, ...reuse };
 }
 
 function adoptionError(message, details = {}) {

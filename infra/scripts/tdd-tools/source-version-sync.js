@@ -24,7 +24,9 @@ function nextVersion(base, current) {
   return `${after[0]}.${after[1]}.${after[2] + 1}`;
 }
 // Move [Unreleased] entries under the release heading so published versions never accumulate unlabeled notes.
+// A CRLF checkout (core.autocrlf=true) is released on LF text and converted back, keeping its line endings.
 function releaseChangelog(text, version, date) {
+  if (text.includes('\r\n')) return releaseChangelog(text.replace(/\r\n/g, '\n'), version, date).replace(/\n/g, '\r\n');
   const marker = '## [Unreleased]\n';
   const start = text.indexOf(marker);
   if (start === -1) return text;
