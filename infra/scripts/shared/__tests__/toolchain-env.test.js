@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { chmodSync, mkdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
+const { spawnSync } = require('node:child_process');
 const { delimiter, join } = require('node:path');
 
 const {
@@ -96,6 +97,33 @@ test('createWindowsSpawnInvocation routes PATHEXT batch shims through quoted cmd
     // 原生可执行文件与未解析命令保持原样，由 spawn 直接启动或报 ENOENT
     assert.deepEqual(createWindowsSpawnInvocation('tool', ['--x'], options, 'win32'), { bin: 'tool', args: ['--x'], options });
     assert.deepEqual(createWindowsSpawnInvocation('missing', [], options, 'win32'), { bin: 'missing', args: [], options });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// cmd.exe 对“带引号的裸名 + PATH 查找”启动的批处理把 %~dp0 算成当前目录，npm 全局 pnpm.cmd 因此找不到 pnpm.mjs。
+// shim 用 %~dp0 定位同目录的 probe.js，只有解析成绝对路径启动时才能成功。
+test('createWindowsCmdInvocation launches a bare .cmd name by absolute path so %~dp0 is the shim directory', { skip: process.platform !== 'win32' }, () => {
+  const tmp = join(tmpdir(), `xirang-cmd-invocation-${process.pid}`);
+  const bin = join(tmp, 'bin');
+  const other = join(tmp, 'other');
+  try {
+    mkdirSync(bin, { recursive: true });
+    mkdirSync(other, { recursive: true });
+    writeFileSync(join(bin, 'probe.js'), 'process.exit(process.argv[2] === "run" ? 0 : 4);\n');
+    writeFileSync(join(bin, 'shim.cmd'), '@node "%~dp0probe.js" %*\r\n');
+    const env = { ...process.env, Path: [bin, process.env.Path || process.env.PATH].join(delimiter) };
+    delete env.PATH;
+
+    const invocation = createWindowsCmdInvocation('shim.cmd', ['run'], { cwd: other, env }, 'win32', env);
+    assert.equal(invocation.bin, `"${join(bin, 'shim.cmd')}" "run"`);
+    assert.equal(invocation.options.shell, true);
+    const result = spawnSync(invocation.bin, invocation.args, { ...invocation.options, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+
+    // 找不到时保留原名，由 cmd.exe 报出原始错误
+    assert.equal(createWindowsCmdInvocation('missing.cmd', [], { cwd: other, env }, 'win32', env).bin, '"missing.cmd"');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

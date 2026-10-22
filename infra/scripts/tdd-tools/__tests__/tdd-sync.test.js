@@ -195,6 +195,114 @@ test('syncWithBase merges a real newer base and leaves no MERGE_HEAD after a con
   assert.equal(git(work, ['status', '--porcelain']), '');
 });
 
+// Base Sync 合并主干后，lockfile 等依赖输入可能变化；Deps Sync Gate 依据 bootstrap 输入戳刷新依赖或明确阻断，
+// 避免后续 typecheck/项目门禁在过期 node_modules 上失败。
+const { syncDependencies } = require('../tdd-sync');
+
+test('syncDependencies refreshes dependencies after a base merge changes the lockfile and blocks in check mode', (t) => {
+  const os = require('node:os');
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'xirang-deps-sync-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const git = (cwd, args) => {
+    const result = spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd, encoding: 'utf8', stdio: 'pipe' });
+    if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
+    return result.stdout.trim();
+  };
+  const origin = path.join(root, 'origin.git');
+  fs.mkdirSync(origin);
+  git(origin, ['init', '--quiet', '--bare', '--initial-branch=main']);
+  const seed = path.join(root, 'seed');
+  git(root, ['clone', '--quiet', origin, seed]);
+  fs.writeFileSync(path.join(seed, '.gitignore'), 'node_modules/\n');
+  fs.writeFileSync(path.join(seed, 'deps.lock'), 'v1\n');
+  git(seed, ['add', '-A']);
+  git(seed, ['commit', '--quiet', '-m', 'seed']);
+  git(seed, ['push', '--quiet', 'origin', 'HEAD:main']);
+
+  const work = path.join(root, 'work');
+  git(root, ['clone', '--quiet', origin, work]);
+  git(work, ['config', 'user.name', 'Fixture']);
+  git(work, ['config', 'user.email', 'fixture@example.invalid']);
+  git(work, ['config', 'commit.gpgsign', 'false']);
+  git(work, ['checkout', '--quiet', '-b', 'feature/x']);
+  fs.mkdirSync(path.join(work, 'node_modules'));
+  fs.writeFileSync(path.join(work, 'node_modules', 'ready'), 'ready\n');
+  const countPath = path.join(work, 'node_modules', 'install-count');
+  const count = () => (fs.existsSync(countPath) ? Number(fs.readFileSync(countPath, 'utf8')) : 0);
+  const command = 'node -e "const fs=require(\'fs\');const p=\'node_modules/install-count\';const n=fs.existsSync(p)?Number(fs.readFileSync(p,\'utf8\')):0;fs.writeFileSync(p,String(n+1))"';
+  const config = (mode) => ({
+    projectName: 'deps-sync-test',
+    containerDirs: { tmp: path.join(root, 'tmp') },
+    worktree: {
+      lockDir: path.join(root, 'tmp', 'locks'),
+      bootstrap: {
+        mode,
+        inputs: ['deps.lock'],
+        command,
+        checkCommand: 'node -e "process.exit(require(\'fs\').existsSync(\'node_modules/ready\')?0:1)"',
+      },
+    },
+  });
+
+  assert.equal(syncDependencies({ repoRoot: work, config: config('auto') }).status, 'REFRESHED');
+  assert.equal(syncDependencies({ repoRoot: work, config: config('auto') }).status, 'READY');
+  assert.equal(count(), 1);
+
+  // 主干升级 lockfile；功能分支带着未提交工作执行 Base Sync。
+  fs.writeFileSync(path.join(seed, 'deps.lock'), 'v2\n');
+  git(seed, ['commit', '--quiet', '-am', 'bump lockfile']);
+  git(seed, ['push', '--quiet', 'origin', 'HEAD:main']);
+  fs.writeFileSync(path.join(work, 'wip.txt'), 'uncommitted\n');
+  assert.equal(syncWithBase({ repoRoot: work, baseBranch: 'main' }).merged, true);
+  const refreshed = syncDependencies({ repoRoot: work, config: config('auto') });
+  assert.equal(refreshed.status, 'REFRESHED');
+  assert.match(refreshed.reason, /dependency inputs changed/);
+  assert.equal(count(), 2);
+  assert.equal(fs.readFileSync(path.join(work, 'wip.txt'), 'utf8'), 'uncommitted\n');
+
+  fs.writeFileSync(path.join(seed, 'deps.lock'), 'v3\n');
+  git(seed, ['commit', '--quiet', '-am', 'bump lockfile again']);
+  git(seed, ['push', '--quiet', 'origin', 'HEAD:main']);
+  assert.equal(syncWithBase({ repoRoot: work, baseBranch: 'main' }).merged, true);
+  assert.throws(() => syncDependencies({ repoRoot: work, config: config('check') }), (error) => {
+    assert.equal(error.code, 'DEPS_STALE');
+    assert.match(error.message, /dependency inputs changed/);
+    assert.ok(error.nextAction.includes(command));
+    return true;
+  });
+  assert.equal(count(), 2);
+
+  assert.equal(syncDependencies({ repoRoot: work, config: config('skip') }).status, 'SKIPPED');
+});
+
+test('syncDependencies maps bootstrap failures to a coded blocker', () => {
+  const failure = Object.assign(new Error('worktree bootstrap command failed (exit 1)'), {
+    bootstrapStatus: 'FAILED',
+    nextManualAction: 'cd "/repo" && pnpm install --frozen-lockfile',
+  });
+  assert.throws(() => syncDependencies({
+    repoRoot: '/repo',
+    config: {},
+    bootstrap: () => { throw failure; },
+  }), (error) => {
+    assert.equal(error.code, 'DEPS_SYNC_FAILED');
+    assert.match(error.message, /exit 1/);
+    assert.match(error.nextAction, /pnpm install --frozen-lockfile/);
+    return true;
+  });
+});
+
+test('/tdd sync runs the deps sync right after the base sync and before the project gates', () => {
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const script = fs.readFileSync(path.join(repoRoot, 'infra/scripts/tdd-tools/tdd-sync.js'), 'utf8');
+  const main = script.slice(script.indexOf('function main()'));
+  const depsAt = main.indexOf('syncDependencies({');
+  assert.ok(depsAt > main.indexOf('syncWithBase({'), 'deps sync follows base sync');
+  assert.ok(depsAt < main.indexOf('runArchitectureCheck'));
+  assert.ok(depsAt < main.indexOf('runProjectChecks(config)'));
+  assert.match(script, /DEPS_SYNC=/);
+});
+
 test('/tdd sync runs the base sync before the document gates and blocks on its coded errors', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
   const script = fs.readFileSync(path.join(repoRoot, 'infra/scripts/tdd-tools/tdd-sync.js'), 'utf8');
@@ -226,4 +334,26 @@ test('/tdd sync blocks when the enabled doc size gate fails', () => {
     },
   }), false);
   assert.match(args[0], /check-doc-size\.js$/);
+});
+
+test('/tdd sync launches a bare pnpm.cmd through its absolute path so the npm shim finds pnpm.mjs', { skip: process.platform !== 'win32' }, (t) => {
+  const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'xirang-tdd-pnpm-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const bin = path.join(tmp, 'npm');
+  const cwd = path.join(tmp, 'worktree');
+  fs.mkdirSync(path.join(bin, 'node_modules', 'pnpm', 'bin'), { recursive: true });
+  fs.mkdirSync(cwd);
+  // 与 npm 全局 shim 同形：经 %~dp0 定位 node_modules\pnpm\bin\pnpm.mjs
+  fs.writeFileSync(path.join(bin, 'node_modules', 'pnpm', 'bin', 'pnpm.mjs'),
+    'process.exit(process.argv.slice(2).join(" ") === "run check:x" ? 0 : 4);\n');
+  fs.writeFileSync(path.join(bin, 'pnpm.cmd'), '@node "%~dp0node_modules\\pnpm\\bin\\pnpm.mjs" %*\r\n');
+  const env = { ...process.env, Path: [bin, process.env.Path || process.env.PATH].join(path.delimiter) };
+  delete env.PATH;
+  delete env.AGENT_PNPM_BIN;
+
+  assert.equal(runProjectChecks({ tdd: { projectChecks: [{ name: 'check:x', required: true }] } }, {
+    cwd,
+    env,
+    pnpmBin: 'pnpm.cmd',
+  }), true);
 });

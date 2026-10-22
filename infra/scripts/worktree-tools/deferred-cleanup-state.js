@@ -18,6 +18,7 @@ const {
   writeSession,
 } = require('./worktree-core');
 const { resolveSessionRemovalRoot } = require('./desktop-worktree');
+const { inspectWorktreeRoot } = require('./worktree-audit-evidence');
 
 function runGitStrict(mainRoot, args) {
   const result = spawnSync('git', args, {
@@ -80,6 +81,8 @@ function cleanupPayload(mainRoot, branch, worktreePath, previous = {}, updates =
     attempts: Number(previous.attempts || 0) + (updates.error ? 1 : 0),
     lastAttemptAt: updates.error ? new Date().toISOString() : (previous.lastAttemptAt || ''),
     lastError: updates.error || previous.lastError || '',
+    reason: updates.reason !== undefined ? updates.reason : (previous.reason || ''),
+    nextAction: updates.nextAction !== undefined ? updates.nextAction : (previous.nextAction || ''),
   };
 }
 
@@ -187,8 +190,17 @@ function inspectCleanupState(mainRoot, session) {
     cwd: mainRoot, encoding: 'utf8', stdio: 'pipe',
   });
   const branchHead = branch.status === 0 ? branch.stdout.trim() : '';
-  if (!fs.existsSync(session.worktree)) {
+  // 先确认目标路径自身是 Git 顶层；否则 git 会从父仓库（Desktop worktree 的主 worktree）读出 HEAD/dirty。
+  const root = inspectWorktreeRoot(session.worktree);
+  if (root.kind === 'missing') {
     return { branchHead, worktreeHead: '', dirty: false, missing: true };
+  }
+  if (root.kind === 'empty-residue' || root.kind === 'nonempty-residue') {
+    // 内容（含 .git）已删除，只剩目录残留：没有自身 HEAD 可比，分支 HEAD 仍照常校验。
+    return { branchHead, worktreeHead: '', dirty: false, residue: root.kind };
+  }
+  if (root.kind === 'not-toplevel') {
+    return { branchHead, worktreeHead: '', dirty: false, inspectionError: root.reason };
   }
   const head = spawnSync('git', ['rev-parse', 'HEAD'], {
     cwd: session.worktree, encoding: 'utf8', stdio: 'pipe',
@@ -213,11 +225,28 @@ function recoveryReason(session, inspection) {
   if (inspection.branchHead && inspection.branchHead !== expected) {
     return `branch HEAD advanced after merge: expected ${expected}, found ${inspection.branchHead}`;
   }
+  // 删除尚未开始时，无 .git 却仍有文件的残留不是本流程留下的，删除前须人工核对。
+  if (inspection.residue === 'nonempty-residue' && !session.cleanup.deletionStartedAt) {
+    return `worktree residue without .git is not empty: inspect ${session.worktree} before cleanup`;
+  }
   if (inspection.worktreeHead && inspection.worktreeHead !== expected) {
     return `worktree HEAD advanced after merge: expected ${expected}, found ${inspection.worktreeHead}`;
   }
   if (inspection.dirty) return 'worktree contains post-merge changes';
   return '';
+}
+
+// 删除失败仍保持 cleanup_pending（封印校验已通过），只给出可执行的下一动作。
+function describeCleanupFailure(error, worktreePath) {
+  const retry = 'pnpm agent -- worktree audit --apply';
+  if (error && error.code === 'EBUSY') {
+    return {
+      reason: 'worktree-busy',
+      nextAction: `close every shell or session whose cwd is inside ${worktreePath} `
+        + `(for example the Claude Desktop session that owns it), then run ${retry}`,
+    };
+  }
+  return { reason: 'cleanup-failed', nextAction: `resolve the error above, then run ${retry}` };
 }
 
 function defaultDeleteBranch(mainRoot, branch) {
@@ -481,7 +510,14 @@ function reconcilePendingCleanups(options = {}) {
       });
       session.cleanup = deletingCleanup;
       const removalRoot = sessionRemovalRoot(mainRoot, worktreesRoot, session);
-      if (entry) {
+      if (inspection.residue) {
+        // 已不是 Git worktree 的残留：不经 git worktree remove，按删除边界不跟随链接删除后精确 prune。
+        if (isPathInside(session.worktree, process.cwd()) || isSamePath(session.worktree, process.cwd())) {
+          process.chdir(mainRoot);
+        }
+        safeRemoveTreeNoFollow(session.worktree, { allowedRoot: removalRoot });
+        if (entry) pruneMissingAuthorizedRegistration(mainRoot, session.worktree);
+      } else if (entry) {
         if (fs.existsSync(session.worktree)) {
           removeRegistered({
             mainRoot,
@@ -500,8 +536,9 @@ function reconcilePendingCleanups(options = {}) {
       completed.push(session.branch);
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
+      const failure = describeCleanupFailure(error, session.worktree);
       pending.push(session.branch);
-      errors.push({ branch: session.branch, error: message });
+      errors.push({ branch: session.branch, error: message, nextAction: failure.nextAction });
       write(config, mainRoot, {
         branch: session.branch,
         worktree: session.worktree,
@@ -512,7 +549,7 @@ function reconcilePendingCleanups(options = {}) {
           session.branch,
           session.worktree,
           session.cleanup,
-          { error: message },
+          { error: message, reason: failure.reason, nextAction: failure.nextAction },
         ),
       });
     }

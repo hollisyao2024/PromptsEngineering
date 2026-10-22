@@ -7,8 +7,8 @@ GitHub 工具每次操作解析代理，不写入全局 Git 配置、shell 配�
 
 1. 已显式设置的 `http_proxy` / `https_proxy` / `all_proxy`（支持大写）；小写优先，包括空值。发现任意显式代理变量即停止系统探测，不混入另一套系统代理。`ALL_PROXY` 补齐未设置的协议变量。
 2. Git 的 `http.proxy` / URL 专属代理配置（包括空值表示直连）。Git 子进程仍保留 Git 原生配置优先级；API 查询 `https://api.github.com/`，Git 包装器查询 `https://github.com/`。
-3. macOS `scutil --proxy` 中已启用的 HTTP/HTTPS 配置。每次读取，不猜测客户端名称、端口，也不缓存上一次端口。
-4. 没有启用的代理则直连。Windows/Linux 不探测 macOS 配置，继续使用显式配置或直连。
+3. 系统代理：macOS 读 `scutil --proxy` 中已启用的 HTTP/HTTPS 配置；Windows 以绝对路径 `reg.exe` 读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 的 `ProxyEnable`/`ProxyServer`/`ProxyOverride`（支持 `host:port`、`http=…;https=…` 与可选 `http://` 前缀；按协议写法中未列出的协议直连）。每次读取，不猜测客户端名称、端口，也不缓存上一次端口。
+4. 没有启用的代理则直连。Linux 不探测系统配置，继续使用显式配置或直连。
 
 设置 `XIRANG_SYSTEM_PROXY=0` 仅关闭系统自动探测，保留显式环境变量和 Git 配置。
 要明确直连，可在该命令环境中设置空 `https_proxy`，并核对 Git 自身没有另外配置代理。
@@ -25,11 +25,11 @@ API 的幂等请求（GET/HEAD）遇到经代理的瞬时连接错误（`ECONNRE
 - 官方模板和架构匿名拉取：先清除令牌、认证头和 Git 配置，再解析系统/环境代理，继续禁用凭据配置；不从个人 Git 配置导入代理或项目令牌。
 
 Git HTTPS 与 API 均支持此功能；SSH remote 的网络路由由 SSH 自身配置管理，不自动改写 `ProxyCommand`。
-自动探测暂不执行 PAC/WPAD，也不把仅 SOCKS 的系统配置误当作无代理：此时明确报错，需提供 HTTP(S) 代理或关闭自动探测。
+自动探测暂不执行 PAC/WPAD（Windows 的 `AutoConfigURL` 非空即视为 PAC），也不把仅 SOCKS 的系统配置误当作无代理：此时明确报错，需提供 HTTP(S) 代理或关闭自动探测。
 
-显式 `NO_PROXY` / `no_proxy` 优先（包括空值）。系统例外中的 `*.domain` 转为 `.domain`；CIDR 保留供 Git/curl 使用。`<local>` 仅指不带点的主机名，不适用于固定的 GitHub 公网主机。Node 对 CIDR 的支持不作保证，API 使用 DNS 主机名；这不是任意内部服务的通用系统代理适配器。
+显式 `NO_PROXY` / `no_proxy` 优先（包括空值）。系统例外中的 `*.domain` 转为 `.domain`，Windows 中 `127.*` 等非前缀通配无法表达而忽略，重复项去重；CIDR 保留供 Git/curl 使用。`<local>` 仅指不带点的主机名，不适用于固定的 GitHub 公网主机。Node 对 CIDR 的支持不作保证，API 使用 DNS 主机名；这不是任意内部服务的通用系统代理适配器。
 错误日志不输出代理凭据。代理设置已启用不代表端口可达，实际访问错误在上述有界重试后终止操作，无自动直连重试。
 
 ## 验证
 
-`infra/scripts/shared/__tests__/github-system-proxy.test.js` 覆盖动态系统配置、显式优先级、禁用探测、直连例外、匿名认证隔离，并用本机 HTTP CONNECT 服务验证 Git 和 API 的真实路由及失败行为；`github-api.test.js` 覆盖幂等请求的有界代理重试与写请求不重试。
+`infra/scripts/shared/__tests__/github-system-proxy.test.js` 覆盖 macOS 与 Windows 动态系统配置、显式优先级、禁用探测、直连例外、匿名认证隔离，并用本机 HTTP CONNECT 服务验证 Git 和 API 的真实路由及失败行为；`github-api.test.js` 覆盖幂等请求的有界代理重试与写请求不重试。

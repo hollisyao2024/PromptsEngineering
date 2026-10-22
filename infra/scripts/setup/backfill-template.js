@@ -52,6 +52,13 @@ const BLOCKED_PREFIXES = [
   'docs/QA.md',
   'docs/data/CODEBASE_MAP.md',
 ];
+// Release version fields belong to the official source, whose own tdd sync bumps them;
+// a project's older copy must never downgrade them.
+const SOURCE_VERSION_FIELDS = new Map([
+  ['agent/manifest.json', ['version']],
+  ['infra/templates/agent/template.manifest.json', ['templateVersion']],
+  ['architecture/manifest.json', ['version']],
+]);
 
 function parseArgs(argv) {
   const args = { include: [] };
@@ -144,6 +151,13 @@ function blockedPath(filePath) {
   return BLOCKED_PREFIXES.some((prefix) => filePath === prefix || filePath.startsWith(prefix));
 }
 
+// A rule with `source` installs the source file under a different target path;
+// backfill reverses that mapping so the official source never gains the target copy.
+function sourcePathFor(filePath, rule) {
+  if (!rule.source) return filePath;
+  return normalizeRel(rule.source) + filePath.slice(normalizeRel(rule.path).length);
+}
+
 function filterCandidates(files, manifest, includes) {
   const includeList = includes.map(normalizeRel);
   const rules = (manifest.rules || []).filter((rule) => rule.strategy === 'overwrite');
@@ -163,32 +177,69 @@ function filterCandidates(files, manifest, includes) {
       skipped.push({ file, reason: 'not in overwrite allowlist' });
       continue;
     }
-    candidates.push({ file, rule });
+    const target = sourcePathFor(file, rule);
+    if (blockedPath(target)) {
+      skipped.push({ file, reason: 'blocked project-owned path' });
+      continue;
+    }
+    candidates.push({ file, target, rule });
   }
   return { candidates, skipped };
 }
 
-function sameFile(a, b) {
-  if (!fs.existsSync(a) || !fs.existsSync(b)) return false;
-  return Buffer.compare(fs.readFileSync(a), fs.readFileSync(b)) === 0;
+// The official source stores LF; a core.autocrlf=true checkout has CRLF in the working
+// tree. Text (no NUL byte) is compared and copied with CRLF folded to LF; latin1 keeps
+// every other byte intact. Binary content is left untouched.
+function normalizeEol(buffer) {
+  if (buffer.includes(0)) return buffer;
+  return Buffer.from(buffer.toString('latin1').replace(/\r\n/gu, '\n'), 'latin1');
+}
+
+// Project content as it would land in the official source: LF line endings, and the
+// official release version fields kept instead of the project's possibly older ones.
+function backfillContent(projectPath, targetPath, targetRel) {
+  const content = normalizeEol(fs.readFileSync(projectPath));
+  const fields = SOURCE_VERSION_FIELDS.get(targetRel);
+  if (!fields || !fs.existsSync(targetPath)) return content;
+  let project;
+  let official;
+  try {
+    project = JSON.parse(content.toString('utf8'));
+    official = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+  } catch (error) {
+    throw new BackfillError(`cannot keep the official release version of ${targetRel}: ${error.message}`);
+  }
+  const drifted = fields.filter((field) => Object.hasOwn(official, field) && project[field] !== official[field]);
+  if (drifted.length === 0) return content;
+  for (const field of drifted) project[field] = official[field];
+  return Buffer.from(`${JSON.stringify(project, null, 2)}\n`, 'utf8');
 }
 
 function planCandidates(projectRoot, sourceRoot, candidates) {
   return candidates.map((candidate) => {
-    const sourcePath = path.join(projectRoot, candidate.file);
-    const targetPath = path.join(sourceRoot, candidate.file);
-    if (!fs.existsSync(sourcePath) || fs.statSync(sourcePath).isDirectory()) {
+    const projectPath = path.join(projectRoot, candidate.file);
+    const targetPath = path.join(sourceRoot, candidate.target);
+    if (!fs.existsSync(projectPath) || fs.statSync(projectPath).isDirectory()) {
       return { ...candidate, status: 'skipped', reason: 'source file missing or directory' };
     }
-    if (sameFile(sourcePath, targetPath)) return { ...candidate, status: 'unchanged' };
-    return { ...candidate, status: fs.existsSync(targetPath) ? 'updated' : 'created' };
+    if (!fs.existsSync(targetPath)) return { ...candidate, status: 'created' };
+    const content = backfillContent(projectPath, targetPath, candidate.target);
+    if (Buffer.compare(content, normalizeEol(fs.readFileSync(targetPath))) === 0) {
+      return { ...candidate, status: 'unchanged' };
+    }
+    return { ...candidate, status: 'updated' };
   });
 }
 
 function copyCandidate(projectRoot, targetRoot, item) {
-  const targetPath = path.join(targetRoot, item.file);
+  const targetPath = path.join(targetRoot, item.target);
+  const content = backfillContent(path.join(projectRoot, item.file), targetPath, item.target);
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.copyFileSync(path.join(projectRoot, item.file), targetPath);
+  fs.writeFileSync(targetPath, content);
+}
+
+function describeItem(item) {
+  return item.target && item.target !== item.file ? `${item.file} -> ${item.target}` : item.file;
 }
 
 function validateJsonFiles(root, files) {
@@ -296,7 +347,7 @@ function executeBackfill(argv = process.argv.slice(2), options = {}) {
   }
 
   for (const item of changed) copyCandidate(projectRoot, worktreePath, item);
-  validateJsonFiles(worktreePath, changed.map((item) => item.file));
+  validateJsonFiles(worktreePath, changed.map((item) => item.target));
   return {
     ...base,
     authStatus,
@@ -329,7 +380,7 @@ function printPlan(result) {
   }
   console.log('BACKFILL_FILES_START');
   if (result.items.length === 0) console.log('none');
-  for (const item of result.items) console.log(`${item.status}\t${item.file}`);
+  for (const item of result.items) console.log(`${item.status}\t${describeItem(item)}`);
   console.log('BACKFILL_FILES_END');
   console.log('SKIPPED_FILES_START');
   if (result.skipped.length === 0) console.log('none');
@@ -358,7 +409,7 @@ function main(argv = process.argv.slice(2)) {
   console.log(`BACKFILL_BRANCH=${result.worktree.branch}`);
   console.log(`TEMPLATE_AUTH_STATUS=${result.authStatus}`);
   console.log('MODIFIED_FILES_START');
-  for (const item of result.modified) console.log(`${item.status}\t${item.file}`);
+  for (const item of result.modified) console.log(`${item.status}\t${describeItem(item)}`);
   console.log('MODIFIED_FILES_END');
   console.log(
     `NEXT_ACTION=cd "${result.worktree.path}", review the diff, then run pnpm agent -- tdd sync, tdd push, qa plan, qa verify, qa merge there to land on official ${OFFICIAL_UPSTREAM.branch}`,

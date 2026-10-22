@@ -88,6 +88,7 @@
       "alwaysRun": false,
       "command": "",
       "checkCommand": "",
+      "inputs": [],
       "lockName": "worktree-bootstrap",
       "timeoutMs": 600000
     }

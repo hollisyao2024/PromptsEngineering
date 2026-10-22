@@ -1040,6 +1040,120 @@ test('auto bootstrap can always reconcile dependencies even when the readiness c
   assert.equal(fs.readFileSync(path.join(repo, 'node_modules', 'bootstrap-count'), 'utf8'), '1');
 });
 
+// 依赖输入（lockfile 等）的哈希戳：bootstrap 成功后记录，输入变化时即使 readiness check 通过也视为过期。
+function stampBootstrapFixture(t) {
+  const repo = initRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n');
+  fs.writeFileSync(path.join(repo, 'deps.lock'), 'v1\n');
+  runGit(repo, ['add', '.gitignore', 'deps.lock']);
+  runGit(repo, ['commit', '-m', 'add dependency inputs']);
+  fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'node_modules', 'ready'), 'ready\n');
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+  const countPath = path.join(repo, 'node_modules', 'bootstrap-count');
+  const config = (overrides = {}) => ({
+    projectName: 'bootstrap-stamp-test',
+    containerDirs: { tmp: path.join(repo, '.git', 'runtime') },
+    worktree: {
+      lockDir: path.join(repo, '.git', 'runtime', 'bootstrap-locks'),
+      bootstrap: {
+        mode: 'auto',
+        inputs: ['deps.lock', 'missing.lock'],
+        command: 'node -e "const fs=require(\'fs\');const p=\'node_modules/bootstrap-count\';const n=fs.existsSync(p)?Number(fs.readFileSync(p,\'utf8\')):0;fs.writeFileSync(p,String(n+1))"',
+        checkCommand: 'node -e "process.exit(require(\'fs\').existsSync(\'node_modules/ready\')?0:1)"',
+        ...overrides,
+      },
+    },
+  });
+  const count = () => (fs.existsSync(countPath) ? Number(fs.readFileSync(countPath, 'utf8')) : 0);
+  return { repo, config, count };
+}
+
+test('auto bootstrap re-runs once dependency inputs change and records an input stamp', (t) => {
+  const { repo, config, count } = stampBootstrapFixture(t);
+
+  // 没有戳记时无法证明依赖与输入一致：即使 check 通过也执行一次并写戳。
+  const first = runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() });
+  assert.equal(first.status, 'READY');
+  assert.equal(first.refreshed, true);
+  assert.match(first.reason, /no bootstrap stamp/);
+  assert.equal(count(), 1);
+  const stampPath = path.resolve(repo, runGit(repo, ['rev-parse', '--git-path', 'agent-bootstrap-stamp.json']));
+  assert.equal(JSON.parse(fs.readFileSync(stampPath, 'utf8')).version, 1);
+  assert.equal(runGit(repo, ['status', '--porcelain']), '');
+
+  const fresh = runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() });
+  assert.equal(fresh.status, 'READY');
+  assert.equal(fresh.refreshed, false);
+  assert.equal(count(), 1);
+
+  fs.writeFileSync(path.join(repo, 'deps.lock'), 'v2\n');
+  runGit(repo, ['commit', '-am', 'bump dependency inputs']);
+  const stale = runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() });
+  assert.equal(stale.refreshed, true);
+  assert.match(stale.reason, /dependency inputs changed/);
+  assert.equal(count(), 2);
+
+  // 命令本身变化同样使戳失效。
+  const changedCommand = config();
+  changedCommand.worktree.bootstrap.command += ' ';
+  assert.equal(runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: changedCommand }).refreshed, true);
+  assert.equal(count(), 3);
+
+  // 损坏的戳按缺失处理，安全地重新执行。
+  fs.writeFileSync(stampPath, '{not json');
+  assert.equal(runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() }).refreshed, true);
+  assert.equal(count(), 4);
+});
+
+test('check bootstrap reports stale dependency inputs as MISSING without running the command', (t) => {
+  const { repo, config, count } = stampBootstrapFixture(t);
+  runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() });
+  fs.writeFileSync(path.join(repo, 'deps.lock'), 'v2\n');
+
+  const result = runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config({ mode: 'check' }) });
+  assert.equal(result.status, 'MISSING');
+  assert.match(result.reason, /dependency inputs changed/);
+  assert.match(result.nextManualAction, /bootstrap-count/);
+  assert.equal(count(), 1);
+});
+
+test('bootstrap rejects unsafe dependency input paths', (t) => {
+  const { repo, config } = stampBootstrapFixture(t);
+  for (const bad of ['../outside.lock', '/abs.lock', '']) {
+    assert.throws(
+      () => runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config({ inputs: [bad] }) }),
+      /bootstrap input/,
+    );
+  }
+});
+
+test('allowDirty bootstrap keeps existing changes but blocks when the command changes the status', (t) => {
+  const { repo, config, count } = stampBootstrapFixture(t);
+  fs.writeFileSync(path.join(repo, 'README.md'), '# edited\n');
+  fs.writeFileSync(path.join(repo, 'wip.txt'), 'uncommitted work\n');
+
+  assert.throws(
+    () => runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config() }),
+    /existing non-ignored changes/,
+  );
+  const result = runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: config(), allowDirty: true });
+  assert.equal(result.status, 'READY');
+  assert.equal(count(), 1);
+  assert.equal(fs.readFileSync(path.join(repo, 'wip.txt'), 'utf8'), 'uncommitted work\n');
+
+  fs.writeFileSync(path.join(repo, 'deps.lock'), 'v2\n');
+  assert.throws(
+    () => runWorktreeBootstrap({
+      worktreePath: repo,
+      mainRoot: repo,
+      config: config({ command: 'node -e "require(\'fs\').writeFileSync(\'generated.txt\',\'x\')"' }),
+      allowDirty: true,
+    }),
+    (error) => error.bootstrapStatus === 'BLOCKED' && /produced non-ignored changes/.test(error.message),
+  );
+});
+
 test('resuming an existing worktree honors configured auto bootstrap mode', (t) => {
   const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-auto-resume-'));
   const repo = path.join(container, 'repo');

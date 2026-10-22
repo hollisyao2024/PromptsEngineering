@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [v3.11.46] - 2026-10-22
+
+- GitHub 工具在 Windows 上每次读取系统代理（注册表 ProxyServer），端口切换无需改配置；PAC、仅 SOCKS 或非法设置明确报错（回灌自 GuiXu）。
+- Windows 下 `task exec` 与项目检查以绝对路径启动 `.cmd/.bat` shim，修复 npm 全局 pnpm.cmd 的 %~dp0 解析（回灌自 GuiXu）。
+- `tdd sync` 合入 base 后锁文件输入变化时刷新 worktree 依赖（回灌自 GuiXu）。
+- `template backfill` 按归一化换行比较、映射源路径并保留官方版本（回灌自 GuiXu）。
+
 ## [v3.11.45] - 2026-10-22
 
 - Windows 定向测试经 PATH+PATHEXT 解析 `.cmd/.bat` 运行器，改由受限引用的 `cmd.exe` 启动（回灌自 GuiXu）。

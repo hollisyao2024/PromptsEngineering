@@ -94,6 +94,69 @@ test('bad enabled proxies and unsupported PAC/SOCKS-only configuration fail expl
   assert.throws(() => buildProxyEnvironment({ ...options, env: {}, readSystemProxy: () => { throw Error('secret'); } }), /SYSTEM_PROXY_UNAVAILABLE/);
 });
 
+// `reg query` output of HKCU Internet Settings: values first, then subkey names.
+const winSystem = [
+  '',
+  'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+  '    User Agent    REG_SZ    Mozilla/4.0 (compatible; MSIE 8.0; Win32)',
+  '    ProxyEnable    REG_DWORD    0x1',
+  '    ProxyServer    REG_SZ    127.0.0.1:17897',
+  '    ProxyOverride    REG_SZ    localhost;127.*;*.example.com;<local>;localhost;10.0.0.0/8',
+  '',
+  'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Connections',
+].join('\r\n');
+const winOptions = { platform: 'win32', readSystemProxy: () => winSystem, readGitProxy: () => undefined };
+const withServer = value => winSystem.replace('127.0.0.1:17897', value);
+
+test('Windows system proxy is read from Internet Settings on every call', () => {
+  const out = buildProxyEnvironment({ ...winOptions, env: {} });
+  assert.equal(out.https_proxy, 'http://127.0.0.1:17897');
+  assert.equal(out.HTTPS_PROXY, 'http://127.0.0.1:17897');
+  assert.equal(out.http_proxy, 'http://127.0.0.1:17897');
+  assert.equal(out.NODE_USE_ENV_PROXY, '1');
+  // Wildcards other than a leading `*.` cannot be expressed in no_proxy; <local> never covers GitHub.
+  assert.equal(out.no_proxy, 'localhost,.example.com,10.0.0.0/8');
+  // The proxy client may switch ports; nothing is cached between calls.
+  assert.equal(buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer('127.0.0.1:17898') }).https_proxy, 'http://127.0.0.1:17898');
+});
+
+test('Windows per-protocol, scheme-prefixed, IPv6 and disabled settings', () => {
+  const perProtocol = buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer('http=127.0.0.1:17891;https=127.0.0.1:17892;socks=127.0.0.1:17893') });
+  assert.equal(perProtocol.http_proxy, 'http://127.0.0.1:17891');
+  assert.equal(perProtocol.https_proxy, 'http://127.0.0.1:17892');
+  assert.equal(buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer('http://127.0.0.1:17897') }).https_proxy, 'http://127.0.0.1:17897');
+  assert.equal(buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer('[::1]:17897') }).https_proxy, 'http://[::1]:17897');
+  const disabled = buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => winSystem.replace('0x1', '0x0') });
+  assert.deepEqual(disabled, {});
+  const noServer = winSystem.split('\r\n').filter(line => !line.includes('ProxyServer')).join('\r\n');
+  assert.deepEqual(buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => noServer }), {});
+});
+
+test('Windows explicit environment, Git config and opt-out keep precedence over the registry', () => {
+  const readSystemProxy = () => { throw Error('must not probe'); };
+  assert.equal(buildProxyEnvironment({ ...winOptions, readSystemProxy, env: { https_proxy: 'http://explicit:80' } }).https_proxy, 'http://explicit:80');
+  assert.equal(buildProxyEnvironment({ ...winOptions, readSystemProxy, env: {}, readGitProxy: () => 'http://git-config:8080' }).https_proxy, 'http://git-config:8080');
+  assert.deepEqual(buildProxyEnvironment({ ...winOptions, readSystemProxy, env: { XIRANG_SYSTEM_PROXY: '0' } }), { XIRANG_SYSTEM_PROXY: '0' });
+});
+
+test('Windows PAC, SOCKS-only, invalid and unreadable settings fail without leaking values', () => {
+  const pac = `${winSystem.split('\r\n').slice(0, 6).join('\r\n')}\r\n    AutoConfigURL    REG_SZ    http://127.0.0.1:17897/pac\r\n`;
+  assert.throws(() => buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => pac }), /SYSTEM_PROXY_UNSUPPORTED/);
+  assert.throws(() => buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer('socks=127.0.0.1:17893') }), /SYSTEM_PROXY_UNSUPPORTED/);
+  for (const value of ['127.0.0.1:99999', 'user:secret@proxy:80', '127.0.0.1']) {
+    assert.throws(() => buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => withServer(value) }),
+      error => /SYSTEM_PROXY_INVALID/.test(error.message) && !error.message.includes('secret'));
+  }
+  assert.throws(() => buildProxyEnvironment({ ...winOptions, env: {}, readSystemProxy: () => { throw Error('secret'); } }),
+    error => /SYSTEM_PROXY_UNAVAILABLE: cannot read Windows proxy settings/.test(error.message) && !error.message.includes('secret'));
+});
+
+test('Windows registry proxy reaches Git and anonymous template fetches', () => {
+  const base = { repoRoot: '/nonexistent-proxy-test', cwd: process.cwd(), env: {}, proxyOptions: winOptions };
+  assert.equal(buildGitHubGitEnv({ ...base, args: ['ls-remote', 'https://github.com/example/public.git'] }).https_proxy, 'http://127.0.0.1:17897');
+  assert.equal(buildAnonymousGitEnvironment({}, winOptions).https_proxy, 'http://127.0.0.1:17897');
+});
+
 test('public Git operations and shell children get proxy without a GitHub token', () => {
   const base = { repoRoot: '/nonexistent-proxy-test', cwd: process.cwd(), env: {}, proxyOptions: options };
   assert.equal(buildGitHubGitEnv({ ...base, args: ['ls-remote', 'https://github.com/example/public.git'] }).https_proxy, 'http://127.0.0.1:17897');
