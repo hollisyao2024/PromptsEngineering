@@ -140,3 +140,22 @@ test('targeted test entry accepts runners registered under testing.targetedRunne
   writeConfig([{ command: 'node x.cjs', fileArgument: 'glob' }]);
   assert.throws(() => run(['node', 'x.cjs']), /testing\.targetedRunners fileArgument/u);
 });
+
+test('targeted test entry starts Windows batch-shim runners such as pnpm.cmd and propagates their exit code', { skip: process.platform !== 'win32' }, (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-targeted-test-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const bin = path.join(root, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(root, 'unit.test.js'), '');
+  // 模拟 pnpm 的 .cmd shim：记录收到的参数并按 FAKE_EXIT 退出
+  fs.writeFileSync(path.join(bin, 'pnpm.cmd'), '@echo off\r\n>"%~dp0args.txt" echo %*\r\nexit /b %FAKE_EXIT%\r\n');
+  const env = { ...process.env, PATH: [bin, process.env.PATH || process.env.Path || ''].join(path.delimiter), FAKE_EXIT: '0' };
+  delete env.Path;
+  const args = ['--file', 'unit.test.js', '--', 'pnpm', 'exec', 'vitest', 'run'];
+  assert.equal(runTargetedTest(args, { cwd: root, env }), 0);
+  assert.equal(fs.readFileSync(path.join(bin, 'args.txt'), 'utf8').trim(), '"exec" "vitest" "run" "unit.test.js"');
+  assert.equal(runTargetedTest(args, { cwd: root, env: { ...env, FAKE_EXIT: '3' } }), 3);
+  // cmd.exe 引号内无法安全承载的参数在启动前阻断
+  fs.writeFileSync(path.join(root, 'a%b.test.js'), '');
+  assert.throws(() => runTargetedTest(['--file', 'a%b.test.js', '--', 'pnpm', 'exec', 'vitest', 'run'], { cwd: root, env }), /cmd\.exe/u);
+});
