@@ -201,6 +201,8 @@ test('ops handbook owns the rollback guard detail and keeps its own profile and 
     /^\| `\/dev app <platform>` \|/mu,
     /^\| `\/build app <platform>` \|/mu,
     /^\| `\/build <env>` \|/mu,
+    // A dev:* alias that calls ops-run loops through the default devServer.commands.
+    /^\| `dev:(?:start|restart|stop|status|logs)` \|/mu,
   ]) {
     assert.doesNotMatch(handbook, removed);
   }
@@ -211,7 +213,6 @@ test('ops handbook owns the rollback guard detail and keeps its own profile and 
     '用户使用 `/private ...` 语法，内部 target 仅用于 dispatcher 调度，不得作为用户快捷命令公开。',
     '- **配置约定**：实际命令写在 `agent.config.json devServer.commands`，必要时通过环境变量提供端口、服务名和日志路径',
     '| `ship:dev` | `node infra/scripts/ops-tools/ops-run.js --action=ship --env=dev` | 需 `ops.deployEnabled=true` |',
-    '| `dev:restart` | `node infra/scripts/ops-tools/ops-run.js --action=dev-restart` | |',
     '### 部署防回退与跨电脑租约',
     '`refs/xirang/deploy-lock/<scope>`',
     '`DEPLOY_ALLOW_ROLLBACK=1`',

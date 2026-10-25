@@ -534,3 +534,68 @@ test('lets a shortcut run a different nested shortcut and passes the call chain 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^STACK_SEEN=dev-restart,dev-status$/m);
 });
+
+// The template default devServer.commands calls the project's own pnpm dev:<action>
+// scripts; downstream projects inherit these defaults unchanged.
+test('keeps the template default dev service commands pointing at project pnpm scripts', () => {
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const defaults = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'infra/templates/agent/config.example.json'), 'utf8')
+  );
+  for (const action of ['start', 'restart', 'stop', 'status', 'logs']) {
+    assert.deepEqual(defaults.devServer.commands[action], {
+      default: `pnpm dev:${action}`,
+      private: `pnpm private:${action}`,
+    });
+  }
+});
+
+// Only the Xirang source has no local dev service; installed projects keep their own scripts and config.
+function isTemplateSourceRepo(repoRoot) {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(repoRoot, 'agent.config.json'), 'utf8'));
+    return Boolean(config.template && config.template.role === 'source');
+  } catch {
+    return false;
+  }
+}
+const SOURCE_REPO_ROOT = path.resolve(__dirname, '../../../..');
+const TEMPLATE_SOURCE_ONLY = isTemplateSourceRepo(SOURCE_REPO_ROOT)
+  ? false
+  : 'only the Xirang template source ships without a local dev service';
+
+test('template source package.json keeps no dev:* alias that calls back into ops-run', { skip: TEMPLATE_SOURCE_ONLY }, () => {
+  const { scripts = {} } = JSON.parse(fs.readFileSync(path.join(SOURCE_REPO_ROOT, 'package.json'), 'utf8'));
+  const loops = Object.entries(scripts).filter(([, value]) => /ops-run\.js\b.*--action=dev-/.test(String(value)));
+  assert.deepEqual(loops, []);
+});
+
+test('template source dev shortcuts block at the first level because no service command is configured', { skip: TEMPLATE_SOURCE_ONLY }, (t) => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-source-dev-'));
+  t.after(() => fs.rmSync(container, { recursive: true, force: true }));
+  const script = path.join(SOURCE_REPO_ROOT, 'infra/scripts/ops-tools/ops-run.js');
+  const cases = [
+    ...['start', 'restart', 'stop', 'status', 'logs'].map((action) => [[`--action=dev-${action}`], `dev-${action}`]),
+    [['--action=dev-restart', '--target=private'], 'dev-restart:private'],
+  ];
+  for (const [args, label] of cases) {
+    const result = spawnSync(process.execPath, [script, ...args], {
+      cwd: SOURCE_REPO_ROOT,
+      env: {
+        ...process.env,
+        AGENT_TMP_DIR: path.join(container, 'tmp'),
+        AGENT_CACHE_DIR: path.join(container, 'cache'),
+        AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
+        AGENT_OPS_CALL_STACK: '',
+      },
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 30000,
+    });
+    assert.equal(result.status, 1, `${label}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, new RegExp(`^REASON=no command configured for ${label}$`, 'm'), label);
+    // A single-level block resolves no command, so nothing is spawned and no nested shortcut runs.
+    assert.doesNotMatch(result.stdout, /^COMMAND=/m, label);
+    assert.doesNotMatch(result.stdout + result.stderr, /STATUS=RUNNING|recursive ops shortcut/, label);
+  }
+});
