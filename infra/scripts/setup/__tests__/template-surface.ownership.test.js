@@ -117,64 +117,82 @@ test('conventions leaves task-input, checkpoint, default-type, alias and context
   }
 });
 
-test('devops expert leaves client, build and ship shortcut rows to conventions section 7 and keeps its own routing', () => {
-  const expert = read('AgentRoles/DEVOPS-ENGINEERING-EXPERT.md');
+test('conventions section 7 keeps the lean shortcut routing table and leaves the shortcut specification to the ops expert', () => {
+  const expert = read('AgentRoles/OPS-ENGINEERING-EXPERT.md');
   const section = conventionsSection('7. 命令面');
   assert.ok(section.includes('\n### 客户端与服务端快捷命令\n'), 'conventions keeps the shortcut registry the pointers name');
 
-  // 旧专家表行 → 仍在 §7 的承接行：删除与保留在同一处断言，避免只删不留。
+  // 常驻加载的精简路由表：每个运维快捷命令只在 §7 登记一次稳定入口，专家不重复同一行；
+  // 无环境参数的 ci/env 行在专家命令表中复现，仅为携带兼容 package alias 列。
+  const aliasRows = new Set(['/ci run', '/ci status', '/env check <env>', '/env status']);
   for (const [shortcut, entry] of [
+    ['/restart', 'pnpm agent -- dev restart'],
+    ['/private restart', 'pnpm agent -- private restart'],
     ['/dev app <platform>', 'pnpm agent -- dev app <platform>'],
     ['/private dev app <platform>', 'pnpm agent -- private dev app <platform>'],
     ['/build app <platform>', 'pnpm agent -- build app <platform>'],
     ['/private build app <platform>', 'pnpm agent -- private build app <platform>'],
     ['/build <env>', 'pnpm agent -- build <env>'],
     ['/private build <env>', 'pnpm agent -- private build <env>'],
+    ['/ship <env>', 'pnpm agent -- ship <env>'],
     ['/private ship <env>', 'pnpm agent -- private ship <env>'],
+    ['/cd <env>', 'pnpm agent -- cd <env>'],
+    ['/ci run', 'pnpm agent -- ci run'],
+    ['/ci status', 'pnpm agent -- ci status'],
+    ['/env check <env>', 'pnpm agent -- env check <env>'],
+    ['/env status', 'pnpm agent -- env status'],
   ]) {
     const row = `| \`${shortcut}\` | \`${entry}\` |`;
-    assert.ok(!expert.includes(row), `expert leaves ${shortcut} to conventions`);
-    assert.ok(section.includes(row), `conventions keeps ${shortcut}`);
+    assert.ok(section.includes(row), `conventions routes ${shortcut}`);
+    if (aliasRows.has(shortcut)) continue;
+    assert.ok(!expert.includes(row), `expert does not duplicate the ${shortcut} routing row`);
   }
-  for (const removed of [/app\.commands\.dev\/build\.<platform>/u, /devops\.commands\.build\/ship/u]) {
-    assert.doesNotMatch(expert, removed);
-  }
+
+  // fail-closed 底线常驻 §7；细节（平台矩阵、配置结构、参数透传、部署防回退）迁入 OPS 专家与手册。
   for (const carried of [
-    '- 客户端：`app.commands.<dev|build>.<platform>`',
-    '- 服务端构建与部署：`devops.commands.build` / `devops.commands.ship`',
+    '显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。',
     '客户端开发、发行构建、服务端产物构建与真实部署是四种不同副作用边界，验收证据不得互相替代。',
-    '构建服务端环境产物，不改变目标环境状态',
+    '`AgentRoles/OPS-ENGINEERING-EXPERT.md` §快捷命令规格',
   ]) {
     assert.ok(section.includes(carried), carried);
   }
-
-  // 专家自有路由保留：§7 未登记的 ship/cd/ci/env 与 restart 行、指向 §7 的指针、验收证据提醒与本地服务管理。
-  for (const kept of [
-    '| `/ship dev` | `pnpm agent -- ship dev` |',
-    '| `/ship staging` | `pnpm agent -- ship staging` |',
-    '| `/ship prod` | `pnpm agent -- ship production` |',
-    '| `/cd staging` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=staging` |',
-    '| `/cd prod` | `node infra/scripts/devops-tools/devops-run.js --action=cd --env=production` |',
-    '| `/ci run` | `node infra/scripts/devops-tools/devops-run.js --action=ci-run` |',
-    '| `/ci status` | `node infra/scripts/devops-tools/devops-run.js --action=ci-status` |',
-    '| `/env check <env>` | `node infra/scripts/devops-tools/devops-run.js --action=env-check --env=<env>` |',
-    '| `/env status` | `node infra/scripts/devops-tools/devops-run.js --action=env-status` |',
-    '| `/restart` | `pnpm agent -- dev restart` | `pnpm dev:restart` |',
-    '| `/private restart` | `pnpm agent -- private restart` | `pnpm private:restart` |',
-    '`docs/CONVENTIONS.md` §客户端与服务端快捷命令',
-    '开发启动、发行构建和真实部署的验收证据不得互相替代',
+  for (const moved of [/客户端平台完整矩阵/u, /^### 部署防回退与跨电脑租约/mu, /`ops\.commands\.build` \/ `ops\.commands\.ship`/u, /refs\/xirang\/deploy-lock\/<scope>/u]) {
+    assert.doesNotMatch(section, moved);
+  }
+  for (const owned of [
+    '## 快捷命令规格',
+    '客户端平台完整矩阵',
+    '- 服务端构建与部署：`ops.commands.build` / `ops.commands.ship` / `ops.commands.cd`',
+    '`{source_args}`',
+    '`{dry_run_arg}`',
     '`/private start|restart|stop|status|logs`；禁止写成 `/restart private`',
     'devServer.commands.<action>.<profile>',
+    '开发启动、发行构建和真实部署的验收证据不得互相替代',
+  ]) {
+    assert.ok(expert.includes(owned), owned);
+  }
+
+  // 专家自有命令表：具体环境行全部走 pnpm agent 稳定入口，旧 package alias 只作兼容列。
+  for (const kept of [
+    '| `/ship dev` | `pnpm agent -- ship dev` | `pnpm ship:dev` |',
+    '| `/ship staging` | `pnpm agent -- ship staging` | `pnpm ship:staging` |',
+    '| `/ship prod` | `pnpm agent -- ship production` | `pnpm ship:prod` |',
+    '| `/cd staging` | `pnpm agent -- cd staging` | `pnpm cd:staging` |',
+    '| `/cd prod` | `pnpm agent -- cd production` | `pnpm cd:prod` |',
+    '| `/ci run` | `pnpm agent -- ci run` | `pnpm ci:run` |',
+    '| `/ci status` | `pnpm agent -- ci status` | `pnpm ci:status` |',
+    '| `/env check <env>` | `pnpm agent -- env check <env>` | `pnpm env:check -- --env=<env>` |',
+    '| `/env status` | `pnpm agent -- env status` | `pnpm env:status` |',
   ]) {
     assert.ok(expert.includes(kept), kept);
   }
+  assert.doesNotMatch(expert, /node infra\/scripts\/ops-tools\/ops-run\.js --action=(?:cd|ci|env)/u);
 });
 
-test('devops handbook points to conventions section 7 for shortcut rows and keeps its own profile and script rules', () => {
-  const handbook = read('AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md');
+test('ops handbook owns the rollback guard detail and keeps its own profile and script rules', () => {
+  const handbook = read('AgentRoles/Handbooks/OPS-ENGINEERING-EXPERT.playbook.md');
   const registry = '`docs/CONVENTIONS.md` §客户端与服务端快捷命令';
 
-  // 旧手册条目 → 仍在承接处的原文：删除与保留在同一处断言，避免只删不留。
   for (const removed of [
     /private profile 的用户快捷语法为/u,
     /`\/dev app <platform>` 与 `\/private dev app <platform>` 读取/u,
@@ -188,16 +206,21 @@ test('devops handbook points to conventions section 7 for shortcut rows and keep
   }
   assert.equal(handbook.split(registry).length - 1, 2, 'handbook names the conventions shortcut registry where its rows used to be');
 
-  // 手册自有规则保留：脚本路径表中的真实 alias 行、profile 阻断、dispatcher 说明与服务配置约定。
   for (const kept of [
     '- 显式 profile 没有精确命令时必须阻断，禁止回退 default；构建成功不得替代运行态验收。',
     '用户使用 `/private ...` 语法，内部 target 仅用于 dispatcher 调度，不得作为用户快捷命令公开。',
     '- **配置约定**：实际命令写在 `agent.config.json devServer.commands`，必要时通过环境变量提供端口、服务名和日志路径',
-    '| `ship:dev` | `node infra/scripts/devops-tools/devops-run.js --action=ship --env=dev` | 需 `devops.deployEnabled=true` |',
-    '| `dev:restart` | `node infra/scripts/devops-tools/devops-run.js --action=dev-restart` | |',
+    '| `ship:dev` | `node infra/scripts/ops-tools/ops-run.js --action=ship --env=dev` | 需 `ops.deployEnabled=true` |',
+    '| `dev:restart` | `node infra/scripts/ops-tools/ops-run.js --action=dev-restart` | |',
+    '### 部署防回退与跨电脑租约',
+    '`refs/xirang/deploy-lock/<scope>`',
+    '`DEPLOY_ALLOW_ROLLBACK=1`',
+    '`MANUAL_RELEASE_COMMAND`',
+    '`remoteRetryDelaysMs`',
   ]) {
     assert.ok(handbook.includes(kept), kept);
   }
+  assert.doesNotMatch(handbook, /CI 全绿/u);
 });
 
 test('tdd expert states where run evidence goes once', () => {

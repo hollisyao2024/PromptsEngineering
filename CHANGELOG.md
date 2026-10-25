@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.12.0] - 2026-10-26
+
+- DEVOPS 全量更名 OPS：阶段、配置键、脚本与模板迁移，QA 剥离部署职责，cd/ci/env 接入 pnpm agent；旧配置 BLOCKED。
+
 ## [v3.11.49] - 2026-10-23
 
 - `worktree bootstrap` 未配置命令时，仅在可证明项目无依赖（根与工作区成员 package.json 无依赖、无锁文件或其他生态清单）时输出 SKIPPED，其余仍 BLOCKED（回灌自 GuiXu）。

@@ -18,6 +18,7 @@ const {
   resolveRuntimePath,
 } = require('../shared/config');
 const { buildGitHubGitEnv } = require('../shared/github-auth');
+const { legacyPhaseError, normalizeLegacyPhase } = require('../shared/legacy-phase');
 const {
   isPathInside,
   isSamePath,
@@ -38,7 +39,7 @@ const PHASE_ORDER = new Map([
   ['task', 3],
   ['tdd', 4],
   ['qa', 5],
-  ['devops', 6],
+  ['ops', 6],
 ]);
 
 function run(command, args, options = {}) {
@@ -115,6 +116,10 @@ function validateWorktreeRequest(options = {}) {
   const desc = readStringOption(options, ['desc', 'description']);
   readStringOption(options, ['kind']);
 
+  // Renamed phases fail closed instead of silently aliasing to the new name.
+  const renamedPhase = legacyPhaseError(phase);
+  if (renamedPhase) throw requestError(renamedPhase);
+
   if (!branch && !task && !desc) {
     throw requestError('worktree identity is required; phase alone cannot name a branch or worktree');
   }
@@ -135,7 +140,7 @@ function buildBranchName(options) {
   if (phase === 'arch') return `docs/arch-${desc}`;
   if (phase === 'task') return `docs/task-${desc}`;
   if (phase === 'qa') return `qa/${desc}`;
-  if (phase === 'devops') return `ops/${desc}`;
+  if (phase === 'ops') return `ops/${desc}`;
   if (kind === 'fix') return `fix/${desc}`;
   if (task) return `feature/${task}${desc && desc !== slugify(task) ? `-${desc}` : ''}`;
   return `feature/${desc}`;
@@ -156,7 +161,7 @@ function inferPhaseFromBranch(branch) {
   if (branch.startsWith('docs/arch-')) return 'arch';
   if (branch.startsWith('docs/task-')) return 'task';
   if (branch.startsWith('qa/')) return 'qa';
-  if (branch.startsWith('ops/') || branch.startsWith('ci/')) return 'devops';
+  if (branch.startsWith('ops/') || branch.startsWith('ci/')) return 'ops';
   return 'tdd';
 }
 
@@ -581,7 +586,9 @@ function writeSession(config, mainRoot, payload) {
   const releaseLock = acquireLock(lockDir, `worktree-session-${payload.branch}`, 30000);
   try {
     const now = new Date().toISOString();
-    const previous = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {};
+    const previous = fs.existsSync(filePath)
+      ? normalizeSessionPhases(JSON.parse(fs.readFileSync(filePath, 'utf8')))
+      : {};
     const protectedStatuses = new Set(['cleanup_pending', 'recovery_required']);
     if (protectedStatuses.has(previous.status) && payload.status === 'in_progress') {
       const error = new Error(
@@ -747,6 +754,18 @@ function writeManagedMarker(mainRoot, worktreePath, branch) {
   if (!existing.split(/\r?\n/).includes(rule)) fs.appendFileSync(excludePath, `${existing.endsWith('\n') || !existing ? '' : '\n'}${rule}\n`);
 }
 
+// Sessions written before a phase rename are upgraded on read; writeSession persists the new name.
+function normalizeSessionPhases(session) {
+  if (!session || typeof session !== 'object' || Array.isArray(session)) return session;
+  const next = { ...session };
+  if (Object.prototype.hasOwnProperty.call(next, 'phase')) next.phase = normalizeLegacyPhase(next.phase);
+  if (next.lifecycle && typeof next.lifecycle === 'object' && !Array.isArray(next.lifecycle)
+    && Object.prototype.hasOwnProperty.call(next.lifecycle, 'phase')) {
+    next.lifecycle = { ...next.lifecycle, phase: normalizeLegacyPhase(next.lifecycle.phase) };
+  }
+  return next;
+}
+
 function readSessions(config, mainRoot) {
   const configured = config.worktree && config.worktree.sessionDir;
   const dir = resolveRuntimePath(config, mainRoot, configured, 'worktree-sessions');
@@ -755,7 +774,7 @@ function readSessions(config, mainRoot) {
     .filter((name) => name.endsWith('.json'))
     .map((name) => {
       try {
-        return JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+        return normalizeSessionPhases(JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')));
       } catch {
         return null;
       }

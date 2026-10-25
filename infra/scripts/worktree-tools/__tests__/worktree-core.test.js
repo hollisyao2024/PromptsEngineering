@@ -10,8 +10,11 @@ const { spawnSync } = require('child_process');
 const {
   acquireLock,
   assertNoConflictingRecovery,
+  buildBranchName,
+  buildWorktreeName,
   createOrResumeWorktree,
   getMainRepoRoot,
+  inferPhaseFromBranch,
   isPathInside,
   listWorktrees,
   materializeReusablePaths,
@@ -458,6 +461,63 @@ test('worktree creation rejects missing identity before Git or filesystem mutati
     assert.match(result.stderr, /NEXT_MANUAL_ACTION=/u);
     assertNoGeneratedTddWorktree(repo);
   }
+});
+
+test('ops phase names ops branches and worktrees and ci branches infer the ops phase', () => {
+  const branch = buildBranchName({ phase: 'ops', task: 'release-01', desc: 'staging-rollout' });
+  assert.equal(branch, 'ops/staging-rollout');
+  assert.equal(inferPhaseFromBranch('ops/staging-rollout'), 'ops');
+  assert.equal(inferPhaseFromBranch('ci/pipeline-cache'), 'ops');
+  assert.equal(buildWorktreeName({ phase: 'ops' }, branch), 'ops-staging-rollout');
+  assert.equal(buildWorktreeName({}, 'ci/pipeline-cache'), 'ops-pipeline-cache');
+});
+
+test('worktree creation rejects the renamed devops phase before Git or filesystem mutation', (t) => {
+  const repo = initRepo();
+  t.after(() => safeRemoveTreeNoFollow(repo, { allowedRoot: realTemporaryRoot }));
+
+  for (const args of [
+    ['--phase=devops', '--desc=staging-rollout', '--dry-run', '--skip-fetch'],
+    ['--phase', 'devops', '--task', 'release-01', '--dry-run', '--skip-fetch'],
+  ]) {
+    const result = runNodeScript(repo, worktreeNewScript, args);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stderr, /STATUS=BLOCKED/u);
+    assert.match(result.stderr, /devops 阶段已更名为 ops/u);
+    assert.equal(runGit(repo, ['branch', '--list', 'ops/*']), '');
+    assertNoGeneratedTddWorktree(repo);
+  }
+});
+
+test('legacy devops sessions read back as ops and the next session write persists the upgrade', (t) => {
+  const container = fs.mkdtempSync(path.join(realTemporaryRoot, 'worktree-session-ops-'));
+  const mainRoot = path.join(container, 'repo');
+  const sessionDir = path.join(container, 'tmp', 'sessions');
+  const config = { worktree: { sessionDir: '../tmp/sessions', lockDir: '../tmp/locks' } };
+  fs.mkdirSync(mainRoot, { recursive: true });
+  fs.mkdirSync(sessionDir, { recursive: true });
+  t.after(() => safeRemoveTreeNoFollow(container, { allowedRoot: realTemporaryRoot }));
+
+  const legacyPath = path.join(sessionDir, 'ops-staging-rollout.json');
+  fs.writeFileSync(legacyPath, JSON.stringify({
+    schema_version: 2,
+    revision: 1,
+    branch: 'ops/staging-rollout',
+    worktree: path.join(container, 'worktrees', 'devops-staging-rollout'),
+    status: 'in_progress',
+    phase: 'devops',
+    lifecycle: { phase: 'devops', keys: ['topic:staging-rollout'] },
+  }, null, 2) + '\n');
+
+  const [legacy] = readSessions(config, mainRoot);
+  assert.equal(legacy.phase, 'ops');
+  assert.equal(legacy.lifecycle.phase, 'ops');
+
+  writeSession(config, mainRoot, { branch: legacy.branch, status: 'in_progress', step: 'renewed' });
+  const persisted = fs.readFileSync(legacyPath, 'utf8');
+  assert.doesNotMatch(persisted, /devops"/u);
+  assert.equal(JSON.parse(persisted).lifecycle.phase, 'ops');
+  assert.equal(JSON.parse(persisted).revision, 2);
 });
 
 test('worktree creation still accepts an explicit identity in dry-run mode', (t) => {

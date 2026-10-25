@@ -35,49 +35,93 @@ test('unified agent CLI routes stable workflow commands', () => {
     args: ['--file', 'tests/unit.test.js', '--', 'node', '--test'],
   });
   assert.deepEqual(resolveCommand(['app', 'dev', '--platform=mac']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-dev', '--platform=mac'],
   });
   assert.deepEqual(resolveCommand(['app', 'build', '--platform=win']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-build', '--platform=win'],
   });
   assert.deepEqual(resolveCommand(['build', 'server', '--env=production']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=build', '--env=production'],
   });
   assert.deepEqual(resolveCommand(['private', 'restart']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=dev-restart', '--target=private'],
   });
   assert.deepEqual(resolveCommand(['dev', 'app', 'mac']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-dev', '--platform=mac'],
   });
   assert.deepEqual(resolveCommand(['build', 'app', 'win']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-build', '--platform=win'],
   });
   assert.deepEqual(resolveCommand(['build', 'prod']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=build', '--env=prod'],
   });
   assert.deepEqual(resolveCommand(['private', 'dev', 'app', 'mac']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-dev', '--platform=mac', '--target=private'],
   });
   assert.deepEqual(resolveCommand(['private', 'build', 'app', 'win']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=app-build', '--platform=win', '--target=private'],
   });
   assert.deepEqual(resolveCommand(['private', 'build', 'prod']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=build', '--env=prod', '--target=private'],
   });
   assert.deepEqual(resolveCommand(['private', 'ship', 'prod']), {
-    script: 'infra/scripts/devops-tools/devops-run.js',
+    script: 'infra/scripts/ops-tools/ops-run.js',
     args: ['--action=ship', '--env=prod', '--target=private'],
   });
+});
+
+test('unified agent CLI routes cd, ci and env shortcuts to the OPS runner and lists them in help', () => {
+  const { main } = require('../agent-cli');
+  const runner = 'infra/scripts/ops-tools/ops-run.js';
+  assert.deepEqual(resolveCommand(['cd', 'staging', '--dry-run']), {
+    script: runner,
+    args: ['--action=cd', '--env=staging', '--dry-run'],
+  });
+  assert.deepEqual(resolveCommand(['cd', 'production', '--sha=abc']), {
+    script: runner,
+    args: ['--action=cd', '--env=production', '--sha=abc'],
+  });
+  assert.deepEqual(resolveCommand(['ci', 'run']), { script: runner, args: ['--action=ci-run'] });
+  assert.deepEqual(resolveCommand(['ci', 'status', '--quick']), { script: runner, args: ['--action=ci-status', '--quick'] });
+  assert.deepEqual(resolveCommand(['env', 'check', 'staging']), {
+    script: runner,
+    args: ['--action=env-check', '--env=staging'],
+  });
+  assert.deepEqual(resolveCommand(['env', 'status']), { script: runner, args: ['--action=env-status'] });
+
+  assert.throws(() => resolveCommand(['cd']), /cd requires staging or production/u);
+  assert.throws(() => resolveCommand(['ci']), /ci requires run or status/u);
+  assert.throws(() => resolveCommand(['ci', 'deploy']), /ci requires run or status/u);
+  assert.throws(() => resolveCommand(['env']), /env requires check <env> or status/u);
+  assert.throws(() => resolveCommand(['env', 'check']), /env requires check <env> or status/u);
+  assert.throws(() => resolveCommand(['env', 'reset']), /env requires check <env> or status/u);
+  // The OPS runner has no private profile for cd/ci/env, so the private prefix keeps rejecting them.
+  for (const action of ['cd', 'ci', 'env']) {
+    assert.throws(() => resolveCommand(['private', action, 'staging']), /private requires/u);
+  }
+
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    assert.equal(main(['--help']), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  const help = lines.join('\n');
+  assert.match(help, /cd <staging\|production>/u);
+  assert.match(help, /ci <run\|status>/u);
+  assert.match(help, /env <check <env>\|status>/u);
 });
 
 test('unified agent CLI routes cloud session commands and lists them in help', () => {

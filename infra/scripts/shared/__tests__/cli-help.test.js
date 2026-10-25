@@ -24,7 +24,7 @@ const SIDE_EFFECT_ENTRIES = [
   'setup/template-sync.js',
   'setup/update-template.js',
   'setup/backfill-template.js',
-  'devops-tools/devops-run.js',
+  'ops-tools/ops-run.js',
 ];
 
 test('help is recognized only before the pass-through separator', () => {

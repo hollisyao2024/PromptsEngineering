@@ -46,7 +46,7 @@
 - **后续动作**：上线后监控/复测计划、风险回顾会议安排。
 
 ## 9. 部署记录
-> 部署执行记录由 DevOps 专家维护，详见 `/docs/data/deployments/README.md`。
+> 部署执行记录由 OPS 专家维护，详见 `/docs/data/deployments/README.md`。
 
 ## 10. 追溯 & 附录
 - **追溯矩阵**：指向 `/docs/data/traceability-matrix.md`。

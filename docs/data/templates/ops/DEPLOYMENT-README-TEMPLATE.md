@@ -1,6 +1,6 @@
 # 部署记录目录
 
-> **用途**：由 DevOps 专家维护，存放于 `/docs/data/deployments/README.md`。只保留各环境当前状态与索引，不追加叙述段落；整体 ≤8KB。仅记录 staging 和 production。
+> **用途**：由 OPS 专家维护，存放于 `/docs/data/deployments/README.md`。只保留各环境当前状态与索引，不追加叙述段落；整体 ≤8KB。仅记录 staging 和 production。
 
 ## 各环境当前状态
 
@@ -25,5 +25,5 @@
 
 ## 模板引用
 
-- 月度台账：`/docs/data/templates/devops/DEPLOYMENT-LOG-TEMPLATE.md`
-- 独立记录：`/docs/data/templates/devops/DEPLOYMENT-RECORD-TEMPLATE.md`
+- 月度台账：`/docs/data/templates/ops/DEPLOYMENT-LOG-TEMPLATE.md`
+- 独立记录：`/docs/data/templates/ops/DEPLOYMENT-RECORD-TEMPLATE.md`

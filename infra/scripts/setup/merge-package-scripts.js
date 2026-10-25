@@ -3,7 +3,8 @@
  * Safely merge optional template scripts into a target package.json.
  *
  * Default mode is dry-run. Use --write to add missing scripts.
- * Existing scripts are never overwritten.
+ * Existing scripts are never overwritten, except that exact template-owned
+ * script paths renamed by the template are rewritten in place.
  */
 
 const fs = require('fs');
@@ -11,6 +12,30 @@ const path = require('path');
 const { resolveRepoRoot } = require('../shared/config');
 
 const DEFAULT_SCRIPT_MANIFEST = 'infra/templates/agent/package-scripts.example.json';
+
+// 模板自有脚本路径的更名表：只替换 scripts 值中独立出现的旧路径，
+// 前缀须为开头/空白/引号（可带 ./），后缀须为结尾/空白/引号，避免误伤 vendor/ 副本或 .bak 文件。
+const RENAMED_SCRIPT_PATHS = [
+  ['infra/scripts/devops-tools/devops-run.js', 'infra/scripts/ops-tools/ops-run.js'],
+];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function rewriteRenamedPaths(command) {
+  if (typeof command !== 'string') return { command, count: 0 };
+  let count = 0;
+  let next = command;
+  for (const [legacy, current] of RENAMED_SCRIPT_PATHS) {
+    const pattern = new RegExp(`(^|[\\s"'])(\\./)?${escapeRegExp(legacy)}(?=$|[\\s"'])`, 'g');
+    next = next.replace(pattern, (match, lead, dot) => {
+      count += 1;
+      return `${lead}${dot || ''}${current}`;
+    });
+  }
+  return { command: next, count };
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -61,6 +86,17 @@ function main() {
   const added = [];
   const unchanged = [];
   const conflicts = [];
+  const renamed = [];
+  let renamedPathCount = 0;
+
+  // 先重写已更名的模板路径，再与模板清单比较，避免旧路径被误判为冲突。
+  for (const [name, command] of Object.entries(scripts)) {
+    const rewrite = rewriteRenamedPaths(command);
+    if (rewrite.count === 0) continue;
+    scripts[name] = rewrite.command;
+    renamed.push(name);
+    renamedPathCount += rewrite.count;
+  }
 
   for (const [name, command] of Object.entries(sourceScripts)) {
     if (!Object.prototype.hasOwnProperty.call(scripts, name)) {
@@ -73,7 +109,7 @@ function main() {
     }
   }
 
-  if (write && added.length > 0) {
+  if (write && (added.length > 0 || renamed.length > 0)) {
     pkg.scripts = scripts;
     fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + '\n');
   }
@@ -84,11 +120,13 @@ function main() {
   console.log(`ADDED=${added.length ? added.join(',') : 'none'}`);
   console.log(`UNCHANGED=${unchanged.length ? unchanged.join(',') : 'none'}`);
   console.log(`CONFLICTS=${conflicts.length ? conflicts.join(',') : 'none'}`);
+  console.log(`RENAMED_SCRIPT_PATHS=${renamedPathCount}`);
+  console.log(`RENAMED_SCRIPTS=${renamed.length ? renamed.join(',') : 'none'}`);
   if (conflicts.length > 0) {
     console.log('CONFLICT_POLICY=existing scripts kept; template commands not installed for conflicts');
   }
   if (!write) {
-    console.log('NEXT_ACTION=rerun with --write to add missing scripts');
+    console.log('NEXT_ACTION=rerun with --write to add missing scripts and rewrite renamed template paths');
   }
 }
 

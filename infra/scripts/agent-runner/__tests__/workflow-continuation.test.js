@@ -168,7 +168,7 @@ test('rules define acknowledged handoff or inline continuation without removing 
 
 test('all six experts use the shared task recovery policy', () => {
   const roles = path.resolve(__dirname, '../../../../AgentRoles');
-  for (const file of ['PRD-WRITER', 'ARCHITECTURE-WRITER', 'TASK-PLANNING', 'TDD-PROGRAMMING', 'QA-TESTING', 'DEVOPS-ENGINEERING']) {
+  for (const file of ['PRD-WRITER', 'ARCHITECTURE-WRITER', 'TASK-PLANNING', 'TDD-PROGRAMMING', 'QA-TESTING', 'OPS-ENGINEERING']) {
     const text = fs.readFileSync(path.join(roles, `${file}-EXPERT.md`), 'utf8');
     assert.match(text, /任务状态、恢复与阶段切换遵循 `AGENTS\.md`“长任务断点续跑”/u, `${file}: shared recovery policy`);
   }

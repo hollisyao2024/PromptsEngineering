@@ -12,7 +12,7 @@ Required identity:
   Supply at least one of --branch, --task, or --desc. --phase alone is rejected.
 
 Options:
-  --phase <phase>       Expert phase (prd, arch, task, tdd, qa, devops; default: tdd)
+  --phase <phase>       Expert phase (prd, arch, task, tdd, qa, ops; default: tdd)
   --kind fix            Create a fix/<description> branch
   --dry-run             Print the planned branch and path without creating them
   --skip-fetch          Do not contact origin; use a cached remote or local base as unverified

@@ -121,7 +121,7 @@ function validateResult(value, decision, headSha, evidenceContext = {}) {
 // This only selects its test evidence; the blocked step and task completion guard remain intact.
 function canSupplyQaEvidence(state) {
   if (state.status === 'running') return true;
-  if (state.status !== 'blocked' || !['qa', 'devops'].includes(state.current_phase)) return false;
+  if (state.status !== 'blocked' || !['qa', 'ops'].includes(state.current_phase)) return false;
   const entry = state.phase_history?.at(-1);
   const deferred = entry?.phase === state.current_phase ? entry.deferred_cleanup : null;
   if (!deferred || !nonempty(deferred.evidence) || !Number.isInteger(deferred.failure_index)

@@ -18,7 +18,7 @@ test('every phase expert explicitly participates in durable task recovery', () =
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
     'AgentRoles/QA-TESTING-EXPERT.md',
-    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+    'AgentRoles/OPS-ENGINEERING-EXPERT.md',
   ];
   for (const expert of experts) {
     const source = read(expert);
@@ -45,7 +45,7 @@ test('phase experts use bounded context handoffs instead of full document reload
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
     'AgentRoles/QA-TESTING-EXPERT.md',
-    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+    'AgentRoles/OPS-ENGINEERING-EXPERT.md',
   ];
   for (const expert of experts) {
     const source = read(expert);
@@ -77,7 +77,7 @@ test('context governance uses staged soft watermarks without blocking lightweigh
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/TDD-PROGRAMMING-EXPERT.md',
     'AgentRoles/QA-TESTING-EXPERT.md',
-    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
+    'AgentRoles/OPS-ENGINEERING-EXPERT.md',
   ];
   for (const expert of experts) {
     assert.match(read(expert), /上下文预算与阶段交接/u, expert);

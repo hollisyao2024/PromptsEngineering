@@ -16,7 +16,7 @@ const {
   resolveRuntimeCommand,
   resolveSourceArgs,
   templateCommand,
-} = require('../devops-run');
+} = require('../ops-run');
 
 test('normalizes common dev service targets', () => {
   assert.equal(normalizeDevTarget('private'), 'private');
@@ -92,7 +92,7 @@ test('selects app dev and build commands by platform and target without cross-pr
 
 test('selects server build and ship commands by environment and target', () => {
   const config = {
-    devops: {
+    ops: {
       commands: {
         build: {
           production: 'pnpm build:prod',
@@ -203,7 +203,7 @@ test('reports no Windows Bash command when no compatible runtime is installed', 
 
 test('does not fall back to the default ship command for an explicit private target', () => {
   const config = {
-    devops: {
+    ops: {
       commands: {
         ship: {
           production: 'deploy production',
@@ -217,7 +217,7 @@ test('does not fall back to the default ship command for an explicit private tar
 
 test('rejects positional dev targets so /restart private cannot be routed implicitly', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
-  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const script = path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js');
   const result = spawnSync(
     process.execPath,
     [script, '--action=dev-restart', 'private', '--dry-run'],
@@ -235,7 +235,7 @@ test('rejects positional dev targets so /restart private cannot be routed implic
 
 test('requires an explicit platform for app commands', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
-  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const script = path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js');
   const result = spawnSync(process.execPath, [script, '--action=app-dev', '--dry-run'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -247,10 +247,10 @@ test('requires an explicit platform for app commands', () => {
 });
 
 test('creates missing tmp, cache, and artifacts directories before a project command dry-run', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-container-dirs-'));
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-container-dirs-'));
   t.after(() => fs.rmSync(container, { recursive: true, force: true }));
   const repoRoot = path.resolve(__dirname, '../../../..');
-  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const script = path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js');
   const tmpDir = path.join(container, 'tmp');
   const cacheDir = path.join(container, 'cache');
   const artifactsDir = path.join(container, 'artifacts');
@@ -279,10 +279,10 @@ test('creates missing tmp, cache, and artifacts directories before a project com
 });
 
 test('blocks before later command side effects when a container path is not a directory', (t) => {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-container-file-'));
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-container-file-'));
   t.after(() => fs.rmSync(container, { recursive: true, force: true }));
   const repoRoot = path.resolve(__dirname, '../../../..');
-  const script = path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js');
+  const script = path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js');
   const cachePath = path.join(container, 'cache');
   const artifactsDir = path.join(container, 'artifacts');
   fs.writeFileSync(cachePath, 'occupied\n');
@@ -310,7 +310,7 @@ test('blocks before later command side effects when a container path is not a di
 
 test('documents /private restart as the user shortcut instead of /restart --target', () => {
   const repoRoot = path.resolve(__dirname, '../../../..');
-  const expert = fs.readFileSync(path.join(repoRoot, 'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md'), 'utf8');
+  const expert = fs.readFileSync(path.join(repoRoot, 'AgentRoles/OPS-ENGINEERING-EXPERT.md'), 'utf8');
   assert.match(expert, /`\/private restart`/u);
   assert.doesNotMatch(expert, /`\/restart --target <profile>`/u);
 });
@@ -361,30 +361,36 @@ test('fails closed when the configured command cannot receive the source selecti
   assert.match(resolveSourceArgs({ sha: SHIP_SHA }, 'build', 'pnpm build {source_args}').error, /ship and cd/);
 });
 
-function runShipCli(t, args) {
-  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-ship-sha-'));
+const SHIP_FIXTURE_OPS = {
+  commands: {
+    ship: { production: 'node -e "" -- {source_args} {dry_run_arg}' },
+    cd: { production: 'node -e ""' },
+  },
+};
+
+// Runs ops-run.js in a throwaway git fixture; `config` replaces the fixture's
+// agent.config.json body and `env` overrides the child environment.
+function runOpsCli(t, args, { config, env = {} } = {}) {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-ship-sha-'));
   t.after(() => fs.rmSync(container, { recursive: true, force: true }));
   const fixture = path.join(container, 'repo');
   fs.mkdirSync(fixture);
   spawnSync('git', ['init', '-q'], { cwd: fixture });
-  fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify({
-    projectName: 'fixture',
-    devops: {
-      commands: {
-        ship: { production: 'node -e "" -- {source_args} {dry_run_arg}' },
-        cd: { production: 'node -e ""' },
-      },
-    },
-  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify(
+    config || { projectName: 'fixture', ops: SHIP_FIXTURE_OPS },
+    null,
+    2,
+  )}\n`);
   const repoRoot = path.resolve(__dirname, '../../../..');
-  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js'), ...args], {
+  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js'), ...args], {
     cwd: fixture,
     env: {
       ...process.env,
       AGENT_TMP_DIR: path.join(container, 'tmp'),
       AGENT_CACHE_DIR: path.join(container, 'cache'),
       AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
-      AGENT_DEVOPS_DEPLOY_ENABLED: 'true',
+      AGENT_OPS_DEPLOY_ENABLED: 'true',
+      ...env,
     },
     encoding: 'utf8',
     stdio: 'pipe',
@@ -392,7 +398,7 @@ function runShipCli(t, args) {
 }
 
 test('blocks an invalid --sha before printing or running any command', (t) => {
-  const result = runShipCli(t, ['--action=ship', '--env=production', '--sha=abc;id', '--dry-run']);
+  const result = runOpsCli(t, ['--action=ship', '--env=production', '--sha=abc;id', '--dry-run']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /STATUS=BLOCKED/);
   assert.match(result.stderr, /REASON=--sha must be a full 40-character lowercase commit SHA/);
@@ -401,16 +407,52 @@ test('blocks an invalid --sha before printing or running any command', (t) => {
 
 test('blocks --sha for a configured command that does not declare {source_args}', (t) => {
   // The fixture's cd command has no {source_args}; it must not silently drop the SHA.
-  const result = runShipCli(t, ['--action=cd', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
+  const result = runOpsCli(t, ['--action=cd', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /STATUS=BLOCKED/);
   assert.doesNotMatch(result.stdout, /COMMAND=/);
 });
 
 test('passes a validated --sha and delegated --dry-run to a command that declares them', (t) => {
-  const result = runShipCli(t, ['--action=ship', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
+  const result = runOpsCli(t, ['--action=ship', '--env=production', `--sha=${SHIP_SHA}`, '--dry-run']);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`SOURCE_ARGS=--sha=${SHIP_SHA}`));
   assert.match(result.stdout, /DRY_RUN_MODE=DELEGATED/);
   assert.match(result.stdout, new RegExp(`COMMAND=.*--sha=${SHIP_SHA} --dry-run$`, 'm'));
+});
+
+test('blocks a project config that still declares the renamed devops section', (t) => {
+  const result = runOpsCli(t, ['--action=ci-status', '--dry-run'], {
+    config: { projectName: 'fixture', devops: { commands: { ciStatus: 'node -e ""' } } },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.match(result.stderr, /devops 节已更名为 ops/u);
+  assert.doesNotMatch(result.stdout, /COMMAND=/);
+});
+
+test('blocks the renamed AGENT_DEVOPS_DEPLOY_ENABLED environment variable', (t) => {
+  const result = runOpsCli(t, ['--action=ship', '--env=production', '--dry-run'], {
+    env: { AGENT_DEVOPS_DEPLOY_ENABLED: 'true' },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.match(result.stderr, /AGENT_OPS_DEPLOY_ENABLED/);
+  assert.doesNotMatch(result.stdout, /COMMAND=/);
+});
+
+test('writes runs under ops-runs and exposes AGENT_OPS_ACTION to the configured command', (t) => {
+  const result = runOpsCli(t, ['--action=ci-status'], {
+    config: {
+      projectName: 'fixture',
+      ops: {
+        commands: {
+          ciStatus: 'node -e "console.log(\'ACTION_SEEN=\' + process.env.AGENT_OPS_ACTION + \'|\' + (process.env.AGENT_DEVOPS_ACTION || \'\'))"',
+        },
+      },
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^RUN_DIR=.*[\\/]ops-runs[\\/]/m);
+  assert.match(result.stdout, /^ACTION_SEEN=ci-status\|$/m);
 });

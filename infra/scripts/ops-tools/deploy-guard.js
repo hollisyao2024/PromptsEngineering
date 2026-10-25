@@ -37,7 +37,7 @@ const MAX_RETRY_DELAY_MS = 60_000;
 const VERDICT_SEVERITY = { NO_BASELINE: 0, PASS: 1, ROLLBACK: 2, DIVERGED: 3, UNKNOWN: 4, UNREADABLE: 5 };
 
 function resolveGuardConfig(config, env, target = '') {
-  const raw = (config && config.devops && config.devops.rollbackGuard) || {};
+  const raw = (config && config.ops && config.ops.rollbackGuard) || {};
   if (raw.enabled !== true) return { enabled: false };
   const environments = (Array.isArray(raw.environments) ? raw.environments : DEFAULT_ENVIRONMENTS)
     .map((name) => ENV_NAMES[String(name).toLowerCase()] || String(name).toLowerCase());
@@ -45,11 +45,11 @@ function resolveGuardConfig(config, env, target = '') {
 
   const remote = raw.remote === undefined || raw.remote === '' ? 'origin' : raw.remote;
   if (typeof remote !== 'string' || !REMOTE_NAME.test(remote)) {
-    return { enabled: true, error: `devops.rollbackGuard.remote must be a plain git remote name, got ${JSON.stringify(remote)}` };
+    return { enabled: true, error: `ops.rollbackGuard.remote must be a plain git remote name, got ${JSON.stringify(remote)}` };
   }
   const lockTtlSeconds = raw.lockTtlSeconds === undefined ? DEFAULT_TTL_SECONDS : raw.lockTtlSeconds;
   if (!Number.isInteger(lockTtlSeconds) || lockTtlSeconds <= 0) {
-    return { enabled: true, error: 'devops.rollbackGuard.lockTtlSeconds must be a positive integer' };
+    return { enabled: true, error: 'ops.rollbackGuard.lockTtlSeconds must be a positive integer' };
   }
   const delaysMs = raw.remoteRetryDelaysMs === undefined ? DEFAULT_RETRY_DELAYS_MS : raw.remoteRetryDelaysMs;
   if (
@@ -57,7 +57,7 @@ function resolveGuardConfig(config, env, target = '') {
     || delaysMs.length > MAX_RETRY_ATTEMPTS
     || !delaysMs.every((ms) => Number.isInteger(ms) && ms >= 0 && ms <= MAX_RETRY_DELAY_MS)
   ) {
-    return { enabled: true, error: `devops.rollbackGuard.remoteRetryDelaysMs must be at most ${MAX_RETRY_ATTEMPTS} integers between 0 and ${MAX_RETRY_DELAY_MS}` };
+    return { enabled: true, error: `ops.rollbackGuard.remoteRetryDelaysMs must be at most ${MAX_RETRY_ATTEMPTS} integers between 0 and ${MAX_RETRY_DELAY_MS}` };
   }
   const profile = target && target !== 'default' ? target : '';
   if (!SCOPE_TOKEN.test(env) || (profile && !SCOPE_TOKEN.test(profile))) {
@@ -69,7 +69,7 @@ function resolveGuardConfig(config, env, target = '') {
     readDeployedCommand = readDeployedCommand[scope] || readDeployedCommand[env] || '';
   }
   if (typeof readDeployedCommand !== 'string') {
-    return { enabled: true, error: 'devops.rollbackGuard.readDeployedCommand must be a string or an object keyed by env' };
+    return { enabled: true, error: 'ops.rollbackGuard.readDeployedCommand must be a string or an object keyed by env' };
   }
   return {
     enabled: true,

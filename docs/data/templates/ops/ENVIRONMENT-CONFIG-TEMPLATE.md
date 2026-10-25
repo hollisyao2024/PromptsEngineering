@@ -1,6 +1,6 @@
 # 环境配置文档（Environment Configuration）
 
-> **用途**：由 DevOps 专家创建与维护，存放于 `/docs/data/environment-config.md`。记录各环境的配置、访问方式与健康检查，确保环境一致性与可追溯性。
+> **用途**：由 OPS 专家创建与维护，存放于 `/docs/data/environment-config.md`。记录各环境的配置、访问方式与健康检查，确保环境一致性与可追溯性。
 
 日期：YYYY-MM-DD  版本：v0
 

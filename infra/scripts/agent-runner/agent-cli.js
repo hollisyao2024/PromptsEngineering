@@ -37,7 +37,8 @@ const ROUTES = new Map([
 
 const DEV_SERVICE_ACTIONS = new Set(['start', 'restart', 'stop', 'status', 'logs']);
 const APP_ACTIONS = new Set(['dev', 'build']);
-const DEVOPS_RUNNER = 'infra/scripts/devops-tools/devops-run.js';
+const OPS_RUNNER = 'infra/scripts/ops-tools/ops-run.js';
+const CI_ACTIONS = new Set(['run', 'status']);
 const CLOUD_ACTIONS = new Set(['bootstrap', 'setup-script', 'doctor']);
 const CLOUD_RUNNER = 'infra/scripts/setup/cloud-session.js';
 
@@ -58,7 +59,7 @@ function appRoute(action, rest, target = '') {
   if (!APP_ACTIONS.has(action)) throw new Error('app requires dev or build');
   const args = [`--action=app-${action}`, ...rest];
   if (target) args.push(`--target=${target}`);
-  return { script: DEVOPS_RUNNER, args };
+  return { script: OPS_RUNNER, args };
 }
 
 function slashAppRoute(action, rest, target = '') {
@@ -85,35 +86,50 @@ function resolveCommand(argv) {
     if (action === 'app') return slashAppRoute('dev', rest);
     if (!action) throw new Error('dev requires start, restart, stop, status, or logs');
     if (!DEV_SERVICE_ACTIONS.has(action)) throw new Error('dev requires app or start, restart, stop, status, or logs');
-    return { script: DEVOPS_RUNNER, args: [`--action=dev-${action}`, ...rest] };
+    return { script: OPS_RUNNER, args: [`--action=dev-${action}`, ...rest] };
   }
   if (domain === 'app') {
     return appRoute(action, rest);
   }
   if (domain === 'build') {
     if (action === 'app') return slashAppRoute('build', rest);
-    if (action === 'server') return { script: DEVOPS_RUNNER, args: ['--action=build', ...rest] };
+    if (action === 'server') return { script: OPS_RUNNER, args: ['--action=build', ...rest] };
     if (!action) throw new Error('build requires app <platform>, server --env=<env>, or <env>');
-    return { script: DEVOPS_RUNNER, args: ['--action=build', `--env=${action}`, ...rest] };
+    return { script: OPS_RUNNER, args: ['--action=build', `--env=${action}`, ...rest] };
   }
   if (domain === 'ship') {
     if (!action) throw new Error('ship requires dev, staging, or production');
-    return { script: DEVOPS_RUNNER, args: ['--action=ship', `--env=${action}`, ...rest] };
+    return { script: OPS_RUNNER, args: ['--action=ship', `--env=${action}`, ...rest] };
+  }
+  // OPS deployment, CI and environment shortcuts; ops-run.js validates env names and configured commands.
+  if (domain === 'cd') {
+    if (!action || action.startsWith('-')) throw new Error('cd requires staging or production');
+    return { script: OPS_RUNNER, args: ['--action=cd', `--env=${action}`, ...rest] };
+  }
+  if (domain === 'ci') {
+    if (!CI_ACTIONS.has(action)) throw new Error('ci requires run or status');
+    return { script: OPS_RUNNER, args: [`--action=ci-${action}`, ...rest] };
+  }
+  if (domain === 'env') {
+    if (action === 'status') return { script: OPS_RUNNER, args: ['--action=env-status', ...rest] };
+    const [env = '', ...extra] = rest;
+    if (action !== 'check' || !env || env.startsWith('-')) throw new Error('env requires check <env> or status');
+    return { script: OPS_RUNNER, args: ['--action=env-check', `--env=${env}`, ...extra] };
   }
   if (domain === 'private') {
     if (DEV_SERVICE_ACTIONS.has(action)) {
-      return { script: DEVOPS_RUNNER, args: [`--action=dev-${action}`, '--target=private', ...rest] };
+      return { script: OPS_RUNNER, args: [`--action=dev-${action}`, '--target=private', ...rest] };
     }
     if (action === 'dev' && rest[0] === 'app') return slashAppRoute('dev', rest.slice(1), 'private');
     if (action === 'build' && rest[0] === 'app') return slashAppRoute('build', rest.slice(1), 'private');
     if (action === 'build' && rest[0] === 'server') {
-      return { script: DEVOPS_RUNNER, args: ['--action=build', ...rest.slice(1), '--target=private'] };
+      return { script: OPS_RUNNER, args: ['--action=build', ...rest.slice(1), '--target=private'] };
     }
     if (action === 'build' && rest[0]) {
-      return { script: DEVOPS_RUNNER, args: ['--action=build', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
+      return { script: OPS_RUNNER, args: ['--action=build', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
     }
     if (action === 'ship' && rest[0]) {
-      return { script: DEVOPS_RUNNER, args: ['--action=ship', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
+      return { script: OPS_RUNNER, args: ['--action=ship', `--env=${rest[0]}`, ...rest.slice(1), '--target=private'] };
     }
     throw new Error('private requires start, restart, stop, status, logs, dev app <platform>, build app <platform>, build <env>, or ship <env>');
   }
@@ -140,6 +156,9 @@ Core commands:
   app <dev|build> --platform=<platform>
   build app <platform> | build <env>
   ship <dev|staging|production>
+  cd <staging|production>
+  ci <run|status>
+  env <check <env>|status>
   private <start|restart|stop|status|logs>
   private dev app <platform> | private build app <platform>
   private build <env> | private ship <env>

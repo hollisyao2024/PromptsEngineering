@@ -265,7 +265,7 @@ test('fresh head-drift on a clean merged worktree is reported as safe to remove'
   const blocker = describeLifecycleBlocker({
     branch: 'ops/production-verification',
     status: 'recovery_required',
-    worktree: '/container/worktrees/devops-production-verification',
+    worktree: '/container/worktrees/ops-production-verification',
     auditReason: 'head-drift',
   });
 

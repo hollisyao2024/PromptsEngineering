@@ -10,7 +10,7 @@ templates/
 ├── arch/               # ARCH 专家模板
 ├── task/               # TASK 专家模板
 ├── qa/                 # QA 专家模板
-└── devops/             # DevOps 专家模板
+└── ops/                # OPS 专家模板
 ```
 
 ---
@@ -88,7 +88,7 @@ templates/
 
 ---
 
-## DevOps 专家模板（`devops/`）
+## OPS 专家模板（`ops/`）
 
 | 模板文件 | 用途 | 使用场景 |
 |---------|------|---------|
@@ -99,8 +99,8 @@ templates/
 | `CI-WORKFLOW-TEMPLATE.yml` | CI 流水线模板 | GitHub Actions/GitLab CI |
 
 **注意**：
-- 部署记录归档到 `/docs/data/deployment-records/`
-- 命名规范：`YYYY-MM-DD-vX.Y.Z-<env>.md`
+- 仅记录 staging/production：常规部署只在 `/docs/data/deployments/LOG-{YYYY-MM}.md` 追加一行
+- 异常部署（失败、回滚、热修复、事故、人工迁移）才新建 `DEPLOY-{YYYYMMDD}-{SEQ}-{slug}.md`
 
 ---
 
@@ -148,7 +148,7 @@ TASK 模板 → TASK.md （引用 ARCH 中的 Component ID）
 QA 模板 → QA.md （引用 TASK 中的任务 ID）
   ↓ + qa-modules/{domain}/QA.md
   ↓
-部署记录模板 → deployment-records/YYYY-MM-DD-vX.Y.Z-<env>.md
+部署记录模板 → deployments/LOG-{YYYY-MM}.md（异常另建 DEPLOY-*.md）
 ```
 
 ---

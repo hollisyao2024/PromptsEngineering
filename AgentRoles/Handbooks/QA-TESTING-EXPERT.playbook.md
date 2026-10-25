@@ -61,9 +61,9 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 #### 安全测试
 - **SAST**（受影响安全逻辑或项目门禁）：使用项目已选工具，覆盖变更及相关安全路径
 - **SCA**（依赖/供应链配置变化或项目门禁）：`pnpm audit --audit-level=high`、`trivy fs .` 为按需示例
-- **DAST**（受影响对外入口或部署门禁）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf` 为按需示例；定期全扫描按项目既定计划
+- **DAST**（受影响对外入口）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf` 为按需示例；定期全扫描按项目既定计划
 - **认证/授权测试**：放 `apps/server/tests/security/*.security.test.ts`，覆盖受影响端点与权限消费者
-- **阻断策略**：Critical/High → 阻断部署；Medium → 限期修复；Low → 记录跟踪
+- **阻断策略**：Critical/High → 阻断 QA 通过（Go）；Medium → 限期修复；Low → 记录跟踪
 - **认证/授权测试最低清单**（每个需认证的 endpoint 必须覆盖）：
   - [ ] 无 token 访问 → 401
   - [ ] 过期 token → 401
@@ -116,14 +116,14 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 5. 输出发布建议：Go / Conditional / No-Go
 6. `qa verify` 的架构门禁可能在 stderr 输出 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，即 `DESIGN.md` 与 `styles.css` 的漂移告警（ADR-040）。告警不阻断，也不改变回执签发；执行器在验收结论中把告警原样报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
 
-### 第四步：合并发布（/qa merge）
+### 第四步：合并（/qa merge）
 1. 前置：verify 为 Go
 2. 执行 `pnpm agent -- qa merge`，固定 SHA 回执与恢复边界见 §qa merge 流程详解。
-3. 合并、主分支同步和 completion guard 通过后关闭任务；需要部署时再交接 DevOps。
+3. 合并、主分支同步和 completion guard 通过后关闭任务；需要部署时交接 OPS（`[[ACTIVATE: OPS]]`）。
 
 ### 回退触发
 - 发布建议为 No-Go → 附缺陷证据回流 TDD，保留已有 `TDD_DONE` 里程碑历史
-- 部署后回滚 → 从部署记录中提取信息，在 `defect-log.md` 登记缺陷
+- OPS 回滚并通知后 → 从部署记录提取信息，在 `defect-log.md` 登记缺陷
 - 范围偏差 → 记录回流建议并通知对应阶段
 
 ---
@@ -521,7 +521,7 @@ pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步
 pnpm agent -- qa paths                  # 校验原子 AC 与 PATHS.md，输出覆盖矩阵（只读）
 pnpm agent -- qa run                    # 在最后一次提交之后运行业务测试套件并写入结果
 
-# 合并发布
+# 合并
 pnpm run qa:merge                       # session 模式
 pnpm run qa:merge -- --dry-run          # 预览
 pnpm run qa:merge -- --skip-checks      # 跳过门禁（慎用）
@@ -619,12 +619,12 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 4. 执行适用的本地发布检查。`template.role=source` 使用模板源路径，跳过业务 QA 门禁；模板自身回归和文档证据仍须通过。不创建、修改、触发或依赖 GitHub workflows 或 required checks。
 5. 使用期望 head SHA 执行 GitHub squash merge。结果不明时先查询 PR 是否已合并；本地 squash 兜底前重新 fetch 并复验同一回执，只合并已验证的固定 head。
 6. fetch 并以 ff-only 同步本地主干。远端已合并但本地同步失败时保留恢复状态，先核验真实结果再继续。
-7. 按 `release.*` 和显式参数决定版本、CHANGELOG、tag；只更新尚未完成的 `QA_VALIDATED` 稳定里程碑。有实际 release/state 变更才提交，不无条件新增版本和运行日志。
+7. 按 `release.*` 和显式参数决定版本、CHANGELOG、tag（配置治理归 OPS，QA 只校验合并门禁）；只更新尚未完成的 `QA_VALIDATED` 稳定里程碑。有实际 release/state 变更才提交，不无条件新增版本和运行日志。
 8. 普通非强制 push 配置主干及需要的 tag，再次 fetch，确认本地和远端主分支 SHA 相同；非快进失败不得覆盖远端历史。
 9. 远端复核成功后，以精确 expected SHA 的 `--force-with-lease` 清理功能分支。该 lease 不用于改写配置主干；功能分支漂移或结果不明时保留分支和恢复状态。
 10. 以 QA head 封印当前任务的 worktree；存在未提交内容或 HEAD 漂移时直接保留目录、本地分支和 session，不启动清理进程，分别报告 `MERGE_STATUS=MERGED`、`CLEANUP_STATUS=PRESERVED`。可安全清理时才进入既有补偿流程；当前执行目录导致延后时，由 completion guard 收敛。清理未完成不回滚已验证合并，也不冒充生命周期完成。
 
-在主 worktree 完成双 SHA 与工作区复核，执行 `pnpm agent -- finish` 和对应 `task finish` 后才宣告交付完成。合并与部署是不同动作，部署按项目需求另行进入 DEVOPS。
+在主 worktree 完成双 SHA 与工作区复核，执行 `pnpm agent -- finish` 和对应 `task finish` 后才宣告交付完成。合并与部署是不同动作，部署按项目需求另行进入 OPS。
 
 ---
 
@@ -646,7 +646,7 @@ flowchart TD
     G -->|否| STOP[停止，通知用户]
     E -->|No-Go| H["输出缺陷列表，退回 TDD"]
     F --> I[标记 QA_VALIDATED]
-    I --> J[交接 DevOps 部署]
+    I --> J[交接 OPS 部署]
 ```
 
 ---
@@ -677,4 +677,4 @@ flowchart TD
 | TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件；业务测试的用例名携带 AC/TC 标识 |
 | ARCH | 架构约束 + NFR 指标 + 接口契约 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO；接口契约是业务测试的预言机来源 |
 | PRD | 验收标准 + 用户故事 + 原子 AC 表 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖；AC 有歧义时回流 PRD 澄清 |
-| DevOps | — | Go/Conditional/No-Go + QA 回执 | 发布建议为 Go 后执行 /qa merge，交接 DevOps 部署 |
+| OPS | 部署记录、回滚通知、`/env check` 结果 | Go/Conditional/No-Go + QA 回执 | 发布建议为 Go 后执行 /qa merge，交接 OPS 部署；回滚后 QA 登记缺陷 |

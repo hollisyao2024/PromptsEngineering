@@ -1,6 +1,6 @@
 /**
  * Wires the deploy guard (deploy-guard.js) into the /ship stable entry so
- * devops-run.js only maps the outcome onto its STATUS/block protocol.
+ * ops-run.js only maps the outcome onto its STATUS/block protocol.
  */
 
 const {
@@ -22,13 +22,13 @@ function fail(result) {
 function prepareShipGuard({ config, cli, action, env, target, rawCommand, repoRoot, dryRun, commandEnvFor, now = Date.now }) {
   const none = { lines: [], execute: () => null };
   const guard = action === 'ship' ? resolveGuardConfig(config, env, target) : { enabled: false };
-  if (guard.error) return { ...none, failure: { reason: guard.error, next: 'Fix devops.rollbackGuard in agent.config.json.' } };
+  if (guard.error) return { ...none, failure: { reason: guard.error, next: 'Fix ops.rollbackGuard in agent.config.json.' } };
   if (cli.releaseLock !== undefined && !guard.enabled) {
     return {
       ...none,
       failure: {
-        reason: '--release-lock requires devops.rollbackGuard to be enabled for this environment',
-        next: 'Enable devops.rollbackGuard or drop --release-lock.',
+        reason: '--release-lock requires ops.rollbackGuard to be enabled for this environment',
+        next: 'Enable ops.rollbackGuard or drop --release-lock.',
       },
     };
   }
@@ -43,8 +43,8 @@ function prepareShipGuard({ config, cli, action, env, target, rawCommand, repoRo
     return {
       ...none,
       failure: {
-        reason: 'devops.rollbackGuard requires the ship command to declare {source_args} so the pinned commit is what gets deployed',
-        next: 'Add {source_args} to devops.commands.ship and accept --sha=<40-hex> in the deploy script, or disable devops.rollbackGuard.',
+        reason: 'ops.rollbackGuard requires the ship command to declare {source_args} so the pinned commit is what gets deployed',
+        next: 'Add {source_args} to ops.commands.ship and accept --sha=<40-hex> in the deploy script, or disable ops.rollbackGuard.',
       },
     };
   }
