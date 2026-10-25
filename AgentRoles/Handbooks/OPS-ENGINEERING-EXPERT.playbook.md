@@ -60,7 +60,7 @@
 ### 本地开发服务管理
 - 管理脚本：`infra/scripts/ops-tools/ops-run.js`
 - 命令接口：`ops-run.js --action=dev-<start|restart|stop|status|logs>`
-- pnpm 入口：`pnpm dev:start`、`pnpm dev:restart`、`pnpm dev:stop`、`pnpm dev:status`、`pnpm dev:logs`
+- 统一入口：`pnpm agent -- dev <start|restart|stop|status|logs>`；模板默认 `devServer.commands.<action>` 调用项目自有 `pnpm dev:<action>`，这些脚本须是真实服务命令，不得回调 `ops-run.js`
 - **配置约定**：实际命令写在 `agent.config.json devServer.commands`，必要时通过环境变量提供端口、服务名和日志路径
 - 验收标准：重启后健康检查端点返回 200；失败时查看日志文件排查
 
@@ -169,7 +169,6 @@
 | `ci:status` | `node infra/scripts/ops-tools/ops-run.js --action=ci-status` | |
 | `env:check` | `node infra/scripts/ops-tools/ops-run.js --action=env-check --env=<env>` | |
 | `env:status` | `node infra/scripts/ops-tools/ops-run.js --action=env-status` | |
-| `dev:restart` | `node infra/scripts/ops-tools/ops-run.js --action=dev-restart` | |
 
 `/private`、`/dev app`、`/build app`、`/build <env>` 等快捷入口不在此表登记，见 `docs/CONVENTIONS.md` §客户端与服务端快捷命令。
 

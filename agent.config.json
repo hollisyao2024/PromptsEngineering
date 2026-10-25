@@ -1,5 +1,14 @@
 {
   "template": {
     "role": "source"
+  },
+  "devServer": {
+    "commands": {
+      "start": "",
+      "restart": "",
+      "stop": "",
+      "status": "",
+      "logs": ""
+    }
   }
 }

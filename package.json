@@ -1,6 +1,6 @@
 {
   "name": "xirang-agent-template",
-  "version": "3.12.1",
+  "version": "3.12.2",
   "description": "息壤：模型作业与应用架构双能力包，支持可选择初始化和所有权升级",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
@@ -58,11 +58,6 @@
     "env:check:staging": "node infra/scripts/ops-tools/ops-run.js --action=env-check --env=staging",
     "env:check:prod": "node infra/scripts/ops-tools/ops-run.js --action=env-check --env=production",
     "env:status": "node infra/scripts/ops-tools/ops-run.js --action=env-status",
-    "dev:start": "node infra/scripts/ops-tools/ops-run.js --action=dev-start",
-    "dev:restart": "node infra/scripts/ops-tools/ops-run.js --action=dev-restart",
-    "dev:stop": "node infra/scripts/ops-tools/ops-run.js --action=dev-stop",
-    "dev:status": "node infra/scripts/ops-tools/ops-run.js --action=dev-status",
-    "dev:logs": "node infra/scripts/ops-tools/ops-run.js --action=dev-logs",
     "agent:task": "node infra/scripts/agent-runner/agent-task.js",
     "agent:update-template": "node infra/scripts/setup/update-template.js",
     "setup:test": "node --test infra/scripts/setup/__tests__/*.test.js",
