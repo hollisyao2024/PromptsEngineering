@@ -202,10 +202,10 @@ function envOverrides(env = process.env) {
       updateChangelog: env.AGENT_RELEASE_UPDATE_CHANGELOG === 'true',
     };
   }
-  if (env.AGENT_DEVOPS_DEPLOY_ENABLED) {
-    output.devops = {
-      ...(output.devops || {}),
-      deployEnabled: env.AGENT_DEVOPS_DEPLOY_ENABLED === 'true',
+  if (env.AGENT_OPS_DEPLOY_ENABLED) {
+    output.ops = {
+      ...(output.ops || {}),
+      deployEnabled: env.AGENT_OPS_DEPLOY_ENABLED === 'true',
     };
   }
   if (env.AGENT_DEV_SERVER_COMMAND) {

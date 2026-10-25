@@ -13,7 +13,7 @@ const { safeRemoveTreeNoFollow, isPathInside } = require('./worktree-core');
 
 const PROTECTED_TMP_NAMES = new Set([
   'agent-locks', 'agent-task-runs', 'worktree-sessions', 'server-dev', 'dev-app', 'dev-app-win',
-  'dev-app-logs', 'devops-runs', 'scan-manifests',
+  'dev-app-logs', 'ops-runs', 'scan-manifests',
 ]);
 
 function parsePositiveInt(value, flag) {

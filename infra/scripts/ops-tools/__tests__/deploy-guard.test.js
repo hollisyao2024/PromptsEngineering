@@ -102,28 +102,28 @@ function deployOk(git, guard, options = {}) {
 }
 
 test('resolveGuardConfig is opt-in and scoped by env and profile', () => {
-  assert.equal(resolveGuardConfig({ devops: {} }, 'production', '').enabled, false);
-  const devops = { rollbackGuard: { enabled: true, environments: ['staging', 'production'], remote: 'origin', lockTtlSeconds: 60 } };
-  assert.equal(resolveGuardConfig({ devops }, 'dev', '').enabled, false);
-  const prod = resolveGuardConfig({ devops }, 'production', '');
+  assert.equal(resolveGuardConfig({ ops: {} }, 'production', '').enabled, false);
+  const ops = { rollbackGuard: { enabled: true, environments: ['staging', 'production'], remote: 'origin', lockTtlSeconds: 60 } };
+  assert.equal(resolveGuardConfig({ ops }, 'dev', '').enabled, false);
+  const prod = resolveGuardConfig({ ops }, 'production', '');
   assert.equal(prod.enabled, true);
   assert.equal(prod.deployRef, 'refs/xirang/deploy/production');
   assert.equal(prod.lockRef, 'refs/xirang/deploy-lock/production');
   assert.equal(prod.releaseCommand, 'pnpm agent -- ship production');
-  const priv = resolveGuardConfig({ devops }, 'staging', 'private');
+  const priv = resolveGuardConfig({ ops }, 'staging', 'private');
   assert.equal(priv.scope, 'private-staging');
   assert.equal(priv.releaseCommand, 'pnpm agent -- private ship staging');
-  assert.match(resolveGuardConfig({ devops: { rollbackGuard: { enabled: true, environments: ['production'], remote: '-x' } } }, 'production', '').error, /remote/);
-  assert.match(resolveGuardConfig({ devops: { rollbackGuard: { enabled: true, environments: ['production'], remote: 'origin', lockTtlSeconds: 0 } } }, 'production', '').error, /lockTtlSeconds/);
+  assert.match(resolveGuardConfig({ ops: { rollbackGuard: { enabled: true, environments: ['production'], remote: '-x' } } }, 'production', '').error, /remote/);
+  assert.match(resolveGuardConfig({ ops: { rollbackGuard: { enabled: true, environments: ['production'], remote: 'origin', lockTtlSeconds: 0 } } }, 'production', '').error, /lockTtlSeconds/);
 });
 
 test('resolveGuardConfig defaults and validates remoteRetryDelaysMs', () => {
   const base = { enabled: true, environments: ['production'] };
-  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: base } }, 'production', '').retry.delaysMs, [2000, 5000, 10000, 20000, 30000]);
-  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [] } } }, 'production', '').retry.delaysMs, []);
-  assert.deepEqual(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [5, 10] } } }, 'production', '').retry.delaysMs, [5, 10]);
+  assert.deepEqual(resolveGuardConfig({ ops: { rollbackGuard: base } }, 'production', '').retry.delaysMs, [2000, 5000, 10000, 20000, 30000]);
+  assert.deepEqual(resolveGuardConfig({ ops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [] } } }, 'production', '').retry.delaysMs, []);
+  assert.deepEqual(resolveGuardConfig({ ops: { rollbackGuard: { ...base, remoteRetryDelaysMs: [5, 10] } } }, 'production', '').retry.delaysMs, [5, 10]);
   for (const bad of [5, [-1], [1.5], ['1'], new Array(11).fill(1)]) {
-    assert.match(resolveGuardConfig({ devops: { rollbackGuard: { ...base, remoteRetryDelaysMs: bad } } }, 'production', '').error, /remoteRetryDelaysMs/);
+    assert.match(resolveGuardConfig({ ops: { rollbackGuard: { ...base, remoteRetryDelaysMs: bad } } }, 'production', '').error, /remoteRetryDelaysMs/);
   }
 });
 
@@ -521,28 +521,28 @@ test('manual lock release only deletes the exact lock commit', (t) => {
 function runGuardedShipCli(t, fx, args, shipCommand = 'node -e "console.log(process.argv.slice(1).join(\' \'))" -- {source_args} {dry_run_arg}') {
   fs.writeFileSync(path.join(fx.a, 'agent.config.json'), `${JSON.stringify({
     projectName: 'fixture',
-    devops: {
+    ops: {
       commands: { ship: { production: shipCommand } },
       rollbackGuard: { enabled: true },
     },
   }, null, 2)}\n`);
   const container = path.join(fx.root, 'container');
   const repoRoot = path.resolve(__dirname, '../../../..');
-  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/devops-tools/devops-run.js'), ...args], {
+  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js'), ...args], {
     cwd: fx.a,
     env: {
       ...GIT_ENV,
       AGENT_TMP_DIR: path.join(container, 'tmp'),
       AGENT_CACHE_DIR: path.join(container, 'cache'),
       AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
-      AGENT_DEVOPS_DEPLOY_ENABLED: 'true',
+      AGENT_OPS_DEPLOY_ENABLED: 'true',
     },
     encoding: 'utf8',
     stdio: 'pipe',
   });
 }
 
-test('devops-run ship pins the target SHA, passes it via {source_args} and records the deploy', (t) => {
+test('ops-run ship pins the target SHA, passes it via {source_args} and records the deploy', (t) => {
   const fx = setupFixture(t);
   const dry = runGuardedShipCli(t, fx, ['--action=ship', '--env=production', '--dry-run']);
   assert.equal(dry.status, 0, dry.stderr);
@@ -564,7 +564,7 @@ test('devops-run ship pins the target SHA, passes it via {source_args} and recor
   assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c3);
 });
 
-test('devops-run blocks a guarded ship whose command cannot receive the pinned SHA', (t) => {
+test('ops-run blocks a guarded ship whose command cannot receive the pinned SHA', (t) => {
   const fx = setupFixture(t);
   const result = runGuardedShipCli(t, fx, ['--action=ship', '--env=production', '--dry-run'], 'node -e ""');
   assert.equal(result.status, 1);

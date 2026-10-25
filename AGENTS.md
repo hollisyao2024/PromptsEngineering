@@ -45,7 +45,7 @@
 
 ### 治理流程
 
-出现以下任一变化时使用 PRD → ARCH → TASK → TDD → QA；涉及环境或发布时再进入 DEVOPS：
+出现以下任一变化时使用 PRD → ARCH → TASK → TDD → QA；涉及环境或发布时再进入 OPS：
 
 - 用户可见需求或验收口径变化；
 - 架构边界、数据库 schema、外部 API 合约变化；
@@ -63,9 +63,9 @@
 | TASK | 依赖、里程碑、拆解 | `AgentRoles/TASK-PLANNING-EXPERT.md` |
 | TDD | 代码、测试、修复 | `AgentRoles/TDD-PROGRAMMING-EXPERT.md` |
 | QA | E2E、性能、安全、验收 | `AgentRoles/QA-TESTING-EXPERT.md` |
-| DEVOPS | CI/CD、环境、部署 | `AgentRoles/DEVOPS-ENGINEERING-EXPERT.md` |
+| OPS | CI/CD、环境、部署、发布治理 | `AgentRoles/OPS-ENGINEERING-EXPERT.md` |
 
-激活语法为 `[[ACTIVATE: PRD|ARCH|TASK|TDD|QA|DEVOPS]]`。激活后先完整读取对应专家文件，再按专家文件指引点读相关 handbook；同一时刻只激活一位专家。计划获批后不得只停在激活步骤。
+激活语法为 `[[ACTIVATE: PRD|ARCH|TASK|TDD|QA|OPS]]`。激活后先完整读取对应专家文件，再按专家文件指引点读相关 handbook；同一时刻只激活一位专家。计划获批后不得只停在激活步骤。
 
 治理文档只使用模块化结构：总纲负责索引，`docs/{prd|arch|task|qa}-modules/module-list.md` 维护模块清单，各功能域在独立目录维护详情。
 
@@ -124,7 +124,7 @@ TDD 收尾顺序固定：
 
 开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。
 
-独立清理失败不得自动升级为交付前置条件。进入 QA/DEVOPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。
+独立清理失败不得自动升级为交付前置条件。进入 QA/OPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。
 
 1. `pnpm agent -- tdd sync`
 2. `pnpm agent -- tdd push`
@@ -173,4 +173,4 @@ pnpm agent -- finish
 
 ## 稳定命令入口
 
-优先使用 `pnpm agent -- <domain> <action>`：`task`、`worktree`、`tdd`、`qa`、`template`、`architecture`、`dev`、`ship`、`finish`。已有项目中的旧 package aliases 作为兼容入口保留；新模板不继续扩张别名集合。
+优先使用 `pnpm agent -- <domain> <action>`：`task`、`worktree`、`tdd`、`qa`、`template`、`architecture`、`dev`、`app`、`build`、`ship`、`cd`、`ci`、`env`、`private`、`finish`。已有项目中的旧 package aliases 作为兼容入口保留；新模板不继续扩张别名集合。

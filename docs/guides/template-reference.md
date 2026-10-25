@@ -188,7 +188,7 @@ Git 下载和缓存可能包含完整源码快照；轻量化指项目只提交�
 
 `AGENTS.md` 是轻量路由；任一时刻激活一位专家，再按需读取 [AgentRoles/Handbooks](../../AgentRoles/Handbooks/README.md)。
 
-既有范围内的缺陷、重构、测试、文档和工具维护采用日常流程：只读诊断 → 专用 worktree → TDD → QA → 合并交付。需求、架构、数据合约、权限或部署拓扑变化采用治理流程：PRD → ARCH → TASK → TDD → QA，需要环境或发布工作时再进入 DEVOPS。
+既有范围内的缺陷、重构、测试、文档和工具维护采用日常流程：只读诊断 → 专用 worktree → TDD → QA → 合并交付。需求、架构、数据合约、权限或部署拓扑变化采用治理流程：PRD → ARCH → TASK → TDD → QA，需要环境或发布工作时再进入 OPS。
 
 实际项目的治理文档采用总纲和模块目录，详情在 `docs/{prd|arch|task|qa}-modules/`。阶段状态、长任务步骤、分支、PR、重试与恢复进入容器 tmp 的任务状态与 worktree session，不再维护 tracked 的阶段状态 Markdown 文件；以[通用约定 §4](../../docs/CONVENTIONS.md#4-文档与阶段状态)为准。
 

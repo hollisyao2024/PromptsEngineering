@@ -172,7 +172,7 @@ uvicorn app.main:app --reload  # 本地联调需手动停止
 ### 跨栈与自动化脚本
 ```bash
 pnpm run build
-# CI 流水线由 DevOps 专家管理（/ci run）
+# CI 流水线由 OPS 专家管理（pnpm agent -- ci run|status）
 ```
 
 > 若命令产生新文件或缓存，请在提交前清理或加入 `.gitignore`。
@@ -244,7 +244,7 @@ flowchart TD
     QA8 -->|否| STOP
     FIX --> G
     QA6 --> QA9[标记 QA_VALIDATED]
-    QA9 --> DEPLOY[交接 DevOps 部署]
+    QA9 --> DEPLOY[交接 OPS 部署]
 ```
 
 在 Claude Desktop 的 `.claude/worktrees/<name>` 中执行 `/worktree new` 会原地接管该 worktree（`STATUS=ADOPTED`，见 `docs/CONVENTIONS.md` §5），`NEXT_CWD` 即当前目录；落后且有自有提交时按 `NEXT_MANUAL_ACTION` 手工处理，不自动 rebase。
@@ -306,4 +306,4 @@ flowchart TD
 | TASK | TASK.md 任务顺序 | 代码 + 任务状态回写 | 按 WBS 顺序实现，完成后勾选 |
 | ARCH | 接口契约/设计约束 | 实现 + 范围变更回写 | 设计变更走 ADR |
 | QA | QA 退回缺陷记录 | 修复代码 + CHANGELOG | 适用本地门禁通过后移交 QA |
-| DevOps | — | CI 全绿制品 | 不越权配置 CI/CD，部署由 DevOps 执行 |
+| OPS | — | QA 通过并已合并的固定提交 | 不越权配置 CI/CD，部署由 OPS 执行 |

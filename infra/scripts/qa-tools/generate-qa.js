@@ -677,7 +677,7 @@ ${moduleEntries.map((entry) => `- [${entry.moduleName}](qa-modules/${entry.modul
 
 ## 9. 部署记录
 - 部署前：待补充目标环境与候选版本。
-- 部署后：由 DevOps 回写部署记录与冒烟结果。
+- 部署后：由 OPS 专家回写部署记录与冒烟结果。
 
 ## 10. 追溯 & 附录
 - **PRD 文档**：[PRD.md](PRD.md)

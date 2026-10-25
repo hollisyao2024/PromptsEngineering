@@ -127,7 +127,7 @@ function deferredCleanupState(phase = 'qa') {
 }
 
 test('QA accepts recorded independent cleanup deferral without clearing the failure or task blocker', () => {
-  for (const phase of ['qa', 'devops']) {
+  for (const phase of ['qa', 'ops']) {
     const task = deferredCleanupState(phase);
     const before = structuredClone(task);
     assert.equal(verify([task]).taskId, 'change');
@@ -140,7 +140,7 @@ test('cleanup deferral never admits stale, unproven, recovered or other unresolv
   const changes = [
     task => { task.current_phase = 'tdd'; },
     task => { task.phase_history.push({ phase: 'qa' }); },
-    task => { task.phase_history[0].phase = 'devops'; },
+    task => { task.phase_history[0].phase = 'ops'; },
     task => { delete task.phase_history[0].deferred_cleanup; },
     task => { task.phase_history[0].deferred_cleanup.evidence = ' '; },
     task => { task.phase_history[0].deferred_cleanup.failure_index = -1; },

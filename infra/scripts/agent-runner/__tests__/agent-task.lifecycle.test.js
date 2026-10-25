@@ -292,11 +292,45 @@ test('keeps one durable task coherent across governance phases and interrupted e
   });
   state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'tdd', evidence: ['TASK_PLANNED'] });
   state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'qa', evidence: ['TDD_DONE'] });
-  state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'devops', evidence: ['QA_VALIDATED'] });
-  assert.equal(state.current_phase, 'devops');
+  assert.throws(
+    () => transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'devops', evidence: ['QA_VALIDATED'] }),
+    /devops 阶段已更名为 ops/u,
+  );
+  state = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'ops', evidence: ['QA_VALIDATED'] });
+  assert.equal(state.current_phase, 'ops');
   assert.deepEqual(state.phase_history.map((entry) => entry.phase), [
-    'prd', 'arch', 'task', 'tdd', 'qa', 'devops',
+    'prd', 'arch', 'task', 'tdd', 'qa', 'ops',
   ]);
+});
+
+test('rejects the renamed devops phase on new tasks', (t) => {
+  const paths = fixture(t);
+  assert.throws(() => createTask(startInput(paths, { phase: 'devops' })), /devops 阶段已更名为 ops/u);
+  assert.equal(fs.existsSync(path.join(paths.runsRoot, 'durable-task')), false);
+});
+
+test('reads persisted devops phases as ops and persists the upgrade on the next write', (t) => {
+  const paths = fixture(t);
+  createTask(startInput(paths, { phase: 'qa' }));
+  transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'ops', evidence: ['QA_VALIDATED'] });
+  const statePath = path.join(paths.runsRoot, 'durable-task', 'state.json');
+  // Simulate a state file written before the rename.
+  const legacy = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  legacy.current_phase = 'devops';
+  legacy.phase_history = legacy.phase_history.map((entry) => ({
+    ...entry,
+    phase: entry.phase === 'ops' ? 'devops' : entry.phase,
+  }));
+  fs.writeFileSync(statePath, `${JSON.stringify(legacy, null, 2)}\n`);
+
+  const read = readTaskState({ runsRoot: paths.runsRoot, taskId: 'durable-task' });
+  assert.equal(read.current_phase, 'ops');
+  assert.deepEqual(read.phase_history.map((entry) => [entry.from_phase, entry.phase]), [['', 'qa'], ['qa', 'ops']]);
+
+  const back = transitionTaskPhase({ ...paths, taskId: 'durable-task', phase: 'qa', evidence: ['ROLLBACK'] });
+  assert.equal(back.phase_history.at(-1).from_phase, 'ops');
+  const persisted = fs.readFileSync(statePath, 'utf8');
+  assert.doesNotMatch(persisted, /devops/u);
 });
 
 test('checkpoints completed steps only with evidence and advances deterministically', (t) => {

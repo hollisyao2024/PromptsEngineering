@@ -63,9 +63,9 @@ function parseTaskIds(branchName) {
 
 function isNoTaskBranchAllowed(branchName) {
   const normalized = (branchName || '').trim().toLowerCase();
-  // 非编码阶段（PRD/ARCH/TASK/QA/DevOps）与小需求/补丁分支允许 no-op 放行。
+  // 非编码阶段（PRD/ARCH/TASK/QA/OPS）与小需求/补丁分支允许 no-op 放行。
   // 与 worktree-core.js 的 phase→branch 前缀映射保持一致：
-  //   prd|arch|task → docs/, qa → qa/, devops → ops/, fix → fix/, feature → feature/
+  //   prd|arch|task → docs/, qa → qa/, ops → ops/, fix → fix/, feature → feature/
   // codex/、claude/ 为 Codex 与 Claude Code 云端会话指定的工作分支前缀，无 TASK ID 时同样 no-op。
   const allowedPrefixes = ['fix/', 'feature/', 'docs/', 'qa/', 'ops/', 'chore/', 'hotfix/', 'codex/', 'claude/'];
   return allowedPrefixes.some((prefix) => normalized.startsWith(prefix));

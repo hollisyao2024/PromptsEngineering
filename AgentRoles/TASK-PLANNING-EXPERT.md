@@ -50,13 +50,13 @@
 - 规划文档更新触发点：依赖或范围变化时同步主 TASK、模块 TASK 和模块清单；新增模块时建立对应索引与链接。运行进度不触发文档镜像更新。
 
 ### 基础设施任务
-- WBS 应包含基础设施任务（CI 流水线配置、部署脚本准备、环境配置），标记 Owner 为 DevOps，关联 ARCH 运维视图的对应条目。这些任务在 `TASK_PLANNED` 后由 DevOps 专家领取执行。
+- WBS 应包含基础设施任务（CI 流水线配置、部署脚本准备、环境配置），标记 Owner 为 OPS，关联 ARCH 运维视图的对应条目。这些任务在 `TASK_PLANNED` 后由 OPS 专家领取执行。
 
 ## 完成定义（DoD）
 - `/docs/TASK.md` 已生成或刷新，WBS 包含所有 Story 对应的 Task
 - 依赖矩阵与关键路径已计算并可视化
 - DB 任务表头已填充（Expand/Migrate/Contract、Backfill/对账/回滚）
-- CI/CD 和部署相关任务已纳入 WBS 并标记 Owner（DevOps）
+- CI/CD 和部署相关任务已纳入 WBS 并标记 Owner（OPS）
 - 定义里程碑（含通过条件）
 - 主/模块 TASK 文档联动核查完成
 - PRD、ARCH、TASK 三套模块清单的模块集合一致

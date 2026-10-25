@@ -88,7 +88,7 @@ test('template defaults register the complete client, service, and server build 
     });
   }
 
-  assert.deepEqual(config.devops.commands.build, {
+  assert.deepEqual(config.ops.commands.build, {
     dev: 'pnpm build:dev',
     staging: 'pnpm build:staging',
     production: 'pnpm build:prod',
@@ -98,23 +98,35 @@ test('template defaults register the complete client, service, and server build 
       production: 'pnpm private:build:prod',
     },
   });
-  assert.deepEqual(config.devops.commands.ship, {
+  assert.deepEqual(config.ops.commands.ship, {
     dev: '',
     staging: '',
     production: '',
   });
 });
 
-test('template conventions explicitly register every supported client shortcut', () => {
-  const conventions = read('docs/CONVENTIONS.md');
+test('ops expert explicitly registers every supported client shortcut', () => {
+  const expert = read('AgentRoles/OPS-ENGINEERING-EXPERT.md');
   for (const platform of ['mac', 'win', 'ios', 'android']) {
-    assert.match(conventions, new RegExp(`/${'dev'} app ${platform}`, 'u'));
-    assert.match(conventions, new RegExp(`/private dev app ${platform}`, 'u'));
-    assert.match(conventions, new RegExp(`/build app ${platform}`, 'u'));
-    assert.match(conventions, new RegExp(`/private build app ${platform}`, 'u'));
+    assert.match(expert, new RegExp(`/${'dev'} app ${platform}`, 'u'));
+    assert.match(expert, new RegExp(`/private dev app ${platform}`, 'u'));
+    assert.match(expert, new RegExp(`/build app ${platform}`, 'u'));
+    assert.match(expert, new RegExp(`/private build app ${platform}`, 'u'));
   }
-  assert.match(conventions, /\/build dev\|staging\|prod/u);
-  assert.match(conventions, /\/private build dev\|staging\|prod/u);
+  assert.match(expert, /\/build dev\|staging\|prod/u);
+  assert.match(expert, /\/private build dev\|staging\|prod/u);
+});
+
+test('every shortcut the ops expert routes is registered in the conventions routing table', () => {
+  const section = read('docs/CONVENTIONS.md');
+  const expert = read('AgentRoles/OPS-ENGINEERING-EXPERT.md');
+  const routed = [...expert.matchAll(/^\| `(\/[^`]+)` \| `pnpm agent -- ([a-z]+)/gmu)].map(([, shortcut, domain]) => [shortcut, domain]);
+  assert.ok(routed.length >= 9, 'ops expert keeps its command table');
+  for (const [shortcut, domain] of routed) {
+    const head = shortcut.split(' ').slice(0, shortcut.startsWith('/private') ? 2 : 1).join(' ');
+    assert.ok(section.includes(`| \`${head}`), `conventions routes ${shortcut}`);
+    assert.ok(section.includes(`\`pnpm agent -- ${domain}`), `conventions names pnpm agent -- ${domain}`);
+  }
 });
 
 test('large expert and module templates are concise entrypoints', () => {

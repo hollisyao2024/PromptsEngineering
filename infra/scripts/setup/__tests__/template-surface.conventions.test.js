@@ -180,14 +180,14 @@ test('agents cleanup deferral keeps its principle and bounds and leaves the comm
     assert.doesNotMatch(agents, removed);
   }
   assert.ok(agents.includes(
-    '独立清理失败不得自动升级为交付前置条件。进入 QA/DEVOPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。',
+    '独立清理失败不得自动升级为交付前置条件。进入 QA/OPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。',
   ));
   assert.ok(agents.includes(
     '开发 worktree 的未提交内容不阻止合并已通过 QA 的固定提交；推送已有提交而需保留本地内容时用 `tdd push --committed-only`。合并须在独立、干净的目标主干 worktree 写入；合并后开发目录仍有本地内容则保留目录、分支和恢复状态，明确报告 `MERGE_STATUS=MERGED` 与 `CLEANUP_STATUS=PRESERVED`，不把合并成功冒充清理完成。',
   ));
   const section = conventionsSection('6. 长任务状态文件');
   for (const kept of [
-    '独立收尾清理可以在进入 QA/DEVOPS 时显式延后',
+    '独立收尾清理可以在进入 QA/OPS 时显式延后',
     '`transition ... --defer-cleanup-step S5 --cleanup-evidence',
     '仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由',
     '不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用',

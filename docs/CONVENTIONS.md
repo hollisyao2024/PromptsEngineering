@@ -159,10 +159,11 @@ pnpm agent -- task cancel --task <id> --force
 - `verify_first` 步骤中断时转为 `verify_required`，先查询真实外部状态。
 - `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
 - schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
+- `--type operation` 是工作类型，与治理阶段 `--phase ops` 无关；旧阶段值 `devops` 读取时单向升级为 `ops`，输入 `--phase devops` 一律拒绝并提示改用 `ops`。
 - 新任务以 `evidence_order` 追加引用 `{step_id,index}`，与步骤证据同一原子写入；QA 与测试命令入口共用该顺序，回流到较早步骤仍按实际 checkpoint 追加顺序判断。索引必须完整、无重复且保持每步内部追加顺序，损坏时 fail-closed。旧 v1/v2 文件缺少索引时保留既有步骤顺序；首次步骤 checkpoint 先按该旧顺序建立历史引用，再追加新证据，不按步骤更新时间猜测旧证据时序。旧历史无法复原真实先后时须补录当前决策和结果。
 - `extend` 只允许追加步骤和验收项并递增 `plan_revision`；不允许删除、重排或重写已完成历史。
 - `transition` 要求证据且校验相邻前进或显式回流路径；默认存在 `blocked|verify_required` 步骤时禁止向前推进；重复提交到当前阶段幂等，不追加第二条历史。
-- 独立收尾清理可以在进入 QA/DEVOPS 时显式延后：`transition ... --defer-cleanup-step S5 --cleanup-evidence "清理对象不在验证提交中；独立干净主干执行合并；原目录保留"`。仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由。不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用。其他阻塞仍有效；失败状态和恢复要求不变，阶段历史追加所引用失败及证据，`task finish` 仍要求清理完成。此参数不授权执行被拒绝的动作。
+- 独立收尾清理可以在进入 QA/OPS 时显式延后：`transition ... --defer-cleanup-step S5 --cleanup-evidence "清理对象不在验证提交中；独立干净主干执行合并；原目录保留"`。仅限有结构化失败证明 `not_started` 的 `blocked` 步骤，必须核实并说明不影响目标阶段的理由。不得用于测试、验收、权限审批、发布前置条件或结果未知的副作用。其他阻塞仍有效；失败状态和恢复要求不变，阶段历史追加所引用失败及证据，`task finish` 仍要求清理完成。此参数不授权执行被拒绝的动作。
 - `resume --auto` 仅在当前主 repo/worktree/branch 唯一匹配时选择任务；否则输出候选和 `STATUS=BLOCKED`。
 
 `task finish --task <id>` 要求该任务所有必需步骤、验收项和证据完成。修改任务还必须通过任务级 completion guard：只把 `lifecycle.keys` 明确绑定到该 task id 的 `cleanup_pending|recovery_required` worktree 作为生命周期 blocker，同时仍要求主分支已合并、工作区干净且与远端一致。无 task scope 的仓库级 `pnpm agent -- finish` 保持全仓 fail-closed，任一受管理 worktree 未收敛都会阻断；阻断时逐个输出 `LIFECYCLE_BLOCKER=<分支>|<状态>|<审计原因>|<判定>|<路径>`：`SAFE_TO_REMOVE` 仅限本次审计确认干净、无独有提交、无活动进程的 `head-drift`，`RETRY_CLEANUP` 对应 `cleanup_pending`，其余均为 `REVIEW_REQUIRED`。对应命令列在 `MANUAL_COMMANDS`，需人工确认后执行，不进入自动执行的 `NEXT_COMMANDS`。任务门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
@@ -178,7 +179,7 @@ pnpm agent -- worktree <action>
 pnpm agent -- tdd <action>
 pnpm agent -- qa <action>
 pnpm agent -- template <action>
-pnpm agent -- dev|app|build|ship|private|finish
+pnpm agent -- dev|app|build|ship|cd|ci|env|private|finish
 ```
 
 Windows 上 pnpm 经 cmd.exe 转发 script 参数，会丢弃换行后的全部内容（含后续参数）、展开 `%VAR%`、加倍反斜杠，破坏发生在 CLI 收到参数之前；参数含这些字符时在 Git Bash 或 cmd 直调 `node infra/scripts/agent-runner/agent-cli.js <command> [args]`。Windows PowerShell 5.1 对所有原生命令（含 node）剥除参数内双引号，JSON 参数须用 `node infra/scripts/agent-runner/agent-cli.js --% <command> [args]`。
@@ -203,7 +204,7 @@ pnpm agent -- qa run
 
 ### 客户端与服务端快捷命令
 
-用户快捷语义与模板稳定入口如下；执行命令从模板默认配置与目标项目稀疏 `agent.config.json` 的合并结果读取，项目可在任意叶级覆盖：
+用户快捷命令与模板稳定入口如下；执行命令从模板默认配置与目标项目稀疏 `agent.config.json` 的合并结果读取，项目可在任意叶级覆盖：
 
 | 用户快捷命令 | 模板稳定入口 | 语义 |
 | --- | --- | --- |
@@ -217,36 +218,17 @@ pnpm agent -- qa run
 | `/private build <env>` | `pnpm agent -- private build <env>` | 构建 private profile 服务端环境产物 |
 | `/ship <env>` | `pnpm agent -- ship <env>` | 执行真实环境部署 |
 | `/private ship <env>` | `pnpm agent -- private ship <env>` | 执行 private profile 真实环境部署 |
+| `/cd <env>` | `pnpm agent -- cd <env>` | 执行项目配置的持续部署流程 |
+| `/ci run` | `pnpm agent -- ci run` | 触发项目配置的 CI 流程，不是本地 TDD/QA 门禁 |
+| `/ci status` | `pnpm agent -- ci status` | 只读查询 CI 状态 |
+| `/env check <env>` | `pnpm agent -- env check <env>` | 只读检查目标环境健康 |
+| `/env status` | `pnpm agent -- env status` | 只读汇总各环境状态 |
 
-客户端平台完整矩阵：
-
-| 平台 | 默认开发客户端 | Private 开发客户端 | 默认发行构建 | Private 发行构建 |
-| --- | --- | --- | --- | --- |
-| macOS | `/dev app mac` | `/private dev app mac` | `/build app mac` | `/private build app mac` |
-| Windows | `/dev app win` | `/private dev app win` | `/build app win` | `/private build app win` |
-| iOS | `/dev app ios` | `/private dev app ios` | `/build app ios` | `/private build app ios` |
-| Android | `/dev app android` | `/private dev app android` | `/build app android` | `/private build app android` |
-
-服务端构建环境矩阵为 `/build dev|staging|prod` 与 `/private build dev|staging|prod`。模板登记构建命令的规范 alias 默认值；项目负责实现或覆盖 alias。真实部署 `/ship`、`/private ship` 必须由项目显式配置，不提供可执行默认值。
-
-配置结构：
-
-- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。
-- 本地服务：`devServer.commands.<start|restart|stop|status|logs>`；多 profile 使用对象精确声明。
-- 服务端构建与部署：`devops.commands.build` / `devops.commands.ship`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
 - 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
-- `ship`/`cd` 的 `--sha=<40位小写SHA>` 或 `--source=<ref>` 经严格校验后只通过命令中的 `{source_args}` 占位符透传；命令未声明该占位符、值非法或同时提供两者时 `STATUS=BLOCKED`，禁止静默忽略。命令声明 `{dry_run_arg}` 时，`--dry-run` 以 `--dry-run` 执行该命令自身的无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则只打印命令（`PRINT_ONLY`）。
+- 真实部署 `/ship`、`/private ship`、`/cd` 必须由项目显式配置，不提供可执行默认值；`cd`、`ci`、`env` 不支持 private profile。
 - 客户端开发、发行构建、服务端产物构建与真实部署是四种不同副作用边界，验收证据不得互相替代。
 
-### 部署防回退与跨电脑租约（可选）
-
-`devops.rollbackGuard` 默认关闭（`enabled:false`）；开启后只作用于 `ship` 且环境列入 `environments`（默认 `staging`、`production`）的调用，实现位于 `infra/scripts/devops-tools/deploy-guard*.js`，与项目部署脚本无关。scope 为环境名，private profile 为 `private-<env>`。协调状态放在项目 `remote`（默认 `origin`）的自定义 ref：`refs/xirang/deploy/<scope>` 指向上次部署成功的提交，`refs/xirang/deploy-lock/<scope>` 是租约（无父提交，消息为持有者 JSON：host、user、pid、createdAt、ttlSeconds、targetSha、nonce）。
-
-- 目标：`--sha`/`--source` 解析为固定提交，未提供时取 `<remote>/<baseBranch>`；ship 命令必须声明 `{source_args}`，执行时改写为 `--sha=<固定SHA>` 并注入 `AGENT_DEPLOY_SHA`，未声明则 `STATUS=BLOCKED`。
-- 判定：一次 `fetch --prune --no-tags` 同时取分支与两类 ref 的快照；浅克隆、远端不可读为 `UNREADABLE`，目标不可解析为 `DEPLOY_TARGET_UNKNOWN`。无基线 `NO_BASELINE` 与目标包含已部署提交 `PASS` 放行；目标是已部署提交的祖先 `ROLLBACK`、两者分叉 `DIVERGED` 默认阻断，仅 `DEPLOY_ALLOW_ROLLBACK=1` 可显式放行并输出 `DEPLOY_ROLLBACK_OVERRIDE=1`；已部署提交在本地不存在 `UNKNOWN`、`UNREADABLE` 一律 fail-closed，不可覆盖。
-- 线上回读：`readDeployedCommand` 可选，须只读且只输出 40 位 SHA；配置后 ref 与线上值分别判定取更严重者，二者不一致输出 `DEPLOYED_STATE_DRIFT`，命令失败或输出非法为 `UNREADABLE`；部署后回读必须等于目标，否则 `DEPLOYED_STATE_MISMATCH` 且不推进 ref。
-- 租约：每次 ref 写入都是 `git push --porcelain --no-verify --force-with-lease=<ref>:<期望值>`，期望为空表示 ref 必须不存在，由远端原子 CAS。流程为抢锁 → 二次快照确认锁归属并重新判定 → 执行部署 → 回读校验 → 以二次快照值为 lease 推进 deploy ref → 释放锁。远端读取（快照 fetch、`ls-remote`）与 lease 推送按 `remoteRetryDelaysMs`（默认 `[2000,5000,10000,20000,30000]`，约 67 秒，覆盖代理成段故障；至多 10 项、每项 0–60000 毫秒）有界退避重试；推送结果不明时先用 `ls-remote` 核实，远端已等于目标即成功，仍等于 lease 期望值或不可读才在同一 lease 下重推（已生效的推送重推只会被 lease 拒绝，不会重复写入），为其他值即视为被拒；首次即被远端拒绝不重试。推进 deploy ref 时被拒为 `DEPLOY_REF_CAS_FAILED`；重试耗尽仍不明为 `DEPLOY_REF_ADVANCE_UNKNOWN`，此时部署已成功、锁照常释放，远端可达后用同一 `--sha` 重跑 ship 补记，期间线上回读仍阻断回退。锁被占用为 `DEPLOY_LOCKED`，输出 `DEPLOY_LOCK_HOLDER`，超过 `lockTtlSeconds`（默认 3600）另输出 `LOCK_STALE=1`，但不自动夺锁；确认持有者已终止后执行输出的 `MANUAL_RELEASE_COMMAND`（`pnpm agent -- [private] ship <env> --release-lock=<锁提交SHA>`），仅当远端锁仍等于该 SHA 时删除。部署失败也释放锁；锁丢失（`DEPLOY_LOCK_LOST`）时不碰他人锁；释放失败不改变部署结果，输出 `DEPLOY_LOCK_RELEASE=FAILED` 与手动释放命令。
-- `--dry-run` 只读：取快照、判定、报告锁，不抢锁、不写 ref；回读命令只在 dry-run 预检和真实部署内执行。结果写入运行目录 `result.json` 的 `deploy_guard`。
+平台矩阵、配置结构、`ship`/`cd` 参数透传与部署防回退见 `AgentRoles/OPS-ENGINEERING-EXPERT.md` §快捷命令规格 及 OPS 手册；运维快捷命令由 OPS 专家执行。
 
 ## 8. TDD、QA 与交付
 
@@ -295,7 +277,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
 - GitHub 网络入口自动解析显式代理、Git 配置及 macOS/Windows 已启用的 HTTP(S) 系统代理；未启用代理时直连，代理失败不自动直连重试；API 仅对幂等请求的瞬时代理连接错误经同一代理做有界重试。匿名模板拉取仍隔离凭据与个人 Git 配置，整体构建/部署环境不注入自动发现的代理。支持范围、Node 版本与退出配置见 `infra/scripts/shared/github-proxy.md`。
 - 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
-- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理，以及 §7 部署防回退对 `refs/xirang/deploy/*`、`refs/xirang/deploy-lock/*` 的 CAS 写入。
+- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理，以及 OPS 手册 §部署防回退与跨电脑租约 对 `refs/xirang/deploy/*`、`refs/xirang/deploy-lock/*` 的 CAS 写入。
 - `refs/xirang/*` 不在 `refs/heads/` 或 `refs/tags/` 下：推送不触发 GitHub Actions 的 push 事件，不受分支保护或 ruleset 管辖，不参与 PR 与 `qa merge`。只允许经共享 GitHub 鉴权封装、带精确 lease 的 push 写入，禁止裸 push、强推或手工删除；部署用克隆不得为浅克隆。
 - TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。
 - branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。

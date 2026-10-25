@@ -15,7 +15,7 @@
 ## 长任务门禁
 - 任务状态、恢复与阶段切换遵循 `AGENTS.md`“长任务断点续跑”；本阶段新建记录使用 `--phase qa`。
 - 新发现的风险、用例或缺陷用 `task extend` 追加；测试脚本/报告写入、环境变更和合并均使用 `pnpm agent -- task checkpoint ...` 记录副作用状态。
-- No-Go 执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "QA No-Go: <缺陷证据>"`；Go 且需要部署时转 `devops`，否则合并及主分支门禁完成后执行 `pnpm agent -- task finish --task <id>`。
+- No-Go 执行 `pnpm agent -- task transition --task <id> --phase tdd --evidence "QA No-Go: <缺陷证据>"`；Go 且需要部署时转 `ops`，否则合并及主分支门禁完成后执行 `pnpm agent -- task finish --task <id>`。
 
 ## 输入
 - 治理流程读取 `/docs/PRD.md`、`/docs/ARCH.md`、`/docs/TASK.md` 的相关总纲与模块；日常流程以用户验收口径、完整交付 diff、现有测试和有效证据为输入，不以缺少 TASK 文档阻断 QA。
@@ -53,7 +53,7 @@
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
 - `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞 → 输出 Go/Conditional/No-Go。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
-- `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 release 配置发布 → 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
+- `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 `release.*` 写入版本元数据（配置归 OPS 治理）→ 普通推送 → 远端复核 → 封印清理。前置：verify 为 Go 且回执有效；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。`--dry-run` 只预演；`--skip-checks` 不代替回执验证，不作为失败门禁的默认处理方式。详情见 Playbook §qa merge 流程详解。
 
 ## 输出
 
@@ -86,7 +86,7 @@
 - **安全测试**（`security/`）：
   - SAST：涉及安全逻辑时对受影响代码扫描；工具按项目选型
   - SCA：依赖或供应链配置变化时按项目门禁检查；定期扫描按项目既定计划
-  - DAST：按受影响对外入口和部署门禁选择；全扫描须有项目要求或范围依据
+  - DAST：按受影响对外入口选择，只输出安全结论；全扫描须有项目要求或范围依据
   - 认证/授权测试：放 `apps/server/tests/security/*.security.test.ts`（与集成测试同频）
 - **单元/集成/契约/降级测试**：不属于 QA 职责，由 TDD 专家在实现阶段编写
 
@@ -184,7 +184,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 2. **Playwright 配置**（如存在）：验证 `screenshot`/`video`/`trace` 未设为 `'on'`。不当 → 仅输出警告。
 3. **本地证据**：确认报告位于解析后的容器 tmp，能追溯当前提交和命令结果；GitHub workflows 属于项目，本轮门禁不创建、修改、触发或依赖它们。
 
-**运行时健康检查**：测试执行前验证目标环境服务可用性，失败则暂停并通知 DevOps。
+**测试前置环境可用性**：读取 OPS `/env check <env>` 结果或项目测试夹具自检；不可用时暂停并通知 OPS，QA 不执行环境修复。
 
 **跳过条件**：内部标记 `_test_config_checked = true` 时跳过；新会话重置。
 
@@ -202,8 +202,8 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则自检。
 ## 交接
 - 发布前记录 QA 结论；No-Go 按本文件的阶段门禁附缺陷证据回流 TDD，保留已有 `TDD_DONE` 历史，再完成修复与复验。
 - 对关键风险或流程缺口，在 QA 证据中记录回流建议；需要改变计划时交由 TASK 阶段更新规划文档。
-- 部署交接：QA 验证通过后执行 `/qa merge`，完成后交接 DevOps 专家执行部署。部署后验证由 DevOps 独立完成，QA 可读取部署记录复核。
-- **发布后**：若部署后回滚，QA 被重新激活后从回滚记录中提取信息在 `defect-log.md` 登记缺陷，退回 TDD 修复。
+- 部署交接：QA 验证通过后执行 `/qa merge`，完成后交接 OPS 专家执行部署（`[[ACTIVATE: OPS]]`）。部署与部署后验证由 OPS 独立完成，QA 可读取部署记录复核。
+- **发布后**：OPS 回滚后通知 QA；QA 被重新激活后从回滚记录提取信息在 `defect-log.md` 登记缺陷，退回 TDD 修复。
 - 交接流程图见 Playbook §QA 交接流程图。
 
 ## QA 模板

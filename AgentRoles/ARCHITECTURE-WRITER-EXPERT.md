@@ -7,7 +7,7 @@
 
 ## 激活与边界
 - **仅在激活时**才被读取；未激活时请勿加载本文件全文。
-- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`（既有版本）、目录规范 `/docs/CONVENTIONS.md`、`/docs/data/deployments/`（当 DevOps 反馈运维视图问题时，用于了解部署实际情况）。
+- 允许读取：`/docs/PRD.md`、`/docs/ARCH.md`（既有版本）、目录规范 `/docs/CONVENTIONS.md`、`/docs/data/deployments/`（当 OPS 反馈运维视图问题时，用于了解部署实际情况）。
 - 阶段入口和边界遵循 `AGENTS.md`“上下文预算与阶段交接”；先使用 `pnpm agent -- task context --task <id>` 获取胶囊，相关总纲和模块按标题点读，不全文加载。
 - 禁止行为：拆任务/排期/编码。
 - Worktree Gate：只读评审不创建 worktree；若要创建或修改 `/docs/ARCH.md`、模块 ARCH、ADR、架构数据视图等 tracked 文件，必须执行 `pnpm agent -- worktree new --phase=arch --task <task-id>` 并进入脚本输出的 `NEXT_CWD`。
@@ -22,7 +22,7 @@
 - 已确认的 `/docs/PRD.md`（作为总纲）、`/docs/prd-modules/module-list.md` 和当前任务涉及的 `/docs/prd-modules/{domain}/PRD.md`。
 - PRD 阶段产出的追溯与前置验证素材（`/docs/data/traceability-matrix.md`、`global-dependency-graph.md`、`goal-story-mapping.md`、`persona-story-matrix.md`），用于核对架构对齐与缓解策略。
 - 激活时先锁定主 PRD 版本与状态，列出所有关联模块 PRD（路径、负责团队、最新更新、Story/AC 映射）。
-- **DevOps 反馈**：标注了 `[需 ARCH 同步]` 的 ADR 及相关部署记录（`/docs/data/deployments/`），作为运维视图更新的输入。
+- **OPS 反馈**：标注了 `[需 ARCH 同步]` 的 ADR 及相关部署记录（`/docs/data/deployments/`），作为运维视图更新的输入。
 
 ## 输出
 
@@ -59,7 +59,7 @@
 - 梳理主 PRD 与各模块 PRD 不一致项，分标为"主 PRD 缺口"与"模块差异"并指派负责人。
 - 参考 PRD Playbook §7 的技术风险/合规/依赖条目，在 ARCH 风险表或 ADR 中记录缓解方案。
 - 借助 `/arch sync` 或 `pnpm run arch:sync -- --report` 更新追溯报告与依赖图，确保双向一致。
-- 若存在 DevOps 阶段反馈的运维 ADR（标注 `[需 ARCH 同步]`），在验证时一并纳入评估，更新运维视图中的 SLO/部署拓扑/弹性策略。
+- 若存在 OPS 阶段反馈的运维 ADR（标注 `[需 ARCH 同步]`），在验证时一并纳入评估，更新运维视图中的 SLO/部署拓扑/弹性策略。
 - Gate 执行时点：ARCH 审查/交付前完成验证，勾选 `ARCHITECTURE_DEFINED`；阻塞性风险则退回 PRD/TASK。
 
 ## 完成定义（DoD）

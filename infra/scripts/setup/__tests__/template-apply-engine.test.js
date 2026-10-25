@@ -49,13 +49,13 @@ test('deepMerge keeps target arrays intact (project-priority)', () => {
 });
 
 test('deepMerge records type conflicts (object vs non-object)', () => {
-  const target = { devops: 'disabled' };
-  const source = { devops: { commands: {} } };
+  const target = { ops: 'disabled' };
+  const source = { ops: { commands: {} } };
   const { merged, addedKeys, conflicts } = deepMerge(target, source);
-  assert.equal(merged.devops, 'disabled');
+  assert.equal(merged.ops, 'disabled');
   assert.deepEqual(addedKeys, []);
   assert.equal(conflicts.length, 1);
-  assert.equal(conflicts[0].path, 'devops');
+  assert.equal(conflicts[0].path, 'ops');
 });
 
 test('deepMerge does not delete keys absent in source', () => {
@@ -104,22 +104,22 @@ test('mergeJson merges and writes only when write=true', () => {
   const rule = { path: 'agent.config.json', source: 'cfg.json', strategy: 'merge-json' };
   writeJson(path.join(sourceRoot, rule.source), {
     projectName: 'tpl',
-    devops: { commands: { envCheck: { staging: '' } } },
+    ops: { commands: { envCheck: { staging: '' } } },
   });
-  writeJson(path.join(targetRoot, rule.path), { projectName: 'mine', devops: { commands: {} } });
+  writeJson(path.join(targetRoot, rule.path), { projectName: 'mine', ops: { commands: {} } });
 
   const dryRun = mergeJson(sourceRoot, targetRoot, rule, false);
   assert.equal(dryRun[0].status, 'merged');
-  assert.deepEqual(dryRun[0].added.sort(), ['devops.commands.envCheck'].sort());
+  assert.deepEqual(dryRun[0].added.sort(), ['ops.commands.envCheck'].sort());
   // Dry-run preserves original file content
   const before = JSON.parse(fs.readFileSync(path.join(targetRoot, rule.path), 'utf8'));
-  assert.equal(before.devops.commands.envCheck, undefined);
+  assert.equal(before.ops.commands.envCheck, undefined);
 
   const writeRun = mergeJson(sourceRoot, targetRoot, rule, true);
   assert.equal(writeRun[0].status, 'merged');
   const after = JSON.parse(fs.readFileSync(path.join(targetRoot, rule.path), 'utf8'));
   assert.equal(after.projectName, 'mine');
-  assert.equal(after.devops.commands.envCheck.staging, '');
+  assert.equal(after.ops.commands.envCheck.staging, '');
 
   const raw = fs.readFileSync(path.join(targetRoot, rule.path), 'utf8');
   assert.ok(raw.endsWith('\n'), 'trailing newline preserved');

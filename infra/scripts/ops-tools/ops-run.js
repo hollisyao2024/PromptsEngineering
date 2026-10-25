@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Portable DevOps shortcut dispatcher.
+ * Portable OPS shortcut dispatcher (owned by AgentRoles/OPS-ENGINEERING-EXPERT.md).
  *
  * This file owns the template-level semantics for client dev/build, local
  * service lifecycle, server build, /ship, /cd, /ci and /env. Real commands
@@ -209,7 +209,7 @@ function resolveBashCommand(command, options = {}) {
 function ensureRunDir(config, mainRoot) {
   const { tmp: tmpDir } = ensureContainerDirectories(config, mainRoot, ['tmp']);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`;
-  const runDir = path.join(tmpDir, 'devops-runs', runId);
+  const runDir = path.join(tmpDir, 'ops-runs', runId);
   fs.mkdirSync(runDir, { recursive: true });
   return runDir;
 }
@@ -225,9 +225,9 @@ function block(reason, nextManualAction, meta = {}) {
 }
 
 function commandForAction(config, cli, action, env, commandTarget = '', platform = '') {
-  const commands = (config.devops && config.devops.commands) || {};
-  const workflows = (config.devops && config.devops.workflows) || {};
-  const healthCheck = (config.devops && config.devops.healthCheck) || {};
+  const commands = (config.ops && config.ops.commands) || {};
+  const workflows = (config.ops && config.ops.workflows) || {};
+  const healthCheck = (config.ops && config.ops.healthCheck) || {};
   const devServerCommands = (config.devServer && config.devServer.commands) || {};
 
   if (action === 'build') return readProfiledEnvCommand(commands.build, env, commandTarget);
@@ -263,6 +263,23 @@ function actionRequiresDeployEnabled(action) {
   return ['ship', 'cd'].includes(action);
 }
 
+// The devops -> ops rename has no aliases: stale project config fails closed with a migration hint.
+function findRenamedOpsSettings(config, env = process.env) {
+  if (config && Object.prototype.hasOwnProperty.call(config, 'devops')) {
+    return {
+      reason: 'agent.config.json 的 devops 节已更名为 ops',
+      next: '把 agent.config.json 顶层 devops 节整体改名为 ops（含 commands、workflows、healthCheck、rollbackGuard、deployEnabled），并删除 features.devopsDeploy。',
+    };
+  }
+  if (env && Object.prototype.hasOwnProperty.call(env, 'AGENT_DEVOPS_DEPLOY_ENABLED')) {
+    return {
+      reason: '环境变量 AGENT_DEVOPS_DEPLOY_ENABLED 已更名为 AGENT_OPS_DEPLOY_ENABLED',
+      next: '改用 AGENT_OPS_DEPLOY_ENABLED，并从环境中移除 AGENT_DEVOPS_DEPLOY_ENABLED。',
+    };
+  }
+  return null;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const cli = parseCliArgs(argv);
@@ -282,6 +299,9 @@ function main() {
   const repoRoot = getWorktreeRoot(process.cwd());
   const config = loadConfig({ repoRoot, cli });
   const runDir = ensureRunDir(config, mainRoot);
+
+  const renamed = findRenamedOpsSettings(config);
+  if (renamed) block(renamed.reason, renamed.next, { action, run_dir: runDir });
 
   if (!action) {
     block(
@@ -306,10 +326,10 @@ function main() {
     });
   }
 
-  if (actionRequiresDeployEnabled(action) && !config.devops.deployEnabled) {
+  if (actionRequiresDeployEnabled(action) && !(config.ops && config.ops.deployEnabled)) {
     block(
-      'devops.deployEnabled=false',
-      'Set devops.deployEnabled=true and devops.commands in agent.config.json before running deployment shortcuts.',
+      'ops.deployEnabled=false',
+      'Set ops.deployEnabled=true and ops.commands in agent.config.json before running deployment shortcuts.',
       { action, env, run_dir: runDir }
     );
   }
@@ -328,7 +348,7 @@ function main() {
     const suffix = dimensions.length > 0 ? `:${dimensions.join(':')}` : '';
     block(
       `no command configured for ${action}${suffix}`,
-      'Add the command under agent.config.json app.commands, devServer.commands, or devops.commands.',
+      'Add the command under agent.config.json app.commands, devServer.commands, or ops.commands.',
       { action, env, platform, target: commandTarget, run_dir: runDir }
     );
   }
@@ -361,7 +381,7 @@ function main() {
     discoverProxy: false,
     env: {
       ...process.env,
-      AGENT_DEVOPS_ACTION: action,
+      AGENT_OPS_ACTION: action,
       AGENT_ENV: env,
       AGENT_TARGET: commandTarget,
       AGENT_PLATFORM: platform,
@@ -375,7 +395,7 @@ function main() {
     },
   });
 
-  // Cross-machine rollback guard + deploy lease (docs/CONVENTIONS.md §7).
+  // Cross-machine rollback guard + deploy lease (AgentRoles/Handbooks/OPS-ENGINEERING-EXPERT.playbook.md).
   const guardMeta = { action, env, target: commandTarget, run_dir: runDir };
   const shipGuard = prepareShipGuard({ config, cli, action, env, target: commandTarget, rawCommand, repoRoot, dryRun, commandEnvFor });
   for (const line of shipGuard.lines) console.log(line);
@@ -475,13 +495,14 @@ function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- dev|app|build|ship|private ...\n\nRun a configured devops command (see docs/CONVENTIONS.md §7).');
+  exitOnHelp('Usage: pnpm agent -- dev|app|build|ship|cd|ci|env|private ...\n\nRun a configured OPS shortcut command (see AgentRoles/OPS-ENGINEERING-EXPERT.md).');
   main();
 }
 
 module.exports = {
   collectPositionals,
   commandForAction,
+  findRenamedOpsSettings,
   normalizeDevTarget,
   normalizePlatform,
   readCommand,

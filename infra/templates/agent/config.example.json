@@ -191,7 +191,7 @@
       }
     }
   },
-  "devops": {
+  "ops": {
     "deployEnabled": false,
     "framework": "custom",
     "appDir": "",
@@ -255,9 +255,6 @@
   "cron": {
     "enabled": false,
     "registry": []
-  },
-  "features": {
-    "devopsDeploy": false
   },
   "cloud": {
     "_notice": "Claude Code cloud sessions: pnpm agent -- cloud bootstrap|setup-script|doctor. Bootstrap only runs when CLAUDE_CODE_REMOTE=true and enabled=true; see docs/CONVENTIONS.md §11.",

@@ -224,12 +224,12 @@ test('PRD playbook guides adopting DESIGN.md where styles already exist, and gat
   assert.ok(!ux.includes('44×44'), 'the touch-target number lives only in DESIGN.md');
 });
 
-test('DESIGN.md stays out of TASK, DEVOPS and the always-loaded rules', () => {
+test('DESIGN.md stays out of TASK, OPS and the always-loaded rules', () => {
   for (const file of [
     'AgentRoles/TASK-PLANNING-EXPERT.md',
     'AgentRoles/Handbooks/TASK-PLANNING-EXPERT.playbook.md',
-    'AgentRoles/DEVOPS-ENGINEERING-EXPERT.md',
-    'AgentRoles/Handbooks/DEVOPS-ENGINEERING-EXPERT.playbook.md',
+    'AgentRoles/OPS-ENGINEERING-EXPERT.md',
+    'AgentRoles/Handbooks/OPS-ENGINEERING-EXPERT.playbook.md',
     'AGENTS.md',
     'docs/CONVENTIONS.md',
     'infra/templates/agent/RULES.example.md',

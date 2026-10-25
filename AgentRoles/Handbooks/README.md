@@ -6,4 +6,4 @@
 - **TASK-PLANNING-EXPERT.playbook.md**：覆盖任务规划工作流、进度跟踪机制与跨专家协作。TASK 模板已提取至 `docs/data/templates/task/`。
 - **TDD-PROGRAMMING-EXPERT.playbook.md**：覆盖目录边界、TDD 核心流程、测试策略、常用命令、数据库迁移检查清单与跨专家协作。
 - **QA-TESTING-EXPERT.playbook.md**：覆盖作业流程、测试类型覆盖标准、测试设计方法、缺陷管理、质量度量与跨专家协作。QA 模板已提取至 `docs/data/templates/qa/`。
-- **DEVOPS-ENGINEERING-EXPERT.playbook.md**：CI/CD 流水线配置、环境管理、部署验证与回滚流程、灰度部署验证与跨专家协作。CI 模板已提取至 `docs/data/templates/devops/`。
+- **OPS-ENGINEERING-EXPERT.playbook.md**：CI/CD 流水线配置、环境与本地服务管理、部署防回退、部署验证与回滚流程、版本与标签治理、灰度部署验证与跨专家协作。运维模板已提取至 `docs/data/templates/ops/`。

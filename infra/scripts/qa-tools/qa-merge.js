@@ -1543,7 +1543,7 @@ function printSummary(
       '  2) 确认收敛：pnpm agent -- worktree audit；仍有待清理项时执行 pnpm agent -- worktree audit --apply',
       '  3) 主干门禁：pnpm agent -- finish；如检测到新提交，按 --recover-as 指引恢复。',
     ].join('\n')
-    : '  激活 DevOps 专家执行部署 (/devops 或 /ship dev)');
+    : '  激活 OPS 专家执行部署（[[ACTIVATE: OPS]] → /ship <env>）');
   if (cleanupResult.deferred && !cleanupResult.preserved) {
     console.log(`NEXT_ACTION=cd ${mainRepoRoot} && pnpm agent -- worktree audit --apply && pnpm agent -- finish`);
   }

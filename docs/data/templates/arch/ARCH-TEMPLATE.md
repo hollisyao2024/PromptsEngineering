@@ -71,7 +71,7 @@ graph LR
 | 风险/问题 | 类型 | 影响范围 | Gate 条件 | 缓解计划 | 责任人 | 当前状态 |
 | ---------- | ---- | -------- | ---------- | -------- | ------ | -------- |
 | 数据库单点故障 | 技术 | 全系统 | `ARCHITECTURE_DEFINED` 前完成主从复制验证与故障转移测试 | 主从复制 + 自动故障检测 | @dba | 验证中 |
-| API Gateway 容量 | 稳定性 | 全系统 | Traceability + QA 需覆盖限流/降级流程 | 水平扩展 + 限流 + 提前压测 | @devops | 压测中 |
+| API Gateway 容量 | 稳定性 | 全系统 | Traceability + QA 需覆盖限流/降级流程 | 水平扩展 + 限流 + 提前压测 | @ops | 压测中 |
 | 跨模块一致性 | 可靠性 | 支付+通知 | Traceability Gate 需展示 Saga 流程与 compensating action | 使用 Saga 与事件追踪 | @architect | 设计中 |
 | 合规审计记录 | 合规 | 通知服务 | Legal 审批并记录审计日志 | 补齐审计 + 合规演练 | @security | 审批中 |
 

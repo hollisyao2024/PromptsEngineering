@@ -22,7 +22,7 @@ test('applied projects read three complete rules while the official template sou
   assert.match(agents, /首次应用.*模板更新.*RULES\.md.*缺失/u);
   assert.match(agents, /创建后.*完整读取/u);
   assert.doesNotMatch(agents, /rules load|CONTENT_END/u);
-  for (const role of ['PRD', 'ARCH', 'TASK', 'TDD', 'QA', 'DEVOPS']) {
+  for (const role of ['PRD', 'ARCH', 'TASK', 'TDD', 'QA', 'OPS']) {
     assert.match(agents, new RegExp(`\\[\\[ACTIVATE: .*\\b${role}\\b`, 'u'));
   }
   for (const gate of ['task resume', 'worktree new', 'tdd sync', 'tdd push', 'qa plan', 'qa verify', 'qa merge', 'task finish']) {
@@ -47,14 +47,16 @@ test('handoff and CLI no longer require the removed rule loader', () => {
 test('expert command guidance follows the available dispatcher and mandatory QA gates', () => {
   const readRole = (name) => fs.readFileSync(path.join(ROOT, 'AgentRoles', name), 'utf8');
   const qa = readRole('QA-TESTING-EXPERT.md');
-  const devops = readRole('DEVOPS-ENGINEERING-EXPERT.md');
+  const ops = readRole('OPS-ENGINEERING-EXPERT.md');
   const tdd = readRole('TDD-PROGRAMMING-EXPERT.md');
   for (const action of ['plan', 'verify', 'merge']) {
     assert.ok(qa.includes('| `/qa ' + action + '` | `pnpm agent -- qa ' + action + '`'), `missing qa ${action} dispatcher`);
   }
-  assert.match(devops, /`pnpm agent -- ship staging`/u);
-  assert.match(devops, /`pnpm agent -- dev restart`/u);
-  assert.match(devops, /`cd`、`ci`、`env`.*未接入.*pnpm agent/u);
+  for (const command of ['ship staging', 'dev restart', 'cd staging', 'ci run', 'ci status', 'env check <env>', 'env status']) {
+    assert.ok(ops.includes('`pnpm agent -- ' + command + '`'), `missing ops dispatcher: ${command}`);
+  }
+  assert.doesNotMatch(ops, /未接入/u);
+  assert.doesNotMatch(qa, /\/ship|\/cd |部署门禁|交接 DevOps/u);
   assert.doesNotMatch(tdd, /若用户明确 `--no-qa`/u);
   assert.match(tdd, /无状态的微小动作.*不.*checkpoint/u);
 });

@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process');
 const { assertTestCommandScope } = require('./test-command-scope');
 const { createWindowsSpawnInvocation } = require('../shared/toolchain-env');
 const { orderedStepEvidence, appendStepEvidence } = require('../shared/task-evidence');
+const { legacyPhaseError, normalizeLegacyPhase } = require('../shared/legacy-phase');
 const {
   getMainRepoRoot,
   getWorktreeRoot,
@@ -33,18 +34,18 @@ const TASK_STATUSES = new Set(['running', 'blocked', 'completed', 'cleanup_pendi
 const TASK_TYPES = new Set(['operation', 'mutation', 'diagnose', 'deploy', 'computer_use', 'research']);
 const STEP_STATUSES = new Set(['pending', 'running', 'done', 'blocked', 'verify_required']);
 const REPLAY_MODES = new Set(['safe', 'verify_first']);
-const TASK_PHASES = new Set(['unspecified', 'prd', 'arch', 'task', 'tdd', 'qa', 'devops']);
+const TASK_PHASES = new Set(['unspecified', 'prd', 'arch', 'task', 'tdd', 'qa', 'ops']);
 const PHASE_ORDER = new Map([
-  ['unspecified', -1], ['prd', 0], ['arch', 1], ['task', 2], ['tdd', 3], ['qa', 4], ['devops', 5],
+  ['unspecified', -1], ['prd', 0], ['arch', 1], ['task', 2], ['tdd', 3], ['qa', 4], ['ops', 5],
 ]);
 const PHASE_TRANSITIONS = new Map([
-  ['unspecified', new Set(['prd', 'arch', 'task', 'tdd', 'qa', 'devops'])],
+  ['unspecified', new Set(['prd', 'arch', 'task', 'tdd', 'qa', 'ops'])],
   ['prd', new Set(['arch'])],
   ['arch', new Set(['prd', 'task'])],
   ['task', new Set(['prd', 'arch', 'tdd'])],
   ['tdd', new Set(['prd', 'arch', 'task', 'qa'])],
-  ['qa', new Set(['tdd', 'devops'])],
-  ['devops', new Set(['arch', 'tdd', 'qa'])],
+  ['qa', new Set(['tdd', 'ops'])],
+  ['ops', new Set(['arch', 'tdd', 'qa'])],
 ]);
 
 function nowIso(value) {
@@ -99,13 +100,32 @@ function fsyncDirectory(directoryPath) {
 
 function normalizePhase(value) {
   const phase = String(value || 'unspecified').trim().toLowerCase();
+  // Renamed phases are never aliased on input; the caller gets the migration hint.
+  const renamed = legacyPhaseError(phase);
+  if (renamed) throw new Error(`invalid task phase: ${renamed}`);
   if (!TASK_PHASES.has(phase)) throw new Error(`invalid task phase: ${phase}`);
   return phase;
 }
 
+// Persisted phases written before a rename are upgraded on read; the next atomic write persists them.
+function renamePersistedPhases(state) {
+  if (!Array.isArray(state.phase_history)) {
+    return { ...state, current_phase: normalizeLegacyPhase(state.current_phase) };
+  }
+  return {
+    ...state,
+    current_phase: normalizeLegacyPhase(state.current_phase),
+    phase_history: state.phase_history.map((entry) => (
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? { ...entry, phase: normalizeLegacyPhase(entry.phase), from_phase: normalizeLegacyPhase(entry.from_phase) }
+        : entry
+    )),
+  };
+}
+
 function upgradeLegacyState(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return state;
-  if (state.schema_version !== LEGACY_SCHEMA_VERSION) return state;
+  if (state.schema_version !== LEGACY_SCHEMA_VERSION) return renamePersistedPhases(state);
   return {
     ...state,
     schema_version: SCHEMA_VERSION,
@@ -238,7 +258,7 @@ function validateState(inputState, expectedTaskId) {
     const deferred = entry.deferred_cleanup;
     const step = state.steps.find(item => item.id === deferred?.step_id);
     const failure = step?.failures?.[deferred?.failure_index];
-    if (!['qa', 'devops'].includes(entry.phase) || !step
+    if (!['qa', 'ops'].includes(entry.phase) || !step
       || !Number.isInteger(deferred.failure_index) || deferred.failure_index < 0
       || failure?.execution_state !== 'not_started' || !String(deferred.evidence || '').trim()) {
       throw new Error('invalid task state: malformed deferred cleanup evidence');
@@ -562,7 +582,7 @@ function transitionTaskPhase(options) {
     const movesForward = PHASE_ORDER.get(targetPhase) > PHASE_ORDER.get(state.current_phase);
     let deferredCleanup;
     if (options.deferCleanupStep || options.cleanupEvidence) {
-      if (!movesForward || !['qa', 'devops'].includes(targetPhase)) throw new Error('cleanup deferral only applies to forward QA or DEVOPS transitions');
+      if (!movesForward || !['qa', 'ops'].includes(targetPhase)) throw new Error('cleanup deferral only applies to forward QA or OPS transitions');
       if (!String(options.cleanupEvidence || '').trim()) throw new Error('cleanup deferral requires independence evidence');
       const step = state.steps.find(item => item.id === options.deferCleanupStep);
       const failureIndex = (step?.failures?.length || 0) - 1;
@@ -1113,7 +1133,7 @@ function continuationFields(state) {
   const unresolved = steps.filter(step => ['blocked', 'verify_required'].includes(step.status));
   // A recorded, verified-independent cleanup deferral permits QA, not task completion.
   const entry = (state.phase_history || []).at(-1);
-  const deferred = entry?.phase === state.current_phase && ['qa', 'devops'].includes(state.current_phase)
+  const deferred = entry?.phase === state.current_phase && ['qa', 'ops'].includes(state.current_phase)
     ? entry.deferred_cleanup : null;
   const isDeferredCleanup = step => deferred?.step_id === step.id
     && step.status === 'blocked'
