@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.12.1] - 2026-10-26
+
+- 修复 dev 等快捷命令的配置命令回调自身时无限递归：重入同一快捷命令改为 STATUS=BLOCKED 并给出调用链。
+
 ## [v3.12.0] - 2026-10-26
 
 - DEVOPS 全量更名 OPS：阶段、配置键、脚本与模板迁移，QA 剥离部署职责，cd/ci/env 接入 pnpm agent；旧配置 BLOCKED。

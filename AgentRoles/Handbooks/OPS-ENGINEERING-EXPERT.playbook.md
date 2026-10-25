@@ -173,7 +173,7 @@
 
 `/private`、`/dev app`、`/build app`、`/build <env>` 等快捷入口不在此表登记，见 `docs/CONVENTIONS.md` §客户端与服务端快捷命令。
 
-`ops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际客户端、构建与部署脚本须由目标项目在 `agent.config.json` 中声明。项目配置仍使用更名前的运维配置节或部署开关环境变量时，`ops-run.js` 输出 `STATUS=BLOCKED` 与迁移提示，按提示改为 `ops` 节与 `AGENT_OPS_DEPLOY_ENABLED` 后重试。项目自有脚本从 `AGENT_OPS_ACTION` 读取当前动作。多 profile 命令必须精确配置；用户使用 `/private ...` 语法，内部 target 仅用于 dispatcher 调度，不得作为用户快捷命令公开。
+`ops-run.js` 只负责统一协议、配置读取、结构化输出和阻塞提示；实际客户端、构建与部署脚本须由目标项目在 `agent.config.json` 中声明。项目配置仍使用更名前的运维配置节或部署开关环境变量时，`ops-run.js` 输出 `STATUS=BLOCKED` 与迁移提示，按提示改为 `ops` 节与 `AGENT_OPS_DEPLOY_ENABLED` 后重试。项目自有脚本从 `AGENT_OPS_ACTION` 读取当前动作，`AGENT_OPS_CALL_STACK` 记录嵌套调用链；重入同一快捷命令即 `STATUS=BLOCKED`。多 profile 命令必须精确配置；用户使用 `/private ...` 语法，内部 target 仅用于 dispatcher 调度，不得作为用户快捷命令公开。
 
 ---
 

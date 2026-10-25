@@ -11,7 +11,9 @@ const { loadConfig } = require('../../shared/config');
 const {
   collectPositionals,
   commandForAction,
+  detectRecursiveCall,
   normalizeDevTarget,
+  opsCallKey,
   resolveBashCommand,
   resolveRuntimeCommand,
   resolveSourceArgs,
@@ -390,11 +392,36 @@ function runOpsCli(t, args, { config, env = {} } = {}) {
       AGENT_CACHE_DIR: path.join(container, 'cache'),
       AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
       AGENT_OPS_DEPLOY_ENABLED: 'true',
+      // A test runner launched from an ops shortcut must not leak its call chain into the fixture.
+      AGENT_OPS_CALL_STACK: '',
       ...env,
     },
     encoding: 'utf8',
     stdio: 'pipe',
+    timeout: 60000,
   });
+}
+
+// Writes a node script that re-invokes ops-run.js with `args`, like a package.json
+// alias pointing back at the dispatcher. It stops by itself at `depthLimit` so a
+// missing guard fails the assertion instead of recursing forever.
+function writeReentrantHelper(t, args, { depthLimit = 3 } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-reentrant-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const opsRun = path.resolve(__dirname, '../ops-run.js');
+  const helper = path.join(dir, 'reenter.js');
+  fs.writeFileSync(helper, [
+    "const { spawnSync } = require('node:child_process');",
+    "const depth = Number(process.env.FIXTURE_REENTRY_DEPTH || 0);",
+    `if (depth >= ${depthLimit}) { console.log('REENTRY_DEPTH_LIMIT'); process.exit(0); }`,
+    `const run = spawnSync(process.execPath, [${JSON.stringify(opsRun)}, ...${JSON.stringify(args)}], {`,
+    "  stdio: 'inherit',",
+    "  env: { ...process.env, FIXTURE_REENTRY_DEPTH: String(depth + 1) },",
+    "});",
+    "process.exit(typeof run.status === 'number' ? run.status : 1);",
+    '',
+  ].join('\n'));
+  return `node "${helper}"`;
 }
 
 test('blocks an invalid --sha before printing or running any command', (t) => {
@@ -455,4 +482,55 @@ test('writes runs under ops-runs and exposes AGENT_OPS_ACTION to the configured 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^RUN_DIR=.*[\\/]ops-runs[\\/]/m);
   assert.match(result.stdout, /^ACTION_SEEN=ci-status\|$/m);
+});
+
+test('builds a positional call key and detects re-entry of the same shortcut', () => {
+  assert.equal(opsCallKey('dev-status'), 'dev-status');
+  assert.equal(opsCallKey('dev-status', '', 'private'), 'dev-status::private');
+  assert.equal(opsCallKey('build', 'staging', 'private'), 'build::private:staging');
+  assert.equal(opsCallKey('app-dev', '', '', 'mac'), 'app-dev:mac');
+  // Fixed positions keep env and profile apart even when their values match.
+  assert.notEqual(opsCallKey('build', 'staging'), opsCallKey('build', '', 'staging'));
+
+  assert.deepEqual(detectRecursiveCall('', 'dev-status'), { recursive: false, stack: ['dev-status'] });
+  assert.deepEqual(detectRecursiveCall('dev-restart', 'dev-status'), {
+    recursive: false,
+    stack: ['dev-restart', 'dev-status'],
+  });
+  assert.deepEqual(detectRecursiveCall('dev-restart,dev-status', 'dev-status'), {
+    recursive: true,
+    stack: ['dev-restart', 'dev-status', 'dev-status'],
+  });
+  assert.equal(detectRecursiveCall('ship:::staging', 'ship:::production').recursive, false);
+  assert.equal(detectRecursiveCall(undefined, 'dev-status').recursive, false);
+});
+
+test('blocks a configured command that calls back into the same shortcut instead of recursing', (t) => {
+  const reenter = writeReentrantHelper(t, ['--action=dev-status']);
+  const result = runOpsCli(t, ['--action=dev-status'], {
+    config: { projectName: 'fixture', devServer: { commands: { status: reenter } } },
+  });
+  assert.equal(result.status, 1, result.stdout);
+  assert.doesNotMatch(result.stdout, /REENTRY_DEPTH_LIMIT/);
+  assert.match(result.stderr, /REASON=recursive ops shortcut: dev-status -> dev-status/);
+  assert.match(result.stderr, /^CALL_STACK=dev-status -> dev-status$/m);
+  // Only the outer run reaches the configured command; the re-entry stops before printing one.
+  assert.equal(result.stdout.match(/^COMMAND=/gm).length, 1);
+});
+
+test('lets a shortcut run a different nested shortcut and passes the call chain down', (t) => {
+  const reenter = writeReentrantHelper(t, ['--action=dev-status']);
+  const result = runOpsCli(t, ['--action=dev-restart'], {
+    config: {
+      projectName: 'fixture',
+      devServer: {
+        commands: {
+          restart: reenter,
+          status: 'node -e "console.log(\'STACK_SEEN=\' + process.env.AGENT_OPS_CALL_STACK)"',
+        },
+      },
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^STACK_SEEN=dev-restart,dev-status$/m);
 });
