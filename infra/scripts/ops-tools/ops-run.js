@@ -280,6 +280,23 @@ function findRenamedOpsSettings(config, env = process.env) {
   return null;
 }
 
+// Nested shortcuts inherit their caller chain through this variable.
+const OPS_CALL_STACK_ENV = 'AGENT_OPS_CALL_STACK';
+
+// One call per action/platform/profile/env; fixed positions keep env and profile
+// apart, trailing empty fields are dropped for readability.
+function opsCallKey(action, env = '', target = '', platform = '') {
+  return [action, platform, target, env].join(':').replace(/:+$/, '');
+}
+
+// The key space is finite, so any endless loop must revisit a key: e.g. a
+// devServer.commands entry of "pnpm dev:status" whose package.json alias calls
+// back into ops-run. Different nested shortcuts stay allowed.
+function detectRecursiveCall(stackValue, key) {
+  const stack = String(stackValue || '').split(',').filter(Boolean);
+  return { recursive: stack.includes(key), stack: [...stack, key] };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const cli = parseCliArgs(argv);
@@ -308,6 +325,15 @@ function main() {
       'missing --action',
       'Run with --action=app-dev|app-build|build|ship|cd|ci-run|ci-status|env-check|env-status|dev-restart',
       { run_dir: runDir }
+    );
+  }
+
+  const callChain = detectRecursiveCall(process.env[OPS_CALL_STACK_ENV], opsCallKey(action, env, commandTarget, platform));
+  if (callChain.recursive) {
+    block(
+      `recursive ops shortcut: ${callChain.stack.join(' -> ')}`,
+      'Point devServer.commands, app.commands or ops.commands at the real command; it must not call the same shortcut again (for example a package.json dev:* alias that runs ops-run.js).',
+      { action, env, platform, target: commandTarget, call_stack: callChain.stack.join(' -> '), run_dir: runDir }
     );
   }
 
@@ -391,6 +417,7 @@ function main() {
       AGENT_ARTIFACTS_DIR: commandContainerDirs.artifacts,
       AGENT_CACHE_DIR: commandContainerDirs.cache,
       AGENT_TMP_DIR: commandContainerDirs.tmp,
+      [OPS_CALL_STACK_ENV]: callChain.stack.join(','),
       ...extra,
     },
   });
@@ -502,9 +529,11 @@ if (require.main === module) {
 module.exports = {
   collectPositionals,
   commandForAction,
+  detectRecursiveCall,
   findRenamedOpsSettings,
   normalizeDevTarget,
   normalizePlatform,
+  opsCallKey,
   readCommand,
   readProfiledEnvCommand,
   readTargetCommand,

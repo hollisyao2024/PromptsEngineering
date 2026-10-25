@@ -53,7 +53,7 @@
 - `/env check <env>`、`/env status`：由 `agent.config.json ops.commands.envCheck/envStatus` 或 `ops.healthCheck` 定义具体命令；未配置时输出 `STATUS=BLOCKED`。
 - `/ship`、`/cd` 需 `ops.deployEnabled=true`（或环境变量 `AGENT_OPS_DEPLOY_ENABLED=true`），否则阻断；`cd`、`ci`、`env` 不支持 private profile。
 
-**本地服务管理**：`/restart` 走 `pnpm agent -- dev restart`，`/private restart` 走 `pnpm agent -- private restart`；`dev:start`、`dev:restart`、`dev:stop`、`dev:status`、`dev:logs` 均指向 `ops-run.js --action=dev-*`。用户请求 private profile 时使用 `/private start|restart|stop|status|logs`；禁止写成 `/restart private` 或把内部 `--target=private` 暴露为用户快捷语法。项目在 `agent.config.json devServer.commands.<action>.<profile>` 精确声明真实命令；Agent 文件不硬编码端口、服务名和日志路径。
+**本地服务管理**：`/restart` 走 `pnpm agent -- dev restart`，`/private restart` 走 `pnpm agent -- private restart`；模板默认 `devServer.commands.<action>` 调用 `pnpm dev:<action>`，项目的 `dev:*` 脚本须是真实服务命令；若 `dev:*` 是回调 `ops-run.js --action=dev-*` 的兼容 alias（如息壤源自身），必须在 `devServer.commands` 改写真实命令，否则重入阻断。用户请求 private profile 时使用 `/private start|restart|stop|status|logs`；禁止写成 `/restart private` 或把内部 `--target=private` 暴露为用户快捷语法。项目在 `agent.config.json devServer.commands.<action>.<profile>` 精确声明真实命令；Agent 文件不硬编码端口、服务名和日志路径。
 
 脚本路径参考详见 Playbook §脚本路径参考。
 
@@ -79,6 +79,7 @@
 - 服务端构建与部署：`ops.commands.build` / `ops.commands.ship` / `ops.commands.cd`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
 - CI 与环境：`ops.commands.ciRun|ciStatus|envCheck|envStatus`，以及 `ops.workflows.ci`、`ops.healthCheck.<env>`。
 - 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
+- `ops-run.js` 经环境变量 `AGENT_OPS_CALL_STACK` 向配置命令传递调用链；配置命令再次调用同一快捷命令（动作、平台、profile 与环境均相同）时输出 `STATUS=BLOCKED` 与 `CALL_STACK`，不递归执行；调用不同快捷命令仍允许。
 - `ship`/`cd` 的 `--sha=<40位小写SHA>` 或 `--source=<ref>` 经严格校验后只通过命令中的 `{source_args}` 占位符透传；命令未声明该占位符、值非法或同时提供两者时 `STATUS=BLOCKED`，禁止静默忽略。命令声明 `{dry_run_arg}` 时，`--dry-run` 以 `--dry-run` 执行该命令自身的无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则只打印命令（`PRINT_ONLY`）。
 - `ops.rollbackGuard` 默认关闭；开启后 `ship` 在部署前执行防回退判定与跨电脑租约，细则见 Playbook §部署防回退与跨电脑租约。
 - 客户端开发、发行构建、服务端产物构建与真实部署是四种副作用边界：开发启动、发行构建和真实部署的验收证据不得互相替代。
