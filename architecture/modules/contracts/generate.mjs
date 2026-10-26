@@ -16,7 +16,8 @@ export function generate(schema) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const content = generate(JSON.parse(fs.readFileSync(schemaFile, 'utf8')));
 if (process.argv.includes('--check')) {
-  if (!fs.existsSync(output) || fs.readFileSync(output, 'utf8') !== content) { console.error('STATUS=BLOCKED\nREASON=Contract generation drift'); process.exitCode=1; }
+  // core.autocrlf=true checkouts (common on Windows) hold CRLF; compare as LF so line endings alone are not drift.
+  if (!fs.existsSync(output) || fs.readFileSync(output, 'utf8').replace(/\r\n/g, '\n') !== content) { console.error('STATUS=BLOCKED\nREASON=Contract generation drift'); process.exitCode=1; }
   else console.log('STATUS=OK');
 } else { fs.writeFileSync(output, content); console.log('STATUS=GENERATED'); }
 }

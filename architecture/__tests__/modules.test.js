@@ -23,7 +23,10 @@ test('contract generator rejects unsupported schema and detects changed source',
   assert.throws(()=>generate({title:'X',type:'object',additionalProperties:false,properties:{x:{type:'string',pattern:'.*'}},required:[]}),/Unsupported/);
   const root=fixture(t);fs.cpSync(path.join(source,'architecture/modules/contracts'),root,{recursive:true});
   const invoke=()=>spawnSync(process.execPath,['generate.mjs','--check'],{cwd:root,encoding:'utf8'});
-  assert.equal(invoke().status,0);fs.appendFileSync(path.join(root,'generated.ts'),'// edited\n');assert.equal(invoke().status,1);
+  const generated=path.join(root,'generated.ts');assert.equal(invoke().status,0);
+  // core.autocrlf=true checkouts (common on Windows) hold CRLF; a line-ending-only difference is not drift.
+  fs.writeFileSync(generated,fs.readFileSync(generated,'utf8').replace(/\r?\n/g,'\r\n'));assert.equal(invoke().status,0);
+  fs.appendFileSync(generated,'// edited\r\n');assert.equal(invoke().status,1);
 });
 test('assets enforce checksum, target and real paths', async t => {
   const {verifyAssets}=await moduleImport('runtime-assets/verify.mjs'),root=fixture(t);fs.writeFileSync(path.join(root,'asset.bin'),'verified');
