@@ -58,6 +58,16 @@
 
 每个 Story 至少包含一条可量化的 AC，覆盖正常流与异常流；追溯矩阵 `traceability-matrix.md` 按 Story/AC/Test Case ID 映射。页面状态与操作路径、覆盖准则见 QA 的 `docs/qa-modules/user-management/PATHS.md`（模板 `docs/data/templates/qa/PATHS-TEMPLATE.md`），路径只引用上表的 AC 与 TC，不复制规格。
 
+### 2.3 不变量与禁止行为
+
+不对应单个触发动作、但任何时刻都必须成立的规则写在这里；QA 的测试设计（`docs/qa-modules/user-management/TEST-DESIGN.md`，模板 `docs/data/templates/qa/TEST-DESIGN-TEMPLATE.md`）以这些 ID 作为预期出处。
+
+| INV ID | 类型 | 陈述 | 适用 Story | 优先级 |
+|--------|------|------|------------|--------|
+| INV-USER-001 | forbidden | 任何接口响应、日志与事件载荷都不出现明文密码或密码哈希 | * | P0 |
+| INV-USER-002 | invariant | 同一邮箱最多对应一个账号 | US-USER-001 | P0 |
+| INV-USER-003 | forbidden | 处于锁定期或尚未完成邮箱验证的账号，登录不签发 `token` 与 `refreshToken` | US-USER-002 | P0 |
+
 ---
 
 ## 3. 模块级非功能需求

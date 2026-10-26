@@ -34,10 +34,10 @@
 - 校验当前位于可开发分支、依赖安装完备、本地环境变量可用
 - 编码与本地验证阶段允许工作区存在未提交改动；执行 `/tdd push` 时，脚本会自动将当前分支工作区改动 `git add -A` 后生成 commit message 并提交
 - 若需保留不属于本次 PR 的本地内容，先精确提交交付文件，再执行 `pnpm agent -- tdd push --committed-only`；该模式只推送已有提交，不自动暂存、提交或回写 tracked 阶段文档。
-- 选定最小可验证场景，将输入输出转化为测试断言
+- 选定最小可验证场景；断言的预期取自 `TEST-DESIGN.md` 的 RUL/ADV 行或 AC，不从实现推断
 
 ### 红-绿-重构循环
-1. **设计失败测试**：选取最小断言覆盖业务核心路径，命名清晰、与验收标准对应
+1. **设计失败测试**：按所引用的规则与反例写断言，测试名携带 RUL/ADV/AC 标识，与验收标准对应
 2. **运行单一测试**：使用针对性的命令（如 `CI=1 pnpm test -- --runTestsByPath path/to.spec.ts`、`pytest path/test_file.py -k case_name`）确认测试失败
 3. **实现最小功能**：只写让测试通过所需的最小生产代码，保留 TODO 记录潜在重构点
 4. **验证通过**：重复运行同一测试或相关测试集，确保绿灯且无 flake
@@ -56,18 +56,18 @@
 本节工具和命令是对应技术栈的示例，仅在项目已选择这些技术时适用；实际使用项目配置中的应用目录、数据库及测试入口，不据此新增技术依赖。
 
 ### TDD 测试职责总览
-TDD 负责编写并运行：单元、集成、契约、降级测试。E2E/性能/安全测试由 QA 专家在 `/qa plan` 后编写。
+TDD 负责编写并运行：单元、模块内集成、契约测试，预期取自 `TEST-DESIGN.md`，不得修改或放宽。跨模块黑盒集成、API 业务流、性质/状态机、故障注入与 E2E/性能/安全测试由 QA 专家编写，方法见 `AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §测试设计方法。
 
-- **优先级**：单测 > 集成 > 契约/降级；E2E/性能/安全由 QA 负责
+- **优先级**：单测 > 模块内集成 > 契约；跨模块黑盒、故障注入与 E2E/性能/安全由 QA 负责
 - **前端**：使用 Vitest/Jest 单测组件与 hooks，无需 watch 模式
 - **后端**：使用 Vitest/pytest，隔离外部依赖（fixtures/mocks），必要时引入 faker 数据
 - **共享模块**：通过双向测试验证类型/工具；更新后在前后端各运行一次冒烟测试
 - 避免长时间运行的全集测试，可在提交前执行增量测试 + 必要的回归组
 
 ### 集成测试策略
-- **编写时机**：API endpoint / Repository 实现后立即编写
+- **编写时机**：API endpoint / Repository 实现后立即编写；范围限于单个模块，跨模块业务流由 QA 以黑盒方式编写
 - **隔离策略**：Testcontainers + 真实 PostgreSQL（CI）；事务回滚模式（本地快速迭代）。不 mock Prisma Client。
-- **测试内容**：endpoint CRUD + 边界（400/401/403/404）、Repository 复杂查询（JOIN/聚合/分页）、服务间错误传播
+- **测试内容**：endpoint CRUD + 边界（400/401/403/404）、Repository 复杂查询（JOIN/聚合/分页）、模块内错误映射
 - **文件位置**：`apps/*/tests/*.integration.test.ts`
 - **工具**：Vitest + Supertest + @testcontainers/postgresql
 - **命令**：`pnpm test apps/server/tests/ --runInBand`
@@ -80,22 +80,14 @@ TDD 负责编写并运行：单元、集成、契约、降级测试。E2E/性能
 - **工具**：@pact-foundation/pact V4
 - **命令**：Consumer `pnpm test packages/api-client/tests/contract/`；Provider `pnpm test apps/server/tests/contract/`
 
-### 降级测试策略
-- **编写时机**：引入外部依赖或实现弹性模式（Circuit Breaker/Retry/Fallback）时同步编写
-- **分层测试**：
-  - HTTP 层：MSW v2 或 nock 拦截请求，注入错误/延迟
-  - 应用层：直接测试 Circuit Breaker 状态机（Closed → Open → Half-Open → 恢复）
-  - 网络层（可选）：Toxiproxy 注入 TCP 故障（延迟、断连），需 Docker
-- **测试内容**：依赖返回 500/超时/不可达、连续失败后 breaker 是否 Open、Retry 指数退避、Fallback 数据结构是否符合契约
-- **文件位置**：`apps/*/tests/resilience/*.degradation.test.ts`
-- **工具**：MSW v2 + cockatiel/opossum + Toxiproxy（可选）
-- **命令**：`pnpm test apps/server/tests/resilience/`
+### 故障注入（QA 负责）
+依赖故障与降级行为（Circuit Breaker/Retry/Fallback）由 QA 依据 `TEST-DESIGN.md` 的 `dependency` 维度反例编写，分层注入、工具与文件位置见 `AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §测试设计方法「故障注入」。TDD 引入外部依赖或弹性模式时，实现超时、错误映射与降级逻辑，并以单元测试覆盖这些分支；降级预期取自 PRD/ARCH，未定义时回流，不自行定义。
 
 ---
 
 ## 边界场景分类表
 
-> TDD 专家在编写测试时，按当前实现的**模式类型**查表，选取适用的边界场景。每个模式至少覆盖标记为 **[必测]** 的场景。
+> TDD 专家在编写测试时，按所改行为的**模式类型**查表，核对 `TEST-DESIGN.md` 的 `boundary`、`input`、`auth` 维度反例是否覆盖这些场景；缺少的回 QA 补写反例行，预期仍取自规格。每个模式至少覆盖标记为 **[必测]** 的场景。
 
 ### API Endpoint
 
@@ -231,15 +223,15 @@ flowchart TD
     H6 --> H2
     I -->|自动串联| QA1["切换 QA 专家 → /qa plan"]
     QA1 --> QA2{命中风险域?}
-    QA2 -->|未命中| QA3[跳过编写，执行已有测试]
-    QA2 -->|命中| QA4[按命中域补写 E2E/性能/安全/回归 + 执行]
+    QA2 -->|未命中| QA3[审计已有测试并执行]
+    QA2 -->|命中| QA4[按命中域补写黑盒/E2E/性能/安全/回归 + 执行]
     QA3 --> QA5["/qa verify 验收检查"]
     QA4 --> QA5
-    QA5 -->|Go| QA6["/qa merge 合并到 main"]
-    QA5 -->|Conditional| QA7{可自动满足?}
+    QA5 -->|PASS| QA6["/qa merge 合并到 main"]
+    QA5 -->|PASS_WITH_RISK| QA7{风险已逐条评审?}
     QA7 -->|是| QA6
     QA7 -->|否| STOP[停止，通知用户]
-    QA5 -->|No-Go| QA8{Circuit Breaker ≤2 轮?}
+    QA5 -->|BLOCKED| QA8{Circuit Breaker ≤2 轮?}
     QA8 -->|是| FIX["切换 TDD → /tdd fix"]
     QA8 -->|否| STOP
     FIX --> G

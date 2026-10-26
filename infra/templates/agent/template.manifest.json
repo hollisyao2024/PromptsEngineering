@@ -305,6 +305,10 @@
       "strategy": "overwrite"
     },
     {
+      "path": "docs/data/templates/qa/TEST-DESIGN-TEMPLATE.md",
+      "strategy": "overwrite"
+    },
+    {
       "path": "docs/data/templates/qa/TEST-PRIORITY-MATRIX-TEMPLATE.md",
       "strategy": "overwrite"
     },
