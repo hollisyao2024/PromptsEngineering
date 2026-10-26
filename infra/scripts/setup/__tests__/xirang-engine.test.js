@@ -329,3 +329,54 @@ test('merge-json and adopted overwrite compare CRLF local content by normalized 
   f.put(adopted, crlf('custom\n'));
   assert.equal(planUpdate({ target: f.target, assets: [asset('upstream\n', 'overwrite', adopted)] }).conflicts.length, 0);
 });
+// Baseline files themselves are also rewritten as CRLF by such checkouts; they must still verify against their LF hash.
+function toCrlfCheckout(f) {
+  const dir = path.join(f.target, '.xirang/baselines');
+  for (const name of fs.readdirSync(dir)) fs.writeFileSync(path.join(dir, name), crlf(fs.readFileSync(path.join(dir, name), 'utf8')));
+}
+test('CRLF checkout of LF baselines and files is not drift; upgrades apply and real edits still conflict', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  install(f, [asset('a\nb\n', 'overwrite'), asset('x\ny\n', 'update', 'docs/guide.md')]);
+  toCrlfCheckout(f); f.put(file, crlf('a\nb\n')); f.put('docs/guide.md', crlf('x\ny\n'));
+  const same = planUpdate({ target: f.target, assets: [asset('a\nb\n', 'overwrite'), asset('x\ny\n', 'update', 'docs/guide.md')] });
+  assert.deepEqual(same.conflicts, []);
+  assert.deepEqual(same.changes, []);
+  install(f, [asset('a\nc\n', 'overwrite'), asset('x\nz\n', 'update', 'docs/guide.md')]);
+  // Upstream text is written back in the checkout's CRLF style.
+  assert.equal(f.get(file), crlf('a\nc\n'));
+  assert.equal(f.get('docs/guide.md'), crlf('x\nz\n'));
+  assert.equal(fs.readdirSync(path.join(f.target, '.xirang/baselines')).length, 2);
+  toCrlfCheckout(f); f.put(file, crlf('a\nlocal\n'));
+  assert.match(planUpdate({ target: f.target, assets: [asset('a\nd\n', 'overwrite')] }).conflicts[0].reason, /overwrite conflict/);
+});
+test('CRLF local edits merge against LF baseline and append-lines does not duplicate CRLF lines', t => {
+  const f = fixture(t);
+  install(f, [asset('one\ntwo\nthree\n'), asset('a\nb\n', 'append-lines', '.ignore')]);
+  toCrlfCheckout(f); f.put('apps/web/component.ts', crlf('local\ntwo\nthree\n')); f.put('.ignore', crlf('a\nb\n'));
+  const p = install(f, [asset('one\ntwo\nupstream\n'), asset('a\nb\n', 'append-lines', '.ignore')]);
+  assert.deepEqual(p.conflicts, []);
+  assert.equal(f.get('apps/web/component.ts'), crlf('local\ntwo\nupstream\n'));
+  assert.equal(f.get('.ignore'), crlf('a\nb\n'));
+});
+test('package.json sync rewrites renamed template script paths in project scripts and converges', t => {
+  const f = fixture(t), source = path.join(path.dirname(f.target), 'source');
+  const put = (file, text) => { fs.mkdirSync(path.dirname(path.join(source, file)), { recursive: true }); fs.writeFileSync(path.join(source, file), text); };
+  put('infra/templates/agent/template.manifest.json', pretty({ template: { id: 'xirang' }, templateVersion: '1', rules: [{ path: 'package.json', strategy: 'merge-package-scripts' }] }));
+  const release = scripts => put('package.json', pretty({ name: 'xirang', scripts }));
+  const sync = () => { const plan = createTemplatePlan({ source, target: f.target }); applyPlan(plan, { runRoot: f.runRoot }); return plan; };
+  release({ ops: 'node infra/scripts/devops-tools/devops-run.js' });
+  sync();
+  f.put('package.json', pretty({ name: 'my-app', scripts: {
+    ops: 'node infra/scripts/devops-tools/devops-run.js',
+    'ship:prod': 'node ./infra/scripts/devops-tools/devops-run.js --action=ship --env=production',
+    vendored: 'node vendor/infra/scripts/devops-tools/devops-run.js',
+  } }));
+  release({ ops: 'node infra/scripts/ops-tools/ops-run.js' });
+  assert.deepEqual(sync().conflicts, []);
+  assert.deepEqual(Object.entries(JSON.parse(f.get('package.json')).scripts), [
+    ['ops', 'node infra/scripts/ops-tools/ops-run.js'],
+    ['ship:prod', 'node ./infra/scripts/ops-tools/ops-run.js --action=ship --env=production'],
+    ['vendored', 'node vendor/infra/scripts/devops-tools/devops-run.js'],
+  ]);
+  assert.equal(createTemplatePlan({ source, target: f.target }).changes.length, 0);
+});

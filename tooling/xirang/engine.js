@@ -64,10 +64,19 @@ function readLock(target) {
   }
   return lock;
 }
+// Baseline files are stored LF, but a core.autocrlf=true checkout rewrites them as CRLF. Accept the exact hash, or
+// the hash of the CRLF->LF form for text (no NUL) content, and return the verified LF text; otherwise null.
+function verifiedText(text, digest) {
+  if (typeof text !== 'string') return null;
+  if (hash(text) === digest) return text;
+  if (text.includes('\0')) return null;
+  const normalized = text.replace(/\r\n/g, '\n');
+  return normalized !== text && hash(normalized) === digest ? normalized : null;
+}
 function baseline(target, record) {
   if (!record) return undefined;
-  const text = read(target, `.xirang/baselines/${record.base}`, true);
-  if (text === null || hash(text) !== record.base) throw new Error(`missing or corrupt baseline: ${record.base}`);
+  const text = verifiedText(read(target, `.xirang/baselines/${record.base}`, true), record.base);
+  if (text === null) throw new Error(`missing or corrupt baseline: ${record.base}`);
   return text;
 }
 function mergeText(base, local, upstream) {
@@ -187,7 +196,9 @@ function decideText(asset, local, base, record, adopt, rawLocal) {
     return yaml.mergeYaml(base, local, upstream, mergeJsonValue);
   }
   if (asset.strategy === 'merge-json') {
-    const localValue = local === null ? undefined : parseJson(local, asset.path), upstreamValue = parseJson(upstream, asset.path);
+    const parsedLocal = local === null ? undefined : parseJson(local, asset.path), upstreamValue = parseJson(upstream, asset.path);
+    // Optional asset hook (e.g. renamed template script paths) migrates project values before the three-way merge.
+    const localValue = parsedLocal !== undefined && asset.transformLocal ? asset.transformLocal(parsedLocal) : parsedLocal;
     if (adopt && base === undefined) return jsonLike(adoptJson(localValue, upstreamValue), localValue);
     const merged = mergeJsonValue(base === undefined ? undefined : parseJson(base, asset.path), localValue, upstreamValue);
     // The project deleted the file and upstream did not change it: keep it deleted instead of writing "undefined".
@@ -375,7 +386,7 @@ function execute(plan, options, recovering) {
       if (entry.strategy === 'project-owned' || entry.strategy === 'remove') continue;
       const digest = hash(entry.upstream), file = safePath(plan.target, `.xirang/baselines/${digest}`, true);
       const existing = read(plan.target, `.xirang/baselines/${digest}`, true);
-      if (existing !== null && hash(existing) !== digest) throw new Error('baseline collision or corruption');
+      if (existing !== null && verifiedText(existing, digest) === null) throw new Error('baseline collision or corruption');
       if (existing === null) atomicWrite(file, entry.upstream);
     }
     // Verify the whole result again before committing the version lock.
@@ -387,7 +398,7 @@ function execute(plan, options, recovering) {
     for (const digest of plan.baselineRemovals || []) {
       const relative = `.xirang/baselines/${digest}`, existing = read(plan.target, relative, true);
       if (existing === null) continue;
-      if (hash(existing) !== digest) throw new Error('retired baseline changed; preserve journal and inspect');
+      if (verifiedText(existing, digest) === null) throw new Error('retired baseline changed; preserve journal and inspect');
       fs.unlinkSync(safePath(plan.target, relative, true));
     }
     journal.status = 'complete'; atomicWrite(journalFile, json(journal), 0o600);
@@ -400,4 +411,4 @@ function resumePlan(target, options = {}) {
   if (fs.realpathSync(journal.plan.target) !== fs.realpathSync(target)) throw new Error('journal target mismatch');
   return execute(journal.plan, options, true);
 }
-module.exports = { planUpdate, applyPlan, resumePlan, readLock, hash, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite, withMutex, validatePlan };
+module.exports = { planUpdate, applyPlan, resumePlan, readLock, hash, verifiedText, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite, withMutex, validatePlan };

@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { read, readLock, parseJson, hash, safePath, json, resumePlan } = require('./engine');
+const { read, readLock, parseJson, verifiedText, safePath, json, resumePlan } = require('./engine');
 const { POINTER, validateDescriptor, resolveSource, containerPath } = require('./source-cache');
 
 function parseArgs(argv) {
@@ -22,7 +22,7 @@ function parseArgs(argv) {
 
 function readRuntimeDescriptor(runtimeRoot) {
   const content = read(runtimeRoot, POINTER), record = readLock(runtimeRoot).files[POINTER];
-  if (!content || !record || record.owner !== 'architecture:runtime' || record.base !== hash(content)) throw new Error('Missing or modified architecture runtime pointer; run template sync --include architecture');
+  if (!content || !record || record.owner !== 'architecture:runtime' || verifiedText(content, record.base) === null) throw new Error('Missing or modified architecture runtime pointer; run template sync --include architecture');
   return validateDescriptor(parseJson(content, POINTER));
 }
 
