@@ -40,6 +40,15 @@
       "enabled": true,
       "command": ""
     },
+    "mutation": {
+      "enabled": false,
+      "command": "",
+      "report": "",
+      "include": [],
+      "minScore": 60,
+      "timeoutSeconds": 1800,
+      "requireAcKill": true
+    },
     "design": {
       "mode": "warn",
       "requiredPriorities": ["P0"],

@@ -194,6 +194,10 @@ test('unified agent CLI routes qa paths and qa run to the business-test entries 
     script: 'infra/scripts/qa-tools/qa-repro.js',
     args: ['--bug', 'BUG-USER-001'],
   });
+  assert.deepEqual(resolveCommand(['qa', 'mutate', 'accept', '--mutant', 'm4']), {
+    script: 'infra/scripts/qa-tools/qa-mutate.js',
+    args: ['accept', '--mutant', 'm4'],
+  });
 
   const lines = [];
   const originalLog = console.log;
@@ -203,7 +207,7 @@ test('unified agent CLI routes qa paths and qa run to the business-test entries 
   } finally {
     console.log = originalLog;
   }
-  assert.match(lines.join('\n'), /qa <plan\|automate\|paths\|run\|verify\|merge\|integrity\|design\|repro>/u);
+  assert.match(lines.join('\n'), /qa <plan\|automate\|paths\|run\|verify\|merge\|integrity\|design\|repro\|mutate>/u);
 });
 
 test('unified agent CLI help points Windows callers at the direct node entry for fragile arguments', () => {

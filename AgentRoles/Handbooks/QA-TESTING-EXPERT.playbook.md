@@ -472,7 +472,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 
 `qa verify` 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=`；上表的业务门禁码出现在 `BUSINESS_BLOCK=` 行，结果块的 `REASON=` 则是下面的流程码。`BLOCKED` 表示前置条件未满足、按 `NEXT_ACTION` 补齐后重跑即可；`FAILED` 表示命令本身没有跑完，先按 `tool_error` 留痕再决定是否重试，不改写命令或更换入口。
 
-前置条件 `QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE` 与 `FAILED` 类错误遇到即停止。前置条件通过后，架构检查、QA 文档（或 `--project` 的 projectChecks）、测试范围证据、业务验收、测试完整性、测试设计与缺陷复现门禁全部执行完再判定：各门禁照常打印明细（`❌` 文档错误、`BUSINESS_BLOCK=` 等），每个阻断另汇总为一行 `QA_VERIFY_BLOCK=<代码>|<摘要>`，排在结果块之前。只有一个阻断时结果块与单门禁一致；多个时 `REASON=` 取第一个（按上述执行顺序），`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 按 `<代码>: <处理>` 以「；」分隔列出。任一阻断都不签发回执。
+前置条件 `QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE` 与 `FAILED` 类错误遇到即停止。前置条件通过后，架构检查、QA 文档（或 `--project` 的 projectChecks）、测试范围证据、业务验收、测试完整性、测试设计、缺陷复现与变异门禁全部执行完再判定：各门禁照常打印明细（`❌` 文档错误、`BUSINESS_BLOCK=` 等），每个阻断另汇总为一行 `QA_VERIFY_BLOCK=<代码>|<摘要>`，排在结果块之前。只有一个阻断时结果块与单门禁一致；多个时 `REASON=` 取第一个（按上述执行顺序），`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 按 `<代码>: <处理>` 以「；」分隔列出。任一阻断都不签发回执。
 
 | 代码 | 状态 | 含义 | 处理 |
 |------|------|------|------|
@@ -490,6 +490,9 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `REPRO_GATE_BLOCKED` | BLOCKED | 缺陷复现门禁未通过，具体原因见 `REPRO_BLOCK=` 行（§缺陷复现门禁） | 为列出的 BUG 运行 `qa repro --bug <ID>` 并修复失败项后重跑 |
 | `REPRO_CONFIG_INVALID` | BLOCKED | `qa.repro` 配置不合法（未知键、类型错误） | 修正 `agent.config.json` 后重跑 `qa verify` |
 | `REPRO_DIFF_UNSUPPORTED` | BLOCKED | base..HEAD 的测试文件改动无法计算摘要（未知改动状态，或 HEAD 中找不到该文件） | 按明细整理提交后重跑 `qa repro` 与 `qa verify` |
+| `MUTATION_GATE_BLOCKED` | BLOCKED | 变异门禁未通过，具体原因见 `MUTATION_BLOCK=` 行（§变异门禁） | 补测试杀死存活变异体，或对等价变异体执行 `qa mutate accept` 并写入任务证据，再重跑 `qa mutate run` 与 `qa verify` |
+| `MUTATION_CONFIG_INVALID` | BLOCKED | `qa.mutation` 配置不合法（未知键、类型或取值非法、`report` 越出仓库） | 修正 `agent.config.json` 后重跑 `qa mutate run` 与 `qa verify` |
+| `MUTATION_DIFF_UNSUPPORTED` | BLOCKED | base..HEAD 的源码改动无法定位（未知改动状态，或 HEAD 中找不到该文件） | 按明细整理提交后重跑 `qa mutate run` 与 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
 | `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
 | `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
@@ -497,6 +500,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `INTEGRITY_GIT_FAILED` | FAILED | 完整性门禁读取 base/head 的 Git 对象失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `DESIGN_GIT_FAILED` | FAILED | 设计门禁读取 base/head 的提交或设计文件失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `REPRO_GIT_FAILED` | FAILED | 复现门禁读取 base/head 的设计文件或测试文件改动失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
+| `MUTATION_GIT_FAILED` | FAILED | 变异门禁读取 base/head 的源码改动或设计文件失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
 
 `qa plan` 的结果块同形，`REASON=` 取 `PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`（逐项 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`，补齐或移除对应 `docs/arch-modules/<domain>/ARCH.md`、`docs/task-modules/<domain>/TASK.md`）或 `UNEXPECTED_ERROR`。
@@ -579,10 +583,10 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 
 变异测试回答「这些测试能不能抓到错」：
 
-1. 只对本次变更涉及的源码文件生成变异体（项目已有的变异工具，或手工改写关键条件、边界与返回值）。
-2. 运行绑定 P0 规则的测试：每个 P0 规则至少有一个测试能杀死相关变异体。
-3. 存活的变异体逐个判断：是等价变异体就记录理由；否则补反例或断言，直到被杀死。
-4. 在 QA 证据中记录变异体数量、被杀数量、存活清单与处理结论。
+1. 只对本次变更涉及的源码文件生成变异体：启用 `qa.mutation` 后由 `qa mutate run` 调用项目的变异工具（如 Stryker），输出 mutation-testing-report-schema JSON。
+2. 绑定 P0 规则、AC 或 TC 的测试必须杀死变异体：覆盖了变更代码的 P0 测试，每个至少杀死一个。
+3. 存活的变异体逐个判断：是等价变异体就用 `qa mutate accept` 记录理由；否则补反例或断言，直到被杀死。
+4. 分数、存活清单与豁免由门禁输出并写入回执，不靠手工记录；门禁见 §变异门禁。未启用时只能手工改写关键条件、边界与返回值验证，并在报告中披露为风险。
 
 ### 缺陷复现
 
@@ -681,6 +685,42 @@ pnpm agent -- qa repro --bug <BUG-ID> [--base <ref>]   # --base 缺省取 origin
 - **配置**：`qa.repro.enabled` 默认 `true`，`command` 默认空（无新增 BUG 行时不阻断）；未知键 `REPRO_CONFIG_INVALID` fail-closed。
 - **局限**：只证明绑定用例在缺陷版本上失败；base 侧报错只记风险，复现的是不是同一个缺陷仍由评审确认。
 
+### 变异门禁（qa mutate）
+
+默认关闭；`qa.mutation.enabled=true` 时 `qa verify` 在复现门禁之后只读变异结果、不重跑，模板源输出 `MUTATION_GATE=SKIPPED`，关闭时输出 `MUTATION_GATE=DISABLED`。
+
+```bash
+pnpm agent -- qa mutate run [--base <ref>]                                  # --base 缺省取 origin/<base> 与 HEAD 的 merge-base
+pnpm agent -- qa mutate accept --mutant <id> --reason "<理由>" [--base <ref>]  # 等价变异体豁免，输出 MUTATION_ACCEPT= 行
+```
+
+- **变异范围**：base..HEAD 中新增或修改（D 跳过）且匹配 `qa.mutation.include` 的文件；`include` 为空时取 `qa.design.sourceGlobs`，命中 `qa.integrity.testGlobs` 的测试文件不参与。没有可变异文件时直接 `PASS`。
+- **执行**：工作区须干净，最后一次提交之后运行，单次上限 `timeoutSeconds`（默认 1800 秒，超时终止）。命令契约：环境变量 `XIRANG_MUTATE_FILES`（逗号分隔）、`XIRANG_MUTATE_BASE`（base SHA）与 `XIRANG_MUTATE_REPORT`；命令须把 mutation-testing-report-schema JSON 写到 `$XIRANG_MUTATE_REPORT`，配置了 `qa.mutation.report`（仓库内相对路径）时改写到该路径。报告上限 64MB，结论只以报告为准，退出码非零只记风险。
+- **结果**：报告副本与结果写入容器 `tmp/qa-mutate/<worktree>/`，绑定 base/head SHA、变更文件摘要（含 HEAD 侧 blob）、配置摘要（`command`、`report`、`include`、`timeoutSeconds`）与报告 sha256；输出 `MUTATION_RESULT_FILE=`、`MUTATION_REPORT_FILE=`。只改 `minScore` 或 `requireAcKill` 不使结果失效。
+- **分数**：`Killed + Timeout` ÷ `总数 − CompileError − RuntimeError − Ignored − 已豁免`，只统计变更文件的变异体；低于 `minScore`（默认 60）阻断。
+- **P0 判定**（`requireAcKill`，默认 `true`）：测试名含必需优先级（`qa.design.requiredPriorities`）的 RUL、关联 ADV、AC 或其 TC 标识即为 P0 测试。报告带 `coveredBy` 时，覆盖了变更代码的每个 P0 测试都要出现在被杀变异体的 `killedBy` 中；不带时记风险，并要求 P0 测试合计至少杀死一个变异体。
+- **豁免**：只有 `Survived` 与 `NoCoverage` 可豁免。把 `accept` 输出的 `MUTATION_ACCEPT=` 行原样写进当前任务 checkpoint 的 `--evidence` 后生效；豁免绑定变异体的文件、变异算子、替换内容、位置与源码 blob，源码再改即失效。被豁免的变异体不计入分母，也不再列为存活。
+
+| 代码 | 出处 | 级别 | 含义 | 处理 |
+|------|------|------|------|------|
+| `MUTATION_RESULT_MISSING` / `MUTATION_RESULT_INVALID` | verify | 阻断 | 没有结果，或结果无法解析、字段不合法 | 不手改结果，重跑 `qa mutate run` |
+| `MUTATION_RESULT_STALE` | verify | 阻断 | base/head SHA、配置摘要或变更文件摘要已变化 | 最后一次提交后重跑 `qa mutate run` |
+| `MUTATION_RESULT_TAMPERED` | verify | 阻断 | 报告副本缺失或 sha256 与结果不符 | 重跑 `qa mutate run` |
+| `MUTATION_REPORT_EMPTY` | verify | 阻断 | 报告不含任何变更文件的变异体 | 修正命令对 `$XIRANG_MUTATE_FILES` 的过滤 |
+| `MUTATION_SCORE_LOW` | verify | 阻断 | 分数低于 `minScore` | 补反例或断言杀死存活变异体；等价变异体走豁免 |
+| `MUTATION_P0_NO_KILL` | verify | 阻断 | P0 测试没有杀死任何变异体 | 为该规则补能区分错误实现的断言 |
+| `MUTATION_REPORT_PARTIAL` / `MUTATION_NO_MUTANTS` | verify | 风险 | 部分变更文件无变异体；没有可计分的变异体 | 核对变异工具的文件范围与算子配置 |
+| `MUTATION_COVERAGE_UNKNOWN` / `MUTATION_P0_UNBOUND` | verify | 风险 | 报告无 `coveredBy`，P0 只能合计判定；没有覆盖变更代码的 P0 测试 | 开启工具的逐测试覆盖；补绑定 P0 的用例 |
+| `MUTATION_ACCEPT_INVALID` / `MUTATION_ACCEPT_STALE` | 两者 | CLI 阻断 / verify 风险 | 豁免对象不存在或不可豁免、证据无法解析；豁免都不匹配当前结果 | 从 `MUTATION_SURVIVOR=` 行重新选择并生成豁免 |
+| `MUTATION_COMMAND_EXIT` | verify | 风险 | 变异命令非零退出，报告仍有效 | 复核命令日志 |
+| `MUTATION_DISABLED` / `MUTATION_COMMAND_MISSING` / `MUTATION_WORKTREE_DIRTY` | CLI | 阻断 | 未启用；未配置命令；工作区不干净 | 启用并配置命令；提交后重跑 |
+| `MUTATION_TIMEOUT` / `MUTATION_REPORT_MISSING` / `MUTATION_REPORT_INVALID` | CLI | 阻断 | 超时；未写出报告；报告不是普通文件、超过上限或不符合 schema | 缩小范围或调大超时；修正报告输出 |
+| `MUTATION_COMMAND_FAILED` / `INTERRUPTED` | CLI | FAILED | 命令无法启动；运行中被中断，未写入结果 | 核实后重跑 |
+
+- **输出**：`MUTATION_GATE=PASS|PASS_WITH_RISK|BLOCKED|DISABLED|SKIPPED`、`MUTATION_FILES`、`MUTATION_SCORE`（无可计分变异体时为 `NA`）、`MUTATION_KILLED`、`MUTATION_VALID`、`MUTATION_ACCEPTED`、`MUTATION_P0_TESTS=<杀死变异体的 P0 测试>/<参与判定的 P0 测试>`，逐条 `MUTATION_SURVIVOR=<id>|<文件>:<行>|<算子>`、`MUTATION_BLOCK=` / `MUTATION_RISK=`（各最多 60 行，超出输出 `*_TRUNCATED=`）；摘要写入回执 `mutation` 字段。
+- **配置**：`enabled`（默认 `false`）、`command`、`report`、`include`、`minScore`（0–100）、`timeoutSeconds`、`requireAcKill`；未知键或取值非法 `MUTATION_CONFIG_INVALID` fail-closed。
+- **局限**：分数只反映所选变异算子；等价变异体由人判断并留痕，豁免理由须经评审。
+
 ---
 
 ## 测试策略与覆盖
@@ -709,6 +749,8 @@ pnpm agent -- qa verify --no-module --reason "<理由>"   # 确实不涉及 QA �
 pnpm agent -- qa integrity check        # 测试完整性预检（qa verify 也会执行）
 pnpm agent -- qa integrity waive --path <file> --code <code> --reason "<理由>"  # 生成豁免行，写入任务证据
 pnpm agent -- qa repro --bug <BUG-ID>   # 缺陷复现：base 失败、HEAD 通过（qa verify 只读结果）
+pnpm agent -- qa mutate run             # 变异门禁：只变异变更源码（qa.mutation.enabled=true，qa verify 只读结果）
+pnpm agent -- qa mutate accept --mutant <id> --reason "<理由>"  # 等价变异体豁免行，写入任务证据
 
 # 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
 pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步骤、专家与章节（只读）

@@ -47,7 +47,7 @@ QA 专家在实际项目里沿代码路径写测试，再自报完成，测试�
 | 完整性 | `qa integrity` | 对 base..HEAD 的测试文件比对：新增 skip/only/todo 阻断，删除测试、用例数或断言数下降须有豁免证据；绑定 P0 的用例 skipped 阻断。同时收紧现有门禁：只按 JUnit `name` 绑定、AC 的全部绑定用例通过才算通过、自闭合用例不计通过、未声明覆盖准则阻断、`qa verify` 找不到目标 fail-closed、TEST_SCOPE 证据须引用 `task exec` 日志摘要。模板源同样执行 |
 | 测试设计 | `qa design context/check/amend` | 解析三张表；P0 规则须有通过的用例与五维反例；设计提交须早于第一个源码提交；已有行的陈述或预期被改须有 amend 证据。提供只接收规格材料包、无文件读取工具的设计与红队子代理；没有子代理的执行器退化为提交时序约束，报告 `DESIGN_ISOLATION=subagent|commit-order` |
 | 重复与复现 | `qa run --repeat N`、`qa repro --bug <ID>` | 同一用例 N 次结果须一致，P0 不一致即阻断；在临时 detached worktree 中用 base 实现跑新测试须失败、HEAD 须通过 |
-| 变异 | `qa mutate run/accept` | 只对变更文件跑项目配置的变异命令，解析 mutation-testing-report-schema；分数低于阈值或绑定 P0 的用例一个变异体都没杀死即阻断；默认关闭 |
+| 变异 | `qa mutate run/accept` | 只对变更文件跑项目配置的变异命令，解析 mutation-testing-report-schema；分数低于阈值或绑定 P0 的用例一个变异体都没杀死即阻断；等价变异体经 `accept` 写入任务证据豁免，源码变化即失效；结果绑定 base/head、配置与报告摘要，`qa verify` 只读不重跑；默认关闭 |
 
 “三道过滤”对应：套件可运行 → 重复 N 次结果一致 → 变异击杀（未启用变异时只把覆盖率增量记为风险）。
 
