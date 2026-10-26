@@ -6,6 +6,18 @@
 
 - **破坏性**：新增 qa design 测试设计门禁与零工具盲测子代理，qa verify 输出 DESIGN_* 并写回执 design（默认 warn，ADR-041）。
 
+## [v3.13.3] - 2026-10-26
+
+- 修复 Windows 全量测试：qa run 按进程树终止并回收竞态孤儿、插件打包改用 tar.exe、测试兼容 CRLF 与 cmd 变量展开。
+
+## [v3.13.2] - 2026-10-26
+
+- 修复官方源 3 个 Windows 测试失败：存储目录不再因无 POSIX 权限位误拒，release 切换在 Windows 明确拒绝。
+
+## [v3.13.1] - 2026-10-26
+
+- 修复 Windows CRLF 检出下 contracts `generate.mjs --check` 误报漂移，仅换行差异不再视为生成漂移。
+
 ## [v3.13.0] - 2026-10-26
 
 - **破坏性**：新增 qa integrity 测试完整性门禁并收紧 qa verify/业务门禁，移除 --skip-checks（ADR-041，存量可先设 integrity warn）。

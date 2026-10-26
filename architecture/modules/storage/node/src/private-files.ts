@@ -9,7 +9,8 @@ export async function privateDirectory(directory:string):Promise<string>{
   const root=path.resolve(directory);if(root===path.parse(root).root)throw new StorageError('CONFIGURATION','Root directory is not a storage directory');
   const parts=root.slice(path.parse(root).root.length).split(path.sep);let current=path.parse(root).root;
   for(const part of parts){current=path.join(current,part);try{const stat=await fs.lstat(current);if(stat.isSymbolicLink()||!stat.isDirectory())throw new StorageError('CONFIGURATION','Storage path contains a link or non-directory');}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;await fs.mkdir(current,{mode:0o700});}}
-  const stat=await fs.stat(root);if((stat.mode&0o077)!==0)throw new StorageError('CONFIGURATION','Storage directory must have private permissions (0700)');
+  // Windows has no POSIX mode bits (stat.mode always reports group/other access); privacy there is governed by ACLs.
+  const stat=await fs.stat(root);if(process.platform!=='win32'&&(stat.mode&0o077)!==0)throw new StorageError('CONFIGURATION','Storage directory must have private permissions (0700)');
   return root;
 }
 export async function readPrivate(file:string):Promise<string>{

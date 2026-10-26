@@ -5,8 +5,10 @@ import { pathToFileURL } from 'node:url';
 
 // The caller starts the release's process and provides its health URL.
 // This helper only switches a release pointer; it does not deploy or restart services.
-export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl = fetch, attempts = 10, delayMs = 1000 } = {}) {
+export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl = fetch, attempts = 10, delayMs = 1000, platform = process.platform } = {}) {
   if (!releaseArg || !currentArg || !health) throw new Error('release-dir, current-link and health-url required');
+  // Windows cannot rename over an existing symlink, so the swap would not be atomic; refuse before locking or touching the link.
+  if (platform === 'win32') throw new Error('Release switching requires POSIX atomic symlink replacement; run it on the Linux release host');
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 100 || !Number.isFinite(delayMs) || delayMs < 0) throw new Error('Invalid health check options');
   const release = fs.realpathSync(releaseArg);
   const requested = path.resolve(currentArg);

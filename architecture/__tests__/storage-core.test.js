@@ -28,6 +28,13 @@ test('interrupted completion requires an expired lease, CAS recovery and explici
  assert.throws(()=>runStorageExtension(provider,'image.resize',{}),e=>e.code==='UNSUPPORTED');const extension={...provider,capabilities:{...provider.capabilities,extensions:['image.resize']},extension:async(name,input)=>({name,input})};assert.deepEqual(await runStorageExtension(extension,'image.resize',{width:10}),{name:'image.resize',input:{width:10}});assert.throws(()=>runStorageExtension(extension,'image.resize','x'.repeat(70000)),e=>e.code==='INVALID_INPUT');
  now+=1000000;const expired=await service.createUpload('alice',{name:'expiry',size:0,contentType:'text/plain'});now+=1000000;await assert.rejects(service.complete('alice',expired.file.id),e=>e.code==='EXPIRED');await service.cancel('alice',expired.file.id);
 });
+test('storage directory privacy: POSIX rejects group/world access, Windows relies on ACLs instead of mode bits',async t=>{
+  const {createLocalProvider,StorageError}=await core();const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'xirang-storage-mode-')));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const shared=path.join(root,'shared');await fs.mkdir(shared);await fs.chmod(shared,0o755);
+  // Windows 不提供 POSIX 权限位（stat.mode 恒含 group/other 位），私有性由 ACL 承担，不能据 mode 拒绝。
+  if(process.platform==='win32')assert.equal(typeof (await createLocalProvider({directory:shared})).put,'function');
+  else await assert.rejects(()=>createLocalProvider({directory:shared}),e=>e instanceof StorageError&&/0700/.test(e.message));
+});
 test('storage source module loads as declared ESM without module-type reparsing',()=>{
   const {spawnSync}=require('node:child_process'),path=require('node:path');
   const entry=path.join(__dirname,'../modules/storage/node/src/index.ts');

@@ -147,7 +147,9 @@ test('安全——环境变量的值不进入输出、结果与报告副本；�
   const env = { BIZ_PROBE: probe };
 
   const web = s.suite('web', { platform: 'web', cases: WEB_CASES });
-  web.command += ' "$BIZ_PROBE"';
+  // 套件经平台默认 shell 执行：POSIX 为 sh（$VAR），Windows 为 cmd.exe（%VAR%）。
+  const probeRef = process.platform === 'win32' ? '"%BIZ_PROBE%"' : '"$BIZ_PROBE"';
+  web.command += ` ${probeRef}`;
   const ios = s.suite('ios', { platform: 'ios', cases: IOS_CASES });
   const run = readyWith(s, [web, ios], {}, { env });
   assert.equal(run.status, 0, output(run));
@@ -160,7 +162,7 @@ test('安全——环境变量的值不进入输出、结果与报告副本；�
 
   // 但变量的值不会出现在任何输出、结果或副本里；结果只按配置原样记录命令文本。
   const results = JSON.parse(fs.readFileSync(s.resultsFile, 'utf8'));
-  assert.ok(results.suites.find((suite) => suite.name === 'web').command.endsWith('"$BIZ_PROBE"'));
+  assert.ok(results.suites.find((suite) => suite.name === 'web').command.endsWith(probeRef));
   const everything = [
     run.stdout, run.stderr, verify.stdout, verify.stderr,
     ...filesUnder(s.project.tmp).map((file) => fs.readFileSync(file, 'utf8')),
