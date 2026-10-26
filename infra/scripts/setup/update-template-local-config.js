@@ -123,6 +123,53 @@ function reportProjectEnvironmentFiles(result) {
   reportEnvironmentFiles(result.files);
 }
 
+const AGENT_CONFIG_RELATIVE = 'agent.config.json';
+
+// Template 3.12 renamed the DEVOPS phase to OPS. Rename the legacy `devops` config key in place
+// (same key position) and drop the retired `features.devopsDeploy` flag. The environment variable
+// AGENT_DEVOPS_DEPLOY_ENABLED is outside this file and is not handled here.
+function migrateLegacyAgentConfig(targetRoot, write) {
+  const configPath = path.join(targetRoot, AGENT_CONFIG_RELATIVE);
+  if (!lstatIfPresent(configPath)) return { status: 'unchanged', changes: [] };
+  const content = fs.readFileSync(configPath, 'utf8');
+  let config;
+  try { config = JSON.parse(content.replace(/^\uFEFF/u, '')); }
+  catch (error) { throw new Error(`${AGENT_CONFIG_RELATIVE} is not valid JSON: ${error.message}`); }
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(`${AGENT_CONFIG_RELATIVE} must contain a JSON object`);
+  }
+  const hasDevops = Object.prototype.hasOwnProperty.call(config, 'devops');
+  if (hasDevops && Object.prototype.hasOwnProperty.call(config, 'ops')) {
+    throw new Error(`${AGENT_CONFIG_RELATIVE} defines both legacy devops and ops; merge them manually`);
+  }
+
+  const changes = [];
+  let next = config;
+  if (hasDevops) {
+    next = Object.fromEntries(Object.entries(next).map(([key, value]) => [key === 'devops' ? 'ops' : key, value]));
+    changes.push('devops->ops');
+  }
+  const features = next.features;
+  if (features && typeof features === 'object' && !Array.isArray(features)
+    && Object.prototype.hasOwnProperty.call(features, 'devopsDeploy')) {
+    const { devopsDeploy, ...rest } = features;
+    changes.push('features.devopsDeploy removed');
+    if (Object.keys(rest).length) next = { ...next, features: rest };
+    else {
+      next = Object.fromEntries(Object.entries(next).filter(([key]) => key !== 'features'));
+      changes.push('features removed (empty)');
+    }
+  }
+  if (!changes.length) return { status: 'unchanged', changes };
+  if (write) fs.writeFileSync(configPath, `${JSON.stringify(next, null, 2)}\n`);
+  return { status: 'migrated', changes };
+}
+
+function reportAgentConfigMigration(result) {
+  console.log(`AGENT_CONFIG_MIGRATION=${result.status}`);
+  if (result.changes.length) console.log(`AGENT_CONFIG_MIGRATION_CHANGES=${result.changes.join(',')}`);
+}
+
 const CODEX_CONFIG_RELATIVE = '.codex/config.toml';
 const CODEX_COMPACTION_DEFAULTS = Object.freeze({
   model_auto_compact_token_limit: '180000',
@@ -248,11 +295,14 @@ function reportCodexConfig(result) {
 }
 
 module.exports = {
+  AGENT_CONFIG_RELATIVE,
   CODEX_CONFIG_RELATIVE,
   ENVIRONMENT_FILE_PAIRS,
   initializeCodexConfig,
   initializeEnvironmentFiles,
   initializeProjectEnvironmentFiles,
+  migrateLegacyAgentConfig,
+  reportAgentConfigMigration,
   reportCodexConfig,
   reportProjectEnvironmentFiles,
 };

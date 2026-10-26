@@ -19,7 +19,11 @@ function run(command, args, options = {}) {
     stdio: 'pipe',
     env: { ...process.env, ...(options.env || {}) },
     shell: false,
+    // The 1MB spawnSync default truncates large Git/engine output with ENOBUFS.
+    maxBuffer: 64 * 1024 * 1024,
   });
+  // A missing executable or buffer overflow leaves status null; never report it as an ordinary failure.
+  if (result.error) throw new Error(`${command} failed to run: ${result.error.message}`);
   return {
     status: result.status,
     stdout: result.stdout || '',
@@ -29,6 +33,8 @@ function run(command, args, options = {}) {
 }
 
 function isGitWorktree(targetRoot) {
+  // A missing directory is "not a worktree", not a spawn failure.
+  if (targetRoot && !fs.existsSync(targetRoot)) return false;
   const result = run('git', ['rev-parse', '--is-inside-work-tree'], { cwd: targetRoot });
   return result.status === 0 && result.stdout.trim() === 'true';
 }
