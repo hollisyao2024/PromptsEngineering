@@ -98,16 +98,18 @@ test('绑定用例只有跳过时同样不算通过', (t) => {
   assert.match(unproven[0].detail, /^P0 skipped: .*web/u);
 });
 
-test('报告有效、套件退出码非零但 AC 全部通过时放行并披露（不以退出码单独阻断）', (t) => {
+test('套件退出码非零而报告中没有失败用例时阻断：退出码无法由报告解释，套件不可信', (t) => {
   const s = scenarioFor(t);
   prepare(s, { webCode: 3 });
   const outcome = evaluate(s);
 
-  assert.equal(outcome.status, 'PASS', show(outcome));
-  assert.deepEqual(codesOf(outcome.risks), ['RISK_MANUAL_AC', 'RISK_SUITE_EXIT_NONZERO']);
-  const risk = outcome.risks.find((item) => item.code === 'RISK_SUITE_EXIT_NONZERO');
-  assert.match(risk.detail, /web/u);
-  assert.match(risk.detail, /3/u);
+  assert.equal(outcome.status, 'BLOCKED', show(outcome));
+  // 不可信套件短路后续判定：不再给出 AC 或路径结论，也不附带风险披露。
+  assert.deepEqual(codesOf(outcome.blocks), ['SUITE_EXIT_UNEXPLAINED']);
+  assert.equal(outcome.blocks[0].subject, 'web');
+  assert.match(outcome.blocks[0].detail, /3/u);
+  assert.match(outcome.nextAction, /\S/u);
+  assert.ok(formatBusinessGate(outcome).some((line) => line.startsWith('BUSINESS_BLOCK=SUITE_EXIT_UNEXPLAINED|web|')));
 });
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,12 @@ const {
 const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolchain-env');
 const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
 const { verifyTestScopeEvidence } = require('./qa-test-scope');
+const {
+  collectWaiverRecords,
+  evaluateIntegrity,
+  integrityLines,
+  resolveIntegrityConfig,
+} = require('./qa-integrity');
 const { verifyBusinessAcceptance } = require('./qa-business-gate');
 const { parsePrdStories } = require('./business-spec');
 const { exitOnHelp } = require('../shared/cli-help');
@@ -84,9 +90,25 @@ function parseModuleList(raw) {
     .filter(Boolean);
 }
 
+function argsError(message) {
+  const error = new Error(message);
+  error.code = 'QA_ARGS_INVALID';
+  return error;
+}
+
+// 取 `--reason <text>` 的值：缺值、下一个参数是选项或只有空白都视为没有提供理由。
+function reasonValue(value) {
+  if (typeof value !== 'string' || value.startsWith('--') || !value.trim()) return null;
+  return value.trim();
+}
+
 function parseArgs(argv) {
   let scope = 'session';
   let writeReports = false;
+  let noModule = false;
+  let reasonGiven = false;
+  let noModuleReason = null;
+  let explicitModules = false;
   const moduleSet = new Set(
     parseModuleList(process.env.QA_SESSION_MODULES || process.env.QA_MODULES || '')
   );
@@ -108,20 +130,39 @@ function parseArgs(argv) {
     }
     if (arg === '--modules' && argv[i + 1]) {
       parseModuleList(argv[i + 1]).forEach((moduleDir) => moduleSet.add(moduleDir));
+      explicitModules = true;
       i += 1;
       continue;
     }
     if (arg.startsWith('--modules=')) {
       parseModuleList(arg.slice('--modules='.length)).forEach((moduleDir) => moduleSet.add(moduleDir));
+      explicitModules = true;
       continue;
     }
     if (arg === '--module' && argv[i + 1]) {
       parseModuleList(argv[i + 1]).forEach((moduleDir) => moduleSet.add(moduleDir));
+      explicitModules = true;
       i += 1;
       continue;
     }
     if (arg.startsWith('--module=')) {
       parseModuleList(arg.slice('--module='.length)).forEach((moduleDir) => moduleSet.add(moduleDir));
+      explicitModules = true;
+      continue;
+    }
+    if (arg === '--no-module') {
+      noModule = true;
+      continue;
+    }
+    if (arg === '--reason') {
+      reasonGiven = true;
+      noModuleReason = reasonValue(argv[i + 1]);
+      if (typeof argv[i + 1] === 'string' && !argv[i + 1].startsWith('--')) i += 1;
+      continue;
+    }
+    if (arg.startsWith('--reason=')) {
+      reasonGiven = true;
+      noModuleReason = reasonValue(arg.slice('--reason='.length));
       continue;
     }
     if (arg === '--write-reports') {
@@ -130,10 +171,18 @@ function parseArgs(argv) {
     }
   }
 
+  // --no-module 是“本次确实不涉及 QA 模块”的显式声明：必须带理由，且不能与命令行指定的模块同用。
+  // 环境变量里的模块不算冲突：它们来自会话状态，声明只在找不到目标时才生效。
+  if (noModule && !noModuleReason) throw argsError('--no-module 必须同时提供 --reason <理由>');
+  if (reasonGiven && !noModule) throw argsError('--reason 只能与 --no-module 同用');
+  if (noModule && explicitModules) throw argsError('--no-module 不能与 --module/--modules 同用');
+
   return {
     scope: scope === 'project' ? 'project' : 'session',
     modules: Array.from(moduleSet),
     writeReports,
+    noModule,
+    noModuleReason,
   };
 }
 
@@ -195,14 +244,21 @@ const QA_VERIFY_BLOCKED_NEXT_ACTION = {
   BUSINESS_GATE_BLOCKED: '按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
   ARCHITECTURE_PACKAGE_MISSING: '执行 pnpm agent -- template sync --include architecture 安装架构包后重跑 pnpm agent -- qa verify',
   ARCHITECTURE_CHECK_FAILED: '执行 pnpm agent -- architecture check 并修复列出的失败项后重跑 pnpm agent -- qa verify',
+  QA_ARGS_INVALID: '按用法修正参数后重跑 pnpm agent -- qa verify（--no-module 必须同时提供 --reason，且不能与 --module 同用）',
+  QA_TARGET_MISSING: '用 --module <name> 指定 QA 目标，或用 --no-module --reason <理由> 显式声明本次不涉及 QA 模块后重跑 pnpm agent -- qa verify',
+  TEST_INTEGRITY_BLOCKED: '按 TEST_INTEGRITY_BLOCK 行修复，或对可豁免项执行 pnpm agent -- qa integrity waive 并写入任务证据后重跑 pnpm agent -- qa verify',
+  INTEGRITY_CONFIG_INVALID: '修正 agent.config.json 中 qa.integrity 的配置后重跑 pnpm agent -- qa verify',
 };
 const QA_VERIFY_FAILED_NEXT_ACTION = {
   QA_FETCH_FAILED: '核实网络、代理与 GH_TOKEN 后重试 pnpm agent -- qa verify；按 tool_error 留痕，不改写命令或更换入口',
+  INTEGRITY_GIT_FAILED: '核实 BASE_SHA/HEAD_SHA 在本地仓库可读后重试 pnpm agent -- qa verify；按 tool_error 留痕',
 };
 
 const QA_VERIFY_BLOCKED_SUMMARY = {
   QA_VERDICT_NO_GO: 'QA 验收检查存在错误，回执未签发',
   BUSINESS_GATE_BLOCKED: '业务验收门禁未通过，回执未签发',
+  QA_TARGET_MISSING: '未识别到当前会话 QA 目标，回执未签发',
+  TEST_INTEGRITY_BLOCKED: '测试完整性门禁未通过，回执未签发',
 };
 
 // 门禁阻断 { reason, summary? } → 单条阻断时与改造前的结果块逐字一致；多条时 REASON 取第一条（按门禁执行顺序），
@@ -602,14 +658,17 @@ function printSessionSummary(targets, results) {
   });
 }
 
+// 裁决只有三态：有错误即 BLOCKED；只有警告为 PASS_WITH_RISK（放行但披露风险）；二者皆无为 PASS。
 function calculateVerdict(results) {
   const errorCount = results.reduce((sum, item) => sum + item.errors.length, 0);
   const warningCount = results.reduce((sum, item) => sum + item.warnings.length, 0);
 
-  if (errorCount > 0) return { verdict: 'No-Go', errorCount, warningCount, exitCode: 1 };
-  if (warningCount > 0) return { verdict: 'Conditional', errorCount, warningCount, exitCode: 0 };
-  return { verdict: 'Go', errorCount, warningCount, exitCode: 0 };
+  if (errorCount > 0) return { verdict: 'BLOCKED', errorCount, warningCount, exitCode: 1 };
+  if (warningCount > 0) return { verdict: 'PASS_WITH_RISK', errorCount, warningCount, exitCode: 0 };
+  return { verdict: 'PASS', errorCount, warningCount, exitCode: 0 };
 }
+
+const VERDICT_COLORS = { BLOCKED: 'red', PASS_WITH_RISK: 'yellow', PASS: 'green' };
 
 const BASE_PROJECT_CHECKS = Object.freeze([
   { name: 'qa:lint', required: true },
@@ -675,12 +734,12 @@ function runProjectVerify(args, config = loadConfig({ repoRoot })) {
   }
 
   if (requiredFailed) {
-    log('\n发布建议: ❌ No-Go', 'red');
-    return 1;
+    log('\n项目检查结论: BLOCKED（必需检查失败）', 'red');
+    return { exitCode: 1, risk: false, noModuleReason: null, blocker: 'QA_VERDICT_NO_GO' };
   }
 
-  log('\n发布建议: ✅ Go / ⚠️ Conditional（请结合覆盖率报告）', 'green');
-  return 0;
+  log('\n项目检查结论: 必需检查全部通过（覆盖率报告只作辅助参考）', 'green');
+  return { exitCode: 0, risk: false, noModuleReason: null, blocker: null };
 }
 
 function createPnpmRunInvocation(scriptName, options = {}) {
@@ -701,20 +760,29 @@ function createPnpmRunInvocation(scriptName, options = {}) {
   );
 }
 
+// 返回 { exitCode, risk, noModuleReason, blocker }：blocker 是阻断码（无阻断为 null），risk 表示放行但须披露风险。
+// 找不到会话目标不再按 no-op 放行：只有显式 --no-module --reason 才放行并记为风险，否则以 QA_TARGET_MISSING 阻断。
 function runSessionVerify(args) {
   log('🧭 作用域：session（仅会话相关 QA 变更）', 'cyan');
 
   const moduleEntries = buildModuleEntries();
-  if (moduleEntries.length === 0) {
+  if (moduleEntries.length === 0 && !args.noModule) {
     log('❌ 未找到模块目录（docs/prd-modules/*/PRD.md 或 docs/qa-modules/*/QA.md）', 'red');
-    return 1;
+    return { exitCode: 1, risk: false, noModuleReason: null, blocker: 'QA_VERDICT_NO_GO' };
   }
 
-  const targets = resolveSessionTargets(args, moduleEntries);
+  const targets = moduleEntries.length === 0 ? null : resolveSessionTargets(args, moduleEntries);
   if (!targets || targets.files.length === 0) {
-    log('ℹ️ 未识别到当前会话 QA 目标（no-op）。', 'yellow');
-    return 0;
+    if (args.noModule) {
+      log('⚠️ 未识别到当前会话 QA 目标；已按 --no-module 声明放行，记为风险。', 'yellow');
+      log('QA_TARGETS=NONE', 'gray');
+      log(`QA_NO_MODULE_REASON=${oneLine(args.noModuleReason)}`, 'yellow');
+      return { exitCode: 0, risk: true, noModuleReason: args.noModuleReason, blocker: null };
+    }
+    log('❌ 未识别到当前会话 QA 目标；用 --module <name> 指定，或用 --no-module --reason <理由> 显式声明。', 'red');
+    return { exitCode: 1, risk: false, noModuleReason: null, blocker: 'QA_TARGET_MISSING' };
   }
+  if (args.noModule) log('ℹ️ 已识别到会话 QA 目标，忽略 --no-module 声明。', 'gray');
 
   const results = targets.files.map((file) => validateQaFile(file));
   printSessionSummary(targets, results);
@@ -723,13 +791,15 @@ function runSessionVerify(args) {
   log('\n============================================================', 'cyan');
   log('QA Verify 汇总', 'cyan');
   log('============================================================', 'cyan');
-  log(
-    `结论: ${summary.verdict}`,
-    summary.verdict === 'No-Go' ? 'red' : summary.verdict === 'Conditional' ? 'yellow' : 'green'
-  );
+  log(`结论: ${summary.verdict}`, VERDICT_COLORS[summary.verdict]);
   log(`错误: ${summary.errorCount} | 警告: ${summary.warningCount}`, 'gray');
 
-  return summary.exitCode;
+  return {
+    exitCode: summary.exitCode,
+    risk: summary.verdict === 'PASS_WITH_RISK',
+    noModuleReason: null,
+    blocker: summary.exitCode === 0 ? null : 'QA_VERDICT_NO_GO',
+  };
 }
 
 // 业务验收门禁：qa.business 启用时复验 `qa run` 写出的结果。
@@ -764,6 +834,24 @@ function collectGateError(blockers, error) {
   blockers.push({ reason: error.code, summary: error.message });
 }
 
+// 测试完整性门禁：对 BASE_SHA..HEAD_SHA 的测试文件 diff 判定（模板源同样执行）。
+// 豁免只读当前唯一匹配任务证据中的 TEST_INTEGRITY_WAIVER= 行；返回 { blocked, risk }。
+function checkIntegrityGate({ config, receipt }) {
+  const integrity = resolveIntegrityConfig(config);
+  const { records } = collectWaiverRecords(repoRoot);
+  const result = evaluateIntegrity({
+    cwd: repoRoot,
+    baseSha: receipt.base_sha,
+    headSha: receipt.head_sha,
+    integrity,
+    waiverRecords: records,
+  });
+  for (const line of integrityLines(result)) {
+    log(line, line.startsWith('TEST_INTEGRITY_BLOCK=') ? 'red' : line.startsWith('TEST_INTEGRITY_RISK=') ? 'yellow' : 'gray');
+  }
+  return { blocked: result.status === 'BLOCKED', risk: result.risks.length > 0 };
+}
+
 // 执行分两段：
 // 1. 前置条件，失败即立即退出——后续门禁没有可信的判定对象：配置加载失败、不在功能分支（QA_BRANCH_REQUIRED）、
 //    fetch 失败（QA_FETCH_FAILED）、本地 HEAD 与远端分支不一致（HEAD_NOT_PUSHED）、功能分支落后配置主干
@@ -772,11 +860,11 @@ function collectGateError(blockers, error) {
 //    每个门禁照常打印自己的明细行（❌ 文档错误、BUSINESS_BLOCK= 等），阻断另汇总为 QA_VERIFY_BLOCK=<code>|<summary>；
 //    任一阻断即不签发回执。
 function main() {
-  const args = parseArgs(process.argv.slice(2));
-
   const config = loadConfig({ repoRoot });
   const mainRoot = getMainRepoRoot(repoRoot);
+  // 先撤回旧回执再解析参数：参数非法时同样不会留下上一次签发的回执。
   removeQaVerificationReceipt(config, mainRoot, repoRoot);
+  const args = parseArgs(process.argv.slice(2));
 
   log('============================================================', 'cyan');
   log('QA 验收检查工具 v1.1.0', 'cyan');
@@ -785,8 +873,18 @@ function main() {
   const receipt = captureQaVerificationIdentity({ config });
 
   const blockers = [];
+  let risk = false;
+  let noModuleReason = null;
   try {
     require('../shared/architecture-check').runArchitectureCheck(repoRoot);
+  } catch (error) {
+    collectGateError(blockers, error);
+  }
+
+  try {
+    const integrity = checkIntegrityGate({ config, receipt });
+    if (integrity.blocked) blockers.push({ reason: 'TEST_INTEGRITY_BLOCKED' });
+    if (integrity.risk) risk = true;
   } catch (error) {
     collectGateError(blockers, error);
   }
@@ -795,8 +893,10 @@ function main() {
   if (templateSource) {
     log('模板源仓库：跳过业务 PRD/QA 验收门禁。', 'yellow');
   } else {
-    const verdictExit = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
-    if (verdictExit !== 0) blockers.push({ reason: 'QA_VERDICT_NO_GO' });
+    const verdict = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
+    if (verdict.blocker) blockers.push({ reason: verdict.blocker });
+    if (verdict.risk) risk = true;
+    noModuleReason = verdict.noModuleReason;
 
     const taskContext = runtimeContext(repoRoot);
     try {
@@ -815,14 +915,22 @@ function main() {
 
     const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
     if (!gate.passed) blockers.push({ reason: 'BUSINESS_GATE_BLOCKED' });
-    else if (gate.business) receipt.business = gate.business;
+    else if (gate.business) {
+      receipt.business = gate.business;
+      if (gate.business.risk_count > 0) risk = true;
+    }
   }
 
   if (blockers.length > 0) {
+    log('QA_VERDICT=BLOCKED', 'red');
     for (const { reason, summary } of normalizeBlockers(blockers)) log(`QA_VERIFY_BLOCK=${reason}|${oneLine(summary)}`, 'red');
     return describeQaVerifyOutcome({ blockers });
   }
 
+  // 放行时任一风险来源（--no-module 声明、文档警告、完整性风险或豁免、业务风险披露）都把裁决降为 PASS_WITH_RISK。
+  receipt.qa_verdict = risk ? 'PASS_WITH_RISK' : 'PASS';
+  if (noModuleReason) receipt.no_module_reason = noModuleReason;
+  log(`QA_VERDICT=${receipt.qa_verdict}`, VERDICT_COLORS[receipt.qa_verdict]);
   const receiptPath = writeQaVerificationReceipt(config, mainRoot, repoRoot, receipt);
   log(`QA_RECEIPT=${receiptPath}`, 'green');
   log(`BASE_BRANCH=${receipt.base_branch}`, 'gray');
@@ -832,7 +940,7 @@ function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name>]\n\nRun QA verification and write the local base/head SHA receipt.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.');
+  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name> | --no-module --reason <text>]\n\nRun QA verification and write the local base/head SHA receipt with a PASS or PASS_WITH_RISK verdict.\nA session run with no identifiable QA target is BLOCKED unless --no-module --reason <text> declares it (recorded as a risk).\nThe test integrity gate (qa.integrity) checks the BASE_SHA..HEAD_SHA test diff on every run.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.');
   let outcome;
   try {
     outcome = main();
@@ -846,6 +954,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  calculateVerdict,
   captureQaVerificationIdentity,
   describeQaVerifyOutcome,
   isTemplateRepository,

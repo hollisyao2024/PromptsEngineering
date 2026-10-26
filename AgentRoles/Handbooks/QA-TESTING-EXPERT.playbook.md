@@ -115,9 +115,9 @@
 ### 第三步：验收检查（/qa verify）
 1. 确认 §测试执行验证门禁（Expert 文件）全部满足
 2. 执行 `pnpm run qa:verify` 脚本
-3. 脚本检查：QA 文档完整性、缺陷阻塞情况、测试范围证据，启用时含业务验收门禁
+3. 脚本检查：QA 目标（找不到即 `QA_TARGET_MISSING`，确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明并记为风险）、QA 文档完整性、缺陷阻塞情况、测试范围证据（`checks[].evidence` 须引用 `task exec` 日志并核对 SHA256）、测试完整性（见 §测试完整性门禁，模板源同样执行），启用时含业务验收门禁
 4. 报告质量指标，以规则为主：P0 规则验证数（其 TC 被通过的用例证明）、反例覆盖、历史缺陷复现、新发现缺陷数、不稳定率；覆盖率只作辅助，不单独证明完成
-5. 给出结论：PASS / PASS_WITH_RISK / BLOCKED。脚本当前输出 Go / Conditional / No-Go，依次对应；Conditional 须逐条评审风险，不能自动视为通过
+5. 给出结论：PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，回执记录放行的那一种；PASS_WITH_RISK 须逐条评审风险，不能自动视为通过
 6. `qa verify` 的架构门禁可能在 stderr 输出 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，即 `DESIGN.md` 与 `styles.css` 的漂移告警（ADR-040）。告警不阻断，也不改变回执签发；执行器在验收结论中把告警原样报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
 
 ### 第四步：合并（/qa merge）
@@ -263,6 +263,7 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 | `all-states` | 每个状态至少被一条通过的路径经过，要求较弱 | 界面流程尚在成形的过渡阶段 |
 | `none` | 不要求覆盖，只校验引用 | 暂无界面流程的模块，须在评审中说明理由 |
 
+- 必须显式声明：未声明会报 `CRITERION_MISSING`，不再默认按 `none` 处理；确实不检查路径覆盖时写 `覆盖准则：none`。
 - `all-*` 取值可用逗号组合（如 `all-transitions,all-states`），`none` 不与其他取值并存；重复声明或取值非法会报 `CRITERION_INVALID`。
 - 覆盖只统计结果为通过的路径：路径对应的用例失败、被跳过或缺失，相应的转移就算未覆盖，业务验收门禁报 `PATH_COVERAGE_GAP`。路径按关联 TC 全有或全无判定——长路径中任一步失败，会使整条路径经过的全部转移都未覆盖；设计路径时宜把可独立验证的段落拆成较短路径（各自关联 TC），避免一个未实现步骤遮蔽已可通过的转移。
 - 声明了 `none` 以外的准则后，每条 P0 的 `auto` AC 都必须被某条转移引用，否则 `qa paths` 报 `AC_UNLINKED`。
@@ -306,8 +307,9 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不锁定
 ```
 
-- 命名格式：`<TC 标识> <AC 标识…> <行为描述>`。标识可写在 `test` 名或外层 `describe` 名里（JUnit 报告的 `name` 与 `classname` 都会被扫描），标识前后不要紧贴大写字母、数字或连字符。
-- 绑定规则：AC 标识直接绑定该 AC；TC 标识经 PRD 原子 AC 表的 TC 列，绑定到所有列出该 TC 的 AC；只出现在 PATHS.md 路径表里的 TC 只计入路径覆盖、不为任何 AC 提供证明，所以端到端路径用例的 TC 还要登记在它所覆盖的各条 AC 的 TC 列。没有标识的用例披露为 `RISK_UNLABELLED_CASES`，标识在规格中不存在的披露为 `RISK_UNKNOWN_IDS`。
+- 命名格式：`<TC 标识> <AC 标识…> <行为描述>`。标识必须出现在 JUnit 报告的 `name` 里（不少驱动会把外层 `describe` 标题拼进 `name`，以实际报告为准）；只出现在 `classname`（文件名、类名）里的标识不绑定任何 AC，否则一个文件名会让整组用例扇出绑定。标识前后不要紧贴大写字母、数字或连字符。
+- 绑定规则：AC 标识直接绑定该 AC；TC 标识经 PRD 原子 AC 表的 TC 列，绑定到所有列出该 TC 的 AC；只出现在 PATHS.md 路径表里的 TC 只计入路径覆盖、不为任何 AC 提供证明，所以端到端路径用例的 TC 还要登记在它所覆盖的各条 AC 的 TC 列。没有标识的用例披露为 `RISK_UNLABELLED_CASES`，其中只有 `classname` 带标识的另行披露为 `RISK_CLASSNAME_ONLY`；标识在规格中不存在的披露为 `RISK_UNKNOWN_IDS`。
+- AC 的状态取它绑定的全部用例：任一失败即失败，否则任一被跳过即跳过（不算通过），全部通过才算通过。
 - 一行数据对应一个 `testcase`：同一条路径上的所有数据行共用同一个 TC 标识，任一数据行失败，该 TC 及其绑定的 AC 即判失败。
 - 数据集放在用例旁边，每行注明来源（等价类、边界值或判定规则）；期望值按预言机规则取自规格，不用系统输出计算。
 
@@ -327,7 +329,7 @@ TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不�
 
 ### 驱动产物与报告
 
-驱动（Playwright、pytest、JUnit/Gradle、XCUITest 等）只需满足一个契约：输出 JUnit XML 报告，`testcase` 的 `name` 或 `classname` 带 AC/TC 标识；端由套件配置的 `platform` 声明，不从报告推断。报告按 UTF-8 解析，含 DOCTYPE 或自定义实体的报告、超过 64 MiB 的报告都判为无效。
+驱动（Playwright、pytest、JUnit/Gradle、XCUITest 等）只需满足一个契约：输出 JUnit XML 报告，`testcase` 的 `name` 带 AC/TC 标识（只在 `classname` 中出现的不计）；端由套件配置的 `platform` 声明，不从报告推断。报告按 UTF-8 解析，含 DOCTYPE 或自定义实体的报告、超过 64 MiB 的报告都判为无效。
 
 - **忽略产物**：报告、截图、trace、视频、录制脚本等驱动产物加入 `.gitignore`（如 `reports/`）。已被跟踪的报告先执行 `git rm --cached`，再加入忽略；否则 `qa run` 时工作区不干净，业务验收门禁报 `RESULTS_DIRTY_WORKTREE`。
 - **跨平台路径**：报告输出路径写在驱动自己的配置里（例如 `playwright.config.ts` 的 `reporter`），不要在 `command` 里内联环境变量赋值（`FOO=bar cmd` 在 Windows shell 中无效）；`report` 使用相对仓库根、以 `/` 分隔的路径。
@@ -385,7 +387,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 4. 在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；只有 `STATUS=OK` 才表示套件都正常完成且必需优先级的 `auto` AC 全部有通过的用例，否则 `STATUS=FAILED` 且退出码非零：`REASON=SUITE_FAILED`（套件失败，优先）或 `REASON=AC_NOT_PROVEN`（逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，缺用例、被跳过、声明的端没有套件覆盖）。两种 FAILED 都已写出结果；补用例或修复后重新提交、重跑，不要带着 FAILED 进入 `qa verify`；
 5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，阻断时输出原因、不签发回执；放行时回执附带 `business` 摘要（`gate`、`required_priorities`、`acs_proven`、`risk_count`、`config_digest`），仅作审计记录：`qa merge` 复验不以它为依据，只打印为 `QA_RECEIPT_BUSINESS=` 审计行。
 
-套件命令退出码非零但报告有效时，以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`，不直接阻断；启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
+套件命令退出码非零时：报告中有失败用例，则以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`（失败用例本身由 AC 判定阻断）；报告中没有任何失败用例，则退出码无法由报告解释，阻断为 `SUITE_EXIT_UNEXPLAINED`（常见于 globalSetup/teardown 出错）。启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
 
 套件命令较长时，可用 `pnpm agent -- task exec --task <id> --name <名> -- <命令>` 把输出落成任务证据：与 `qa.business.suites[].command` 登记原文逐词相同的命令不受聚合测试护栏拦截；加了包装器、改了参数，或登记命令含引号、变量、管道、通配符的，仍按原规则处理（定向文件、或事先记录 `mode=full` 的 `TEST_SCOPE_DECISION`）。`pnpm agent -- test --file <文件> -- <命令>` 对同一批登记命令同样放行，并把文件追加到命令末尾。`task exec` 输出的 `LOG_PATH`/`LOG_SHA256` 可直接写进 `TEST_SCOPE_RESULT.checks[].evidence`（形如 `evidence/<名>.log sha256=<hex>`），`qa verify` 会核对该文件存在且摘要一致。
 
@@ -428,6 +430,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `PLATFORM_INVALID` | 端标签不合法：以小写字母开头的标签（如 web、ios），多个用逗号分隔，不区分端写 `-`；PATHS.md 界面表的「端」列同理 | 补写合法标签，不区分端写 `-`，不要留空 |
 | `FIELD_EMPTY` | Given、When、Then 单元格为空 | 补全三列，它们是预言机的来源 |
 | `TC_INVALID` | TC 标识格式不合法，应形如 `TC-{模块}-NNN`，多个用逗号分隔，没有写 `-`；PATHS.md 路径表的「关联 TC」同理 | 改为合法标识，暂无用例写 `-` |
+| `CRITERION_MISSING` | PATHS.md 没有声明覆盖准则 | 在正文写一行「覆盖准则：<取值>」；确实不检查路径覆盖时显式写 none |
 | `CRITERION_INVALID` | 覆盖准则重复声明，或取值为空、不合法，或 `none` 与其他取值并存 | 整份 PATHS.md 只声明一次合法取值 |
 | `ID_INVALID` | 界面、状态、转移或路径的标识格式不合法 | 按 `SCR-`、`STA-`、`TRN-`、`PTH-` 前缀加模块与三位序号重命名 |
 | `ID_DUPLICATE` | 标识重复，包括不同功能域的 PATHS.md 之间重复 | 换用未占用的序号 |
@@ -455,6 +458,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `RESULTS_DIRTY_WORKTREE` | `qa run` 运行时工作区有未提交的改动 | 把报告输出路径加入 `.gitignore`（已跟踪的报告先 `git rm --cached`），或提交、清理其余改动，再运行 `qa run` |
 | `RESULTS_CONFIG_DRIFT` | `qa run` 之后套件或 `requiredPriorities` 又被修改 | 重新运行 `pnpm agent -- qa run` |
 | `SUITE_HARD_FAILURE` | 套件启动失败、超时、没有产生报告，或报告无法解析 | 先按原因修复套件命令或报告路径，再重新运行 `pnpm agent -- qa run` |
+| `SUITE_EXIT_UNEXPLAINED` | 套件以非零退出码结束，但报告中没有任何失败用例，退出码无法由报告解释 | 排查 globalSetup/teardown 等报告之外的失败，修复套件命令或报告配置使两者一致，再重新运行 `pnpm agent -- qa run` |
 | `REPORT_TAMPERED` | 报告副本的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
 | `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果，与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
 | `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」（`qa run` 以 `FAILED(REASON=AC_NOT_PROVEN)` 提前给出同一判定） | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
@@ -473,11 +477,16 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `STALE_QA_BASE` | BLOCKED | 功能分支落后于远端配置主干 | 在当前 worktree 执行 `git merge --no-edit origin/<base>`，重跑受影响测试并追加 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，再 `pnpm agent -- tdd push` 与 `qa verify` |
 | `HEAD_NOT_PUSHED` | BLOCKED | 本地 HEAD 与远端功能分支不一致 | `pnpm agent -- tdd push` 后重跑 `qa verify` |
 | `TEST_SCOPE_EVIDENCE` | BLOCKED | 当前 mutation 任务缺少或不合法的 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，包括 evidence 引用的任务日志缺失或 SHA256 不符 | 在任务 checkpoint 中补录决策与绑定当前 HEAD 的结果后重跑 `qa verify` |
-| `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误（Go/Conditional/No-Go 判定为 No-Go，即 BLOCKED） | 修复上方列出的错误后重跑 `qa verify` |
+| `QA_ARGS_INVALID` | BLOCKED | 参数不合法：`--no-module` 未带 `--reason`、`--reason` 单独使用，或 `--no-module` 与 `--module` 同用 | 按用法修正参数后重跑 `qa verify` |
+| `QA_TARGET_MISSING` | BLOCKED | 未识别到当前会话的 QA 目标，不再按无事可做放行 | 用 `--module <name>` 指定；确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明 |
+| `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误，裁决为 BLOCKED | 修复上方列出的错误后重跑 `qa verify` |
+| `TEST_INTEGRITY_BLOCKED` | BLOCKED | 测试完整性门禁未通过，具体原因见 `TEST_INTEGRITY_BLOCK=` 行（§测试完整性门禁） | 修复，或对可豁免项执行 `qa integrity waive` 并写入任务证据后重跑 |
+| `INTEGRITY_CONFIG_INVALID` | BLOCKED | `qa.integrity` 配置不合法（未知键、模式非法、正则无法编译） | 修正 `agent.config.json` 后重跑 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
 | `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
 | `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
 | `QA_FETCH_FAILED` | FAILED | 签发回执前的 `git fetch --prune` 连续 2 次失败（同一命令只重试一次） | 核实网络、代理与 `GH_TOKEN` 后重试；按 `tool_error` 留痕 |
+| `INTEGRITY_GIT_FAILED` | FAILED | 完整性门禁读取 base/head 的 Git 对象失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
 
 `qa plan` 的结果块同形，`REASON=` 取 `PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`（逐项 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`，补齐或移除对应 `docs/arch-modules/<domain>/ARCH.md`、`docs/task-modules/<domain>/TASK.md`）或 `UNEXPECTED_ERROR`。
@@ -491,8 +500,9 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `RISK_MANUAL_AC` | 进入门禁优先级内的 `manual` AC，门禁不验证它 | 安排人工验收并留下记录；能自动化时改为 auto 并补用例 |
 | `RISK_LOWER_PRIORITY` | 不在 `requiredPriorities` 内的 `auto` AC 没有被通过的用例证明 | 按用例预算补用例，或把对应优先级加入 `requiredPriorities` |
 | `RISK_UNLABELLED_CASES` | 有用例的名称不带任何 AC/TC 标识，不计入任何验收 | 按命名约定补上标识 |
+| `RISK_CLASSNAME_ONLY` | 有用例只在 `classname`（describe/文件名）带 AC/TC 标识，用例名不含标识，不计入任何验收 | 把标识写进用例名 |
 | `RISK_UNKNOWN_IDS` | 用例引用了规格中不存在的标识 | 修正标识的拼写，或回到 PRD 补写对应的 AC/TC |
-| `RISK_SUITE_EXIT_NONZERO` | 套件命令退出码非零，但报告有效，结果以报告为准 | 查看失败原因，常见于驱动自身的非零退出策略 |
+| `RISK_SUITE_EXIT_NONZERO` | 套件命令退出码非零，报告中有失败用例，结果以报告为准 | 修复失败用例；报告中没有失败用例时改为阻断 `SUITE_EXIT_UNEXPLAINED` |
 | `RISK_MODULE_WITHOUT_TABLE` | 有的模块没有原子 AC 表，不在门禁覆盖内 | 为该模块补写原子 AC 表，或在评审中确认无需业务测试 |
 
 ---
@@ -581,6 +591,24 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 
 以 Expert 文件「测试有效性红线」一节为准：禁止以当前输出作预期、禁止放宽或删除断言、禁止静默跳过；跳过即未通过。
 
+### 测试完整性门禁（qa integrity）
+
+红线由脚本兜底：`qa verify` 在签发回执前对 base..HEAD 中匹配 `qa.integrity.testGlobs` 的测试文件逐行计数比对（注释行不计），模板源同样执行。也可单独运行 `pnpm agent -- qa integrity check [--base <ref>]` 预检。
+
+| 代码 | 级别 | 含义 | 处理 |
+|------|------|------|------|
+| `TEST_SKIP_ADDED` | 阻断 | 新增 skip/todo/fixme 等跳过标记 | 删除跳过标记，修复用例；不可豁免 |
+| `TEST_ONLY_ADDED` | 阻断 | 新增 only 等聚焦标记，会让其余用例静默不跑 | 删除聚焦标记；不可豁免 |
+| `TEST_CASES_DECREASED` | 阻断 | 某测试文件的用例数下降 | 恢复用例；确属有意（如合并、迁移）时走豁免 |
+| `TEST_ASSERTS_DECREASED` | 阻断 | 某测试文件的断言数下降 | 恢复断言；确属有意时走豁免 |
+| `TEST_FILE_DELETED` | 阻断 | 测试文件被删除（重命名不算） | 恢复文件；确属有意时走豁免 |
+| `TEST_WAIVER_INVALID` | 阻断 | 豁免行不是合法 JSON、缺字段，或豁免了不可豁免的代码 | 用 `qa integrity waive` 重新生成豁免行 |
+| `TEST_EXPECTATION_CHANGED` | 风险 | 已有断言行被改写 | 在交付报告中复核新预期的规格出处 |
+
+- **豁免**：只有“少了”的三类可豁免。执行 `pnpm agent -- qa integrity waive --path <file> --code <code> --reason <理由>`，把输出的 `TEST_INTEGRITY_WAIVER=` 行原样写进当前任务 checkpoint 的 `--evidence`；豁免绑定该文件在 HEAD 的 blob，文件再改即失效。豁免后的发现降为风险，并在报告中披露。
+- **配置**：`qa.integrity.mode` 默认 `enforce`；存量项目可暂用 `warn`，此时全部阻断降为 `TEST_INTEGRITY_RISK=`。`patterns.skip|only|case|assert` 是按行匹配的正则列表，可按语言调整；未知键 fail-closed。
+- **局限**：逐行正则可被刻意绕过（如 `if (false)` 包住断言），由变异门禁兜底；它防的是无意或省事的放宽，不替代评审。
+
 ---
 
 ## 测试策略与覆盖
@@ -605,6 +633,9 @@ pnpm run qa:generate -- --dry-run       # 预览（不写入文件）
 # 验收检查
 pnpm run qa:verify                      # session 模式
 pnpm run qa:verify -- --project         # project 模式
+pnpm agent -- qa verify --no-module --reason "<理由>"   # 确实不涉及 QA 模块时显式放行，记为风险
+pnpm agent -- qa integrity check        # 测试完整性预检（qa verify 也会执行）
+pnpm agent -- qa integrity waive --path <file> --code <code> --reason "<理由>"  # 生成豁免行，写入任务证据
 
 # 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
 pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步骤、专家与章节（只读）
@@ -614,7 +645,6 @@ pnpm agent -- qa run                    # 在最后一次提交之后运行业�
 # 合并
 pnpm run qa:merge                       # session 模式
 pnpm run qa:merge -- --dry-run          # 预览
-pnpm run qa:merge -- --skip-checks      # 跳过 P0 缺陷与 NFR 发布检查；仅用户明确授权时使用，并在报告中列为风险
 ```
 
 ### 质量报告
@@ -695,7 +725,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] `qa verify` 结尾 `STATUS=OK` 且已输出 `QA_RECEIPT=`；出现 `BLOCKED`/`FAILED` 时按 `REASON=` 与 `NEXT_ACTION=` 处理，不带着非 OK 结果进入 `qa merge`
 
 ### 发布评估
-- [ ] 结论已明确（PASS / PASS_WITH_RISK / BLOCKED；脚本当前输出 Go / Conditional / No-Go）
+- [ ] 结论已明确（PASS / PASS_WITH_RISK / BLOCKED，与 `QA_VERDICT=` 一致）
 - [ ] 前置条件或风险已列出
 - [ ] CHANGELOG.md 与测试结论一致
 - [ ] 适用本地门禁通过，QA 回执绑定当前 base/head SHA。

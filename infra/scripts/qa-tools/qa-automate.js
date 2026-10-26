@@ -54,7 +54,7 @@ const PLAYBOOK = 'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md';
 // qa paths 中属于路径模型的违规码；其余落在本模块 PRD 内的违规归步骤 1。
 // AC_UNLINKED 的位置在 PRD 行上，但修正方式是在 PATHS.md 加转移，所以归步骤 2。
 const PATHS_CODES = new Set([
-  'PATHS_MISSING', 'PATHS_TABLE_MISSING', 'CRITERION_INVALID', 'REF_UNKNOWN',
+  'PATHS_MISSING', 'PATHS_TABLE_MISSING', 'CRITERION_MISSING', 'CRITERION_INVALID', 'REF_UNKNOWN',
   'PATH_EMPTY', 'PATH_DISCONNECTED', 'COVERAGE_GAP', 'AC_UNLINKED',
 ]);
 
@@ -200,7 +200,8 @@ function inspect({ repoRoot, mainRoot, config, module, exists = true }) {
   const missing = requiredAuto.filter((ac) => !isReferenced(ac));
   if (acs.length === 0) states.push(['pending', '等待原子 AC']);
   else if (missing.length > 0) states.push(['pending', `${missing.length} 条必需优先级 auto AC 没有用例引用`]);
-  else states.push(['done', `${requiredAuto.length} 条必需优先级 auto AC 均有用例引用`]);
+  // 文本引用只说明“用例已写”，不算覆盖证明；覆盖只由步骤 5 的 JUnit 结果（judgeAc）判定。
+  else states.push(['done', `${requiredAuto.length} 条必需优先级 auto AC 均有用例引用（覆盖以步骤 5 结果为准）`]);
   extra.push(...missing.map((ac) => `UNREFERENCED_AC=${ac.id}`));
   for (const ac of autoAcs.filter((item) => !required.has(item.priority) && !isReferenced(item))) {
     risks.push(`RISK=AC_UNREFERENCED|${ac.id}（${ac.priority}）没有用例引用，不阻断但建议补齐`);

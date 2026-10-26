@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { orderedStepEvidence } = require('../shared/task-evidence');
 
-// A check's evidence may cite a task evidence log as `evidence/<name>.log sha256=<hex>` (what `task exec` records).
-// When the caller knows the task runs root, that citation must resolve to an existing file with the same digest, so
-// a result cannot point at a log that was never written or has been replaced since.
+// A check's evidence must cite a task evidence log as `evidence/<name>.log sha256=<hex>` (what `task exec` records);
+// free text such as "tests passed" is rejected. When the caller knows the task runs root, that citation must resolve
+// to an existing file with the same digest, so a result cannot point at a log that was never written or was replaced.
 const EVIDENCE_LOG_REFERENCE = /evidence\/([a-z0-9][a-z0-9._-]*\.log) sha256=([0-9a-f]{64})/u;
 
 const MODES = new Set(['targeted', 'full', 'static']);
@@ -78,7 +78,10 @@ function validateDecision(value) {
 
 function verifyEvidenceLogReference(evidence, { runsRoot, taskId }) {
   const match = EVIDENCE_LOG_REFERENCE.exec(evidence);
-  if (!match || !runsRoot) return;
+  if (!match) {
+    throw new Error('TEST_SCOPE_RESULT evidence must cite a task exec log as evidence/<name>.log sha256=<hex>');
+  }
+  if (!runsRoot) return;
   const [, fileName, expected] = match;
   const file = path.join(runsRoot, taskId, 'evidence', fileName);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
@@ -135,12 +138,17 @@ function canSupplyQaEvidence(state) {
     && !step.recoveries?.some(item => item.failure_index === deferred.failure_index);
 }
 
-function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateSource = false }) {
-  if (templateSource) return { skipped: true };
-  const matches = states.filter((state) => canSupplyQaEvidence(state)
+// Tasks that may supply QA evidence for this worktree and branch; shared by TEST_SCOPE and integrity waivers.
+function matchQaTasks({ states, context }) {
+  return states.filter((state) => canSupplyQaEvidence(state)
     && samePath(state.project_root, context.projectRoot)
     && samePath(state.worktree, context.worktree)
     && state.branch === context.branch);
+}
+
+function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateSource = false }) {
+  if (templateSource) return { skipped: true };
+  const matches = matchQaTasks({ states, context });
   if (matches.length === 0) throw new Error('QA requires a matching mutation task with test scope evidence');
   if (matches.length > 1) throw new Error('QA found ambiguous mutation tasks for this worktree and branch');
 
@@ -158,4 +166,4 @@ function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateS
   return { taskId: task.task_id, mode: decision.mode, commands: decision.commands };
 }
 
-module.exports = { verifyTestScopeEvidence };
+module.exports = { matchQaTasks, verifyTestScopeEvidence };

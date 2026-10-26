@@ -23,18 +23,24 @@ const sha256Of = (bytes) => crypto.createHash('sha256').update(bytes).digest('he
 const AC_LABELS = searchPattern(AC_ID_SOURCE);
 const TC_LABELS = searchPattern(TEST_CASE_ID_SOURCE);
 
-// 从 name 再从 classname 提取 AC 与 TC 标识，去重并保持首次出现的顺序。
-function extractCaseLabels({ name = '', classname = '' } = {}) {
-  const collect = (pattern) => {
-    const found = [];
-    for (const field of [name, classname]) {
-      for (const id of String(field ?? '').match(pattern) || []) {
-        if (!found.includes(id)) found.push(id);
-      }
-    }
-    return found;
-  };
-  return { acs: collect(AC_LABELS), tcs: collect(TC_LABELS) };
+function collectIds(text, pattern) {
+  const found = [];
+  for (const id of String(text ?? '').match(pattern) || []) {
+    if (!found.includes(id)) found.push(id);
+  }
+  return found;
+}
+
+// 只从用例名（name）提取 AC 与 TC 标识，去重并保持首次出现的顺序。
+// classname 是 describe 名或文件路径，同一个 describe 下的全部用例都会带上它；
+// 按 classname 绑定会让整组用例扇出到同一 AC，一条无关用例通过就能“证明”该 AC，因此不参与绑定。
+function extractCaseLabels({ name = '' } = {}) {
+  return { acs: collectIds(name, AC_LABELS), tcs: collectIds(name, TC_LABELS) };
+}
+
+// 用例名没有标识、只有 classname 含标识：多半是把编号写在 describe 或文件名上，按无标识计并单独披露。
+function classnameOnly({ classname = '' } = {}) {
+  return collectIds(classname, AC_LABELS).length > 0 || collectIds(classname, TC_LABELS).length > 0;
 }
 
 function exitDetail(exitCode, signal) {
@@ -85,11 +91,12 @@ function addCase(counts, status) {
   counts[status] += 1;
 }
 
-// 任一失败（含 error）即 failed；否则至少一条通过即 passed；全部跳过为 skipped；没有用例为 missing。
+// 任一失败（含 error）即 failed；否则任一跳过即 skipped（跳过不算通过，哪怕其余用例都通过）；
+// 全部通过才是 passed；没有用例为 missing。
 function statusOf(counts) {
   if (counts.failed + counts.error > 0) return 'failed';
-  if (counts.passed > 0) return 'passed';
   if (counts.skipped > 0) return 'skipped';
+  if (counts.passed > 0) return 'passed';
   return 'missing';
 }
 
@@ -119,7 +126,7 @@ function judgeAc(record) {
   const declared = Array.isArray(record.platforms) ? record.platforms : [];
   if (declared.length === 0) {
     if (record.status === 'passed') return { proven: true, state: 'passed', reason: null };
-    if (record.status === 'skipped') return unproven('skipped', '用例全部被跳过');
+    if (record.status === 'skipped') return unproven('skipped', '存在被跳过的用例');
     return unproven('missing', '没有任何用例覆盖');
   }
 
@@ -163,17 +170,22 @@ function aggregateResults({ spec, suites } = {}) {
   const caseTotals = emptyCounts();
   const suiteSummaries = [];
   let unlabelled = 0;
+  let classnameOnlyTotal = 0;
 
   for (const suite of suites) {
     const platform = suite.platform || NO_PLATFORM;
     const cases = Array.isArray(suite.cases) ? suite.cases : [];
     let suiteUnlabelled = 0;
+    let suiteClassnameOnly = 0;
+    let suiteFailed = 0;
     for (const item of cases) {
       if (!CASE_STATUSES.includes(item.status)) throw new Error(`用例 ${show(item.name)} 的状态 ${show(item.status)} 无效`);
       addCase(caseTotals, item.status);
+      if (item.status === 'failed' || item.status === 'error') suiteFailed += 1;
       const labels = extractCaseLabels(item);
       if (labels.acs.length === 0 && labels.tcs.length === 0) {
         suiteUnlabelled += 1;
+        if (classnameOnly(item)) suiteClassnameOnly += 1;
         continue;
       }
       // 显式标注 AC 的用例只绑定这些 AC；只有未标注 AC 时，才按 TC 展开到列出该 TC 的全部 AC。
@@ -205,7 +217,15 @@ function aggregateResults({ spec, suites } = {}) {
       }
     }
     unlabelled += suiteUnlabelled;
-    suiteSummaries.push({ name: suite.name, cases: cases.length, unlabelled: suiteUnlabelled });
+    classnameOnlyTotal += suiteClassnameOnly;
+    // failed 计入失败与错误用例：门禁据此区分“非零退出有失败用例解释”与“非零退出无从解释”。
+    suiteSummaries.push({
+      name: suite.name,
+      cases: cases.length,
+      failed: suiteFailed,
+      unlabelled: suiteUnlabelled,
+      classname_only: suiteClassnameOnly,
+    });
   }
 
   const tcs = sortedObject([...knownTcs].map((id) => {
@@ -253,6 +273,7 @@ function aggregateResults({ spec, suites } = {}) {
       suites: suites.length,
       cases: caseTotals,
       unlabelled,
+      classname_only: classnameOnlyTotal,
       acs: { total: acTotal, ...acStatuses, auto: acTotal - manual, manual },
       paths: { total: Object.keys(paths).length, passed: Object.values(paths).filter((record) => record.status === 'passed').length },
     },

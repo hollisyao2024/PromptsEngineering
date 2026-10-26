@@ -84,7 +84,9 @@ function suiteRecord(suite, index, counts) {
     detail: suite.detail ?? null,
     duration_ms: Math.round(suite.durationMs),
     cases: counts.cases,
+    failed: counts.failed,
     unlabelled: counts.unlabelled,
+    classname_only: counts.classname_only,
     report: reported
       ? { path: suite.report.path, copy: reportCopyPath(suite.name), sha256: suite.report.sha256, bytes: suite.report.bytes }
       : null,
@@ -151,8 +153,11 @@ function validateSuites(suites, problem) {
     if (suite.detail !== null && typeof suite.detail !== 'string') problem(`${at}.detail 须为字符串或 null`);
     if (!isCount(suite.duration_ms)) problem(`${at}.duration_ms 须为非负整数`);
     if (!isCount(suite.cases)) problem(`${at}.cases 须为非负整数`);
-    if (!isCount(suite.unlabelled)) problem(`${at}.unlabelled 须为非负整数`);
-    else if (isCount(suite.cases) && suite.unlabelled > suite.cases) problem(`${at}.unlabelled 不能大于 cases`);
+    // failed 供门禁核对非零退出码能否由报告解释；classname_only 计入 unlabelled 的子集，单独披露。
+    for (const field of ['failed', 'unlabelled', 'classname_only']) {
+      if (!isCount(suite[field])) problem(`${at}.${field} 须为非负整数`);
+      else if (isCount(suite.cases) && suite[field] > suite.cases) problem(`${at}.${field} 不能大于 cases`);
+    }
 
     const needsReport = statusValid && REPORT_BEARING.includes(suite.status);
     if (suite.report === null) {

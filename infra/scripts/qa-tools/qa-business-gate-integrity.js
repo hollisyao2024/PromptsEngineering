@@ -98,7 +98,12 @@ function collectDifferences(recorded, computed, field, output) {
 }
 
 function suiteView(suites) {
-  return Object.fromEntries(suites.map((suite) => [suite.name, { cases: suite.cases, unlabelled: suite.unlabelled }]));
+  return Object.fromEntries(suites.map((suite) => [suite.name, {
+    cases: suite.cases,
+    failed: suite.failed,
+    unlabelled: suite.unlabelled,
+    classname_only: suite.classname_only,
+  }]));
 }
 
 function integrityBlocks({ results, business, directory, spec }) {

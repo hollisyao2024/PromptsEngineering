@@ -62,10 +62,17 @@ test('用例名直接含 AC 标识时绑定到该 AC，不影响 TC 状态', () 
   assert.equal(aggregate.paths['PTH-SHOP-001'].status, 'missing');
 }));
 
-test('classname 中的标识同样参与绑定', () => withShop(({ spec }) => {
-  const aggregate = aggregateResults({ spec, suites: [web([kase('支付成功', 'passed', 'TC-SHOP-002')])] });
-  assert.equal(aggregate.tcs['TC-SHOP-002'].status, 'passed');
-  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'passed');
+test('只按用例名绑定：仅 classname（describe/文件名）含标识的用例不绑定，计入 unlabelled 与 classname_only', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([kase('支付成功', 'passed', 'TC-SHOP-002'), kase('AC-SHOP-001-01 结算', 'passed', 'shop.TC-SHOP-002')])],
+  });
+  assert.equal(aggregate.tcs['TC-SHOP-002'].status, 'missing', 'classname 中的 TC 不得扇出绑定');
+  assert.equal(aggregate.acs['AC-SHOP-001-02'].status, 'missing');
+  assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed', '用例名里的标识照常绑定');
+  assert.deepEqual(aggregate.suites, [{ name: 'web-e2e', cases: 2, failed: 0, unlabelled: 1, classname_only: 1 }]);
+  assert.equal(aggregate.summary.unlabelled, 1);
+  assert.equal(aggregate.summary.classname_only, 1);
 }));
 
 test('同一用例同时含 AC 与其 TC 标识时，对该 AC 只计一个用例', () => withShop(({ spec }) => {
@@ -122,13 +129,15 @@ test('全部跳过为 skipped，路径不算通过', () => withShop(({ spec }) =
   assert.equal(aggregate.paths['PTH-SHOP-001'].status, 'missing');
 }));
 
-test('数据驱动的多行用例任一失败即整体失败，跳过加通过为通过', () => withShop(({ spec }) => {
+test('数据驱动的多行用例任一失败即整体失败，任一跳过即 skipped（跳过不算通过）', () => withShop(({ spec }) => {
   const rows = (statuses) => aggregateResults({
     spec,
     suites: [web(statuses.map((status, index) => kase(`TC-SHOP-002 card #${index}`, status)))],
   });
   assert.equal(rows(['passed', 'passed', 'failed']).tcs['TC-SHOP-002'].status, 'failed');
-  assert.equal(rows(['passed', 'skipped']).tcs['TC-SHOP-002'].status, 'passed');
+  assert.equal(rows(['passed', 'skipped']).tcs['TC-SHOP-002'].status, 'skipped');
+  assert.equal(rows(['passed', 'skipped']).acs['AC-SHOP-001-02'].status, 'skipped');
+  assert.equal(rows(['passed', 'skipped', 'failed']).tcs['TC-SHOP-002'].status, 'failed', '失败优先于跳过');
   assert.equal(rows(['skipped', 'skipped']).tcs['TC-SHOP-002'].status, 'skipped');
   assert.deepEqual(rows(['passed', 'skipped', 'failed', 'error']).tcs['TC-SHOP-002'].cases, { total: 4, passed: 1, failed: 1, error: 1, skipped: 1 });
 }));
@@ -148,8 +157,9 @@ test('不含任何标识的用例单独计数，不参与绑定也不算未知�
     spec,
     suites: [web([kase('登录页冒烟', 'failed'), kase('无标识用例'), kase('TC-SHOP-001 a')])],
   });
-  assert.deepEqual(aggregate.suites, [{ name: 'web-e2e', cases: 3, unlabelled: 2 }]);
+  assert.deepEqual(aggregate.suites, [{ name: 'web-e2e', cases: 3, failed: 1, unlabelled: 2, classname_only: 0 }]);
   assert.equal(aggregate.summary.unlabelled, 2);
+  assert.equal(aggregate.summary.classname_only, 0);
   assert.equal(aggregate.summary.cases.total, 3);
   assert.equal(aggregate.summary.cases.failed, 1);
   assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
@@ -177,11 +187,19 @@ test('硬失败的套件（cases 为 null）不参与绑定，但计入套件数
     suites: [web([kase('TC-SHOP-001 a')]), { name: 'ios-e2e', platform: 'ios', cases: null }],
   });
   assert.deepEqual(aggregate.suites, [
-    { name: 'web-e2e', cases: 1, unlabelled: 0 },
-    { name: 'ios-e2e', cases: 0, unlabelled: 0 },
+    { name: 'web-e2e', cases: 1, failed: 0, unlabelled: 0, classname_only: 0 },
+    { name: 'ios-e2e', cases: 0, failed: 0, unlabelled: 0, classname_only: 0 },
   ]);
   assert.equal(aggregate.summary.suites, 2);
   assert.equal(aggregate.summary.cases.total, 1);
+}));
+
+test('套件摘要的 failed 计入失败与错误用例', () => withShop(({ spec }) => {
+  const aggregate = aggregateResults({
+    spec,
+    suites: [web([kase('TC-SHOP-001 a', 'failed'), kase('无标识', 'error'), kase('TC-SHOP-002 b', 'skipped'), kase('TC-SHOP-003 c')])],
+  });
+  assert.equal(aggregate.suites[0].failed, 2);
 }));
 
 test('summary 含套件数、用例各状态数、无标识数、AC 各状态数与人工自动数、路径数', () => withShop(({ spec }) => {
@@ -198,6 +216,7 @@ test('summary 含套件数、用例各状态数、无标识数、AC 各状态数
     suites: 1,
     cases: { total: 4, passed: 1, failed: 1, error: 1, skipped: 1 },
     unlabelled: 1,
+    classname_only: 0,
     acs: { total: 4, passed: 1, failed: 1, skipped: 1, missing: 1, auto: 3, manual: 1 },
     paths: { total: 2, passed: 0 },
   });
@@ -245,7 +264,7 @@ test('端为 - 的套件只计入总体，不产生端记录', () => withShop(({
   assert.deepEqual(aggregate.acs['AC-SHOP-001-03'].by_platform, {});
 }));
 
-test('AC 未限定端（-）时，运行用例的各端都如实记录', () => withShop(({ spec }) => {
+test('AC 未限定端（-）时，运行用例的各端都如实记录，任一端跳过即总体 skipped', () => withShop(({ spec }) => {
   const aggregate = aggregateResults({
     spec,
     suites: [
@@ -253,7 +272,7 @@ test('AC 未限定端（-）时，运行用例的各端都如实记录', () => w
       { name: 'android-e2e', platform: 'android', cases: [kase('TC-SHOP-003 reject', 'skipped')] },
     ],
   });
-  assert.equal(aggregate.acs['AC-SHOP-001-03'].status, 'passed');
+  assert.equal(aggregate.acs['AC-SHOP-001-03'].status, 'skipped');
   assert.deepEqual(aggregate.acs['AC-SHOP-001-03'].by_platform, { android: 'skipped', web: 'passed' });
 }));
 

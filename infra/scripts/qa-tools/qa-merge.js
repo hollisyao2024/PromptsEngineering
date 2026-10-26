@@ -11,7 +11,8 @@
  *   pnpm run qa:merge                  # 默认 session 模式（合并当前分支对应 PR）
  *   pnpm run qa:merge -- --project     # 项目模式（同样仅合并当前分支对应 PR）
  *   pnpm run qa:merge -- --dry-run     # 预览操作，不执行
- *   pnpm run qa:merge -- --skip-checks # 跳过发布门禁检查
+ *
+ * 发布门禁不可跳过：--skip-checks 已移除，传入即在任何副作用前失败。
  */
 
 const fs = require('fs');
@@ -180,6 +181,10 @@ function getRemoteUrl() {
 // ==================== qa-merge 专用函数 ====================
 
 function parseArgs(argv) {
+  // 跳过门禁会让“合并”不再代表“验证通过”；旧参数显式报错，避免被静默忽略后误以为已跳过。
+  if (argv.includes('--skip-checks')) {
+    throw new Error('--skip-checks 已移除：发布门禁不可跳过。请修复阻塞问题后重新执行 qa verify 与 qa merge');
+  }
   let scope = 'session';
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -199,7 +204,6 @@ function parseArgs(argv) {
 
   return {
     scope: scope === 'project' ? 'project' : 'session',
-    skipChecks: argv.includes('--skip-checks'),
     dryRun: argv.includes('--dry-run'),
     bumpVersion: argv.includes('--bump-version'),
     noVersionBump: argv.includes('--no-version-bump'),
@@ -1671,18 +1675,17 @@ async function main() {
     const skipBusinessQaChecks = config.template && config.template.role === 'source';
     if (resumedMerge) {
       console.log('\x1b[36m跳过发布门禁检查（PR 已合并，仅恢复本地收尾）\x1b[0m');
-    } else if (!args.skipChecks && !skipBusinessQaChecks) {
+    } else if (!skipBusinessQaChecks) {
       const checksPassed = runPreMergeChecks({ config, scope: args.scope, cwd: repoRoot, baseSha: qaReceipt.base_sha, headSha: qaReceipt.head_sha });
       if (!checksPassed) {
         throw new Error(
           '发布门禁检查未通过（存在 P0 阻塞缺陷或 NFR 未达标）。\n' +
-          '请先修复阻塞问题后重试，或使用 --skip-checks 跳过检查。'
+          '请先修复阻塞问题，重新执行 qa verify 后再重试。'
         );
       }
       console.log('\x1b[32m发布门禁检查通过\x1b[0m');
     } else {
-      const reason = skipBusinessQaChecks ? '模板源仓库跳过业务 QA 门禁' : '--skip-checks';
-      console.log(`\x1b[33m跳过发布门禁检查 (${reason})\x1b[0m`);
+      console.log('\x1b[33m跳过发布门禁检查 (模板源仓库跳过业务 QA 门禁)\x1b[0m');
     }
 
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
@@ -1926,7 +1929,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- qa merge [--project | --scope <session|project>] [--skip-checks] [--dry-run]\n\nRe-verify the QA receipt and squash-merge the verified commit into the base branch.');
+  exitOnHelp('Usage: pnpm agent -- qa merge [--project | --scope <session|project>] [--dry-run]\n\nRe-verify the QA receipt and squash-merge the verified commit into the base branch.');
   main().catch((err) => {
     console.error(`\x1b[31m/qa merge 失败: ${err.message}\x1b[0m`);
     process.exit(1);
@@ -1934,6 +1937,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  parseArgs,
   checkMergeWorktrees,
   buildBasePushArgs,
   buildCommitMessage,

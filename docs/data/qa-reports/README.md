@@ -361,7 +361,7 @@ pnpm run qa:check-defect-blockers
 3. **发布前**：运行项目自有发布门禁命令，或组合已实现 QA/NFR 检查
    - 生成 `release-gate-YYYYMMDD.md`
    - 检查 P0 缺陷、NFR 达标率、安全漏洞
-4. **QA 专家**基于 `release-gate-YYYYMMDD.md` 给出发布建议（Go/No-Go）
+4. **QA 专家**以 `qa verify` 的 `QA_VERDICT=PASS|PASS_WITH_RISK|BLOCKED` 为发布裁决，`release-gate-YYYYMMDD.md` 只作风险说明
 
 ---
 

@@ -86,10 +86,22 @@ test('关联 AC 与关联 TC 接受逗号、顿号与空格，- 表示无', () =
   assert.deepEqual(doc.paths[1].tcs, []);
 });
 
-test('覆盖准则缺省为 none，可逗号组合，接受全角与半角冒号', () => {
+test('CRITERION_MISSING ← 未声明覆盖准则（不再默认 none），指向文件首行', () => {
   const missing = spec.parsePathsDocument(pathsDocument(shopPaths((model) => { delete model.criterion; })), { file: PATHS_FILE });
-  assert.deepEqual(missing.violations, []);
-  assert.deepEqual(missing.criteria, ['none']);
+  assert.deepEqual(codes(missing.violations), ['CRITERION_MISSING']);
+  assert.equal(missing.violations[0].file, PATHS_FILE);
+  assert.equal(missing.violations[0].line, 1);
+  assert.match(missing.violations[0].message, /覆盖准则/u);
+  assert.equal(missing.criterionLine, null);
+});
+
+test('显式声明 none 仍然合法：不检查路径覆盖是有意的选择', () => {
+  const explicit = spec.parsePathsDocument(pathsDocument(shopPaths((model) => { model.criterion = 'none'; })), { file: PATHS_FILE });
+  assert.deepEqual(explicit.violations, []);
+  assert.deepEqual(explicit.criteria, ['none']);
+});
+
+test('覆盖准则可逗号组合，接受全角与半角冒号', () => {
 
   const combined = spec.parsePathsDocument(
     pathsDocument(shopPaths((model) => { model.criterion = 'all-transitions, all-states'; })),
@@ -123,14 +135,13 @@ test('CRITERION_INVALID ← 覆盖准则声明了两次，指向第二处', () =
   assert.deepEqual(doc.criteria, ['all-transitions']);
 });
 
-test('围栏代码块内的覆盖准则声明不生效', () => {
+test('围栏代码块内的覆盖准则声明不生效，按未声明阻断', () => {
   const content = pathsDocument(shopPaths((model) => { delete model.criterion; }), {
     extra: '```text\n覆盖准则：all-states\n```\n',
   });
   const doc = spec.parsePathsDocument(content, { file: PATHS_FILE });
 
-  assert.deepEqual(doc.violations, []);
-  assert.deepEqual(doc.criteria, ['none']);
+  assert.deepEqual(codes(doc.violations), ['CRITERION_MISSING']);
   assert.equal(doc.criterionLine, null);
 });
 

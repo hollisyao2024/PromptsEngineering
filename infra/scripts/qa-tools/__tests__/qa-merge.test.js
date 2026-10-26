@@ -49,3 +49,26 @@ test('deferred cleanup summary gives concrete commands for CLEANUP_STATUS=PENDIN
   assert.match(output, /pnpm agent -- finish/);
   assert.ok(output.includes(mainRoot), output);
 });
+
+test('qa merge refuses --skip-checks before any side effect', () => {
+  const { parseArgs } = require('../qa-merge');
+  assert.throws(() => parseArgs(['--skip-checks']), /--skip-checks 已移除/u);
+  assert.throws(() => parseArgs(['--dry-run', '--skip-checks']), /--skip-checks 已移除/u);
+  assert.equal(parseArgs(['--dry-run']).dryRun, true);
+  assert.equal(Object.hasOwn(parseArgs([]), 'skipChecks'), false);
+});
+
+test('qa merge CLI exits non-zero on --skip-checks without touching git', () => {
+  const { spawnSync } = require('node:child_process');
+  const cwd = fs.mkdtempSync(path.join(REAL_TMPDIR, 'qa-merge-skip-'));
+  try {
+    const result = spawnSync(process.execPath, [path.join(__dirname, '..', 'qa-merge.js'), '--skip-checks'], {
+      cwd, encoding: 'utf8',
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--skip-checks 已移除/u);
+    assert.deepEqual(fs.readdirSync(cwd), []);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

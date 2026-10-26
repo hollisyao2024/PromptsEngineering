@@ -24,14 +24,19 @@ const {
   runVerify,
 } = require('./fixtures/business-testing/verify');
 
-// 现行 `qa verify` 在业务门禁关闭时的完整输出（临时目录、回执名与提交号换成占位符）。
+// 现行 `qa verify` 在业务门禁关闭、按夹具默认声明 --no-module 时的完整输出（临时目录、回执名与提交号换成占位符）。
+// 测试完整性门禁先于 QA 文档门禁执行；找不到会话目标只在显式声明后放行，并把裁决降为 PASS_WITH_RISK。
 const GOLDEN_DISABLED = [
   '============================================================',
   'QA 验收检查工具 v1.1.0',
   '============================================================',
+  'TEST_INTEGRITY=PASS FILES=0 WAIVERS=0',
   '\u{1F9ED} 作用域：session（仅会话相关 QA 变更）',
-  'ℹ️ 未识别到当前会话 QA 目标（no-op）。',
+  '⚠️ 未识别到当前会话 QA 目标；已按 --no-module 声明放行，记为风险。',
+  'QA_TARGETS=NONE',
+  'QA_NO_MODULE_REASON=夹具：本次改动不涉及 QA 模块',
   'TEST_SCOPE_TASK=accept-check TEST_SCOPE_MODE=targeted',
+  'QA_VERDICT=PASS_WITH_RISK',
   'QA_RECEIPT=<ROOT>/tmp/qa-verification-receipts/<KEY>.json',
   'BASE_BRANCH=main',
   'BASE_SHA=<SHA>',
@@ -41,9 +46,10 @@ const GOLDEN_DISABLED = [
   'NEXT_ACTION=执行 pnpm agent -- qa merge',
 ];
 
-// 未启用业务门禁时回执结构不得变化：键集合固定；启用且通过后只多一个 business 摘要键。
-const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'schema_version', 'verdict', 'verified_at'];
-const BUSINESS_RECEIPT_KEYS = [...RECEIPT_KEYS, 'business'].sort();
+// 回执键集合固定：基础身份字段加三态裁决 qa_verdict；按 --no-module 放行时多记一条理由；业务门禁通过后再多一个 business 摘要。
+const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'qa_verdict', 'schema_version', 'verdict', 'verified_at'];
+const NO_MODULE_RECEIPT_KEYS = [...RECEIPT_KEYS, 'no_module_reason'].sort();
+const BUSINESS_RECEIPT_KEYS = [...NO_MODULE_RECEIPT_KEYS, 'business'].sort();
 
 function scenarioFor(t) {
   const scenario = createScenario();
@@ -85,9 +91,44 @@ test('qa.business 默认关闭时 qa verify 的输出、退出码与回执同接
   assert.equal(fs.existsSync(s.resultsDir), false);
 
   const receipt = readReceiptFile(s);
-  assert.deepEqual(Object.keys(receipt).sort(), RECEIPT_KEYS);
+  assert.deepEqual(Object.keys(receipt).sort(), NO_MODULE_RECEIPT_KEYS);
   assert.equal(receipt.verdict, 'passed');
+  assert.equal(receipt.qa_verdict, 'PASS_WITH_RISK');
+  assert.equal(receipt.no_module_reason, '夹具：本次改动不涉及 QA 模块');
   assert.equal(receipt.head_sha, s.head());
+});
+
+test('找不到会话 QA 目标且未声明 --no-module 时 qa verify 阻断（QA_TARGET_MISSING），不再按 no-op 放行', (t) => {
+  const s = scenarioFor(t);
+  attachOrigin(s);
+  pushBranch(s);
+  recordTestScope(s);
+
+  const verify = runVerify(s, { args: [] });
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(
+    verify.lines.filter((line) => line.startsWith('QA_VERIFY_BLOCK=')).map((line) => line.split('|')[0]),
+    ['QA_VERIFY_BLOCK=QA_TARGET_MISSING'],
+  );
+  const tail = verify.lines.slice(-4);
+  assert.equal(tail[0], 'STATUS=BLOCKED');
+  assert.equal(tail[1], 'REASON=QA_TARGET_MISSING');
+  assert.match(tail[3], /--no-module --reason/u);
+  assert.ok(verify.lines.includes('QA_VERDICT=BLOCKED'), verify.text);
+  assert.equal(has(verify, /^QA_RECEIPT=/u), false, verify.text);
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});
+
+test('--no-module 缺少 --reason 时 qa verify 失败退出，不签发回执', (t) => {
+  const s = scenarioFor(t);
+  attachOrigin(s);
+  pushBranch(s);
+  recordTestScope(s);
+
+  const verify = runVerify(s, { args: ['--no-module'] });
+  assert.notEqual(verify.status, 0, output(verify));
+  assert.match(output(verify), /--no-module 必须同时提供 --reason/u);
+  assert.equal(fs.existsSync(receiptPath(s)), false);
 });
 
 test('enabled 为 false 时即使套件已配置、结果文件已损坏，qa verify 也同接入前一致', (t) => {
@@ -101,7 +142,7 @@ test('enabled 为 false 时即使套件已配置、结果文件已损坏，qa ve
   assert.equal(verify.status, 0, output(verify));
   assert.deepEqual(normalize(s, verify.lines), GOLDEN_DISABLED);
   assert.equal(fs.readFileSync(s.resultsFile, 'utf8'), corrupt);
-  assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), RECEIPT_KEYS);
+  assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), NO_MODULE_RECEIPT_KEYS);
 });
 
 test('模板源仓库不运行业务验收门禁，即使 qa.business 已启用', (t) => {
@@ -120,7 +161,9 @@ test('模板源仓库不运行业务验收门禁，即使 qa.business 已启用'
   assert.match(verify.text, /模板源仓库：跳过业务 PRD\/QA 验收门禁。/u);
   assert.equal(verify.text.includes('BUSINESS_'), false);
   assert.ok(fs.existsSync(receiptPath(s)));
+  assert.ok(verify.lines.includes('TEST_INTEGRITY=PASS FILES=0 WAIVERS=0'), '模板源同样执行测试完整性门禁');
   assert.deepEqual(Object.keys(readReceiptFile(s)).sort(), RECEIPT_KEYS, '门禁没有运行，回执不得声称业务验收通过');
+  assert.equal(readReceiptFile(s).qa_verdict, 'PASS');
 });
 
 test('qa verify --help 说明业务验收门禁由 qa.business 控制', (t) => {
@@ -156,6 +199,8 @@ test('启用后必需 AC 都被证明时 qa verify 放行：先打印门禁与�
   assert.deepEqual(Object.keys(receipt).sort(), BUSINESS_RECEIPT_KEYS);
   assert.equal(receipt.schema_version, 1, '摘要是追加字段，回执版本不变');
   assert.equal(receipt.verdict, 'passed');
+  assert.equal(receipt.qa_verdict, 'PASS_WITH_RISK', '业务风险披露与 --no-module 声明都使裁决降为 PASS_WITH_RISK');
+  assert.ok(indexOfLine(verify, 'BUSINESS_GATE=') < indexOfLine(verify, 'QA_VERDICT='), verify.text);
   assert.equal(receipt.head_sha, s.head());
 
   // 回执里的业务摘要与刚打印的门禁输出、qa run 写下的结果一致：必需优先级、已证明的自动化 AC 条数、披露风险数、配置摘要。
@@ -290,6 +335,7 @@ test('多个门禁同时失败时 qa verify 一次列出全部阻断：架构、
   assert.equal(tail[0], 'STATUS=BLOCKED');
   assert.equal(tail[1], 'REASON=ARCHITECTURE_PACKAGE_MISSING');
   assert.match(tail[2], /^SUMMARY=4 项门禁阻断/u);
+  assert.ok(verify.lines.includes('QA_VERDICT=BLOCKED'), verify.text);
   for (const code of ['ARCHITECTURE_PACKAGE_MISSING', 'QA_VERDICT_NO_GO', 'TEST_SCOPE_EVIDENCE', 'BUSINESS_GATE_BLOCKED']) {
     assert.ok(tail[2].includes(code), tail[2]);
     assert.ok(tail[3].includes(code), tail[3]);

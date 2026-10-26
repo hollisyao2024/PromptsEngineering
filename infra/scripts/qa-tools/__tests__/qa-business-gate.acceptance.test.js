@@ -13,6 +13,7 @@ const {
   NO_CRITERION,
   PATHS_FILE,
   PRD_FILE,
+  blocksOf,
   codesOf,
   evaluate,
   prepare,
@@ -221,6 +222,24 @@ test('无标识的用例与引用了不存在标识的用例只披露，不阻�
   assert.match(outcome.risks[1].detail, /1/u);
   assert.match(outcome.risks[2].detail, /AC-SHOP-009-09/u);
   assert.match(outcome.risks[2].detail, /TC-SHOP-099/u);
+});
+
+test('只有 classname（describe/文件名）带标识的用例不计入验收，单独披露为 RISK_CLASSNAME_ONLY', (t) => {
+  const s = scenarioFor(t);
+  prepare(s, {
+    web: [
+      ...WEB_CASES.filter((item) => !item.name.includes('AC-SHOP-001-01')),
+      { name: '结算进入支付页', classname: 'AC-SHOP-001-01 / TC-SHOP-001 结算', status: 'passed' },
+    ],
+  });
+  const outcome = evaluate(s);
+
+  assert.equal(outcome.status, 'BLOCKED', show(outcome));
+  assert.deepEqual(blocksOf(outcome, 'AC_NOT_PROVEN').map((item) => item.subject), ['AC-SHOP-001-01']);
+  assert.deepEqual(codesOf(outcome.risks), ['RISK_MANUAL_AC', 'RISK_UNLABELLED_CASES', 'RISK_CLASSNAME_ONLY']);
+  const classnameRisk = outcome.risks.find((item) => item.code === 'RISK_CLASSNAME_ONLY');
+  assert.match(classnameRisk.detail, /1/u);
+  assert.match(classnameRisk.detail, /classname/u);
 });
 
 test('没有原子 AC 表的模块其验收不受门禁约束，披露为 RISK_MODULE_WITHOUT_TABLE', (t) => {

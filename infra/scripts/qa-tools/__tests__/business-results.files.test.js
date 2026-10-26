@@ -86,7 +86,10 @@ test('结果含 HEAD、生成时间、配置摘要、套件命令退出码与报
       detail: null,
       duration_ms: 1234,
       cases: 3,
+      // failed 让门禁判断非零退出能否由报告解释；classname_only 是 unlabelled 中仅 classname 命中的子集。
+      failed: 1,
       unlabelled: 1,
+      classname_only: 0,
       report: { path: 'test-results/junit.xml', copy: 'reports/web-e2e.xml', sha256: 'c'.repeat(64), bytes: 321 },
     },
     {
@@ -98,7 +101,9 @@ test('结果含 HEAD、生成时间、配置摘要、套件命令退出码与报
       detail: '运行超过 900 秒被终止',
       duration_ms: 900000,
       cases: 0,
+      failed: 0,
       unlabelled: 0,
+      classname_only: 0,
       report: null,
     },
   ]);

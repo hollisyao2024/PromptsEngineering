@@ -194,11 +194,12 @@ test('大量用例的报告可在合理时间内解析', () => {
 // 标识提取
 // ---------------------------------------------------------------------------
 
-test('从 name 与 classname 提取 AC 与 TC 标识（大写整词、去重、保持出现顺序）', () => {
+test('只从 name 提取 AC 与 TC 标识（大写整词、去重、保持出现顺序），classname 不参与', () => {
   assert.deepEqual(
     extractCaseLabels({ name: 'AC-SHOP-001-02 与 TC-SHOP-002 同时出现 TC-SHOP-002', classname: 'login.TC-SHOP-001' }),
-    { acs: ['AC-SHOP-001-02'], tcs: ['TC-SHOP-002', 'TC-SHOP-001'] },
+    { acs: ['AC-SHOP-001-02'], tcs: ['TC-SHOP-002'] },
   );
+  assert.deepEqual(extractCaseLabels({ name: '无标识', classname: 'AC-SHOP-001-01 describe' }), { acs: [], tcs: [] });
 });
 
 test('小写、嵌在其他词中或多余后缀的标识不算标识', () => {

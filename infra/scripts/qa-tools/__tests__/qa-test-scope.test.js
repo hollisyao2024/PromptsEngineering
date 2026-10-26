@@ -13,6 +13,8 @@ const ROOT = '/project/repo';
 const WORKTREE = '/project/worktrees/change';
 const BRANCH = 'codex/change';
 const context = { projectRoot: ROOT, worktree: WORKTREE, branch: BRANCH };
+// 结果证据必须引用 task exec 日志；单元测试不传 runsRoot 时只校验引用格式。
+const logRef = (name) => `evidence/${name}.log sha256=${'c'.repeat(64)}`;
 
 function decision(overrides = {}) {
   return {
@@ -35,7 +37,7 @@ function result(overrides = {}) {
     checks: [{
       command: 'node --test qa-test-scope.test.js',
       exit_code: 0,
-      evidence: 'task evidence/qa-test-scope.log',
+      evidence: logRef('qa-test-scope'),
     }],
     ...overrides,
   };
@@ -60,7 +62,7 @@ function verify(states, overrides = {}) {
 test('targeted and static decisions with matching successful checks are accepted', () => {
   assert.equal(verify([state()]).taskId, 'change');
   const staticDecision = decision({ mode: 'static', commands: ['git diff --check'], not_run: ['business tests'] });
-  const staticResult = result({ checks: [{ command: 'git diff --check', exit_code: 0, evidence: 'clean diff' }] });
+  const staticResult = result({ checks: [{ command: 'git diff --check', exit_code: 0, evidence: logRef('diff-check') }] });
   assert.equal(verify([state([
     `TEST_SCOPE_DECISION=${JSON.stringify(staticDecision)}`,
     `TEST_SCOPE_RESULT=${JSON.stringify(staticResult)}`,
@@ -246,9 +248,17 @@ test('evidence log references with sha256 must point at an existing, matching ta
   assert.equal(verify([state(withEvidence(`task exec evidence/qa.log sha256=${sha256}`))], { runsRoot }).taskId, 'change');
   assert.throws(() => verify([state(withEvidence(`evidence/qa.log sha256=${'0'.repeat(64)}`))], { runsRoot }), /sha256/);
   assert.throws(() => verify([state(withEvidence(`evidence/missing.log sha256=${sha256}`))], { runsRoot }), /evidence file/);
-  // Evidence without a log reference is still accepted; without runsRoot the reference is not checked (legacy callers).
-  assert.equal(verify([state(withEvidence('task evidence/qa-test-scope.log'))], { runsRoot }).taskId, 'change');
+  // Without runsRoot only the reference format is checked; the file itself cannot be resolved.
   assert.equal(verify([state(withEvidence(`evidence/missing.log sha256=${sha256}`))]).taskId, 'change');
+});
+
+test('free-text evidence without a task exec log reference blocks QA, with or without runsRoot', (t) => {
+  const { runsRoot } = evidenceLogFixture(t);
+  const cited = /must cite a task exec log as evidence\/<name>\.log sha256=<hex>/;
+  for (const evidence of ['task evidence/qa-test-scope.log', 'tests passed locally', 'evidence/qa.log', `qa.log sha256=${'c'.repeat(64)}`]) {
+    assert.throws(() => verify([state(withEvidence(evidence))], { runsRoot }), cited, evidence);
+    assert.throws(() => verify([state(withEvidence(evidence))]), cited, evidence);
+  }
 });
 
 test('QA fails closed on missing, duplicate and invalid evidence references', () => {

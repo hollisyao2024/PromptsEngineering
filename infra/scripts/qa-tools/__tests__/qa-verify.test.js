@@ -7,9 +7,11 @@ const os = require('node:os');
 const path = require('node:path');
 
 const {
+  calculateVerdict,
   captureQaVerificationIdentity,
   createPnpmRunInvocation,
   describeQaVerifyOutcome,
+  parseArgs,
   resolveProjectChecks,
   resolveTargetsFromQaPlanState,
   validateQaFile,
@@ -464,4 +466,53 @@ test('qa verify maps architecture gate errors to BLOCKED with the matching next 
   assert.equal(missingOutcome.status, 'BLOCKED');
   assert.equal(missingOutcome.reason, 'ARCHITECTURE_PACKAGE_MISSING');
   assert.match(missingOutcome.nextAction, /template sync --include architecture/);
+});
+
+// --no-module 是“本次确实不涉及 QA 模块”的显式声明：必须带理由，且不能与指定模块同用；理由写进回执供合并审计。
+test('qa verify parseArgs requires a reason for --no-module and rejects contradicting flags', () => {
+  const declared = (argv) => {
+    const { noModule, noModuleReason } = parseArgs(argv);
+    return { noModule, noModuleReason };
+  };
+  assert.deepEqual(declared([]), { noModule: false, noModuleReason: null });
+  assert.deepEqual(declared(['--no-module', '--reason', '只改 CLI 帮助文本']), {
+    noModule: true,
+    noModuleReason: '只改 CLI 帮助文本',
+  });
+  assert.deepEqual(declared(['--reason=只改脚本', '--no-module']), { noModule: true, noModuleReason: '只改脚本' });
+
+  for (const argv of [['--no-module'], ['--no-module', '--reason', '   '], ['--no-module', '--reason']]) {
+    assert.throws(() => parseArgs(argv), (error) => error.code === 'QA_ARGS_INVALID'
+      && /--no-module 必须同时提供 --reason/u.test(error.message));
+  }
+  assert.throws(() => parseArgs(['--reason', '孤立理由']), /--reason 只能与 --no-module 同用/u);
+  assert.throws(() => parseArgs(['--no-module', '--reason', 'x', '--module', 'shop']), /--no-module 不能与 --module/u);
+  assert.throws(() => parseArgs(['--modules=shop', '--no-module', '--reason', 'x']), /--no-module 不能与 --module/u);
+});
+
+// 裁决只保留三态：有错误即 BLOCKED，只有警告为 PASS_WITH_RISK，二者皆无为 PASS；不再有可放行的 Conditional。
+test('qa verify calculateVerdict returns only PASS, PASS_WITH_RISK or BLOCKED', () => {
+  assert.deepEqual(calculateVerdict([{ errors: ['e'], warnings: ['w'] }]), {
+    verdict: 'BLOCKED', errorCount: 1, warningCount: 1, exitCode: 1,
+  });
+  assert.deepEqual(calculateVerdict([{ errors: [], warnings: ['w'] }]), {
+    verdict: 'PASS_WITH_RISK', errorCount: 0, warningCount: 1, exitCode: 0,
+  });
+  assert.deepEqual(calculateVerdict([{ errors: [], warnings: [] }]), {
+    verdict: 'PASS', errorCount: 0, warningCount: 0, exitCode: 0,
+  });
+});
+
+test('qa verify maps a missing QA target and a failed integrity gate to actionable BLOCKED outcomes', () => {
+  const missing = describeQaVerifyOutcome({ blockers: [{ reason: 'QA_TARGET_MISSING' }] });
+  assert.equal(missing.status, 'BLOCKED');
+  assert.equal(missing.reason, 'QA_TARGET_MISSING');
+  assert.match(missing.summary, /未识别到当前会话 QA 目标/u);
+  assert.match(missing.nextAction, /--module <name>/u);
+  assert.match(missing.nextAction, /--no-module --reason/u);
+
+  const integrity = describeQaVerifyOutcome({ blockers: [{ reason: 'TEST_INTEGRITY_BLOCKED' }] });
+  assert.equal(integrity.status, 'BLOCKED');
+  assert.match(integrity.summary, /测试完整性/u);
+  assert.match(integrity.nextAction, /qa integrity waive/u);
 });
