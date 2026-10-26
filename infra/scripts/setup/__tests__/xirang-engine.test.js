@@ -274,3 +274,58 @@ test('orphan lock records whose file still exists, or that belong to the shared 
   assert.deepEqual(p.lockPrunes, []);
   assert.equal(p.changes.length, 0);
 });
+// Windows checkouts with core.autocrlf=true hold CRLF text while baselines are stored as LF.
+const crlf = text => text.replace(/\n/g, '\r\n');
+test('overwrite treats a CRLF checkout of the LF baseline as unmodified and keeps CRLF; repeat converges', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  install(f, [asset('base\nline\n', 'overwrite')]);
+  f.put(file, crlf('base\nline\n'));
+  assert.equal(planUpdate({ target: f.target, assets: [asset('base\nline\n', 'overwrite')] }).changes.length, 0);
+  const p = install(f, [asset('new\nline\n', 'overwrite')]);
+  assert.equal(p.conflicts.length, 0);
+  assert.equal(f.get(file), crlf('new\nline\n'));
+  assert.equal(planUpdate({ target: f.target, assets: [asset('new\nline\n', 'overwrite')] }).changes.length, 0);
+});
+test('overwrite still conflicts on a real CRLF edit and on binary content differing only by CR', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  install(f, [asset('base\nline\n', 'overwrite')]);
+  f.put(file, crlf('edited\nline\n'));
+  assert.match(planUpdate({ target: f.target, assets: [asset('new\n', 'overwrite')] }).conflicts[0].reason, /local content changed/);
+  install(f, [asset('bin\n\0data\n', 'overwrite', 'assets/blob.bin')]);
+  f.put('assets/blob.bin', 'bin\r\n\0data\r\n');
+  assert.match(planUpdate({ target: f.target, assets: [asset('bin2\n\0data\n', 'overwrite', 'assets/blob.bin')] }).conflicts[0].reason, /local content changed/);
+});
+test('remove deletes a CRLF checkout of the LF baseline but keeps a real CRLF edit', t => {
+  const f = fixture(t);
+  install(f, [asset('old\nline\n', 'overwrite', 'docs/old.md'), asset('keep\nline\n', 'overwrite', 'docs/keep.md')]);
+  f.put('docs/old.md', crlf('old\nline\n'));
+  f.put('docs/keep.md', crlf('keep\nedited\n'));
+  const p = planUpdate({ target: f.target, assets: [asset(undefined, 'remove', 'docs/old.md'), asset(undefined, 'remove', 'docs/keep.md')] });
+  assert.deepEqual(p.conflicts.map(c => c.path), ['docs/keep.md']);
+  assert.match(p.conflicts[0].reason, /unmodified baseline/);
+  install(f, [asset(undefined, 'remove', 'docs/old.md')]);
+  assert.equal(fs.existsSync(path.join(f.target, 'docs/old.md')), false);
+});
+test('three-way update merges a CRLF local edit against LF base/upstream and keeps CRLF; repeat converges', t => {
+  const f = fixture(t), file = 'apps/web/component.ts';
+  install(f, [asset('first\nunchanged\nlast\n')]);
+  f.put(file, crlf('local\nunchanged\nlast\n'));
+  const p = install(f, [asset('first\nunchanged\nupstream\n')]);
+  assert.equal(p.conflicts.length, 0);
+  assert.equal(f.get(file), crlf('local\nunchanged\nupstream\n'));
+  assert.equal(planUpdate({ target: f.target, assets: [asset('first\nunchanged\nupstream\n')] }).changes.length, 0);
+  f.put(file, crlf('first\nunchanged\nupstream\n'));
+  assert.equal(planUpdate({ target: f.target, assets: [asset('first\nunchanged\nupstream\n')] }).changes.length, 0);
+});
+test('merge-json and adopted overwrite compare CRLF local content by normalized text', t => {
+  const f = fixture(t), file = 'config/settings.json';
+  install(f, [asset('{\n  "a": 1\n}\n', 'merge-json', file)]);
+  f.put(file, crlf('{\n  "a": 1\n}\n'));
+  install(f, [asset('{\n  "a": 1,\n  "b": 2\n}\n', 'merge-json', file)]);
+  assert.equal(f.get(file), crlf('{\n  "a": 1,\n  "b": 2\n}\n'));
+  const adopted = 'apps/web/adopted.ts';
+  f.put(adopted, 'custom\n');
+  install(f, [asset('upstream\n', 'overwrite', adopted)], { adopt: true });
+  f.put(adopted, crlf('custom\n'));
+  assert.equal(planUpdate({ target: f.target, assets: [asset('upstream\n', 'overwrite', adopted)] }).conflicts.length, 0);
+});
