@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.13.2] - 2026-10-26
+
+- 修复官方源 3 个 Windows 测试失败：存储目录不再因无 POSIX 权限位误拒，release 切换在 Windows 明确拒绝。
+
 ## [v3.13.1] - 2026-10-26
 
 - 修复 Windows CRLF 检出下 contracts `generate.mjs --check` 误报漂移，仅换行差异不再视为生成漂移。
