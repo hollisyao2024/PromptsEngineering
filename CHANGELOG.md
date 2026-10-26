@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.13.0] - 2026-10-26
+
 - **破坏性**：新增 qa integrity 测试完整性门禁并收紧 qa verify/业务门禁，移除 --skip-checks（ADR-041，存量可先设 integrity warn）。
 
 ## [v3.12.5] - 2026-10-26
