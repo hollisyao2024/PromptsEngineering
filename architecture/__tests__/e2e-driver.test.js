@@ -67,7 +67,8 @@ function readApps(target, modulePath = 'packages/e2e') {
 
 // The README carries the only thing a project has to paste into agent.config.json.
 function readSuite(target, modulePath = 'packages/e2e') {
-  const block = /```json\n([\s\S]*?)\n```/.exec(readText(target, modulePath, 'README.md'));
+  // Windows checkouts may carry CRLF (core.autocrlf); the template is copied byte for byte.
+  const block = /```json\r?\n([\s\S]*?)\r?\n```/.exec(readText(target, modulePath, 'README.md'));
   assert.ok(block, 'README must carry a pasteable qa.business snippet');
   const resolved = resolveBusinessConfig({ qa: { business: JSON.parse(block[1]).qa.business } });
   assert.equal(resolved.ok, true, (resolved.errors || []).join('; '));

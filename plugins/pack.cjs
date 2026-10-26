@@ -51,7 +51,16 @@ function collectFiles(source) {
   return [...PAYLOAD].sort();
 }
 
-function packagePlugin({source = path.join(__dirname,'xirang'), output, zipCommand = 'zip'} = {}) {
+// Windows ships no zip CLI; its bundled bsdtar (System32\tar.exe, Windows 10 1803+) writes ZIP from the .zip suffix.
+// An explicit zipCommand always keeps the zip CLI contract.
+function archiveCommand(zipCommand, archive, files) {
+  if (zipCommand === undefined && process.platform === 'win32') {
+    return [path.join(process.env.SystemRoot || 'C:\\Windows','System32','tar.exe'),['-a','-c','-f',archive,...files]];
+  }
+  return [zipCommand || 'zip',['-X','-q',archive,...files]];
+}
+
+function packagePlugin({source = path.join(__dirname,'xirang'), output, zipCommand} = {}) {
   if (!output || !path.isAbsolute(output) || path.extname(output) !== '.zip') throw new Error('output must be an absolute .zip path');
   const root = fs.realpathSync(source);
   const parent = fs.realpathSync(path.dirname(output));
@@ -63,7 +72,8 @@ function packagePlugin({source = path.join(__dirname,'xirang'), output, zipComma
   const temporary = fs.mkdtempSync(path.join(parent,'.xirang-pack-'));
   try {
     const archive = path.join(temporary,'payload.zip');
-    const zipped = spawnSync(zipCommand,['-X','-q',archive,...files],{cwd:root,encoding:'utf8',timeout:30000,maxBuffer:1024*1024});
+    const [command,args] = archiveCommand(zipCommand,archive,files);
+    const zipped = spawnSync(command,args,{cwd:root,encoding:'utf8',timeout:30000,maxBuffer:1024*1024,windowsHide:true});
     if (zipped.error || zipped.status !== 0) throw new Error('zip failed: '+(zipped.error?.message || zipped.stderr.trim()));
     // COPYFILE_EXCL also protects against a destination created after the initial check.
     fs.copyFileSync(archive,destination,fs.constants.COPYFILE_EXCL);
@@ -77,7 +87,7 @@ function packagePlugin({source = path.join(__dirname,'xirang'), output, zipComma
 if (require.main === module) {
   try {
     const args = process.argv.slice(2);
-    if (args.length !== 2 || args[0] !== '--output') throw new Error('Usage: node plugins/pack.cjs --output <absolute-new.zip> (requires zip)');
+    if (args.length !== 2 || args[0] !== '--output') throw new Error('Usage: node plugins/pack.cjs --output <absolute-new.zip> (requires zip; Windows uses its bundled tar.exe)');
     console.log(JSON.stringify(packagePlugin({output:args[1]}),null,2));
   } catch (error) { console.error('STATUS=FAILED\nREASON='+error.message); process.exitCode=1; }
 }
