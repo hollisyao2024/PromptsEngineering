@@ -62,7 +62,7 @@
 | ARCH | 架构、边界、技术决策 | `AgentRoles/ARCHITECTURE-WRITER-EXPERT.md` |
 | TASK | 依赖、里程碑、拆解 | `AgentRoles/TASK-PLANNING-EXPERT.md` |
 | TDD | 代码、测试、修复 | `AgentRoles/TDD-PROGRAMMING-EXPERT.md` |
-| QA | E2E、性能、安全、验收 | `AgentRoles/QA-TESTING-EXPERT.md` |
+| QA | 测试设计（规则与反例）、黑盒/E2E、性能、安全、验收 | `AgentRoles/QA-TESTING-EXPERT.md` |
 | OPS | CI/CD、环境、部署、发布治理 | `AgentRoles/OPS-ENGINEERING-EXPERT.md` |
 
 激活语法为 `[[ACTIVATE: PRD|ARCH|TASK|TDD|QA|OPS]]`。激活后先完整读取对应专家文件，再按专家文件指引点读相关 handbook；同一时刻只激活一位专家。计划获批后不得只停在激活步骤。

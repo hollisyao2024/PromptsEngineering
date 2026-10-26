@@ -26,7 +26,8 @@
 | PRD | {{PRD_LINK}} | {{PRD_SCOPE}} |
 | ARCH | {{ARCH_LINK}} | {{ARCH_SCOPE}} |
 | TASK | {{TASK_LINK}} | {{TASK_SCOPE}} |
-| 变更集 | {{DIFF_LINK}} | {{DIFF_SCOPE}} |
+| 测试设计 | `docs/qa-modules/{{DOMAIN}}/TEST-DESIGN.md` | 规则、反例与缺陷复现（期望值出处） |
+| 变更集 | {{DIFF_LINK}} | 仅用于界定回归范围，不作期望值出处 |
 
 ## 2. 风险与策略
 
@@ -62,6 +63,7 @@
 ### TC-{{MODULE_ID}}-001 — {{CASE_NAME}}
 
 - 对应 AC：{{AC_IDS}}
+- 规则/出处：{{RUL_ADV_BUG_IDS}}（期望值只取这些行及其出处，不取自实现）
 - 优先级：P0 / P1 / P2
 - 前置条件：{{PRECONDITION}}
 - 数据：{{TEST_DATA}}
@@ -77,9 +79,9 @@
 - {{EXPECTED_1}}
 - {{EXPECTED_2}}
 
-失败/边界变体：
+反例（按测试设计的反例目录，覆盖越权、状态、边界、并发与依赖故障）：
 
-- {{NEGATIVE_OR_EDGE}}
+- {{ADV_ID}}：{{NEGATIVE_OR_EDGE}}
 
 自动化命令：`{{COMMAND}}`
 
@@ -134,12 +136,13 @@
 
 | ID | 严重度 | 描述 | 复现 | 状态 | 负责人 |
 | --- | --- | --- | --- | --- | --- |
-| BUG-{{N}} | blocker/critical/major/minor | {{DESCRIPTION}} | {{REPRO_LINK}} | open | {{OWNER}} |
+| BUG-{{MODULE_ID}}-NNN | blocker/critical/major/minor | {{DESCRIPTION}} | {{REPRO_TC}}（修复前失败、修复后通过） | open | {{OWNER}} |
 
 阻断规则：
 
 - blocker/critical 未解决；
 - 必需 AC 无证据；
+- 必需用例被跳过，或通过放宽断言、删除测试、减少断言转为通过；
 - 环境或数据不足导致关键路径未执行；
 - 性能、安全或恢复门槛未达标；
 - 结果不确定且副作用状态未核实。
@@ -151,11 +154,17 @@
 | 项目 | 结果 |
 | --- | --- |
 | 必需 AC | {{PASSED}} / {{TOTAL}} |
+| P0 规则已被通过的用例证明 | {{RULES_VERIFIED}} / {{RULES_TOTAL}} |
+| P0 反例维度已覆盖 | {{ADV_COVERED}} / {{ADV_REQUIRED}} |
+| 缺陷复现（修复前失败、修复后通过） | {{REPRO_PASSED}} / {{REPRO_TOTAL}} |
+| 本次新发现缺陷 | {{NEW_DEFECTS}} |
+| 不稳定用例 | {{FLAKY}} |
 | 自动化测试 | {{AUTOMATION_SUMMARY}} |
 | 手工/物理验证 | {{MANUAL_SUMMARY}} |
 | 性能 | {{PERF_SUMMARY}} |
 | 安全 | {{SECURITY_SUMMARY}} |
 | 未关闭缺陷 | {{OPEN_DEFECTS}} |
+| 覆盖率（辅助） | {{COVERAGE}} |
 
 ### 发布建议
 
@@ -171,6 +180,7 @@
 
 - [ ] 被测提交、环境和数据可复现。
 - [ ] 所有必需 AC 有证据且追踪完整。
+- [ ] 每个用例的期望值都能追溯到测试设计中的规则、反例或缺陷行，没有取自实现。
 - [ ] 相关功能、失败路径和回归已执行。
 - [ ] 性能、安全、兼容与恢复已执行或合理标记 N/A。
 - [ ] 缺陷等级、负责人和处置明确。

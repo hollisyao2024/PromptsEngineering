@@ -1,5 +1,7 @@
 # ADR Changelog
 
+- 2026-10-26：[ADR 041](041-arch-qa-independent-oracle.md)，QA 预言机独立于实现：按“谁定预期值”分工，QA 设计、黑盒、审计三种模式，测试设计规则表、反例目录与缺陷复现三张表，PRD 新增可选不变量表；完成以门禁输出为准，完整性、测试设计、重复与复现、变异四道门禁分 PR 落地。
+
 - 2026-10-09：[ADR 040](040-arch-design-drift-check.md)，`DESIGN.md` 与 `styles.css` 的漂移检查只告警：shadcn 应用按实际生效取值比较颜色、圆角与正文字体族，结果写入 `checkProject` 的 `warnings`，工作流门禁输出 `ARCHITECTURE_WARNING=` 行，不改变通过条件；[ADR 037](037-arch-ui-design-contract.md) 文末增补指针。
 
 - 2026-10-08：[ADR 037](037-arch-ui-design-contract.md) 更正官方 lint 的门禁口径：规则 `broken-ref` 对未知的组件子属性只报警告、退出码仍为 0，门禁改为退出码为 0 且 `--format json` 输出中该规则的条数为 0；骨架 Components 节列出有效子属性清单。决策正文不变。
