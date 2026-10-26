@@ -27,7 +27,7 @@ const acRecord = (overrides = {}) => ({
 test('judgeAc 对未限定端的 AC 按整体状态裁决：passed 通过，failed、skipped、missing 不通过', () => {
   assert.deepEqual(judgeAc(acRecord({ status: 'passed' })), { proven: true, state: 'passed', reason: null });
   assert.deepEqual(judgeAc(acRecord({ status: 'failed' })), { proven: false, state: 'failed', reason: '存在失败用例' });
-  assert.deepEqual(judgeAc(acRecord({ status: 'skipped' })), { proven: false, state: 'skipped', reason: '用例全部被跳过' });
+  assert.deepEqual(judgeAc(acRecord({ status: 'skipped' })), { proven: false, state: 'skipped', reason: '存在被跳过的用例' });
   assert.deepEqual(judgeAc(acRecord({ status: 'missing' })), { proven: false, state: 'missing', reason: '没有任何用例覆盖' });
 });
 
@@ -80,10 +80,24 @@ test('judgeAc 任一端失败即不通过，包括声明范围之外的端', () 
   assert.equal(inconsistent.state, 'failed');
 });
 
-test('judgeAc 声明范围之外的端被跳过或缺失不影响判定', () => {
-  const verdict = judgeAc(acRecord({ platforms: ['web'], by_platform: { android: 'skipped', web: 'passed' } }));
+test('judgeAc 声明范围之外的端被跳过或缺失不影响判定（该端本就不适用此 AC）', () => {
+  const verdict = judgeAc(acRecord({ platforms: ['web'], status: 'skipped', by_platform: { android: 'skipped', web: 'passed' } }));
   assert.deepEqual(verdict, { proven: true, state: 'passed', reason: null });
 });
+
+test('judgeAc 与真实聚合配合：适用范围内一条通过、一条跳过不算通过', () => withShop(({ spec }) => {
+  const mixed = (platform) => aggregateResults({
+    spec,
+    suites: [{ name: `${platform}-e2e`, platform, cases: [kase('TC-SHOP-001 row 1'), kase('TC-SHOP-001 row 2', 'skipped'), kase('TC-SHOP-003 row 1'), kase('TC-SHOP-003 row 2', 'skipped')] }],
+  });
+  const declared = judgeAc(mixed('web').acs['AC-SHOP-001-01']);
+  assert.equal(declared.proven, false, '声明 web 的 AC 在 web 上有跳过');
+  assert.equal(declared.state, 'skipped');
+  assert.match(declared.reason, /web: skipped/u);
+
+  const unrestricted = judgeAc(mixed('web').acs['AC-SHOP-001-03']);
+  assert.deepEqual(unrestricted, { proven: false, state: 'skipped', reason: '存在被跳过的用例' });
+}));
 
 test('judgeAc 与 aggregateResults 的真实输出配合：端为 - 的套件不能代替声明的端', () => withShop(({ spec }) => {
   const anyPlatform = aggregateResults({

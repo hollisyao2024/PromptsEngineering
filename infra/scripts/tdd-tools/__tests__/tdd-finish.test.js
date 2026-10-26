@@ -31,20 +31,21 @@ NEXT_COMMANDS=
 
 test('commandArgs passes project scope to known finish commands', () => {
   assert.deepEqual(
-    commandArgs('node infra/scripts/tdd-tools/tdd-sync.js', { scope: 'project', skipChecks: false }),
+    commandArgs('node infra/scripts/tdd-tools/tdd-sync.js', { scope: 'project' }),
     ['infra/scripts/tdd-tools/tdd-sync.js', '--project'],
   );
 });
 
-test('commandArgs passes skip-checks only to qa merge', () => {
+test('commandArgs never forwards a gate bypass to qa merge', () => {
   assert.deepEqual(
-    commandArgs('node infra/scripts/qa-tools/qa-merge.js', { scope: 'session', skipChecks: true }),
-    ['infra/scripts/qa-tools/qa-merge.js', '--skip-checks'],
+    commandArgs('node infra/scripts/qa-tools/qa-merge.js', { scope: 'session' }),
+    ['infra/scripts/qa-tools/qa-merge.js'],
   );
-  assert.deepEqual(
-    commandArgs('node infra/scripts/qa-tools/qa-verify.js', { scope: 'session', skipChecks: true }),
-    ['infra/scripts/qa-tools/qa-verify.js'],
-  );
+});
+
+test('parseArgs rejects the removed --skip-checks before running anything', () => {
+  assert.throws(() => parseArgs(['--skip-checks']), /--skip-checks 已移除/u);
+  assert.equal(Object.hasOwn(parseArgs([]), 'skipChecks'), false);
 });
 
 test('parseArgs rejects no-qa because finish must merge', () => {

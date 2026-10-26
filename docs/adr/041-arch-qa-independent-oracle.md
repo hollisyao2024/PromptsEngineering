@@ -60,7 +60,21 @@ QA 专家在实际项目里沿代码路径写测试，再自报完成，测试�
 - 文件名 `TEST-DESIGN.md` 含子串 `DESIGN.md`，与 ADR-037 的界面视觉契约在文本检索上相撞；不在任务规划、运维及通用约定类文件中写出该字面文件名，由 `template-surface.design.test.js` 约束。
 - 本 PR 不新增命令与配置，不改变任何门禁结果；文档已经引用的 `TEST-DESIGN.md` 与 `INV-*` 表在门禁落地前只受评审约束。
 
+## 实施记录
+
+### 完整性 PR（`qa-integrity-gate`）
+
+- 新增 `qa integrity check|waive`：阻断 `TEST_SKIP_ADDED`、`TEST_ONLY_ADDED`、`TEST_CASES_DECREASED`、`TEST_ASSERTS_DECREASED`、`TEST_FILE_DELETED`、`TEST_WAIVER_INVALID`，改字面预期记 `TEST_EXPECTATION_CHANGED` 风险；豁免只覆盖后三类下降，绑定文件内容摘要并写入任务证据。`qa.integrity.mode` 默认 `enforce`，模板源同样执行。
+- `qa verify` 裁决改为 `QA_VERDICT=PASS|PASS_WITH_RISK|BLOCKED` 并写入回执；找不到目标以 `QA_TARGET_MISSING` 阻断，`--no-module --reason` 显式放行记为风险。
+- 业务门禁：只按 JUnit `name` 绑定，仅 classname 命中记 `RISK_CLASSNAME_ONLY`；AC 任一绑定用例失败或跳过即不通过；必需套件非零退出且报告中没有失败用例时以 `SUITE_EXIT_UNEXPLAINED` 阻断；PATHS 未声明覆盖准则以 `CRITERION_MISSING` 阻断。
+- TEST_SCOPE 的 `checks[].evidence` 必须引用 `task exec` 日志并校验 sha256。
+- `qa merge` 与 `tdd finish` 删除 `--skip-checks`，传入即在副作用前失败（原计划保留参数并降为风险，审读后它只用于跳过门禁，故直接移除）。
+- 与路线表的偏差：
+  - 未实施“自闭合用例不计通过”：多数 JUnit 报告器把通过的用例写成自闭合 `<testcase/>`，无法据此区分未执行；未执行由跳过判定与后续重复、变异门禁兜底。
+  - `qa automate` 未改：其完成态（步骤 5）已由 JUnit 结果判定，步骤 3 的文本扫描只提示“用例已写”，文案已注明不算覆盖。
+  - “绑定 P0 的用例 skipped 阻断”由业务门禁的 AC 判定承担，不在完整性门禁中重复解析 JUnit。
+
 ## 迁移
 
 - 存量项目同步本次模板后无需改动即可通过现有门禁；新模块按 PRD 模板补「不变量与禁止行为」表，并从 `TEST-DESIGN-TEMPLATE.md` 复制测试设计。
-- 后续门禁上线时 `qa.design.mode` 默认 `warn`，先披露缺口；项目补齐测试设计后再改为 `enforce`。完整性门禁默认 `enforce`，属破坏性变更，在对应版本的 CHANGELOG 中标注。
+- 后续门禁上线时 `qa.design.mode` 默认 `warn`，先披露缺口；项目补齐测试设计后再改为 `enforce`。完整性门禁默认 `enforce`，属破坏性变更，在对应版本的 CHANGELOG 中标注；存量项目可先设 `qa.integrity.mode=warn` 只披露风险。脚本或 CI 中调用 `qa merge --skip-checks`、`tdd finish --skip-checks` 的须删除该参数；旧任务的 `TEST_SCOPE_RESULT` 自由文本证据须用 `task exec` 重跑补录；PATHS.md 须显式声明覆盖准则。

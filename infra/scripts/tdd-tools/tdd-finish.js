@@ -17,7 +17,6 @@ function parseArgs(argv) {
   const options = {
     dryRun: false,
     scope: 'session',
-    skipChecks: false,
     maxPasses: 2,
   };
 
@@ -35,7 +34,8 @@ function parseArgs(argv) {
     } else if (arg.startsWith('--scope=')) {
       options.scope = arg.slice('--scope='.length) === 'project' ? 'project' : 'session';
     } else if (arg === '--skip-checks') {
-      options.skipChecks = true;
+      // 发布门禁不可跳过：在任何 guard 或子命令运行前直接拒绝，不再透传给 qa merge。
+      throw new Error('--skip-checks 已移除：发布门禁不可跳过。请修复阻塞问题后重新执行 qa verify 与 qa merge');
     } else if (arg === '--max-passes' && argv[i + 1]) {
       options.maxPasses = Number(argv[i + 1]) || options.maxPasses;
       i += 1;
@@ -58,7 +58,6 @@ Complete the current TDD task by following tdd-completion-guard NEXT_COMMANDS.
 Options:
   --project              Use project scope for sync/push/QA scripts.
   --scope <session|project>
-  --skip-checks          Pass through to qa-merge only.
   --dry-run              Print the commands that would run.
   --max-passes <n>       Guard/command passes, default 2.
   -h, --help             Show this help.
@@ -95,9 +94,6 @@ function commandArgs(command, options) {
   const args = [script];
   if (options.scope === 'project') {
     args.push('--project');
-  }
-  if (options.skipChecks && script.endsWith('qa-merge.js')) {
-    args.push('--skip-checks');
   }
   return args;
 }

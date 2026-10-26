@@ -7,6 +7,9 @@ const { resolveContainerPath } = require('../shared/config');
 
 const RECEIPT_SCHEMA_VERSION = 1;
 const SHA_PATTERN = /^[0-9a-f]{40,64}$/iu;
+// 回执只在放行时签发，因此 QA 裁决只能是 PASS 或 PASS_WITH_RISK；BLOCKED 永远不落盘。
+// 缺省只出现在 qa verify 签发前的身份快照与升级前的旧回执里；qa verify 写盘时总会带上裁决。
+const RECEIPT_QA_VERDICTS = new Set(['PASS', 'PASS_WITH_RISK']);
 
 function assertNonEmpty(value, field) {
   if (typeof value !== 'string' || !value.trim()) {
@@ -45,12 +48,25 @@ function normalizeBusinessSummary(business) {
   };
 }
 
+function assertQaVerdict(value) {
+  if (!RECEIPT_QA_VERDICTS.has(value)) throw new Error('QA_VERDICT must be PASS or PASS_WITH_RISK');
+  return value;
+}
+
+function isPresent(value) {
+  return value !== undefined && value !== null;
+}
+
+// verdict:'passed' 保留给 qa merge 的既有复验；qa_verdict 记录三态裁决中放行的那一种。
+// no_module_reason 只在 --no-module 显式放行时出现，缺省表示本次验证识别到了 QA 目标。
 function buildQaVerificationReceipt({
   baseBranch,
   branch,
   baseSha,
   headSha,
   verifiedAt = new Date().toISOString(),
+  qaVerdict,
+  noModuleReason,
   business,
 } = {}) {
   const receipt = {
@@ -62,6 +78,8 @@ function buildQaVerificationReceipt({
     head_sha: assertSha(headSha, 'HEAD_SHA'),
     verified_at: assertNonEmpty(verifiedAt, 'VERIFIED_AT'),
   };
+  if (isPresent(qaVerdict)) receipt.qa_verdict = assertQaVerdict(qaVerdict);
+  if (isPresent(noModuleReason)) receipt.no_module_reason = assertNonEmpty(noModuleReason, 'NO_MODULE_REASON');
   const summary = normalizeBusinessSummary(business);
   if (summary) receipt.business = summary;
   return receipt;
@@ -101,6 +119,8 @@ function writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt) {
     baseSha: receipt && receipt.base_sha,
     headSha: receipt && receipt.head_sha,
     verifiedAt: receipt && receipt.verified_at,
+    qaVerdict: receipt && receipt.qa_verdict,
+    noModuleReason: receipt && receipt.no_module_reason,
     business: receipt && receipt.business,
   });
   const receiptPath = getQaVerificationReceiptPath(config, mainRoot, worktreePath);

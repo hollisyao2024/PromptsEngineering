@@ -30,6 +30,7 @@ const BLOCK_CODES = Object.freeze([
   'RESULTS_DIRTY_WORKTREE',
   'RESULTS_CONFIG_DRIFT',
   'SUITE_HARD_FAILURE',
+  'SUITE_EXIT_UNEXPLAINED',
   'REPORT_TAMPERED',
   'RESULTS_MISMATCH',
   'AC_NOT_PROVEN',
@@ -41,6 +42,7 @@ const RISK_CODES = Object.freeze([
   'RISK_MANUAL_AC',
   'RISK_LOWER_PRIORITY',
   'RISK_UNLABELLED_CASES',
+  'RISK_CLASSNAME_ONLY',
   'RISK_UNKNOWN_IDS',
   'RISK_SUITE_EXIT_NONZERO',
   'RISK_MODULE_WITHOUT_TABLE',
@@ -65,6 +67,7 @@ const HINTS = Object.freeze({
   RESULTS_DIRTY_WORKTREE: '把报告输出路径加入 .gitignore（已被跟踪的报告先 git rm --cached），或提交/清理工作区的其余改动，再运行 pnpm agent -- qa run 并重新运行 pnpm agent -- qa verify',
   RESULTS_CONFIG_DRIFT: RERUN,
   SUITE_HARD_FAILURE: `先按 SUITE_HARD_FAILURE 的原因修复套件命令或报告路径；${RERUN}`,
+  SUITE_EXIT_UNEXPLAINED: `套件以非零退出码结束，但报告里没有失败用例，报告不能解释这次失败（常见于 globalSetup/teardown 出错或报告不完整）：修复套件命令或报告配置使两者一致；${RERUN}`,
   REPORT_TAMPERED: RERUN,
   RESULTS_MISMATCH: RERUN,
   AC_NOT_PROVEN: '修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带上 AC-…/TC-… 标识）后重新运行 pnpm agent -- qa run；确属无法自动化的 AC 须在 PRD 中标为 manual',
@@ -164,10 +167,21 @@ function freshnessBlocks(results, business, headSha) {
   return blocks;
 }
 
+// 非零退出码只有在报告里确有失败用例时才算被报告解释；否则报告可能遗漏了失败，整套结果不可信。
 function suiteBlocks(results) {
-  return results.suites
-    .filter((suite) => !SOUND_SUITE_STATUSES.has(suite.status))
-    .map((suite) => block('SUITE_HARD_FAILURE', suite.name, suite.detail ? `${suite.status}: ${suite.detail}` : suite.status));
+  const blocks = [];
+  for (const suite of results.suites) {
+    if (!SOUND_SUITE_STATUSES.has(suite.status)) {
+      blocks.push(block('SUITE_HARD_FAILURE', suite.name, suite.detail ? `${suite.status}: ${suite.detail}` : suite.status));
+    } else if (suite.status === 'exit_nonzero' && suite.failed === 0) {
+      blocks.push(block(
+        'SUITE_EXIT_UNEXPLAINED',
+        suite.name,
+        `套件以 exit ${suite.exit_code} 结束，但报告中 ${suite.cases} 个用例没有任何失败：退出码无法由报告解释`,
+      ));
+    }
+  }
+  return blocks;
 }
 
 
@@ -264,15 +278,24 @@ function collectRisks({ results, spec, required }) {
     risks.push(risk('RISK_UNLABELLED_CASES', `${unlabelled} 个用例的名称不含任何 AC/TC 标识，不计入任何验收`));
   }
 
+  const classnameOnly = results.summary.classname_only;
+  if (Number.isInteger(classnameOnly) && classnameOnly > 0) {
+    risks.push(risk(
+      'RISK_CLASSNAME_ONLY',
+      `${classnameOnly} 个用例只有 classname（describe/文件名）带 AC/TC 标识，用例名不含标识，不计入任何验收：把标识写进用例名`,
+    ));
+  }
+
   if (results.unknown_ids.length > 0) {
     risks.push(risk('RISK_UNKNOWN_IDS', `${results.unknown_ids.length} 个用例引用了规格中不存在的标识：${list(results.unknown_ids)}`));
   }
 
-  const nonzero = results.suites.filter((suite) => suite.status === 'exit_nonzero');
+  // 没有失败用例的非零退出已在套件检查中阻断；走到这里的非零退出都由报告中的失败用例解释。
+  const nonzero = results.suites.filter((suite) => suite.status === 'exit_nonzero' && suite.failed > 0);
   if (nonzero.length > 0) {
     risks.push(risk(
       'RISK_SUITE_EXIT_NONZERO',
-      `${nonzero.length} 个套件以非零退出码结束但报告有效，结果以报告中的用例为准：${list(nonzero.map((suite) => `${suite.name}(exit ${suite.exit_code})`))}`,
+      `${nonzero.length} 个套件以非零退出码结束，报告中有失败用例，结果以报告为准：${list(nonzero.map((suite) => `${suite.name}(exit ${suite.exit_code})`))}`,
     ));
   }
 

@@ -79,7 +79,7 @@
 - 迁移脚本的编写规范与幂等性要求见 TDD 专家 §B.2~B.5（`/AgentRoles/TDD-PROGRAMMING-EXPERT.md`）。
 
 ### 部署前检查清单
-- [ ] QA 发布建议为 "Go" 或 "Conditional"
+- [ ] QA 裁决为 PASS 或 PASS_WITH_RISK（`QA_VERDICT=`），PASS_WITH_RISK 的风险已逐条评审
 - [ ] 本地 QA 回执有效（项目启用 CI 时 CI 通过）
 - [ ] `CHANGELOG.md` 与交付内容一致
 - [ ] 部署目标为已合并提交的固定 tag 或 SHA

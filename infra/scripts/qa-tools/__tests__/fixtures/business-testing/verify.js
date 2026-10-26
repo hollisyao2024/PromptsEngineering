@@ -5,6 +5,7 @@
 // 回执、结果文件都由生产代码写出，测试只读取、不伪造。
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -74,12 +75,18 @@ function recordTestScope(scenario, taskId = TASK_ID) {
     not_run: ['全量测试'],
     reason: '夹具：只验证业务验收门禁接入',
   };
+  // 结果证据须引用 task exec 写下的日志并带 sha256；夹具写一份真实日志，让 qa verify 能按摘要复核。
+  const log = `夹具日志：${SCOPE_COMMAND} @ ${head}\n`;
+  const logFile = path.join(context.runsRoot, taskId, 'evidence', 'scope.log');
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+  fs.writeFileSync(logFile, log);
+  const logSha = crypto.createHash('sha256').update(log).digest('hex');
   const result = {
     version: 1,
     head_sha: head,
     environment: 'Node 夹具',
     dependencies: '无依赖变更',
-    checks: [{ command: SCOPE_COMMAND, exit_code: 0, evidence: '夹具日志' }],
+    checks: [{ command: SCOPE_COMMAND, exit_code: 0, evidence: `evidence/scope.log sha256=${logSha}` }],
   };
   checkpointTask({
     runsRoot: context.runsRoot,
@@ -117,11 +124,15 @@ function advanceHead(scenario) {
   recordTestScope(scenario);
 }
 
+// 夹具场景没有改动 QA 文档时 `qa verify` 找不到会话目标；默认显式声明 --no-module 及理由（记为风险放行），
+// 调用方传入 args 时完全以调用方为准（传空数组即复现缺少声明时的 QA_TARGET_MISSING 阻断）。
+const NO_MODULE_ARGS = Object.freeze(['--no-module', '--reason', '夹具：本次改动不涉及 QA 模块']);
+
 // 运行真实的 `qa verify`；stdout 去除 ANSI 颜色后放在 text，按行放在 lines。
-function runVerify(scenario, { args = [], env = {} } = {}) {
+function runVerify(scenario, { args = NO_MODULE_ARGS, env = {} } = {}) {
   const childEnv = { ...process.env, NO_COLOR: '1', GH_TOKEN: '', ...env };
   delete childEnv.QA_PLAN_SESSION_STATE_PATH;
-  const result = runNodeScript(QA_VERIFY, { cwd: scenario.project.repo, args, env: childEnv });
+  const result = runNodeScript(QA_VERIFY, { cwd: scenario.project.repo, args: [...args], env: childEnv });
   const text = stripAnsi(result.stdout || '');
   return {
     status: result.status,
@@ -142,6 +153,7 @@ function readReceipt(scenario) {
 
 module.exports = {
   FEATURE_BRANCH,
+  NO_MODULE_ARGS,
   advanceHead,
   attachOrigin,
   pushBranch,

@@ -34,6 +34,40 @@
       "enabled": false,
       "requiredPriorities": ["P0"],
       "suites": []
+    },
+    "integrity": {
+      "mode": "enforce",
+      "testGlobs": ["**/*.test.*", "**/*.spec.*", "**/test_*.py", "**/*_test.py", "**/*_test.go"],
+      "patterns": {
+        "skip": [
+          "\\b(?:it|test|describe|context|suite)\\.(?:skip|todo|fixme)\\s*\\(",
+          "\\bx(?:it|test|describe|context)\\s*\\(",
+          "[,{]\\s*(?:skip|todo)\\s*:\\s*(?:true|['\"\\x60])",
+          "\\bt\\.(?:skip|todo)\\s*\\(",
+          "@pytest\\.mark\\.(?:skip|skipif|xfail)\\b",
+          "@unittest\\.skip",
+          "\\bpytest\\.skip\\s*\\(",
+          "\\bt\\.Skip(?:f|Now)?\\s*\\("
+        ],
+        "only": [
+          "\\b(?:it|test|describe|context|suite)\\.only\\s*\\(",
+          "\\bf(?:it|describe)\\s*\\(",
+          "[,{]\\s*only\\s*:\\s*true"
+        ],
+        "case": [
+          "(?<![.\\w$])(?:it|test)\\s*\\(",
+          "^\\s*(?:async\\s+)?def\\s+test_\\w*\\s*\\(",
+          "^func\\s+Test\\w*\\s*\\(\\s*\\w+\\s+\\*testing\\.T"
+        ],
+        "assert": [
+          "\\bassert(?:\\.\\w+)*\\s*\\(",
+          "\\bexpect(?:\\.\\w+)*\\s*\\(",
+          "^\\s*assert\\s",
+          "\\bself\\.assert\\w+\\s*\\(",
+          "\\bt\\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\\s*\\(",
+          "\\brequire\\.[A-Z]\\w*\\s*\\("
+        ]
+      }
     }
   },
   "tdd": {

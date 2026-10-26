@@ -114,6 +114,30 @@ test('a receipt without a business summary keeps the legacy shape', () => {
   assert.equal('business' in buildQaVerificationReceipt({ ...IDENTITY, business: undefined }), false);
 });
 
+test('a receipt records the three-state QA verdict and an explicit no-module reason, and round-trips them through disk', (t) => {
+  const { mainRoot, worktreePath, config } = receiptFixture(t);
+  const receipt = buildQaVerificationReceipt({ ...IDENTITY, qaVerdict: 'PASS_WITH_RISK', noModuleReason: '  只改脚本  ' });
+
+  assert.equal(receipt.qa_verdict, 'PASS_WITH_RISK');
+  assert.equal(receipt.no_module_reason, '只改脚本');
+  assert.equal(receipt.verdict, 'passed');
+  assert.deepEqual(Object.keys(receipt).sort(), [...LEGACY_KEYS, 'no_module_reason', 'qa_verdict'].sort());
+  writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt);
+  assert.deepEqual(readQaVerificationReceipt(config, mainRoot, worktreePath), receipt);
+  assert.equal('no_module_reason' in buildQaVerificationReceipt({ ...IDENTITY, qaVerdict: 'PASS' }), false);
+});
+
+test('a receipt refuses a blocking or unknown QA verdict and a blank no-module reason, before anything reaches disk', (t) => {
+  const { mainRoot, worktreePath, config } = receiptFixture(t);
+  for (const qaVerdict of ['BLOCKED', 'Go', 'Conditional', 'pass', '']) {
+    assert.throws(() => buildQaVerificationReceipt({ ...IDENTITY, qaVerdict }), /QA_VERDICT/u, qaVerdict);
+  }
+  assert.throws(() => buildQaVerificationReceipt({ ...IDENTITY, qaVerdict: 'PASS', noModuleReason: '   ' }), /NO_MODULE_REASON/u);
+  const forged = { ...buildQaVerificationReceipt({ ...IDENTITY, qaVerdict: 'PASS' }), qa_verdict: 'BLOCKED' };
+  assert.throws(() => writeQaVerificationReceipt(config, mainRoot, worktreePath, forged), /QA_VERDICT/u);
+  assert.equal(fs.existsSync(getQaVerificationReceiptPath(config, mainRoot, worktreePath)), false);
+});
+
 test('a receipt carries the business gate summary as an additive field and round-trips it through disk', (t) => {
   const { mainRoot, worktreePath, config } = receiptFixture(t);
   const receipt = buildQaVerificationReceipt({ ...IDENTITY, business: BUSINESS });

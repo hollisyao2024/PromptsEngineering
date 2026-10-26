@@ -101,6 +101,15 @@ function parsePathsDocument(content, { file = '' } = {}) {
   };
 
   parseCriterion(prose, doc, violations, file);
+  // 不声明就默认 none 会让路径覆盖静默失效；不检查覆盖须显式写「覆盖准则：none」。
+  if (doc.criterionLine === null) {
+    violations.push({
+      code: 'CRITERION_MISSING',
+      file,
+      line: 1,
+      message: `未声明覆盖准则：在正文写一行「覆盖准则：<${CRITERIA.join('|')}>」；确实不检查路径覆盖时显式写 none`,
+    });
+  }
 
   const firstLine = new Map();
   for (const { definition, rows } of tables) {

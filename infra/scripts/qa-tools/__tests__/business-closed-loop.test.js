@@ -61,6 +61,8 @@ test('闭环——基线全绿，逐个破坏后门禁变红并给出对应错�
     const receipt = readReceiptFile(s);
     assert.deepEqual(Object.keys(receipt).sort(), RECEIPT_KEYS);
     assert.equal(receipt.schema_version, 1);
+    // 有 manual AC 风险且以 --no-module 放行：只能是带风险放行。
+    assert.equal(receipt.qa_verdict, 'PASS_WITH_RISK');
     assert.equal(receipt.business.gate, 'PASS');
     assert.deepEqual(receipt.business.required_priorities, ['P0']);
     assert.ok(has(run, /^BUSINESS_RISK=RISK_MANUAL_AC\|.*AC-SHOP-002-01/u), run.text);
