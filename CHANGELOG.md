@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.14.0] - 2026-10-26
+
+- **破坏性**：新增 qa design 测试设计门禁与零工具盲测子代理，qa verify 输出 DESIGN_* 并写回执 design（默认 warn，ADR-041）。
+
 ## [v3.13.3] - 2026-10-26
 
 - 修复 Windows 全量测试：qa run 按进程树终止并回收竞态孤儿、插件打包改用 tar.exe、测试兼容 CRLF 与 cmd 变量展开。

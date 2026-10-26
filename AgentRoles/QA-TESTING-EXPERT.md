@@ -22,8 +22,8 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 | **黑盒** | 设计提交之后 | 设计模式的输入 + 公开接口说明（HTTP/CLI/SDK/UI） | 调用内部函数、读写私有状态、按实现调整预期 | 跨模块集成、API 业务流、性质/状态机、故障注入、E2E、性能与安全测试 |
 | **审计** | 实现完成之后 | 以上全部 + 源码、测试 diff、运行结果 | 修改已评审的预期值、删除或削弱测试 | 测试有效性结论（完整性、变异、缺陷复现、不稳定）、新缺陷 `BUG-*` 行、新规则提案 |
 
-- **盲测隔离**：设计模式由不带读文件工具的子代理完成时，报告 `DESIGN_ISOLATION=subagent`；执行器没有子代理时，先提交设计再读代码，报告 `DESIGN_ISOLATION=commit-order`。两者都做不到时，设计结论只能作为风险披露。
-- **审计不改预期**：审计中发现规则缺失或预期有误，回到设计模式修订 `TEST-DESIGN.md` 对应行并写明原因与新出处，再改测试；规格本身有歧义时回流 PRD。
+- **盲测隔离**：先运行 `pnpm agent -- qa design context --domain <域>` 打包规格，把材料包全文内联交给零工具子代理 `xirang-qa-designer`（规则表）与 `xirang-qa-redteam`（反例目录），由主代理写入 `TEST-DESIGN.md` 并在头部记录材料包 sha256 与 `设计隔离：subagent`；执行器没有零工具子代理时，先单独提交设计再读代码，头部写 `commit-order`。`qa design check` 汇总为 `DESIGN_ISOLATION=`；两者都做不到时，设计结论只能作为风险披露。
+- **审计不改预期**：审计中发现规则缺失或预期有误，回到设计模式修订 `TEST-DESIGN.md` 对应行，并用 `qa design amend --id <行 ID> --reason <原因> --source <新出处>` 登记，再改测试；规格本身有歧义时回流 PRD。
 
 ## 预言机与预期出处（所有模式适用）
 - 预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。PRD 模块的不变量与禁止行为（`INV-*`）属于 PRD 规格。
@@ -80,8 +80,9 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 - `/qa automate <模块>`：单模块业务测试自动化的编排入口。只读检查五步（1 原子 AC 表 → 2 `PATHS.md` 且 `qa paths` 无本模块违规 → 3 用例名引用必需优先级 auto AC 的 AC/TC → 4 `qa.business` 启用并登记套件 → 5 提交后 `qa run` 结果绑定当前 HEAD 且本模块必需 AC 全部通过），输出 `STATUS=OK|PENDING|BLOCKED`、`STEP=<n>|<name>|done|pending|blocked|<说明>`、`CURRENT_STEP=`、`ACTIVATE=`、`READ=`。脚本不生成 AC、PATHS 或用例；收到该命令或「把某模块的业务测试自动化做完」等自然语言时，按 Playbook §业务测试自动化「单模块编排」逐步推进。
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
-- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞并给出结论；裁决只有 PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，PASS_WITH_RISK 须逐条评审风险。找不到 QA 目标即阻断（`QA_TARGET_MISSING`），确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明；签发回执前同样执行测试完整性门禁（`qa integrity`，模板源也执行）。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
+- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞并给出结论；裁决只有 PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，PASS_WITH_RISK 须逐条评审风险。找不到 QA 目标即阻断（`QA_TARGET_MISSING`），确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明；签发回执前同样执行测试完整性门禁（`qa integrity`，模板源也执行）与测试设计门禁（`qa design check`，模板源跳过）。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
 - `/qa integrity check|waive`：测试完整性门禁的预检与豁免。新增 skip/only、删除测试文件、用例数或断言数下降即阻断；删除/下降类确属有意时用 `waive` 生成绑定文件 blob 的豁免行写入任务证据。详见 Playbook §测试完整性门禁。
+- `/qa design context|check|amend`：测试设计门禁。`context` 只打包规格到容器 tmp 并输出 `DESIGN_CONTEXT_SHA256`；`check` 校验规则表、出处、覆盖、维度反例、TC 证明、设计先于源码与预期变更登记；`amend` 为新增、修改、删除的设计行追加变更记录。`qa.design.mode` 默认 `warn`，`enforce` 时阻断并依赖 `/qa run` 结果。详见 Playbook §测试设计门禁。
 - `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 `release.*` 写入版本元数据（配置归 OPS 治理）→ 普通推送 → 远端复核 → 封印清理。前置：`/qa verify` 已签发有效回执；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。发布门禁不可跳过：`--skip-checks` 已移除，传入即在任何副作用前失败。`--dry-run` 只预演。详情见 Playbook §qa merge 流程详解。
 
 ## 输出

@@ -2,7 +2,8 @@
 
 // 业务测试规格的读取与语法校验：
 //   - docs/prd-modules/<domain>/*.md 中的原子 AC 表（唯一的验收来源）；
-//   - docs/qa-modules/<domain>/PATHS.md 中的界面/状态/转移/路径模型。
+//   - docs/qa-modules/<domain>/PATHS.md 中的界面/状态/转移/路径模型；
+//   - docs/qa-modules/<domain>/TEST-DESIGN.md 登记的 TC（只宽松收集标识，表格校验在 qa-design.js）。
 // 全部解析确定性完成，不依赖大模型、随机数或网络；引用与覆盖关系的校验在 qa-paths.js。
 
 const fs = require('node:fs');
@@ -12,6 +13,7 @@ const {
   AC_TABLE,
   AC_TABLE_HEADER,
   CRITERIA,
+  DESIGN_FILE_NAME,
   PATHS_FILE_NAME,
   PATHS_TABLES,
   PLATFORM_TAG,
@@ -34,6 +36,7 @@ const {
   splitTableRow,
 } = require('./business-spec-markdown');
 const { parsePathsDocument } = require('./business-spec-paths');
+const { collectDesignTcs } = require('./qa-design-spec');
 const { STORY_ID_SOURCE, extractIds } = require('../shared/governance-ids');
 
 // ---------------------------------------------------------------- 原子 AC 表
@@ -195,6 +198,7 @@ function loadBusinessSpec({ repoRoot }) {
   const modulesWithoutTable = [];
   const knownAcIds = [];
   const pathsDocs = [];
+  const designTcs = new Set();
   const violations = [];
   const firstDeclared = new Map();
   let acRowCount = 0;
@@ -238,6 +242,10 @@ function loadBusinessSpec({ repoRoot }) {
   const qaRoot = path.join(root, QA_MODULES_DIR);
   for (const domain of listEntries(qaRoot, isDirectory)) {
     const directory = path.join(qaRoot, domain);
+    // 测试设计的格式错误由 qa design check 报告，此处只收集 TC 标识，供结果聚合识别为已知用例。
+    if (listEntries(directory, (entry) => entry.isFile() && entry.name === DESIGN_FILE_NAME).length) {
+      for (const tc of collectDesignTcs(fs.readFileSync(path.join(directory, DESIGN_FILE_NAME), 'utf8'))) designTcs.add(tc);
+    }
     if (!listEntries(directory, (entry) => entry.isFile() && entry.name === PATHS_FILE_NAME).length) continue;
     const file = `${QA_MODULES_DIR}/${domain}/${PATHS_FILE_NAME}`;
     const { violations: documentViolations, ...doc } = parsePathsDocument(
@@ -249,7 +257,16 @@ function loadBusinessSpec({ repoRoot }) {
   }
 
   violations.sort(compareViolations);
-  return { acs, modules, modulesWithoutTable, pathsDocs, knownAcIds, acRowCount, violations };
+  return {
+    acs,
+    modules,
+    modulesWithoutTable,
+    pathsDocs,
+    designTcs: [...designTcs].sort(compareText),
+    knownAcIds,
+    acRowCount,
+    violations,
+  };
 }
 
 module.exports = {

@@ -199,6 +199,7 @@ test('缺少 docs 目录时返回空规格而不抛错', () => {
     assert.deepEqual(loaded.modules, []);
     assert.deepEqual(loaded.modulesWithoutTable, []);
     assert.deepEqual(loaded.pathsDocs, []);
+    assert.deepEqual(loaded.designTcs, []);
     assert.deepEqual(loaded.violations, []);
   });
 });
@@ -234,5 +235,28 @@ test('loadBusinessSpec 读取 docs/qa-modules/<domain>/PATHS.md 并合并语法�
 
     assert.deepEqual(loaded.pathsDocs.map((doc) => [doc.domain, doc.file]), [['shop', PATHS_FILE]]);
     assert.deepEqual(codes(loaded.violations), ['ID_INVALID']);
+  });
+});
+
+// ---------------------------------------------------------------- 测试设计登记的 TC
+
+test('loadBusinessSpec 宽松收集 TEST-DESIGN.md 的 TC（排序去重），设计文档格式错误不进入业务违规', () => {
+  const design = (tc) => [
+    '# 测试设计',
+    '',
+    '| ID | 类型 | 陈述 | 出处 | 优先级 | 验证方式 | TC |',
+    '|----|----|----|----|----|----|----|',
+    `| RUL-SHOP-001 | 非法类型 | 陈述 | AC-SHOP-001-01 | P0 | example | ${tc}, TC-SHOP-040 |`,
+    '',
+  ].join('\n');
+  withProject({
+    [PRD_FILE]: prdDocument(),
+    'docs/qa-modules/shop/TEST-DESIGN.md': design('TC-SHOP-041'),
+    'docs/qa-modules/cart/TEST-DESIGN.md': design('TC-CART-001'),
+  }, (project) => {
+    const loaded = spec.loadBusinessSpec({ repoRoot: project.repo });
+
+    assert.deepEqual(loaded.designTcs, ['TC-CART-001', 'TC-SHOP-040', 'TC-SHOP-041']);
+    assert.deepEqual(loaded.violations, []);
   });
 });

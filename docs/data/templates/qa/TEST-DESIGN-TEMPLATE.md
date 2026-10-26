@@ -4,9 +4,10 @@
 > 下面的表格是「用户管理」示例，出处对应 `docs/prd-modules/MODULE-EXAMPLE.md` 的原子 AC 清单与不变量表，TC 编号与 `PATHS-TEMPLATE.md` 共用同一编号空间；示例只节选登录与注册，实际文件须覆盖全部 P0 原子 AC 与不变量。复制后整体替换为本模块的内容。
 
 **维护者**：QA 专家
-**模板版本**：v1.0
+**模板版本**：v1.1
 **功能域**：{domain}
-**设计材料**：{本次设计读取的规格文件及其提交，不含源码与测试}
+**设计材料包**：sha256={`pnpm agent -- qa design context --domain {domain}` 输出的 DESIGN_CONTEXT_SHA256}
+**设计隔离**：subagent
 
 ---
 
@@ -19,7 +20,8 @@
 
 ## 2. 设计时机
 
-1. 实现之前设计，只读规格；完成后单独提交 `test(design): <模块> 规则与反例`，再开始实现。
+1. 实现之前设计，只读规格：先运行 `pnpm agent -- qa design context --domain {domain}` 打包规格，把材料包内联交给零工具子代理 `xirang-qa-designer`（规则表）与 `xirang-qa-redteam`（反例目录），由主代理把返回的行写入本文件，头部记录材料包 sha256；完成后单独提交 `test(design): <模块> 规则与反例`，再开始实现。
+   - 头部「设计隔离」：经上述子代理产出写 `subagent`；执行器没有零工具子代理时写 `commit-order`，此时隔离只靠「设计提交早于第一个源码提交」的时序门禁。
 2. 修复缺陷时，先登记缺陷复现行并写出在修复前失败的用例，再修复。
 3. 实现完成后审计只能追加行，或通过评审修改；已评审行的陈述与预期不因实现结果改写，变更时在「变更记录」写明原因与新出处。
 
@@ -55,7 +57,7 @@
 | ADV-USER-001 | RUL-USER-001, RUL-USER-002 | boundary | 连续第 4 次与第 5 次提交错误密码 | 第 4 次返回 2001 且 `remainingAttempts` 为 1；第 5 次返回 2002 并开始锁定 | TC-USER-036 |
 | ADV-USER-002 | RUL-USER-001, RUL-USER-003 | time | 锁定满 15 分钟前 1 秒、后 1 秒各提交一次正确密码（可控时钟） | 前者返回 2002 且不签发 Token；后者返回 200 | TC-USER-037 |
 | ADV-USER-003 | RUL-USER-001, RUL-USER-002 | concurrency | 同一账号并发提交 5 次错误密码 | 恰好锁定一次；任何 2001 响应的 `remainingAttempts` 都在 1–4 且互不重复 | TC-USER-038 |
-| ADV-USER-004 | RUL-USER-002, RUL-USER-003 | state | 连续失败 3 次后成功登录，再提交 1 次错误密码 | 成功登录中断「连续」计数，随后返回 2001 且 `remainingAttempts` 为 4 | TC-USER-039 |
+| ADV-USER-004 | RUL-USER-001, RUL-USER-002, RUL-USER-003 | state | 连续失败 3 次后成功登录，再提交 1 次错误密码 | 成功登录中断「连续」计数，随后返回 2001 且 `remainingAttempts` 为 4 | TC-USER-039 |
 | ADV-USER-005 | RUL-USER-001, RUL-USER-002, RUL-USER-003 | dependency | 风控检查超过 500ms 未响应 | 按 `docs/prd-modules/user-management/PRD.md#42-依赖的接口imports` 视为 low 继续；锁定与签发规则不变 | TC-USER-040 |
 | ADV-USER-006 | RUL-USER-001, RUL-USER-002, RUL-USER-003, RUL-USER-004 | auth | 不适用：注册与登录面向匿名访客，规格不区分角色或租户 | - | - |
 | ADV-USER-007 | RUL-USER-004 | concurrency | 同一邮箱的两个注册请求同时到达 | 恰好一个返回 201，另一个返回 1001，账号只有一条 | TC-USER-041 |
@@ -67,6 +69,8 @@
 | ADV-USER-013 | RUL-USER-005 | dependency | 风控超时与邮件发送失败时的错误日志 | 错误日志不含请求中的密码字段 | TC-USER-045 |
 | ADV-USER-014 | RUL-USER-005 | concurrency | 不适用：输出内容与请求并发度无关，由同一检索断言覆盖 | - | - |
 | ADV-USER-015 | RUL-USER-005 | auth | 不适用：规则对任何调用者都成立，规格未定义可读取密码字段的角色 | - | - |
+| ADV-USER-016 | RUL-USER-003 | boundary | 连续第 5 次错误密码的那次请求本身（恰好达到锁定阈值） | 返回 2002，响应不含 `token` 与 `refreshToken` | TC-USER-046 |
+| ADV-USER-017 | RUL-USER-003 | concurrency | 锁定期内同时到达多个携带正确密码的登录请求 | 全部返回 2002，任何响应都不含 `token` 与 `refreshToken` | TC-USER-047 |
 
 ## 5. 缺陷复现
 
@@ -85,7 +89,7 @@
 
 | 日期 | 行 ID | 变更 | 原因与新出处 | 评审人 |
 |------|-------|------|--------------|--------|
-| {YYYY-MM-DD} | RUL-USER-002 | 新增 | AC-USER-002-02 | @qa-lead |
+| 2026-10-26 | RUL-USER-002 | 新增 | AC-USER-002-02 | @qa-lead |
 
 ## 7. 自检清单
 

@@ -471,5 +471,6 @@ module.exports = {
   integrityLines,
   parseCliArgs,
   parseWaivers,
+  resolveRange,
   resolveIntegrityConfig,
 };

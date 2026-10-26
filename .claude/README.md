@@ -22,6 +22,10 @@
 
 `settings.json` 的 SessionStart hook（`startup|resume`）运行 `node infra/scripts/agent-runner/agent-cli.js cloud bootstrap`：仅在 Claude Code Cloud（`CLAUDE_CODE_REMOTE=true`）且 `agent.config.json` 开启 `cloud.enabled` 时安装依赖、启动 `compose.dev.yml`、迁移与脱敏 seed，本地输出 `STATUS=SKIPPED` 无副作用；失败只报告 `STATUS=FAILED`，不阻断会话。机制见 `docs/CONVENTIONS.md` §11，Environment 配置见 `docs/runbooks/cloud-dev.md`。
 
+## QA 盲测子代理
+
+`agents/xirang-qa-designer.md`（规则表）与 `agents/xirang-qa-redteam.md`（反例目录）是 QA 设计模式的零工具子代理，由模板以 `overwrite` 分发。主代理先运行 `pnpm agent -- qa design context` 打包规格，再把材料包全文内联到提示中调用它们；子代理看不到仓库，只返回表格行。省略 `tools` 会继承全部工具，因此 frontmatter 用 `tools: Read` 加 `disallowedTools: Read` 得到空工具集：**不要删改这两行**，否则盲测失效。门禁见 `AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md` §测试设计门禁。
+
 ## 🎯 配置策略
 
 ### 团队共享配置 (`settings.json`)

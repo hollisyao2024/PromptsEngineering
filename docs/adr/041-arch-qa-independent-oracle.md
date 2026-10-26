@@ -58,7 +58,7 @@ QA 专家在实际项目里沿代码路径写测试，再自报完成，测试�
 - 盲测只能程序约束子代理的工具与提交时序，不能证明主代理没读过实现；模板不宣称更强的保证。
 - 完整性检查基于正则，可被 `if (false)` 一类写法绕过，由变异门禁兜底；变异门禁默认关闭，未开启的项目只得到前两道过滤。
 - 文件名 `TEST-DESIGN.md` 含子串 `DESIGN.md`，与 ADR-037 的界面视觉契约在文本检索上相撞；不在任务规划、运维及通用约定类文件中写出该字面文件名，由 `template-surface.design.test.js` 约束。
-- 本 PR 不新增命令与配置，不改变任何门禁结果；文档已经引用的 `TEST-DESIGN.md` 与 `INV-*` 表在门禁落地前只受评审约束。
+- 文档 PR 不新增命令与配置，不改变任何门禁结果；`TEST-DESIGN.md` 与 `INV-*` 表在测试设计门禁落地前只受评审约束。
 
 ## 实施记录
 
@@ -74,7 +74,19 @@ QA 专家在实际项目里沿代码路径写测试，再自报完成，测试�
   - `qa automate` 未改：其完成态（步骤 5）已由 JUnit 结果判定，步骤 3 的文本扫描只提示“用例已写”，文案已注明不算覆盖。
   - “绑定 P0 的用例 skipped 阻断”由业务门禁的 AC 判定承担，不在完整性门禁中重复解析 JUnit。
 
+### 测试设计 PR（`qa-design-gate`）
+
+- 新增 `qa design context|check|amend`，`qa verify` 在签发回执前调用 `check`，输出 `DESIGN_GATE`、`RULES_TOTAL`、`RULES_VERIFIED`、`ADV_COVERED`、`DESIGN_AMENDMENTS`、`DESIGN_ISOLATION`，摘要写入回执 `design` 字段。`qa.design` 配置节默认 `warn`（阻断项降为 `DESIGN_RISK`），未知键以 `DESIGN_CONFIG_INVALID` fail-closed；模板源输出 `DESIGN_GATE=SKIPPED`。
+- G1 阻断码：`TABLE_MISSING`、`TABLE_DUPLICATE`、`ROW_INVALID`、`ID_DUPLICATE`、`SOURCE_CODE`、`SOURCE_INVALID`、`SOURCE_UNKNOWN`、`SOURCE_UNCOVERED`、`PRIORITY_LOWER`、`TC_MISSING`、`TC_UNPROVEN`、`RESULTS_UNAVAILABLE`、`DIMENSION_MISSING`、`REFERENCE_UNKNOWN`。`推断：` 出处、`undefined` 规则、`manual` 验证、未修复缺陷与头部缺失只记风险。TC 证明读取当前 HEAD 的 `qa run` 结果，`enforce` 项目须先跑 `qa run`。
+- G2 以 `ORDER` 阻断：本分支新增的设计行须早于 `qa.design.sourceGlobs` 命中的首个源码提交；审计模式事后补行须用 `amend` 登记“新增”，降为 `ADDED_AFTER_SOURCE` 风险。
+- G3 以 `EXPECTATION_CHANGED` 阻断未登记的改写或删除，以 `AMENDMENT_REMOVED` 阻断改写已提交的变更记录；修改与新增须给合法新出处，`DESIGN_AMENDMENTS` 只计修改与删除。
+- 子代理 `.claude/agents/xirang-qa-designer.md`、`xirang-qa-redteam.md` 以 `overwrite` 分发。Claude Code 省略 `tools` 即继承全部工具，故用 `tools: Read` 加 `disallowedTools: Read` 得到零工具；材料包由主代理内联，子代理只返回表格行。
+- 与路线表的偏差：
+  - 头部 `设计材料包：sha256=…` 只校验格式、供追溯，不与当前材料包比对：规格演进后旧摘要仍合法，比对会把正常回流误报为阻断。
+  - `DESIGN_ISOLATION` 取自各设计文件头部声明，另有 `NONE`（无设计文件）、`UNDECLARED`、`mixed`；它是自报值，程序约束只来自子代理零工具与 G2 时序。
+  - 改动 `docs/qa-modules/<域>/` 会推断出 QA 模块，要求该域存在 `QA.md`，沿用 `qa verify` 既有语义。
+
 ## 迁移
 
 - 存量项目同步本次模板后无需改动即可通过现有门禁；新模块按 PRD 模板补「不变量与禁止行为」表，并从 `TEST-DESIGN-TEMPLATE.md` 复制测试设计。
-- 后续门禁上线时 `qa.design.mode` 默认 `warn`，先披露缺口；项目补齐测试设计后再改为 `enforce`。完整性门禁默认 `enforce`，属破坏性变更，在对应版本的 CHANGELOG 中标注；存量项目可先设 `qa.integrity.mode=warn` 只披露风险。脚本或 CI 中调用 `qa merge --skip-checks`、`tdd finish --skip-checks` 的须删除该参数；旧任务的 `TEST_SCOPE_RESULT` 自由文本证据须用 `task exec` 重跑补录；PATHS.md 须显式声明覆盖准则。
+- 测试设计门禁 `qa.design.mode` 默认 `warn`，先披露缺口；项目补齐测试设计并接入 `qa run` 后再改为 `enforce`。项目若已有同名 `.claude/agents/` 文件，模板同步因无可信基线阻断，须先改名或显式接管。完整性门禁默认 `enforce`，属破坏性变更，在对应版本的 CHANGELOG 中标注；存量项目可先设 `qa.integrity.mode=warn` 只披露风险。脚本或 CI 中调用 `qa merge --skip-checks`、`tdd finish --skip-checks` 的须删除该参数；旧任务的 `TEST_SCOPE_RESULT` 自由文本证据须用 `task exec` 重跑补录；PATHS.md 须显式声明覆盖准则。

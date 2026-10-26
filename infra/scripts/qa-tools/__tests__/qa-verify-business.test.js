@@ -26,6 +26,7 @@ const {
 
 // 现行 `qa verify` 在业务门禁关闭、按夹具默认声明 --no-module 时的完整输出（临时目录、回执名与提交号换成占位符）。
 // 测试完整性门禁先于 QA 文档门禁执行；找不到会话目标只在显式声明后放行，并把裁决降为 PASS_WITH_RISK。
+// 测试设计门禁（qa.design，默认 warn）在测试范围校验之后运行：夹具 shop 域有必需 AC 却无 TEST-DESIGN.md，只记风险。
 const GOLDEN_DISABLED = [
   '============================================================',
   'QA 验收检查工具 v1.1.0',
@@ -36,6 +37,13 @@ const GOLDEN_DISABLED = [
   'QA_TARGETS=NONE',
   'QA_NO_MODULE_REASON=夹具：本次改动不涉及 QA 模块',
   'TEST_SCOPE_TASK=accept-check TEST_SCOPE_MODE=targeted',
+  'DESIGN_GATE=PASS_WITH_RISK MODE=warn DOCS=0',
+  'RULES_TOTAL=0',
+  'RULES_VERIFIED=0',
+  'ADV_COVERED=0/0',
+  'DESIGN_AMENDMENTS=0',
+  'DESIGN_ISOLATION=NONE',
+  'DESIGN_RISK=DESIGN_ABSENT|shop|功能域有必需 AC/INV，但缺少 docs/qa-modules/shop/TEST-DESIGN.md',
   'QA_VERDICT=PASS_WITH_RISK',
   'QA_RECEIPT=<ROOT>/tmp/qa-verification-receipts/<KEY>.json',
   'BASE_BRANCH=main',
@@ -46,9 +54,10 @@ const GOLDEN_DISABLED = [
   'NEXT_ACTION=执行 pnpm agent -- qa merge',
 ];
 
-// 回执键集合固定：基础身份字段加三态裁决 qa_verdict；按 --no-module 放行时多记一条理由；业务门禁通过后再多一个 business 摘要。
+// 回执键集合固定：基础身份字段加三态裁决 qa_verdict；按 --no-module 放行时多记一条理由；
+// 实际项目还带测试设计门禁摘要 design（模板源跳过该门禁）；业务门禁通过后再多一个 business 摘要。
 const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'qa_verdict', 'schema_version', 'verdict', 'verified_at'];
-const NO_MODULE_RECEIPT_KEYS = [...RECEIPT_KEYS, 'no_module_reason'].sort();
+const NO_MODULE_RECEIPT_KEYS = [...RECEIPT_KEYS, 'no_module_reason', 'design'].sort();
 const BUSINESS_RECEIPT_KEYS = [...NO_MODULE_RECEIPT_KEYS, 'business'].sort();
 
 function scenarioFor(t) {
