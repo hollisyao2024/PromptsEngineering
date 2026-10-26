@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.13.1] - 2026-10-26
+
+- 修复 Windows CRLF 检出下 contracts `generate.mjs --check` 误报漂移，仅换行差异不再视为生成漂移。
+
 ## [v3.13.0] - 2026-10-26
 
 - **破坏性**：新增 qa integrity 测试完整性门禁并收紧 qa verify/业务门禁，移除 --skip-checks（ADR-041，存量可先设 integrity warn）。
