@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { planUpdate, readLock, safePath, read, parseJson, hash, json, applyPlan, atomicWrite } = require('./engine');
 const { assertMutationTarget, assertPlanOutput } = require('./target');
+const { rewritePackageScripts } = require('./script-renames');
 
 function walk(root, relative = '') {
   const result=[];
@@ -29,11 +30,13 @@ function buildAgentAssets(source,target,manifestPath='infra/templates/agent/temp
       const p=relative?`${rule.path}/${relative}`:rule.path;
       if(effective(p)!==rule)continue;
       let content=readSource(relative?`${from}/${relative}`:from),strategy=rule.strategy;
-      if(strategy==='merge-package-scripts'){content=json({scripts:parseJson(content,from).scripts||{}});strategy='merge-json';}
+      // Project scripts still calling renamed template paths are migrated before the scripts merge.
+      let transformLocal;
+      if(strategy==='merge-package-scripts'){content=json({scripts:parseJson(content,from).scripts||{}});strategy='merge-json';transformLocal=rewritePackageScripts;}
       if(strategy==='append-block')strategy='managed-block';
       // Existing JSONC comments are preserved as text and participate in diff3 updates.
       if(strategy==='merge-jsonc')strategy='update';
-      assets.push({path:p,content,strategy,owner:'agent',version:manifest.templateVersion,marker:rule.marker,mode:fs.statSync(safePath(source,relative?`${from}/${relative}`:from)).mode&0o777});
+      assets.push({path:p,content,strategy,owner:'agent',version:manifest.templateVersion,marker:rule.marker,transformLocal,mode:fs.statSync(safePath(source,relative?`${from}/${relative}`:from)).mode&0o777});
     }
   }
   return {assets:assets.map(asset=>require('./root-contributions').preserveRootContribution(asset,target)),inputs,version:manifest.templateVersion};

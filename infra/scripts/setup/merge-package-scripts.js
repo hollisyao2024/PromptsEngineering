@@ -10,32 +10,10 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveRepoRoot } = require('../shared/config');
+// 更名表与 template sync 共用，只替换 scripts 值中独立出现的旧模板路径。
+const { rewriteRenamedPaths } = require('../../../tooling/xirang/script-renames');
 
 const DEFAULT_SCRIPT_MANIFEST = 'infra/templates/agent/package-scripts.example.json';
-
-// 模板自有脚本路径的更名表：只替换 scripts 值中独立出现的旧路径，
-// 前缀须为开头/空白/引号（可带 ./），后缀须为结尾/空白/引号，避免误伤 vendor/ 副本或 .bak 文件。
-const RENAMED_SCRIPT_PATHS = [
-  ['infra/scripts/devops-tools/devops-run.js', 'infra/scripts/ops-tools/ops-run.js'],
-];
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function rewriteRenamedPaths(command) {
-  if (typeof command !== 'string') return { command, count: 0 };
-  let count = 0;
-  let next = command;
-  for (const [legacy, current] of RENAMED_SCRIPT_PATHS) {
-    const pattern = new RegExp(`(^|[\\s"'])(\\./)?${escapeRegExp(legacy)}(?=$|[\\s"'])`, 'g');
-    next = next.replace(pattern, (match, lead, dot) => {
-      count += 1;
-      return `${lead}${dot || ''}${current}`;
-    });
-  }
-  return { command: next, count };
-}
 
 function parseArgs(argv) {
   const args = {};

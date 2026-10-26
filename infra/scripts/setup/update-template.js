@@ -28,6 +28,8 @@ const {
   initializeCodexConfig,
   initializeEnvironmentFiles,
   initializeProjectEnvironmentFiles,
+  migrateLegacyAgentConfig,
+  reportAgentConfigMigration,
   reportCodexConfig,
   reportProjectEnvironmentFiles,
 } = require('./update-template-local-config');
@@ -188,11 +190,14 @@ function main() {
   if (args.adopt) baseArgs.push('--adopt');
   if (args['legacy-baseline']) baseArgs.push('--legacy-baseline', args['legacy-baseline']);
   const codexConfigPlan = initializeCodexConfig(targetRoot, false);
+  // Fail before any write when the legacy config cannot be migrated safely.
+  const agentConfigPlan = migrateLegacyAgentConfig(targetRoot, false);
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
   reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false));
   reportCodexConfig(codexConfigPlan);
+  reportAgentConfigMigration(agentConfigPlan);
 
   if (dryRun.status !== 0) {
     block('dry-run failed', { dry_run_log: dryRunLog });
@@ -231,6 +236,7 @@ function main() {
   }
   reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, true));
   reportCodexConfig(initializeCodexConfig(targetRoot, true));
+  reportAgentConfigMigration(migrateLegacyAgentConfig(targetRoot, true));
 
   validateJsonFiles(targetRoot, [
     'agent.config.json',
@@ -288,6 +294,10 @@ function main() {
     block('Codex config did not converge', { config: CODEX_CONFIG_RELATIVE });
   }
   console.log('CODEX_CONFIG_CONVERGENCE_STATUS=OK');
+  if (migrateLegacyAgentConfig(targetRoot, false).status !== 'unchanged') {
+    block('agent.config.json legacy migration did not converge');
+  }
+  console.log('AGENT_CONFIG_CONVERGENCE_STATUS=OK');
   if (initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false).files.some(file => file.status !== 'unchanged')) {
     block('Environment files did not converge');
   }

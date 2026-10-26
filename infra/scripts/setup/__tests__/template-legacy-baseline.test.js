@@ -12,6 +12,8 @@ function write(dir, file, text) {
   fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
   fs.writeFileSync(path.join(dir, file), text);
 }
+// Fixture checkouts follow the host autocrlf (CRLF on Windows) and updates keep that EOL; compare line-ending-insensitively.
+const readLf = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 function git(cwd, ...args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr); return r.stdout.trim();
@@ -38,11 +40,11 @@ test('explicit legacy Git baseline upgrades unchanged overwrite assets without d
   const plan = createTemplatePlan(f);
   assert.deepEqual(plan.conflicts, []);
   assert.equal(plan.legacyBaselineCommit, f.commit);
-  assert.equal(fs.readFileSync(path.join(f.target, 'owned/a.txt'), 'utf8'), 'old\n');
+  assert.equal(readLf(path.join(f.target, 'owned/a.txt')), 'old\n');
   assert.equal(fs.existsSync(path.join(f.target, 'xirang.lock.json')), false);
   applyPlan(plan, { runRoot: path.join(f.dir, 'runs') });
-  assert.equal(fs.readFileSync(path.join(f.target, 'owned/a.txt'), 'utf8'), 'new\n');
-  assert.equal(fs.readFileSync(path.join(f.target, 'RULES.md'), 'utf8'), 'project rules\n');
+  assert.equal(readLf(path.join(f.target, 'owned/a.txt')), 'new\n');
+  assert.equal(readLf(path.join(f.target, 'RULES.md')), 'project rules\n');
   assert.deepEqual(createTemplatePlan(f).changes, []);
   write(f.target, 'owned/a.txt', 'local drift\n');
   assert.equal(createTemplatePlan(f).conflicts.length, 1, 'legacy option cannot bypass current lock');
