@@ -139,7 +139,19 @@ function managedBlock(content, marker) {
   if (b < a) throw new Error(`malformed managed block: ${marker}`);
   return { prefix: content.slice(0, a), body: content.slice(a + start.length, b).replace(/^\r?\n/, '').trimEnd() + '\n', suffix: content.slice(b + end.length).replace(/^\r?\n/, '') };
 }
+// Windows checkouts with core.autocrlf=true hold CRLF text while baselines and upstream are LF. Text is compared by
+// its LF form and written back in the checkout's CRLF style; NUL-bearing (binary) content keeps raw byte comparison.
+const isText = value => typeof value === 'string' && !value.includes('\0');
+const toLf = value => isText(value) ? value.replace(/\r\n/g, '\n') : value;
+const usesCrlf = value => isText(value) && value.includes('\r\n') && !/(^|[^\r])\n/.test(value);
 function decide(asset, local, base, record, adopt) {
+  const text = toLf(local), upstream = toLf(asset.content);
+  const after = decideText({ ...asset, content: upstream }, text, toLf(base), record, adopt, local);
+  if (after === text) return local;
+  if (usesCrlf(local) && isText(after)) return after.replace(/\n/g, '\r\n');
+  return after === upstream ? asset.content : after;
+}
+function decideText(asset, local, base, record, adopt, rawLocal) {
   const upstream = asset.content;
   if (asset.strategy === 'project-owned') return local;
   if (asset.strategy === 'init-if-missing') return local === null ? upstream : local;
@@ -190,7 +202,8 @@ function decide(asset, local, base, record, adopt) {
   }
   if (asset.strategy === 'overwrite') {
     if (local === base) return upstream;
-    if (upstream === base && record?.adoptedLocal === hash(local)) return local;
+    // Older locks recorded the raw (possibly CRLF) hash; newer ones record the LF form.
+    if (upstream === base && record?.adoptedLocal && [hash(local), hash(rawLocal)].includes(record.adoptedLocal)) return local;
     throw new Error('overwrite conflict: local content changed');
   }
   return mergeText(base, local, upstream);
@@ -222,9 +235,11 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     if (reason || asset.strategy === 'project-owned') continue;
     if (asset.strategy === 'remove') { delete nextLock.files[asset.path]; continue; }
     nextLock.files[asset.path] = { owner: asset.owner, version: asset.version || '1', strategy: asset.strategy, base: hash(asset.content) };
-    const adoptingLocal = adopt && base === undefined && local !== null && local !== asset.content;
-    const preservingAdoptedLocal = record?.adoptedLocal && asset.content === base && local !== base;
-    if (asset.strategy === 'overwrite' && (adoptingLocal || preservingAdoptedLocal)) nextLock.files[asset.path].adoptedLocal = hash(local);
+    const localText = toLf(local), upstreamText = toLf(asset.content), baseText = toLf(base);
+    const adoptingLocal = adopt && base === undefined && local !== null && localText !== upstreamText;
+    const preservingAdoptedLocal = record?.adoptedLocal && upstreamText === baseText && localText !== baseText;
+    // Record the LF form so the adoption survives checkouts with a different line-ending convention.
+    if (asset.strategy === 'overwrite' && (adoptingLocal || preservingAdoptedLocal)) nextLock.files[asset.path].adoptedLocal = hash(localText);
   }
   // Drop records the template no longer ships: only for owners whose complete asset list is in this run (a scoped
   // sync leaves other owners untouched) and only once the file is gone, so no project content loses its baseline.
