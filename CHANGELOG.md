@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.16.0] - 2026-10-27
+
 - 新增 qa mutate run/accept 变异门禁（默认关闭），qa verify 输出 MUTATION_* 并写回执 mutation。
 
 ## [v3.15.0] - 2026-10-26
