@@ -253,6 +253,8 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 
 必需验证通过后，仅因新变更、失败或具体未解决风险扩大或重跑测试；时间压力不能豁免必需项。静态检查和构建按受影响技术栈及项目门禁执行，不适用项须记录理由，未运行项不得记为通过。
 
+测试预期值只取 PRD 原子 AC、数据字典、UX 规范、ARCH 接口契约及 QA 在 `docs/qa-modules/<domain>/` 维护的规则表与反例目录，不得从被测实现的当前输出推断。修复失败测试时不得放宽断言、改写字面预期、删除测试或减少断言，也不得新增 skip/only；必需用例被跳过视为未通过。完成以适用门禁的 `STATUS` 输出为准，清单自报不构成完成证据。
+
 官方息壤源的 `tdd sync` 自动递增发布版本，并把 `CHANGELOG.md` 的 `[Unreleased]` 条目移入新版本标题；默认 patch，已显式选定更高 minor/major 时保留，实现见 `infra/scripts/tdd-tools/source-version-sync.js`。实际项目不启用此源发布门禁，继续使用自身 `release` 配置。
 
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。

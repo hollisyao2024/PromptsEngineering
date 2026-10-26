@@ -11,7 +11,8 @@
 - `docs/data/test-strategy-matrix.md`、`test-priority-matrix.md`、`test-risk-matrix.md`：全局测试矩阵
 - `docs/data/qa-reports/`：全局质量报告归档
 - `docs/qa-modules/{domain}/PATHS.md`：页面状态与操作路径（界面、状态、转移、路径与覆盖准则；业务测试自动化使用，由 QA 维护，`/qa plan` 不生成也不覆盖）
-- `docs/data/templates/qa/`：QA 主总纲模板（`QA-TEMPLATE.md`）、页面状态与操作路径模板（`PATHS-TEMPLATE.md`）与矩阵模板
+- `docs/qa-modules/{domain}/TEST-DESIGN.md`：规则表、反例目录与缺陷复现（QA 设计模式产出并维护，`/qa plan` 不生成也不覆盖）
+- `docs/data/templates/qa/`：QA 主总纲模板（`QA-TEMPLATE.md`）、页面状态与操作路径模板（`PATHS-TEMPLATE.md`）、测试设计模板（`TEST-DESIGN-TEMPLATE.md`）与矩阵模板
 - `<primary-app-tests>/`：集成测试代码，按 `agent.config.json paths.primaryApp` 或项目约定定位
 - `e2e/`：端到端测试代码
 - 容器层 `tmp/coverage/`、`tmp/test-results/`、`tmp/playwright-report/`：测试产物（由脚本按主 repo 解析；`.gitignore` 兜底）
@@ -22,14 +23,18 @@
 
 ### 第一步：测试计划（/qa plan）
 1. 执行 `pnpm run qa:generate` 脚本
-2. 治理流程读取 PRD/ARCH/TASK 并解析 Story → AC → Test Case；日常流程读取用户验收、交付 diff 与已有测试
+2. 治理流程读取 PRD/ARCH/TASK 并解析 Story → AC → Test Case；日常流程读取用户验收与规格；交付 diff 与已有测试只在审计模式中用于找缺口，不作为预期来源
 3. 按 session 目标生成或更新相关 QA 文档；仅显式 project 范围覆盖全部模块，文档范围不自动决定测试执行范围
 4. 映射有变化时更新追溯矩阵（`docs/data/traceability-matrix.md`）
 5. 记录会话上下文到脚本按主 repo 解析出的容器层 `tmp/worktree-sessions/qa-plan/<worktree-name>-<worktree-path-hash>.json`；同一 worktree 稳定复用，不同并行 worktree 相互隔离
 
 ### 第 1.5 步：编写测试代码（/qa plan 之后）
 
-QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/降级测试由 TDD 专家在实现阶段编写。
+分工按“谁定预期值”划分（同 Expert 文件 §测试职责）：
+
+- **QA 定预期**：先进入设计模式，在 `docs/qa-modules/{domain}/TEST-DESIGN.md` 写规则表、反例目录与缺陷复现，并在实现前单独提交（`test(design): <模块> 规则与反例`），方法见 §测试设计方法。
+- **QA 编写并执行**（黑盒模式，只经公开接口）：跨模块黑盒集成、API 业务流、性质与状态机、故障注入、E2E、性能、安全。
+- **TDD 编写**：单元、模块内集成与契约测试；预期取自 TEST-DESIGN.md 的 RUL/ADV 行，测试名引用对应 ID，不得修改或放宽预期。
 
 #### E2E 测试（Playwright）
 - **目录**：采用架构包 e2e 脚手架时为 `packages/e2e/tests/<app>/`（Page Object 在 `packages/e2e/pages/`，Fixtures 在 `packages/e2e/fixtures/`）；项目已有 E2E 目录（如 `e2e/<app>-tests/`）与 Playwright 配置时沿用现有目录、Fixtures 与配置，不另建平行目录，`qa.business.suites` 的 `command`/`report` 按实际配置登记
@@ -47,15 +52,14 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
   - Stress：阶梯递增直到崩溃，找系统极限
   - Spike：瞬间从低到极高再回低，验证突发承受力
   - Soak：中等负载长时间持续（2-8h），检测内存/连接泄漏
-- **阈值**：从 ARCH NFR 提取；默认 `p95<500ms, p99<1.5s, error_rate<1%`
+- **阈值**：只取 PRD/ARCH NFR；未定义时回流 PRD/ARCH 补齐，不自带默认值
 - **命名**：`{scenario}.k6.ts`（如 `load-test.k6.ts`、`checkout-flow.k6.ts`）
 - **工具**：k6（原生 TS 支持）
 - **命令**：`k6 run perf/scenarios/load-test.k6.ts`
 - **本地执行**：按变更风险选择 smoke 或完整负载；10 VU / 30s 可作为起始参数，验收阈值由项目 NFR 确定。
-- **每个场景最低要求**：
-  - 至少 3 个自定义 metric（非仅默认 http_req_duration）
-  - 至少测试 2 个关键 endpoint（不仅 homepage）
-  - 阈值必须从 ARCH NFR 提取，禁止使用默认值而不验证
+- **场景要求**：
+  - metric 与 endpoint 按 NFR 与风险选择：每条性能 NFR 都有对应的 metric 与阈值，覆盖 NFR 点名的关键 endpoint，不以默认 `http_req_duration` 或 homepage 充数
+  - 每个阈值注明 NFR 出处；缺少出处的阈值不进入验收
   - Smoke 脚本必须包含数据验证（检查响应 body 非仅 status）
 
 #### 安全测试
@@ -63,7 +67,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - **SCA**（依赖/供应链配置变化或项目门禁）：`pnpm audit --audit-level=high`、`trivy fs .` 为按需示例
 - **DAST**（受影响对外入口）：`docker run zaproxy/zaproxy zap-baseline.py -t <staging-url> -c security/zap/zap-baseline.conf` 为按需示例；定期全扫描按项目既定计划
 - **认证/授权测试**：放 `apps/server/tests/security/*.security.test.ts`，覆盖受影响端点与权限消费者
-- **阻断策略**：Critical/High → 阻断 QA 通过（Go）；Medium → 限期修复；Low → 记录跟踪
+- **阻断策略**：Critical/High → 结论为 BLOCKED；Medium → 限期修复；Low → 记录跟踪
 - **认证/授权测试最低清单**（每个需认证的 endpoint 必须覆盖）：
   - [ ] 无 token 访问 → 401
   - [ ] 过期 token → 401
@@ -75,7 +79,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 
 #### E2E 边界场景清单
 
-> QA 专家在编写 E2E 测试时，按以下清单为每个 P0/P1 场景补充边界用例。
+> QA 专家在设计模式中按以下清单为每个 P0/P1 场景补充边界用例；每个适用项写成 TEST-DESIGN.md 反例目录的一行 ADV（维度见 §测试设计方法），再落到 E2E 或黑盒用例。
 
 **用户流程边界**：
 - [ ] 会话过期时的操作（token 失效后提交表单）
@@ -111,18 +115,18 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 ### 第三步：验收检查（/qa verify）
 1. 确认 §测试执行验证门禁（Expert 文件）全部满足
 2. 执行 `pnpm run qa:verify` 脚本
-3. 脚本检查：QA 文档完整性、覆盖率、缺陷阻塞情况
-4. 生成质量指标（通过率、覆盖率、缺陷密度）
-5. 输出发布建议：Go / Conditional / No-Go
+3. 脚本检查：QA 文档完整性、缺陷阻塞情况、测试范围证据，启用时含业务验收门禁
+4. 报告质量指标，以规则为主：P0 规则验证数（其 TC 被通过的用例证明）、反例覆盖、历史缺陷复现、新发现缺陷数、不稳定率；覆盖率只作辅助，不单独证明完成
+5. 给出结论：PASS / PASS_WITH_RISK / BLOCKED。脚本当前输出 Go / Conditional / No-Go，依次对应；Conditional 须逐条评审风险，不能自动视为通过
 6. `qa verify` 的架构门禁可能在 stderr 输出 `ARCHITECTURE_WARNING=<name>|<code>|<reason>`，即 `DESIGN.md` 与 `styles.css` 的漂移告警（ADR-040）。告警不阻断，也不改变回执签发；执行器在验收结论中把告警原样报告给用户，不自行修改项目的 `DESIGN.md` 或 `styles.css`。
 
 ### 第四步：合并（/qa merge）
-1. 前置：verify 为 Go
+1. 前置：`qa verify` 输出 `STATUS=OK` 并签发 `QA_RECEIPT=`；结论为 PASS_WITH_RISK 时，风险已逐条评审
 2. 执行 `pnpm agent -- qa merge`，固定 SHA 回执与恢复边界见 §qa merge 流程详解。
 3. 合并、主分支同步和 completion guard 通过后关闭任务；需要部署时交接 OPS（`[[ACTIVATE: OPS]]`）。
 
 ### 回退触发
-- 发布建议为 No-Go → 附缺陷证据回流 TDD，保留已有 `TDD_DONE` 里程碑历史
+- 结论为 BLOCKED → 附缺陷证据回流 TDD，保留已有 `TDD_DONE` 里程碑历史
 - OPS 回滚并通知后 → 从部署记录提取信息，在 `defect-log.md` 登记缺陷
 - 范围偏差 → 记录回流建议并通知对应阶段
 
@@ -138,7 +142,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 ### 生成输入源
 - **主输入**：`/docs/PRD.md`（Story、AC、验收标准、优先级）
 - **架构输入**：`/docs/ARCH.md`（组件、技术选型、NFR）
-- **任务输入**：治理流程的 `/docs/TASK.md`（WBS、里程碑、Owner）；日常流程使用用户验收、交付 diff 与有效测试证据
+- **任务输入**：治理流程的 `/docs/TASK.md`（WBS、里程碑、Owner）；日常流程使用用户验收与规格；交付 diff 与有效测试证据只在审计模式中使用
 - **追溯矩阵**：`/docs/data/traceability-matrix.md`（Story → AC → Test Case 映射）
 - **模块输入**：根据模块清单读取 `/docs/prd-modules/{domain}/PRD.md`、`/docs/arch-modules/{domain}/ARCH.md`、`/docs/task-modules/{domain}/TASK.md`
 - **模块 QA 参考**：若已有模块 QA 数据，读取 `/docs/qa-modules/{domain}/priority-matrix.md`、`nfr-tracking.md`、`defect-log.md`，以及业务测试自动化使用的 `PATHS.md`，便于延续历史信息
@@ -153,9 +157,9 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 - FOR EACH Story in PRD：
   1. 读取 Story 的所有 AC（验收标准）
   2. 为每个 AC 生成测试用例，遵循**基线 + 模式触发**规则：
-     - **基线**（新增或改变关键用户路径的受影响 Story）：正常路径、适用输入边界及错误恢复；复用已有用例并补缺口，不对纯文档或局部样式固定新增 3 个 E2E
+     - **基线**（新增或改变关键用户路径的受影响 Story）：基线覆盖受影响规则及其必需反例维度（正常路径、适用输入边界、错误恢复）；复用已有用例并补缺口，不按固定数量凑用例
      - **模式触发追加**：AC 涉及条件分支→追加分支测试；涉及多实体→追加关联测试；涉及认证→追加权限边界测试；涉及状态变更→追加幂等/负面测试
-     - **断言质量**：每用例 ≥2 个有效断言（验证状态变更或业务数据，禁止仅检查 defined/null/truthy）
+     - **断言质量**：断言绑定 RUL/ADV 或 AC 的预期，验证状态变更或业务数据，禁止仅检查 defined/null/truthy；不以断言条数凑数
      - **负面测试**：必须包含验证"不应发生"的行为
      - **边界场景**：从 §E2E 边界场景清单 选取适用项
   3. 生成 Test Case ID：`TC-{MODULE}-NNN`；PRD 原子 AC 表 TC 列已有的标识沿用，新增标识在同一编号空间内取未占用的序号并回填 TC 列；每个用例一个完整编号，不用区间或子编号
@@ -165,7 +169,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
   7. 关联 Story ID 与 AC ID
 - FOR EACH Component in ARCH：
   1. 识别需要契约测试的接口（微服务架构）
-  2. 生成契约/降级测试用例
+  2. 生成契约测试用例（TDD 编写）；依赖故障与降级行为写成 `dependency` 维度的反例，由 QA 以故障注入验证（见 §测试设计方法）
 
 #### 第三步：测试策略矩阵
 根据 PRD 的 NFR 和 ARCH 的技术选型：
@@ -192,7 +196,7 @@ QA 负责编写并执行：E2E、性能、安全测试。单元/集成/契约/�
 `/qa plan` 刷新已有文档时按文档归属处理，已评审的业务测试资料不会被覆盖：
 - **生成器自有文档**：以 `<!-- QA-GENERATED: generate-qa.js -->` 标记开头的文档由 `/qa plan` 重新生成，内容以 PRD、ARCH、TASK 与追溯矩阵为准；PRD 含原子 AC 表时，用例编号取 AC 表 `TC` 列、前缀取表内模块标识，`TC` 为 `-` 的 AC 与没有 AC 的 Story 列在「3.2 尚未登记用例的验收标准」，不替它们臆造编号
 - **手工维护文档**：没有该标记的 `docs/QA.md`、QA 模块清单与模块 QA 文档会被保留（日志提示「保留手工维护的…」），差异由 QA 专家评审后合并
-- **业务测试资料**：`PATHS.md`、业务测试套件与已评审的 TC 行从不由 `/qa plan` 生成或覆盖；刷新只新增或提出差异，不覆盖已评审用例，详见「业务测试自动化」一章的刷新策略
+- **业务测试资料**：`PATHS.md`、`TEST-DESIGN.md`、业务测试套件与已评审的 TC 行从不由 `/qa plan` 生成或覆盖；刷新只新增或提出差异，不覆盖已评审用例，详见「业务测试自动化」一章的刷新策略
 - **建议操作**：刷新前先提交现有改动，刷新后用 `git diff` 审阅，再决定保留或回退
 
 ---
@@ -227,7 +231,7 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 - 以**录制**回放的结果作为预期，或用**截图**与快照基线代替断言。基线只能在期望已由 AC 或 UX 规范固定之后，用于视觉回归；
 - 从实现代码反推业务规则，再据此写断言。
 
-规格有歧义或缺失时不要猜测：回流 PRD 澄清，澄清之前该 AC 不进入自动化。每条用例至少 2 个有效断言，且都能追溯到某条 AC 的 Then 列。
+规格有歧义或缺失时不要猜测：回流 PRD 澄清，澄清之前该 AC 不进入自动化。每条断言都能追溯到某条 AC 的 Then 列或 TEST-DESIGN.md 的 RUL/ADV 预期；不以断言条数凑数。
 
 ### 路径推导：从原子 AC 到 PATHS.md
 
@@ -237,10 +241,10 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 2. **列状态**：列出界面上用户能观察到、且会影响下一步操作的状态（`STA-{MODULE}-NNN`）；状态必须可断言，不写内部实现细节。
 3. **列转移**：每个转移是「起始状态 + 操作 + 守卫 → 目标状态」（`TRN-{MODULE}-NNN`）；守卫写区分分支的条件，无条件写 `-`；承载验收标准的转移在「关联 AC」引用该 AC，纯导航转移写 `-`。
 4. **选覆盖准则**：默认 `all-transitions`，声明方式与取舍见下一小节。
-5. **推导路径**：用尽量少的路径覆盖全部转移，路径内的转移首尾相接；每条路径（`PTH-{MODULE}-NNN`）绑定一个端到端用例 `TC-{MODULE}-NNN`，与 PRD 原子 AC 表的 TC 列共用同一个编号空间。
+5. **推导路径**：在覆盖准则下覆盖全部转移，并按反例目录补充负向路径，路径内的转移首尾相接；每条路径（`PTH-{MODULE}-NNN`）绑定一个端到端用例 `TC-{MODULE}-NNN`，与 PRD 原子 AC 表的 TC 列共用同一个编号空间。
 6. **运行 `pnpm agent -- qa paths`**：输出 `STATUS=OK` 才表示模型自洽，逐条处理 `VIOLATION=` 行（含义见速查表）；再用 `MATRIX_AC=` 行核对每条 AC 关联的转移、路径与 TC，用 `MATRIX_PATH=` 行核对每条路径的转移序列与 TC，这两组行就是要编写的用例清单。
 
-`qa paths` 只读，不创建目录、不写文件。路径模型由模型推导，容易编造或过度细化，因此 P0 路径必须经过评审，评审人对照 UX 规范确认：
+`qa paths` 只读，不创建目录、不写文件。路径模型由模型推导，容易编造或过度细化，因此 P0 路径必须经过评审，评审人为用户或其指定评审人，不得由编写者自评；评审人对照 UX 规范确认：
 - 每个状态在 UX 规范中有依据，没有凭空添加的界面；
 - 同一起始状态的各个守卫互斥且完整，没有遗漏分支；
 - 没有为凑覆盖率增加冗余路径；`manual`（人工验收）的 AC 不需要转移。
@@ -469,7 +473,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `STALE_QA_BASE` | BLOCKED | 功能分支落后于远端配置主干 | 在当前 worktree 执行 `git merge --no-edit origin/<base>`，重跑受影响测试并追加 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，再 `pnpm agent -- tdd push` 与 `qa verify` |
 | `HEAD_NOT_PUSHED` | BLOCKED | 本地 HEAD 与远端功能分支不一致 | `pnpm agent -- tdd push` 后重跑 `qa verify` |
 | `TEST_SCOPE_EVIDENCE` | BLOCKED | 当前 mutation 任务缺少或不合法的 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，包括 evidence 引用的任务日志缺失或 SHA256 不符 | 在任务 checkpoint 中补录决策与绑定当前 HEAD 的结果后重跑 `qa verify` |
-| `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误（Go/Conditional/No-Go 判定为 No-Go） | 修复上方列出的错误后重跑 `qa verify` |
+| `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误（Go/Conditional/No-Go 判定为 No-Go，即 BLOCKED） | 修复上方列出的错误后重跑 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
 | `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
 | `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
@@ -493,9 +497,95 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 
 ---
 
+## 测试设计方法
+
+> 本章是设计模式与黑盒模式的方法手册。模式划分、允许的输入与测试有效性红线以 Expert 文件为准；本章只给做法，不放宽其中任何约束。
+
+### 规则表与反例目录
+
+每个功能域在 `docs/qa-modules/{domain}/TEST-DESIGN.md` 维护三张表，模板见 `docs/data/templates/qa/TEST-DESIGN-TEMPLATE.md`：
+
+| 表 | 标识 | 列 |
+|----|------|----|
+| 规则表 | `RUL-{MODULE}-NNN` | ID、类型、陈述、出处、优先级、验证方式、TC |
+| 反例目录 | `ADV-{MODULE}-NNN` | ID、规则、维度、场景、预期、TC |
+| 缺陷复现 | `BUG-{MODULE}-NNN` | ID、现象、关联规则、来源、TC、修复提交 |
+
+- **类型**：`rule`（业务规则）、`invariant`（任何操作后都成立）、`forbidden`（禁止发生）、`pre` / `post`（前置与后置条件）、`undefined`（规格未定义的行为，须写明期望处置并回流 PRD 确认）。
+- **出处**：只允许 `AC-*`、PRD 模块「不变量与禁止行为」表的 `INV-*`，或 `docs/**.md#锚点`；源码与测试文件不是出处。确无出处时写 `推断：<理由>`，只记为风险，并回流 PRD 补齐。
+- **验证方式**：`example`（示例）、`property`（性质）、`state-machine`（状态机）、`fault`（故障注入）、`manual`（人工验收）。
+- **反例维度**：`auth`（角色、租户、越权）、`state`（非法状态与转移）、`boundary`（边界与越界）、`concurrency`（重复、乱序、并发）、`dependency`（依赖故障）、`time`（时钟、超时、过期）、`input`（格式与注入）。必需维度默认为 `auth`、`state`、`boundary`、`concurrency`、`dependency`；P0 规则在每个必需维度上都要有一行反例，不适用时在场景列写 `不适用：<理由>`，不能留空。
+- **缺陷来源**：`qa-design`、`qa-redteam`、`qa-audit`、`user`、`prod`；`qa-*` 来源用于统计 QA 新发现的缺陷。
+- **绑定**：测试用例名包含对应的 RUL、ADV、BUG 或 TC 标识；一条规则的 TC 全部通过才算该规则被验证。
+- **提交顺序**：设计模式在实现前完成，以 `test(design): <模块> 规则与反例` 单独提交；之后修改已提交的陈述或预期，须在提交说明写明原因与新出处，并回流 PRD 确认。
+- **红队**：规则表写完后，换一个只拿到规格与规则表、看不到实现的上下文，按维度逐条为 P0 规则找反例；找不到反例的规则通常陈述过宽，回到规则表细化。
+
+### 性质测试
+
+适用于对一类输入都应成立的规则（往返、幂等、守恒、单调、排序稳定等）：
+
+- 性质直接取自 RUL 陈述，生成器的取值域取自数据字典；不要用被测函数的另一种实现当参照。
+- 固定随机种子并在失败时输出最小反例；把最小反例追加为 example 用例，防止回归。
+- 项目已有性质测试库时沿用；没有时，用数据驱动用例覆盖等价类与边界，并在规则表把验证方式写为 `example`。
+
+### 业务状态机（非 UI）
+
+PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的状态机在规则表中用 `state-machine` 验证：
+
+- 从 PRD 与 ARCH 列出状态、事件与守卫；每个「状态 × 事件」组合要么是合法转移，要么写明预期拒绝（错误码或状态不变）。
+- 非法转移、重复事件与乱序事件分别写进 `state` 与 `concurrency` 维度的反例。
+- 用模型驱动的随机事件序列执行，每步之后检查全部 `invariant` 规则。
+
+### 可控时钟与调度
+
+- 依赖时间的规则（过期、限流窗口、定时任务、重试退避）通过注入时钟或测试框架的假定时器推进时间，不用真实 `sleep` 等待。
+- 并发与乱序场景通过可控调度或显式屏障复现，不靠多次运行碰运气；无法确定性复现的写成 `concurrency` 反例并注明验证方式。
+
+### 故障注入
+
+引入外部依赖或弹性模式（Circuit Breaker、Retry、Fallback）时，由 QA 依据 `dependency` 维度的反例编写：
+
+- **分层注入**：
+  - HTTP 层：MSW v2 或 nock 拦截请求，注入错误与延迟
+  - 应用层：直接驱动 Circuit Breaker 状态机（Closed → Open → Half-Open → 恢复）
+  - 网络层（可选）：Toxiproxy 注入 TCP 故障（延迟、断连），需 Docker
+- **验证内容**：依赖返回 500、超时、不可达；连续失败后 breaker 是否 Open；Retry 指数退避；Fallback 数据结构是否符合 ARCH 接口契约。
+- **预期来源**：降级行为取自 PRD/ARCH 的可用性要求与接口契约；未定义时回流，不按实现现状补写预期。
+- **文件位置**：`apps/*/tests/resilience/*.degradation.test.ts`
+- **工具**：MSW v2 + cockatiel/opossum + Toxiproxy（可选）
+
+### 变异测试
+
+变异测试回答「这些测试能不能抓到错」：
+
+1. 只对本次变更涉及的源码文件生成变异体（项目已有的变异工具，或手工改写关键条件、边界与返回值）。
+2. 运行绑定 P0 规则的测试：每个 P0 规则至少有一个测试能杀死相关变异体。
+3. 存活的变异体逐个判断：是等价变异体就记录理由；否则补反例或断言，直到被杀死。
+4. 在 QA 证据中记录变异体数量、被杀数量、存活清单与处理结论。
+
+### 缺陷复现
+
+每个 BUG 行都要有一个能复现它的用例：
+
+- 在修复前的 base 提交上运行该用例必须失败，在当前 HEAD 上必须通过；两次运行的提交 SHA 与结果一起记录在 QA 证据中。
+- 复现用例的预期取自关联规则；没有关联规则的缺陷先补 RUL 行，再写用例。
+- 在 base 上也通过的用例没有复现能力，要重写。
+
+### 不稳定治理（flaky）
+
+- 不开启自动重试，不用「多跑几次直到通过」洗白结果；重试只会把不稳定的用例洗成「偶尔通过」。
+- 用例结果在相同输入下不一致即为不稳定：P0 用例不稳定时结论不能为 PASS；先定位等待条件、数据隔离、时钟或并发的根因并修复。
+- 无法立即修复的用例登记为缺陷并在报告中披露，不跳过、不删除、不放宽断言。
+
+### 测试有效性红线
+
+以 Expert 文件「测试有效性红线」一节为准：禁止以当前输出作预期、禁止放宽或删除断言、禁止静默跳过；跳过即未通过。
+
+---
+
 ## 测试策略与覆盖
-- **优先级**：P0（阻塞）> P1（严重）> P2（一般）；P0 通过率必须 100%
-- **测试类型覆盖**：功能/集成/E2E/回归/契约/降级/性能/安全/无障碍
+- **优先级**：P0（阻塞）> P1（严重）> P2（一般）；P0 规则全部由通过的用例证明
+- **测试类型覆盖**：功能/集成/E2E/回归/契约/故障注入/性能/安全/无障碍
 - **执行范围**：按影响和风险选择 P0 及相关回归；时间受限不豁免必需验证，全量与证据复用遵循 `docs/CONVENTIONS.md` §测试范围与证据复用
 - **非功能验证**：性能基准对比、可靠性指标、安全扫描、WCAG 2.1 AA 合规
 - **设计还原度**：根目录 `DESIGN.md` 存在且含 YAML front matter 时，对照它（及 UX 规范）验证间距、色彩、排版、响应式断点，页面与断点范围以其 Visual QA 约定为准；否则回退 UX 规范 §5 与 `styles.css`
@@ -524,7 +614,7 @@ pnpm agent -- qa run                    # 在最后一次提交之后运行业�
 # 合并
 pnpm run qa:merge                       # session 模式
 pnpm run qa:merge -- --dry-run          # 预览
-pnpm run qa:merge -- --skip-checks      # 跳过门禁（慎用）
+pnpm run qa:merge -- --skip-checks      # 跳过 P0 缺陷与 NFR 发布检查；仅用户明确授权时使用，并在报告中列为风险
 ```
 
 ### 质量报告
@@ -536,19 +626,21 @@ pnpm run qa:lint                        # QA 文档质量检查
 pnpm run qa:sync-prd-qa-ids            # PRD ↔ QA ID 同步
 ```
 
-### 测试执行（TDD 已写的测试）
+### 测试执行（TDD 编写的测试）
 以下示例按项目运行器选择，过滤参数的核实见 `docs/CONVENTIONS.md` §测试范围与证据复用；不逐条执行，不因进入 QA 自动运行全量或生成全仓覆盖率。
 ```bash
 cd <primary-app>
 pnpm test                                              # 仅满足明确全量升级条件时执行
 pnpm test tests/integration/                           # 受影响的集成测试
 pnpm test tests/contract/                              # 受影响的契约测试（Provider 验证）
-pnpm test tests/resilience/                            # 受影响的降级测试
 pnpm test -- --coverage                                # 项目要求覆盖率时，按运行器指定范围
 ```
 
 ### 测试执行（QA 编写的测试）
 ```bash
+# 故障注入测试（见 §测试设计方法）
+pnpm test tests/resilience/                            # 受影响的故障注入测试
+
 # E2E 测试
 pnpm --filter @project/e2e exec playwright test tests/<app>/<affected>.e2e.spec.ts   # 定向 E2E（headless）
 pnpm playwright test --shard=1/4                       # 分片并行
@@ -578,9 +670,12 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 以下清单仅核验本次受影响范围和项目适用门禁；不适用项记录理由，不能据此默认新增测试类型或扩大为全量。有效的 TDD 证据按 `docs/CONVENTIONS.md` §测试范围与证据复用的条件复用。
 
 ### 质量门槛
-- [ ] P0 通过率 = 100%
-- [ ] 总通过率 ≥ 90%
-- [ ] 需求覆盖率 ≥ 85%（Story → AC → Test Case 映射完整）
+- [ ] P0 规则全部由通过的用例证明（规则的 TC 全部通过）
+- [ ] P0 规则在每个必需维度上都有反例，或显式写明不适用及理由
+- [ ] 本分支新增的 BUG 行均已复现：base 上失败、HEAD 上通过
+- [ ] 无被跳过、删除或放宽断言的 P0 用例
+- [ ] `TEST-DESIGN.md` 完整，且设计提交早于实现提交
+- [ ] 覆盖率仅作辅助参考，不替代上述规则指标
 - [ ] P0 缺陷全部关闭
 - [ ] P1~P2 缺陷有缓解方案或验证计划
 
@@ -600,7 +695,7 @@ docker run -t zaproxy/zaproxy zap-baseline.py -t <url> -c security/zap/zap-basel
 - [ ] `qa verify` 结尾 `STATUS=OK` 且已输出 `QA_RECEIPT=`；出现 `BLOCKED`/`FAILED` 时按 `REASON=` 与 `NEXT_ACTION=` 处理，不带着非 OK 结果进入 `qa merge`
 
 ### 发布评估
-- [ ] 发布建议已明确（Go / Conditional / No-Go）
+- [ ] 结论已明确（PASS / PASS_WITH_RISK / BLOCKED；脚本当前输出 Go / Conditional / No-Go）
 - [ ] 前置条件或风险已列出
 - [ ] CHANGELOG.md 与测试结论一致
 - [ ] 适用本地门禁通过，QA 回执绑定当前 base/head SHA。
@@ -639,12 +734,12 @@ flowchart TD
     B2 --> C["核对影响范围，按需补测；全量须有依据"]
     B3 --> C
     C --> D["/qa verify 验收检查"]
-    D --> E{发布建议}
-    E -->|Go| F["/qa merge 合并 PR 到 main"]
-    E -->|Conditional| G{可自动满足?}
+    D --> E{结论}
+    E -->|PASS| F["/qa merge 合并 PR 到 main"]
+    E -->|PASS_WITH_RISK| G{风险已逐条评审?}
     G -->|是| F
     G -->|否| STOP[停止，通知用户]
-    E -->|No-Go| H["输出缺陷列表，退回 TDD"]
+    E -->|BLOCKED| H["输出缺陷列表，退回 TDD"]
     F --> I[标记 QA_VALIDATED]
     I --> J[交接 OPS 部署]
 ```
@@ -674,7 +769,7 @@ flowchart TD
 
 | 协作方 | 输入 | 输出 | 要点 |
 |--------|------|------|------|
-| TDD | TDD_DONE + PR + 本地测试证据 | 缺陷记录 → 退回修复 | TDD 修复后 QA 重新验证原失败用例 + 回归套件；业务测试的用例名携带 AC/TC 标识 |
+| TDD | TDD_DONE + PR + 本地测试证据 | `TEST-DESIGN.md`（RUL/ADV 预期）、缺陷记录 → 退回修复 | TDD 按 `TEST-DESIGN.md` 的 RUL/ADV 断言，不改预期；修复后 QA 重新验证原失败用例 + 回归套件；业务测试的用例名携带 AC/TC 标识 |
 | ARCH | 架构约束 + NFR 指标 + 接口契约 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO；接口契约是业务测试的预言机来源 |
 | PRD | 验收标准 + 用户故事 + 原子 AC 表 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖；AC 有歧义时回流 PRD 澄清 |
-| OPS | 部署记录、回滚通知、`/env check` 结果 | Go/Conditional/No-Go + QA 回执 | 发布建议为 Go 后执行 /qa merge，交接 OPS 部署；回滚后 QA 登记缺陷 |
+| OPS | 部署记录、回滚通知、`/env check` 结果 | PASS/PASS_WITH_RISK/BLOCKED + QA 回执 | `qa verify` 输出 `STATUS=OK` 后执行 /qa merge，交接 OPS 部署；回滚后 QA 登记缺陷 |
