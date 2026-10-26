@@ -1,9 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {pathToFileURL}=require('node:url');
 const project=require('../scripts/project'),database=require('../scripts/database'),mm=require('../scripts/module-models'),{applyPlan}=require('../../tooling/xirang/engine');
 const gate=require('../../infra/scripts/tdd-tools/schema-governance');
 const source=path.resolve(__dirname,'../..');
-// ESM import() needs file:// URLs: a bare Windows absolute path parses as the 'c:' scheme.
-const {pathToFileURL}=require('node:url'),importFile=p=>import(pathToFileURL(p).href);
 const src=p=>fs.readFileSync(path.join(source,p),'utf8');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'xirang-semantics-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const target=path.join(root,'repo');fs.mkdirSync(target);return {root,target,runRoot:path.join(root,'runs')};}
 const read=(f,p)=>fs.readFileSync(path.join(f.target,p),'utf8');
@@ -22,7 +21,7 @@ function evaluate(access,engine,sql,kinds,extra={}){
  const files={[migration]:sql,'docs/data/dictionary.md':dictionary(kinds),...extra};
  return gate.evaluateSchemaGate({stores:[store],gateConfig:gate.resolveGateConfig({tdd:{schemaGate:{semantic:'required'}}}),changes:[{status:'A',file:migration},{status:'M',file:schema}],readFile:f=>files[f]??null,fileDiff:()=>'+model Changed {}'});
 }
-const comments=()=>importFile(path.join(source,'architecture/stacks/data-access/drizzle/migration-comments.mjs'));
+const comments=()=>import(pathToFileURL(path.join(source,'architecture/stacks/data-access/drizzle/migration-comments.mjs')).href);
 
 test('semantic Prisma module SQL passes the required gate on every engine',()=>{
  for(const engine of ['postgres','mysql','mariadb','sqlite'])for(const kind of ['auth','files'])for(const partial of [true,false]){
@@ -117,7 +116,7 @@ test('audit adapter soft-deletes identities, hard-deletes credentials with secre
  fs.writeFileSync(path.join(dir,'node_modules/@better-auth/core/package.json'),JSON.stringify({name:'@better-auth/core',type:'module',exports:{'./context':'./context.js'}}));
  fs.writeFileSync(path.join(dir,'node_modules/@better-auth/core/context.js'),'export async function tryGetCurrentAuthEndpointContext(){return globalThis.__ctx;}\n');
  fs.copyFileSync(path.join(source,'architecture/modules/open-source/auth/src/audit.ts'),path.join(dir,'audit.ts'));
- const {softDeleteAdapter,xirangAudit}=await importFile(path.join(dir,'audit.ts'));
+ const {softDeleteAdapter,xirangAudit}=await import(pathToFileURL(path.join(dir,'audit.ts')).href);
  const rows={user:[{id:'u1',email:'a@x'}],session:[{id:'s1',userId:'u1',token:'secret-token'}],authAuditLog:[]},calls=[];
  const match=(row,where=[])=>where.every(w=>(row[w.field]??null)===w.value);
  const base={

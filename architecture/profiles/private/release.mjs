@@ -3,22 +3,12 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-// POSIX rename(2) swaps the pointer atomically. Windows cannot rename over a directory symlink (EPERM),
-// so there the old link is removed first; the release lock still serializes switches, and a failed second
-// rename restores the previous link instead of leaving no pointer.
-function replaceLink(temporary, current) {
-  try { fs.renameSync(temporary, current); return; }
-  catch (error) { if (process.platform !== 'win32' || error.code !== 'EPERM') throw error; }
-  const previous = fs.readlinkSync(current);
-  fs.unlinkSync(current);
-  try { fs.renameSync(temporary, current); }
-  catch (error) { fs.symlinkSync(previous, current, 'dir'); throw error; }
-}
-
 // The caller starts the release's process and provides its health URL.
 // This helper only switches a release pointer; it does not deploy or restart services.
-export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl = fetch, attempts = 10, delayMs = 1000 } = {}) {
+export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl = fetch, attempts = 10, delayMs = 1000, platform = process.platform } = {}) {
   if (!releaseArg || !currentArg || !health) throw new Error('release-dir, current-link and health-url required');
+  // Windows cannot rename over an existing symlink, so the swap would not be atomic; refuse before locking or touching the link.
+  if (platform === 'win32') throw new Error('Release switching requires POSIX atomic symlink replacement; run it on the Linux release host');
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 100 || !Number.isFinite(delayMs) || delayMs < 0) throw new Error('Invalid health check options');
   const release = fs.realpathSync(releaseArg);
   const requested = path.resolve(currentArg);
@@ -39,7 +29,7 @@ export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl
   try {
     fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, release })); fs.fsyncSync(fd);
     old = pointer();
-    fs.symlinkSync(release, temporary); replaceLink(temporary, current); switched = true;
+    fs.symlinkSync(release, temporary); fs.renameSync(temporary, current); switched = true;
     let healthy = false;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try { const response = await fetchImpl(url, { signal: AbortSignal.timeout(3000), redirect: 'error' }); healthy = response.ok; await response.body?.cancel(); } catch {}
@@ -52,7 +42,7 @@ export async function releaseCurrent(releaseArg, currentArg, health, { fetchImpl
   } catch (error) {
     if (switched) {
       if (pointer() !== release) throw new Error(`${error.message}; release link changed externally, automatic rollback blocked`);
-      if (old !== undefined) { fs.symlinkSync(old, temporary); replaceLink(temporary, current); }
+      if (old !== undefined) { fs.symlinkSync(old, temporary); fs.renameSync(temporary, current); }
       else fs.unlinkSync(current);
     }
     throw error;
