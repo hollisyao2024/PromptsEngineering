@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.14.0] - 2026-10-26
+
 - **破坏性**：新增 qa design 测试设计门禁与零工具盲测子代理，qa verify 输出 DESIGN_* 并写回执 design（默认 warn，ADR-041）。
 
 ## [v3.13.3] - 2026-10-26
