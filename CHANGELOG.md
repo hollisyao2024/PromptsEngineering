@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.12.4] - 2026-10-26
+
 - 模板同步修复：CRLF 检出的基线文件不再误报损坏，项目脚本随 ops-run 更名，agent.config 的 devops 键自动迁移为 ops，大输出不再截断（回灌自 LinghuiAI）。
 
 ## [v3.12.3] - 2026-10-26
