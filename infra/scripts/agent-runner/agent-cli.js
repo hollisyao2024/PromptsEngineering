@@ -26,6 +26,7 @@ const ROUTES = new Map([
   ['qa:integrity', 'infra/scripts/qa-tools/qa-integrity.js'],
   ['qa:design', 'infra/scripts/qa-tools/qa-design.js'],
   ['qa:repro', 'infra/scripts/qa-tools/qa-repro.js'],
+  ['qa:mutate', 'infra/scripts/qa-tools/qa-mutate.js'],
   ['worktree:new', 'infra/scripts/worktree-tools/worktree-new.js'],
   ['worktree:list', 'infra/scripts/worktree-tools/worktree-list.js'],
   ['worktree:resume', 'infra/scripts/worktree-tools/worktree-resume.js'],
@@ -150,7 +151,7 @@ Core commands:
   task <paths|context|start|checkpoint|exec|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
   tdd <sync|push|commit|review-gate|finish|guard>
-  qa <plan|automate|paths|run|verify|merge|integrity|design|repro>
+  qa <plan|automate|paths|run|verify|merge|integrity|design|repro|mutate>
   template <sync|update|backfill>
   cloud <bootstrap|setup-script|doctor>
   architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>

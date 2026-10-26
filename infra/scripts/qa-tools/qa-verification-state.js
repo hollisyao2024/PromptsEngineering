@@ -98,6 +98,38 @@ function normalizeReproSummary(repro) {
   };
 }
 
+// 变异测试摘要：qa verify 放行且 qa.mutation 已启用时写入；关闭或模板源跳过时不写。
+// score 为 null 表示没有可计分的变异体（同时记风险）；p0_tests 为 <杀死过变异体的 P0 测试>/<参与判定的 P0 测试>，未要求时为 NA。
+const MUTATION_GATES = new Set(['PASS', 'PASS_WITH_RISK']);
+
+const isPercent = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+
+function normalizeMutationSummary(mutation) {
+  if (mutation === undefined || mutation === null) return null;
+  if (typeof mutation !== 'object' || Array.isArray(mutation)) throw new Error('mutation summary must be an object');
+  if (!MUTATION_GATES.has(mutation.gate)) throw new Error(`mutation.gate must be ${[...MUTATION_GATES].join('|')}`);
+  const killed = assertCount(mutation.killed, 'mutation.killed');
+  const valid = assertCount(mutation.valid, 'mutation.valid');
+  if (killed > valid) throw new Error('mutation.killed must not exceed mutation.valid');
+  if (mutation.score !== null && !isPercent(mutation.score)) throw new Error('mutation.score must be a number between 0 and 100 or null');
+  if (!isPercent(mutation.min_score)) throw new Error('mutation.min_score must be a number between 0 and 100');
+  if (mutation.p0_tests !== 'NA') {
+    const ratio = RATIO_PATTERN.exec(typeof mutation.p0_tests === 'string' ? mutation.p0_tests : '');
+    if (!ratio || Number(ratio[1]) > Number(ratio[2])) throw new Error('mutation.p0_tests must be <killing>/<evaluated> or NA');
+  }
+  return {
+    gate: mutation.gate,
+    files: assertCount(mutation.files, 'mutation.files'),
+    score: mutation.score,
+    min_score: mutation.min_score,
+    killed,
+    valid,
+    accepted: assertCount(mutation.accepted, 'mutation.accepted'),
+    p0_tests: mutation.p0_tests,
+    risk_count: assertCount(mutation.risk_count, 'mutation.risk_count'),
+  };
+}
+
 function assertQaVerdict(value) {
   if (!RECEIPT_QA_VERDICTS.has(value)) throw new Error('QA_VERDICT must be PASS or PASS_WITH_RISK');
   return value;
@@ -120,6 +152,7 @@ function buildQaVerificationReceipt({
   business,
   design,
   repro,
+  mutation,
 } = {}) {
   const receipt = {
     schema_version: RECEIPT_SCHEMA_VERSION,
@@ -138,6 +171,8 @@ function buildQaVerificationReceipt({
   if (designSummary) receipt.design = designSummary;
   const reproSummary = normalizeReproSummary(repro);
   if (reproSummary) receipt.repro = reproSummary;
+  const mutationSummary = normalizeMutationSummary(mutation);
+  if (mutationSummary) receipt.mutation = mutationSummary;
   return receipt;
 }
 
@@ -180,6 +215,7 @@ function writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt) {
     business: receipt && receipt.business,
     design: receipt && receipt.design,
     repro: receipt && receipt.repro,
+    mutation: receipt && receipt.mutation,
   });
   const receiptPath = getQaVerificationReceiptPath(config, mainRoot, worktreePath);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });

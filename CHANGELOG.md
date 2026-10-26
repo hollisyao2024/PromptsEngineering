@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 新增 qa mutate run/accept 变异门禁（默认关闭），qa verify 输出 MUTATION_* 并写回执 mutation。
+
 ## [v3.15.0] - 2026-10-26
 
 - 新增 qa run --repeat N（FLAKY 阻断）与 qa repro 缺陷复现门禁，qa verify 输出 REPRO_*/DEFECT_REPRO 并写回执 repro。

@@ -366,17 +366,20 @@ function parseCliArgs(argv) {
   return { action, base, path: values.path, code: values.code, reason: values.reason };
 }
 
-// 豁免行只从与当前 worktree/分支唯一匹配的任务证据中读取；无任务或多任务时视为没有豁免。
-function collectWaiverRecords(cwd) {
+// 证据行只从与当前 worktree/分支唯一匹配的任务证据中读取；无任务或多任务时视为没有记录。
+// prefix 区分证据种类（完整性豁免、变异体豁免等），按 checkpoint 追加顺序返回。
+function collectEvidenceRecords(cwd, prefix) {
   const { listTaskStates, runtimeContext } = require('../agent-runner/agent-task');
   const { orderedStepEvidence } = require('../shared/task-evidence');
   const { matchQaTasks } = require('./qa-test-scope');
   const context = runtimeContext(cwd);
   const matches = matchQaTasks({ states: listTaskStates({ runsRoot: context.runsRoot }), context });
   if (matches.length !== 1) return { taskId: null, records: [] };
-  const records = orderedStepEvidence(matches[0]).filter((item) => typeof item === 'string' && item.startsWith(WAIVER_PREFIX));
+  const records = orderedStepEvidence(matches[0]).filter((item) => typeof item === 'string' && item.startsWith(prefix));
   return { taskId: matches[0].task_id, records };
 }
+
+const collectWaiverRecords = (cwd) => collectEvidenceRecords(cwd, WAIVER_PREFIX);
 
 function resolveRange(cwd, config, baseRef) {
   const headSha = git(cwd, ['rev-parse', '--verify', 'HEAD^{commit}']).trim();
@@ -464,6 +467,7 @@ module.exports = {
   WAIVER_PREFIX,
   analyzeIntegrity,
   buildWaiver,
+  collectEvidenceRecords,
   collectWaiverRecords,
   countSignals,
   evaluateIntegrity,

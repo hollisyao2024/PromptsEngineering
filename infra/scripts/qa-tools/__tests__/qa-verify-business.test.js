@@ -47,6 +47,7 @@ const GOLDEN_DISABLED = [
   'REPRO_GATE=PASS',
   'DEFECT_REPRO=0/0',
   'NEW_DEFECTS=0',
+  'MUTATION_GATE=DISABLED',
   'QA_VERDICT=PASS_WITH_RISK',
   'QA_RECEIPT=<ROOT>/tmp/qa-verification-receipts/<KEY>.json',
   'BASE_BRANCH=main',
@@ -59,7 +60,7 @@ const GOLDEN_DISABLED = [
 
 // 回执键集合固定：基础身份字段加三态裁决 qa_verdict；按 --no-module 放行时多记一条理由；
 // 实际项目还带测试设计门禁摘要 design 与缺陷复现门禁摘要 repro（模板源跳过这两道门禁）；
-// 业务门禁通过后再多一个 business 摘要。
+// 变异门禁默认关闭，只输出 MUTATION_GATE=DISABLED，不写 mutation 摘要；业务门禁通过后再多一个 business 摘要。
 const RECEIPT_KEYS = ['base_branch', 'base_sha', 'branch', 'head_sha', 'qa_verdict', 'schema_version', 'verdict', 'verified_at'];
 const NO_MODULE_RECEIPT_KEYS = [...RECEIPT_KEYS, 'no_module_reason', 'design', 'repro'].sort();
 const BUSINESS_RECEIPT_KEYS = [...NO_MODULE_RECEIPT_KEYS, 'business'].sort();
