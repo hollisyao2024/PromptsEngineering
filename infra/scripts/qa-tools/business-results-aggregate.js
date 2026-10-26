@@ -163,6 +163,7 @@ function aggregateResults({ spec, suites } = {}) {
       for (const tc of entry.tcs) knownTcs.add(tc);
     }
   }
+  for (const tc of spec.designTcs || []) knownTcs.add(tc);
 
   const tcCounts = new Map();
   const acStats = new Map();

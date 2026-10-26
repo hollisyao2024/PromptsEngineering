@@ -7,7 +7,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { aggregateResults } = require('../business-results');
-const { prdDocument } = require('./fixtures/business-testing/builders');
+const { loadBusinessSpec } = require('../business-spec');
+const { prdDocument, shopProject } = require('./fixtures/business-testing/builders');
 const { kase, web, withShop, withSpec } = require('./business-results.helpers');
 
 // ---------------------------------------------------------------------------
@@ -180,6 +181,43 @@ test('规格中不存在的标识记入 unknown_ids（去重、排序），已�
   assert.equal(aggregate.acs['AC-SHOP-001-01'].status, 'passed');
   assert.equal(aggregate.summary.unlabelled, 0);
 }));
+
+test('TEST-DESIGN.md 登记的 TC 是已知标识，不记入 unknown_ids', () => {
+  const design = [
+    '# shop — 测试设计',
+    '',
+    '| ID | 类型 | 陈述 | 出处 | 优先级 | 验证方式 | TC |',
+    '|----|----|----|----|----|----|----|',
+    '| RUL-SHOP-001 | rule | 有效卡号支付成功 | AC-SHOP-001-02 | P0 | example | TC-SHOP-050 |',
+    '',
+    '| ID | 规则 | 维度 | 场景 | 预期 | TC |',
+    '|----|----|----|----|----|----|',
+    '| ADV-SHOP-001 | RUL-SHOP-001 | concurrency | 重复提交 | 只扣款一次 | TC-SHOP-051 |',
+    '',
+    '| ID | 现象 | 关联规则 | 来源 | TC | 修复提交 |',
+    '|----|----|----|----|----|----|',
+    '| BUG-SHOP-001 | 重复扣款 | ADV-SHOP-001 | user | TC-SHOP-052 | - |',
+    '',
+  ].join('\n');
+  const project = shopProject({ 'docs/qa-modules/shop/TEST-DESIGN.md': design });
+  try {
+    const spec = loadBusinessSpec({ repoRoot: project.repo });
+    const aggregate = aggregateResults({
+      spec,
+      suites: [web([
+        kase('TC-SHOP-050 RUL-SHOP-001 支付成功'),
+        kase('TC-SHOP-051 ADV-SHOP-001 重复提交'),
+        kase('TC-SHOP-052 BUG-SHOP-001 重复扣款'),
+        kase('TC-SHOP-099 ghost'),
+      ])],
+    });
+    assert.deepEqual(aggregate.unknown_ids, ['TC-SHOP-099']);
+    assert.equal(aggregate.tcs['TC-SHOP-050'].status, 'passed');
+    assert.equal(aggregate.tcs['TC-SHOP-052'].status, 'passed');
+  } finally {
+    project.cleanup();
+  }
+});
 
 test('硬失败的套件（cases 为 null）不参与绑定，但计入套件数', () => withShop(({ spec }) => {
   const aggregate = aggregateResults({

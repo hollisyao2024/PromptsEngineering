@@ -29,6 +29,17 @@ const BUSINESS = {
   config_digest: 'd'.repeat(64),
 };
 const IDENTITY = { baseBranch: 'main', branch: 'fix/one', baseSha: A, headSha: B };
+const DESIGN = {
+  gate: 'PASS_WITH_RISK',
+  mode: 'warn',
+  docs: 1,
+  rules_total: 3,
+  rules_verified: 2,
+  adv_covered: '4/5',
+  amendments: 1,
+  isolation: 'subagent',
+  risk_count: 2,
+};
 
 function receiptFixture(t) {
   const container = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'qa-receipt-'));
@@ -186,6 +197,41 @@ test('a malformed business summary is rejected before anything is written', (t) 
   const { mainRoot, worktreePath, config } = receiptFixture(t);
   const receipt = { ...buildQaVerificationReceipt(IDENTITY), business: { ...BUSINESS, acs_proven: -1 } };
   assert.throws(() => writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt), /business/iu);
+  assert.equal(fs.existsSync(getQaVerificationReceiptPath(config, mainRoot, worktreePath)), false);
+});
+
+// 测试设计摘要同样是可选附加字段：只在 qa verify 放行且执行了设计门禁时出现，只保留声明的九项。
+test('a receipt carries the design gate summary as an additive field and round-trips it through disk', (t) => {
+  const { mainRoot, worktreePath, config } = receiptFixture(t);
+  const receipt = buildQaVerificationReceipt({ ...IDENTITY, design: { ...DESIGN, blocks: ['x'], note: 'free text' } });
+
+  assert.deepEqual(receipt.design, DESIGN);
+  assert.equal('design' in buildQaVerificationReceipt(IDENTITY), false, 'no design gate, no design key');
+
+  writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt);
+  const stored = readQaVerificationReceipt(config, mainRoot, worktreePath);
+  assert.deepEqual(stored, receipt);
+  assert.deepEqual(Object.keys(stored).sort(), [...LEGACY_KEYS, 'design'].sort());
+});
+
+test('a malformed design summary is rejected before anything is written', (t) => {
+  const malformed = {
+    'not an object': 'PASS',
+    'a blocked gate': { ...DESIGN, gate: 'BLOCKED' },
+    'an unknown mode': { ...DESIGN, mode: 'off' },
+    'a negative rule count': { ...DESIGN, rules_total: -1 },
+    'verified above total': { ...DESIGN, rules_verified: 4 },
+    'a malformed adversarial ratio': { ...DESIGN, adv_covered: '4 of 5' },
+    'an unknown isolation': { ...DESIGN, isolation: 'trust-me' },
+    'a textual risk count': { ...DESIGN, risk_count: '2' },
+  };
+  for (const [name, design] of Object.entries(malformed)) {
+    assert.throws(() => buildQaVerificationReceipt({ ...IDENTITY, design }), /design/iu, name);
+  }
+
+  const { mainRoot, worktreePath, config } = receiptFixture(t);
+  const receipt = { ...buildQaVerificationReceipt(IDENTITY), design: { ...DESIGN, gate: 'BLOCKED' } };
+  assert.throws(() => writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt), /design/iu);
   assert.equal(fs.existsSync(getQaVerificationReceiptPath(config, mainRoot, worktreePath)), false);
 });
 

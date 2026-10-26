@@ -36,6 +36,7 @@ const PRD_TEMPLATE = 'docs/prd-modules/MODULE-TEMPLATE.md';
 const PRD_EXAMPLE = 'docs/prd-modules/MODULE-EXAMPLE.md';
 const QA_TEMPLATE = 'docs/qa-modules/MODULE-TEMPLATE.md';
 const PATHS_TEMPLATE = 'docs/data/templates/qa/PATHS-TEMPLATE.md';
+const TEST_DESIGN_TEMPLATE = 'docs/data/templates/qa/TEST-DESIGN-TEMPLATE.md';
 const TRACEABILITY_TEMPLATE = 'docs/data/templates/prd/TRACEABILITY-MATRIX-TEMPLATE.md';
 const TASK_TEMPLATE = 'docs/task-modules/MODULE-TEMPLATE.md';
 const MODULE_TEMPLATES = [
@@ -262,6 +263,71 @@ test('样板被改坏时 qa paths 会拦住，而不是静默通过', (t) => {
   assert.ok(analysis.violations.some((item) => item.code === 'REF_UNKNOWN'), JSON.stringify(analysis.violations));
 });
 
+test('PRD 示例与 TEST-DESIGN 模板放进同一个项目，设计门禁只剩覆盖与头部类提示', (t) => {
+  // 模板是会被照抄的样板：行格式、出处、引用与必需维度必须本身合规，否则照抄的项目一上来就被阻断。
+  const { evaluateDesign, resolveDesignConfig } = require('../qa-design');
+  const example = JSON.parse(read('infra/templates/agent/config.example.json'));
+  const design = resolveDesignConfig({ qa: { design: example.qa.design, integrity: example.qa.integrity } });
+  const content = read(TEST_DESIGN_TEMPLATE);
+  const project = createProject({
+    [`docs/prd-modules/${EXAMPLE_DOMAIN}/PRD.md`]: read(PRD_EXAMPLE),
+    [`docs/qa-modules/${EXAMPLE_DOMAIN}/TEST-DESIGN.md`]: content,
+  });
+  t.after(() => project.cleanup());
+  const tcs = Object.fromEntries(extractIds(content, TEST_CASE_ID_SOURCE).map((id) => [id, { status: 'passed' }]));
+
+  const result = evaluateDesign({ repoRoot: project.repo, design, results: { available: true, tcs } });
+
+  assert.equal(result.docs, 1);
+  assert.equal(result.isolation, 'subagent');
+  const unexpected = result.blocks.filter((item) => !['DESIGN_SOURCE_UNCOVERED'].includes(item.code));
+  assert.deepEqual(unexpected, []);
+  for (const item of result.risks) {
+    assert.ok(!['DESIGN_HEADER_MISSING'].includes(item.code) || /设计材料包/u.test(item.detail), JSON.stringify(item));
+  }
+  assert.ok(result.metrics.rulesTotal >= 5);
+  assert.equal(result.metrics.rulesVerified, result.metrics.rulesTotal);
+  assert.equal(result.metrics.advCovered, result.metrics.advTotal);
+});
+
+// ───────────────────────── 盲测子代理 ─────────────────────────
+
+const QA_SUBAGENTS = ['.claude/agents/xirang-qa-designer.md', '.claude/agents/xirang-qa-redteam.md'];
+
+// 只解析本测试需要的扁平 `key: value` frontmatter；子代理文件不使用嵌套 YAML。
+function frontmatterOf(file, content) {
+  const match = /^---\n([\s\S]*?)\n---\n/u.exec(content);
+  assert.ok(match, `${file} 必须以 YAML frontmatter 开头`);
+  const fields = {};
+  for (const line of match[1].split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon > 0) fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+  }
+  return { fields, body: content.slice(match[0].length) };
+}
+
+function toolList(value) {
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+test('盲测子代理没有任何工具：材料包由主代理内联传入，只返回表格行', () => {
+  // 盲测唯一的程序级约束：子代理拿不到 Read/Grep/Glob/Bash，就读不到源码。
+  // 省略 tools 等于继承主会话全部工具，所以显式列出 Read 再用 disallowedTools 拒绝它，得到空集合。
+  for (const file of QA_SUBAGENTS) {
+    const { fields, body } = frontmatterOf(file, read(file));
+    assert.equal(fields.name, path.basename(file, '.md'), `${file} 的 name 必须与文件名一致`);
+    assert.ok(fields.description, `${file} 缺少 description`);
+    assert.ok(toolList(fields.tools).length > 0, `${file} 不得省略 tools：省略即继承全部工具`);
+    const denied = toolList(fields.disallowedTools);
+    assert.deepEqual(toolList(fields.tools).filter((tool) => !denied.includes(tool)), [], `${file} 的有效工具集合必须为空`);
+    assert.match(body, /设计材料包/u, `${file} 必须说明输入只有主代理内联的设计材料包`);
+    assert.match(body, /源码/u, `${file} 必须写明不得依据源码`);
+    assert.match(body, /出处/u, `${file} 必须要求预期写明出处`);
+  }
+  assert.match(read(QA_SUBAGENTS[0]), /\|\s*ID\s*\|\s*类型\s*\|\s*陈述\s*\|\s*出处\s*\|/u, '设计子代理只返回规则表行');
+  assert.match(read(QA_SUBAGENTS[1]), /\|\s*ID\s*\|\s*规则\s*\|\s*维度\s*\|\s*场景\s*\|\s*预期\s*\|/u, '红队子代理只返回反例目录行');
+});
+
 // ───────────────────────── 所有权：清单登记与收敛 ─────────────────────────
 
 function effectiveRule(rules, file) {
@@ -274,6 +340,9 @@ test('新增的模板文件登记为模板自有，项目自有文档保持项�
   const { rules } = JSON.parse(read(MANIFEST_FILE));
 
   assert.deepEqual(rules.find((rule) => rule.path === PATHS_TEMPLATE), { path: PATHS_TEMPLATE, strategy: 'overwrite' });
+  for (const file of QA_SUBAGENTS) {
+    assert.deepEqual(rules.find((rule) => rule.path === file), { path: file, strategy: 'overwrite' }, `${file} 必须逐个登记为模板自有`);
+  }
   for (const file of [...MODULE_TEMPLATES, ...markdownFilesUnder('docs/data/templates')]) {
     const rule = effectiveRule(rules, file);
     assert.ok(rule, `${file} 没有任何所有权规则`);
@@ -303,6 +372,10 @@ test('分发给项目的资产里，只有模板文件落在项目自有目录�
   assert.ok(added, 'PATHS 模板必须随模板分发');
   assert.equal(added.strategy, 'overwrite');
   assert.equal(added.content, read(PATHS_TEMPLATE));
+  for (const file of QA_SUBAGENTS) {
+    assert.equal(byPath.get(file)?.strategy, 'overwrite', `${file} 必须随模板分发`);
+    assert.equal(byPath.get(file).content, read(file));
+  }
 
   const under = (prefix) => assets.map((asset) => asset.path).filter((file) => file.startsWith(prefix)).sort();
   assert.deepEqual(under('docs/prd-modules/'), [PRD_EXAMPLE, PRD_TEMPLATE]);

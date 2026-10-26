@@ -35,6 +35,20 @@
       "requiredPriorities": ["P0"],
       "suites": []
     },
+    "design": {
+      "mode": "warn",
+      "requiredPriorities": ["P0"],
+      "requiredDimensions": ["auth", "state", "boundary", "concurrency", "dependency"],
+      "sourceGlobs": ["apps/**", "packages/**", "src/**"],
+      "contextGlobs": [
+        "docs/prd-modules/{domain}/**/*.md",
+        "docs/arch-modules/{domain}/**/*.md",
+        "docs/data/dictionary.md",
+        "docs/data/ux-specifications.md",
+        "docs/qa-modules/{domain}/TEST-DESIGN.md",
+        "docs/qa-modules/{domain}/PATHS.md"
+      ]
+    },
     "integrity": {
       "mode": "enforce",
       "testGlobs": ["**/*.test.*", "**/*.spec.*", "**/test_*.py", "**/*_test.py", "**/*_test.go"],

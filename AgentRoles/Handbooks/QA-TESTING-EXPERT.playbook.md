@@ -482,11 +482,14 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误，裁决为 BLOCKED | 修复上方列出的错误后重跑 `qa verify` |
 | `TEST_INTEGRITY_BLOCKED` | BLOCKED | 测试完整性门禁未通过，具体原因见 `TEST_INTEGRITY_BLOCK=` 行（§测试完整性门禁） | 修复，或对可豁免项执行 `qa integrity waive` 并写入任务证据后重跑 |
 | `INTEGRITY_CONFIG_INVALID` | BLOCKED | `qa.integrity` 配置不合法（未知键、模式非法、正则无法编译） | 修正 `agent.config.json` 后重跑 `qa verify` |
+| `DESIGN_GATE_BLOCKED` | BLOCKED | 测试设计门禁（`enforce`）未通过，具体原因见 `DESIGN_BLOCK=` 行（§测试设计门禁） | 修正 `TEST-DESIGN.md` 或补齐通过的 TC 后重跑 `qa run`；改写已有预期先 `qa design amend` |
+| `DESIGN_CONFIG_INVALID` | BLOCKED | `qa.design` 配置不合法（未知键、模式或取值非法） | 修正 `agent.config.json` 后重跑 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
 | `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
 | `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
 | `QA_FETCH_FAILED` | FAILED | 签发回执前的 `git fetch --prune` 连续 2 次失败（同一命令只重试一次） | 核实网络、代理与 `GH_TOKEN` 后重试；按 `tool_error` 留痕 |
 | `INTEGRITY_GIT_FAILED` | FAILED | 完整性门禁读取 base/head 的 Git 对象失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
+| `DESIGN_GIT_FAILED` | FAILED | 设计门禁读取 base/head 的提交或设计文件失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
 
 `qa plan` 的结果块同形，`REASON=` 取 `PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`（逐项 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`，补齐或移除对应 `docs/arch-modules/<domain>/ARCH.md`、`docs/task-modules/<domain>/TASK.md`）或 `UNEXPECTED_ERROR`。
@@ -527,7 +530,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 - **反例维度**：`auth`（角色、租户、越权）、`state`（非法状态与转移）、`boundary`（边界与越界）、`concurrency`（重复、乱序、并发）、`dependency`（依赖故障）、`time`（时钟、超时、过期）、`input`（格式与注入）。必需维度默认为 `auth`、`state`、`boundary`、`concurrency`、`dependency`；P0 规则在每个必需维度上都要有一行反例，不适用时在场景列写 `不适用：<理由>`，不能留空。
 - **缺陷来源**：`qa-design`、`qa-redteam`、`qa-audit`、`user`、`prod`；`qa-*` 来源用于统计 QA 新发现的缺陷。
 - **绑定**：测试用例名包含对应的 RUL、ADV、BUG 或 TC 标识；一条规则的 TC 全部通过才算该规则被验证。
-- **提交顺序**：设计模式在实现前完成，以 `test(design): <模块> 规则与反例` 单独提交；之后修改已提交的陈述或预期，须在提交说明写明原因与新出处，并回流 PRD 确认。
+- **提交顺序**：设计模式在实现前完成，以 `test(design): <模块> 规则与反例` 单独提交；之后修改或删除已提交的行，须用 `qa design amend` 登记原因与新出处，并回流 PRD 确认。门禁见 §测试设计门禁。
 - **红队**：规则表写完后，换一个只拿到规格与规则表、看不到实现的上下文，按维度逐条为 P0 规则找反例；找不到反例的规则通常陈述过宽，回到规则表细化。
 
 ### 性质测试
@@ -608,6 +611,32 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 - **豁免**：只有“少了”的三类可豁免。执行 `pnpm agent -- qa integrity waive --path <file> --code <code> --reason <理由>`，把输出的 `TEST_INTEGRITY_WAIVER=` 行原样写进当前任务 checkpoint 的 `--evidence`；豁免绑定该文件在 HEAD 的 blob，文件再改即失效。豁免后的发现降为风险，并在报告中披露。
 - **配置**：`qa.integrity.mode` 默认 `enforce`；存量项目可暂用 `warn`，此时全部阻断降为 `TEST_INTEGRITY_RISK=`。`patterns.skip|only|case|assert` 是按行匹配的正则列表，可按语言调整；未知键 fail-closed。
 - **局限**：逐行正则可被刻意绕过（如 `if (false)` 包住断言），由变异门禁兜底；它防的是无意或省事的放宽，不替代评审。
+
+### 测试设计门禁（qa design）
+
+`qa verify` 在签发回执前执行 `qa design check`，模板源输出 `DESIGN_GATE=SKIPPED`。设计模式按以下顺序产出 `TEST-DESIGN.md`：
+
+1. `pnpm agent -- qa design context --domain <域>`：只打包 PRD 模块（AC 与不变量表）、数据字典、UX 规范、ARCH 接口契约与已有 `TEST-DESIGN.md`，排除 `qa.design.sourceGlobs` 与测试文件，写入容器 tmp，输出 `DESIGN_CONTEXT_FILE=`、`DESIGN_CONTEXT_SHA256=`、`DESIGN_CONTEXT_FILES=`。
+2. 把材料包全文内联交给 `xirang-qa-designer` 得到规则表，再连同规则表交给 `xirang-qa-redteam` 得到反例目录；两个子代理零工具，只返回表格行。
+3. 主代理写入文件，头部填 `设计材料包：sha256=<摘要>` 与 `设计隔离：subagent|commit-order`，以 `test(design)` 单独提交后才读实现。
+
+| 代码 | 级别 | 含义 | 处理 |
+|------|------|------|------|
+| `TABLE_MISSING` / `TABLE_DUPLICATE` / `ROW_INVALID` / `ID_DUPLICATE` | 阻断 | 表缺失或重复、行格式或取值非法、ID 重复 | 按模板修正表结构 |
+| `SOURCE_CODE` / `SOURCE_INVALID` / `SOURCE_UNKNOWN` | 阻断 | 出处指向源码或测试、格式不合法、AC/INV 或文档不存在 | 改为规格出处；规格缺失回流 PRD |
+| `SOURCE_UNCOVERED` | 阻断 | 必需优先级的 AC/INV 没有任何规则覆盖 | 补规则 |
+| `PRIORITY_LOWER` | 阻断 | 规则优先级低于其出处 | 提升规则优先级 |
+| `TC_MISSING` / `TC_UNPROVEN` / `RESULTS_UNAVAILABLE` | 阻断 | 必需行缺 TC；TC 未被当前 HEAD 的 `qa run` 结果证明通过；结果缺失或过期 | 补用例，提交后重跑 `qa run` |
+| `DIMENSION_MISSING` / `REFERENCE_UNKNOWN` | 阻断 | 必需规则缺维度反例；ADV/BUG 引用不存在的行 | 补反例或写 `不适用：<理由>`；修正引用 |
+| `ORDER` | 阻断 | 本分支新增的设计行未早于首个源码提交 | 拆出设计提交；审计补行用 `amend` 登记新增 |
+| `EXPECTATION_CHANGED` / `AMENDMENT_REMOVED` | 阻断 | 已有行被改写或删除而无变更记录；已提交的变更记录被改 | `qa design amend`；恢复变更记录 |
+| `SOURCE_INFERRED` / `RULE_UNDEFINED` / `MANUAL` | 风险 | 推断出处、未定义行为、人工验证（不计入 `RULES_VERIFIED`） | 回流 PRD 或人工验收后在报告中披露 |
+| `ADDED_AFTER_SOURCE` / `REVIEW_PENDING` / `BUG_OPEN` / `HEADER_MISSING` | 风险 | 源码后补行已登记、变更待评审、缺陷未修复、头部声明缺失或不合法 | 逐条复核 |
+
+- **变更登记**：`pnpm agent -- qa design amend --id <行 ID> --reason <原因> [--source <新出处>] [--reviewer <评审人>]`，修改与新增必须给 `--source`；输出行写进任务证据。`DESIGN_AMENDMENTS` 只计修改与删除。
+- **输出**：`DESIGN_GATE=PASS|PASS_WITH_RISK|BLOCKED|SKIPPED`、`RULES_TOTAL`、`RULES_VERIFIED`、`ADV_COVERED`、`DESIGN_AMENDMENTS`、`DESIGN_ISOLATION=subagent|commit-order|mixed|UNDECLARED|NONE`，逐条 `DESIGN_BLOCK=` / `DESIGN_RISK=`；摘要写入回执 `design` 字段。
+- **配置**：`qa.design.mode` 默认 `warn`，全部阻断降为 `DESIGN_RISK=`；`enforce` 时 TC 证明依赖 `qa run`，须先启用 `qa.business`。`requiredPriorities`、`requiredDimensions`、`sourceGlobs` 可按项目调整，未知键 `DESIGN_CONFIG_INVALID` fail-closed。
+- **局限**：门禁只约束子代理工具与提交时序，`DESIGN_ISOLATION` 是头部自报值，不能证明主代理没读过实现。
 
 ---
 

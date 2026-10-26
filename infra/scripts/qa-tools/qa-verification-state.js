@@ -48,6 +48,36 @@ function normalizeBusinessSummary(business) {
   };
 }
 
+// 测试设计摘要：qa verify 放行且执行了设计门禁时写入；只保留这九项，畸形摘要在写盘前抛错。
+const DESIGN_GATES = new Set(['PASS', 'PASS_WITH_RISK']);
+const DESIGN_MODES = new Set(['enforce', 'warn']);
+const DESIGN_ISOLATIONS = new Set(['NONE', 'UNDECLARED', 'subagent', 'commit-order', 'mixed']);
+const RATIO_PATTERN = /^(\d+)\/(\d+)$/u;
+
+function normalizeDesignSummary(design) {
+  if (design === undefined || design === null) return null;
+  if (typeof design !== 'object' || Array.isArray(design)) throw new Error('design summary must be an object');
+  if (!DESIGN_GATES.has(design.gate)) throw new Error('design.gate must be PASS or PASS_WITH_RISK');
+  if (!DESIGN_MODES.has(design.mode)) throw new Error('design.mode must be enforce or warn');
+  const rulesTotal = assertCount(design.rules_total, 'design.rules_total');
+  const rulesVerified = assertCount(design.rules_verified, 'design.rules_verified');
+  if (rulesVerified > rulesTotal) throw new Error('design.rules_verified must not exceed design.rules_total');
+  const ratio = RATIO_PATTERN.exec(typeof design.adv_covered === 'string' ? design.adv_covered : '');
+  if (!ratio || Number(ratio[1]) > Number(ratio[2])) throw new Error('design.adv_covered must be <covered>/<total>');
+  if (!DESIGN_ISOLATIONS.has(design.isolation)) throw new Error(`design.isolation must be ${[...DESIGN_ISOLATIONS].join('|')}`);
+  return {
+    gate: design.gate,
+    mode: design.mode,
+    docs: assertCount(design.docs, 'design.docs'),
+    rules_total: rulesTotal,
+    rules_verified: rulesVerified,
+    adv_covered: design.adv_covered,
+    amendments: assertCount(design.amendments, 'design.amendments'),
+    isolation: design.isolation,
+    risk_count: assertCount(design.risk_count, 'design.risk_count'),
+  };
+}
+
 function assertQaVerdict(value) {
   if (!RECEIPT_QA_VERDICTS.has(value)) throw new Error('QA_VERDICT must be PASS or PASS_WITH_RISK');
   return value;
@@ -68,6 +98,7 @@ function buildQaVerificationReceipt({
   qaVerdict,
   noModuleReason,
   business,
+  design,
 } = {}) {
   const receipt = {
     schema_version: RECEIPT_SCHEMA_VERSION,
@@ -82,6 +113,8 @@ function buildQaVerificationReceipt({
   if (isPresent(noModuleReason)) receipt.no_module_reason = assertNonEmpty(noModuleReason, 'NO_MODULE_REASON');
   const summary = normalizeBusinessSummary(business);
   if (summary) receipt.business = summary;
+  const designSummary = normalizeDesignSummary(design);
+  if (designSummary) receipt.design = designSummary;
   return receipt;
 }
 
@@ -122,6 +155,7 @@ function writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt) {
     qaVerdict: receipt && receipt.qa_verdict,
     noModuleReason: receipt && receipt.no_module_reason,
     business: receipt && receipt.business,
+    design: receipt && receipt.design,
   });
   const receiptPath = getQaVerificationReceiptPath(config, mainRoot, worktreePath);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });

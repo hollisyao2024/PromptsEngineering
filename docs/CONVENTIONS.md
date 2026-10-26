@@ -259,6 +259,8 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 
 `qa verify` 对 base..HEAD 的测试文件执行完整性门禁（`pnpm agent -- qa integrity check`，模板源同样执行）：新增 skip/only 阻断；删除测试文件、用例数或断言数下降阻断，只能经 `qa integrity waive` 绑定文件内容豁免并写入任务证据；改字面预期只记风险。`qa.integrity.mode` 默认 `enforce`，存量项目可暂设 `warn` 只披露风险。`qa verify` 裁决只有 `PASS|PASS_WITH_RISK|BLOCKED`，以 `QA_VERDICT=` 为准；找不到 QA 目标即阻断，须用 `--no-module --reason` 显式放行并记为风险。`qa merge` 与 `tdd finish` 不提供跳过门禁的参数。
 
+实际项目的 `qa verify` 在签发回执前还执行测试设计门禁（`pnpm agent -- qa design check`），读取 `docs/qa-modules/<domain>/` 的 TEST-DESIGN 规则表、反例目录与缺陷复现表：出处只允许 `AC-*`、`INV-*` 或 `docs/**.md#锚点`，指向源码或测试即阻断，`推断：` 只记风险；必需优先级规则须有 TC，必需 AC/INV 须被规则覆盖，必需规则在每个 `requiredDimensions` 维度上须有反例或 `不适用：理由`；TC 须由当前 HEAD 的 `qa run` 结果证明通过；本分支新增的设计行须早于首个源码提交（`qa.design.sourceGlobs`）；已有行的陈述或预期被改写或删除须有 `qa design amend` 记录。设计材料包由 `qa design context` 只打包规格写入容器 tmp，交给零工具子代理 `xirang-qa-designer`、`xirang-qa-redteam`；无此类子代理的执行器降级为提交时序约束。`qa.design.mode` 默认 `warn`，阻断项只记 `DESIGN_RISK`；`enforce` 时阻断并依赖 `qa run` 结果。输出 `DESIGN_GATE`、`RULES_TOTAL`、`RULES_VERIFIED`、`ADV_COVERED`、`DESIGN_AMENDMENTS`、`DESIGN_ISOLATION`，摘要写入回执 `design` 字段；`qa.design` 未知键 fail-closed；官方息壤源输出 `DESIGN_GATE=SKIPPED`。
+
 项目可在 `agent.config.json` 的 `tdd.projectChecks` 中配置 `pnpm run` 脚本硬门禁；每项使用 `{ "name": "check:name", "required": true }`。`tdd sync` 在 Schema-Doc Sync 之前执行这些检查，任一 required 项失败即阻断，脚本名只允许字母、数字、冒号、下划线和连字符。
 
 记录类文档默认只写一行事实：CHANGELOG 每个 PR 一行；常规部署只追加 `docs/data/deployments/LOG-{YYYY-MM}.md` 一行，异常部署才建 `DEPLOY-*.md`；部署 README 只放当前状态。`tdd.docSize.enabled=true` 时 `tdd sync` 在项目硬门禁之前按 `tdd.docSize` 上限（默认 CHANGELOG 行 120 字符、台账行 240 字符、README 8KB、新建独立记录 60 行且 6KB）只检查相对配置主干的改动，违规即阻断；默认关闭。

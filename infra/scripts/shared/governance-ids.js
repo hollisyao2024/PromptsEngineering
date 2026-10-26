@@ -8,6 +8,10 @@ const AC_ID_SOURCE = `AC-${MODULE_ID_SOURCE}-\\d{3}-\\d{2}`;
 const TASK_ID_SOURCE = `TASK-${MODULE_ID_SOURCE}-\\d{3}`;
 const TEST_CASE_ID_SOURCE = `TC-${MODULE_ID_SOURCE}-\\d{3}`;
 const BUG_ID_SOURCE = `BUG-${MODULE_ID_SOURCE}-\\d{3}`;
+// 测试设计：PRD 不变量、TEST-DESIGN 规则与反例。
+const INV_ID_SOURCE = `INV-${MODULE_ID_SOURCE}-\\d{3}`;
+const RUL_ID_SOURCE = `RUL-${MODULE_ID_SOURCE}-\\d{3}`;
+const ADV_ID_SOURCE = `ADV-${MODULE_ID_SOURCE}-\\d{3}`;
 const COMPONENT_TYPE_SOURCE = '(?:SVC|DB|CACHE|MQ|API|JOB)';
 const COMPONENT_ID_SOURCE = `${MODULE_ID_SOURCE}-${COMPONENT_TYPE_SOURCE}-\\d{3}`;
 
@@ -38,6 +42,9 @@ module.exports = {
   TASK_ID_SOURCE,
   TEST_CASE_ID_SOURCE,
   BUG_ID_SOURCE,
+  INV_ID_SOURCE,
+  RUL_ID_SOURCE,
+  ADV_ID_SOURCE,
   COMPONENT_ID_SOURCE,
   exactPattern,
   searchPattern,
