@@ -6,7 +6,7 @@
 
 ## [v3.13.2] - 2026-10-26
 
-- 修复 Windows 全量测试：qa run 按进程树终止、ESM file URL、release 链接替换、插件打包改用 tar.exe 等。
+- 修复 Windows 全量测试：qa run 按进程树终止并回收竞态孤儿、ESM file URL、release 链接替换、插件打包改用 tar.exe 等。
 
 ## [v3.13.1] - 2026-10-26
 

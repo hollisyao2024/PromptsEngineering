@@ -348,6 +348,33 @@ test('库接口的 SIGINT 处理器终止整棵进程树、不写结果、不再
   }
 });
 
+// Windows 的 taskkill /T 只结束快照里已有的进程：父进程在 CreateProcess 途中被杀，新建的子进程会成为孤儿。
+// 用“根进程自行退出、留下 detached 子进程”确定性地构造同样的孤儿，验证终止流程会按父 pid 与创建时间回收它。
+test('Windows 终止进程树时回收根进程退出后遗留的孤儿', {
+  skip: process.platform !== 'win32' && '仅 Windows：POSIX 按进程组终止，不存在 taskkill 快照竞态',
+}, async () => {
+  const { spawn } = require('node:child_process');
+  const { terminateProcessGroup } = require('../qa-run-process');
+  const orphanScript = "const c = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],"
+    + " { detached: true, stdio: 'ignore' }); c.unref(); process.stdout.write(String(c.pid));";
+  const startedAt = Date.now();
+  const root = spawn(process.execPath, ['-e', orphanScript], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
+  let output = '';
+  root.stdout.on('data', (chunk) => { output += chunk; });
+  await withinCeiling(new Promise((resolve) => root.once('exit', resolve)), '根进程没有退出');
+  const orphanPid = Number(output.trim());
+  try {
+    assert.ok(Number.isInteger(orphanPid) && orphanPid > 0, `根进程应输出孤儿 pid，实际 ${JSON.stringify(output)}`);
+    assert.doesNotThrow(() => process.kill(orphanPid, 0), '前置条件：孤儿进程在根进程退出后仍存活');
+
+    await withinCeiling(terminateProcessGroup(root.pid, 'SIGTERM', 0, startedAt), '终止流程没有结束');
+
+    await assertAllDead([orphanPid]);
+  } finally {
+    reap([orphanPid]);
+  }
+});
+
 test('输出逐条列出非必需优先级的未证明自动化 AC 与未通过路径及其 TC', () => {
   const { formatRunReport } = require('../qa-run');
   const lines = formatRunReport({
