@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.15.0] - 2026-10-26
+
+- 新增 qa run --repeat N（FLAKY 阻断）与 qa repro 缺陷复现门禁，qa verify 输出 REPRO_*/DEFECT_REPRO 并写回执 repro。
+
 ## [v3.14.0] - 2026-10-26
 
 - **破坏性**：新增 qa design 测试设计门禁与零工具盲测子代理，qa verify 输出 DESIGN_* 并写回执 design（默认 warn，ADR-041）。

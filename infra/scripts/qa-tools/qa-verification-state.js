@@ -78,6 +78,26 @@ function normalizeDesignSummary(design) {
   };
 }
 
+// 缺陷复现摘要：qa verify 放行且执行了复现门禁时写入；SKIPPED 表示 qa.repro.enabled=false（同时记风险）。
+// defect_repro 为 <通过>/<总数>，总数即本分支新增 BUG 行数；只保留这四项，畸形摘要在写盘前抛错。
+const REPRO_GATES = new Set(['PASS', 'PASS_WITH_RISK', 'SKIPPED']);
+
+function normalizeReproSummary(repro) {
+  if (repro === undefined || repro === null) return null;
+  if (typeof repro !== 'object' || Array.isArray(repro)) throw new Error('repro summary must be an object');
+  if (!REPRO_GATES.has(repro.gate)) throw new Error(`repro.gate must be ${[...REPRO_GATES].join('|')}`);
+  const ratio = RATIO_PATTERN.exec(typeof repro.defect_repro === 'string' ? repro.defect_repro : '');
+  if (!ratio || Number(ratio[1]) > Number(ratio[2])) throw new Error('repro.defect_repro must be <passed>/<total>');
+  const newDefects = assertCount(repro.new_defects, 'repro.new_defects');
+  if (newDefects > Number(ratio[2])) throw new Error('repro.new_defects must not exceed the defect_repro total');
+  return {
+    gate: repro.gate,
+    defect_repro: repro.defect_repro,
+    new_defects: newDefects,
+    risk_count: assertCount(repro.risk_count, 'repro.risk_count'),
+  };
+}
+
 function assertQaVerdict(value) {
   if (!RECEIPT_QA_VERDICTS.has(value)) throw new Error('QA_VERDICT must be PASS or PASS_WITH_RISK');
   return value;
@@ -99,6 +119,7 @@ function buildQaVerificationReceipt({
   noModuleReason,
   business,
   design,
+  repro,
 } = {}) {
   const receipt = {
     schema_version: RECEIPT_SCHEMA_VERSION,
@@ -115,6 +136,8 @@ function buildQaVerificationReceipt({
   if (summary) receipt.business = summary;
   const designSummary = normalizeDesignSummary(design);
   if (designSummary) receipt.design = designSummary;
+  const reproSummary = normalizeReproSummary(repro);
+  if (reproSummary) receipt.repro = reproSummary;
   return receipt;
 }
 
@@ -156,6 +179,7 @@ function writeQaVerificationReceipt(config, mainRoot, worktreePath, receipt) {
     noModuleReason: receipt && receipt.no_module_reason,
     business: receipt && receipt.business,
     design: receipt && receipt.design,
+    repro: receipt && receipt.repro,
   });
   const receiptPath = getQaVerificationReceiptPath(config, mainRoot, worktreePath);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });

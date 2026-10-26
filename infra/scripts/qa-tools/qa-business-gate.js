@@ -7,7 +7,7 @@
 // 第 1–6 步任一失败即停止（结果不可信时，后面的清单只会误导），同一步内的违规全部列出；
 // 第 7、8 步相互独立，同时失败时都列出；第 9 步的风险披露只在结果可信（第 3–6 步通过）时给出。
 // 工作区是否干净取自 qa run 记录的 worktree_clean：门禁不再运行 git，结果与 HEAD 的绑定已由 head_sha 保证。
-// 第 6 步（完整性）位于 qa-business-gate-integrity.js。
+// 第 6 步（完整性）位于 qa-business-gate-integrity.js；多轮结果（qa run --repeat）的完整性复核与 FLAKY 判定位于 qa-business-gate-repeat.js。
 
 const { resolveBusinessConfig } = require('./business-config');
 const {
@@ -18,6 +18,7 @@ const {
 } = require('./business-results');
 const { compareText } = require('./business-spec');
 const { SHORT_SHA_LENGTH, integrityBlocks } = require('./qa-business-gate-integrity');
+const { repeatBlocks, repeatFacts, repeatIntegrityBlocks, repeatRisks } = require('./qa-business-gate-repeat');
 const { analyzeSpec, computeCoverage } = require('./qa-paths');
 
 const BLOCK_CODES = Object.freeze([
@@ -35,6 +36,8 @@ const BLOCK_CODES = Object.freeze([
   'RESULTS_MISMATCH',
   'AC_NOT_PROVEN',
   'PATH_COVERAGE_GAP',
+  'FLAKY',
+  'REPEAT_INSUFFICIENT',
   'GATE_ERROR',
 ]);
 
@@ -46,6 +49,7 @@ const RISK_CODES = Object.freeze([
   'RISK_UNKNOWN_IDS',
   'RISK_SUITE_EXIT_NONZERO',
   'RISK_MODULE_WITHOUT_TABLE',
+  'RISK_FLAKY',
 ]);
 
 const SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -72,6 +76,8 @@ const HINTS = Object.freeze({
   RESULTS_MISMATCH: RERUN,
   AC_NOT_PROVEN: '修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带上 AC-…/TC-… 标识）后重新运行 pnpm agent -- qa run；确属无法自动化的 AC 须在 PRD 中标为 manual',
   PATH_COVERAGE_GAP: '路径按关联 TC 全有或全无判定，任一 TC 未通过会使整条路径经过的全部转移失去覆盖：修复明细中列出的未通过 TC，或补写覆盖该转移的自动化用例；若长路径中只有部分步骤未实现，可在 PATHS.md 把路径拆成更短的路径（各自关联 TC）使已通过部分独立计入覆盖，或修正覆盖准则，然后重新运行 pnpm agent -- qa run',
+  FLAKY: '同一 HEAD 上多轮运行结果不一致，结果不能证明 AC：按 FLAKY 明细排查用例或套件的不确定来源（时间、随机数、顺序依赖、共享状态、外部依赖），修复后提交并运行 pnpm agent -- qa run --repeat N（N 不低于 qa.business.repeat）重新生成结果；不得放宽断言或跳过用例',
+  REPEAT_INSUFFICIENT: '结果的运行轮数低于 qa.business.repeat：运行 pnpm agent -- qa run --repeat N（N 不低于 qa.business.repeat，或省略 --repeat 使用配置值）重新生成结果，再重新运行 pnpm agent -- qa verify',
   GATE_ERROR: '业务验收门禁自身出错：带着该错误信息排查后重新运行 pnpm agent -- qa verify',
 });
 
@@ -329,14 +335,17 @@ function evaluate(options) {
   const untrusted = freshnessBlocks(results, business, headSha);
   if (untrusted.length === 0) untrusted.push(...suiteBlocks(results));
   if (untrusted.length === 0) untrusted.push(...integrityBlocks({ results, business, directory, spec: analysis.spec }));
+  if (untrusted.length === 0) untrusted.push(...repeatIntegrityBlocks({ results, business, directory, spec: analysis.spec }));
   if (untrusted.length > 0) return blocked(untrusted, { headSha, resultsFile });
 
+  // 结果可信后才据 repeat 段判定：多轮不一致的 P0 用例即使第 1 轮通过，也不能算已证明。
+  const facts = repeatFacts(results);
   const required = new Set(business.requiredPriorities);
   const acceptance = acceptanceBlocks(results, required);
   const gaps = coverageBlocks(analysis.spec, results);
-  const risks = collectRisks({ results, spec: analysis.spec, required });
-  const blocks = [...acceptance.blocks, ...gaps];
-  if (blocks.length > 0) return blocked(blocks, { headSha, resultsFile, risks });
+  const risks = [...collectRisks({ results, spec: analysis.spec, required }), ...repeatRisks(results)];
+  const blocks = [...repeatBlocks(results, business), ...acceptance.blocks, ...gaps];
+  if (blocks.length > 0) return { ...blocked(blocks, { headSha, resultsFile, risks }), ...facts };
 
   // 放行的判定同时携带回执要记录的业务摘要：必需优先级、已证明的自动化 AC 条数、披露风险数与配置摘要。
   return {
@@ -344,10 +353,11 @@ function evaluate(options) {
     blocks: [],
     risks,
     nextAction: null,
-    summary: `业务验收通过：${acceptance.checked} 条必需优先级（${[...required].join('/')}）的自动化 AC 全部证明，披露风险 ${risks.length} 项`,
+    summary: `业务验收通过：${acceptance.checked} 条必需优先级（${[...required].join('/')}）的自动化 AC 全部证明，运行 ${facts.repeatRuns} 轮、不稳定用例 ${facts.flakyCount} 个，披露风险 ${risks.length} 项`,
     requiredPriorities: [...business.requiredPriorities],
     provenCount: acceptance.checked,
     riskCount: risks.length,
+    ...facts,
     configDigest: business.digest,
     headSha,
     resultsFile,

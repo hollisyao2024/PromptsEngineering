@@ -22,10 +22,11 @@ const PATHS_FILE = 'docs/qa-modules/shop/PATHS.md';
 const CONFIG_FILE = 'agent.config.json';
 
 // 回执在原有键集合之上追加 business 摘要（业务门禁通过时）、design 摘要（实际项目的测试设计门禁）、
-// qa_verdict 与 no_module_reason（夹具以 --no-module 运行）；身份字段与 schema_version 不变。
+// repro 摘要（实际项目的缺陷复现门禁）、qa_verdict 与 no_module_reason（夹具以 --no-module 运行）；
+// 身份字段与 schema_version 不变。
 const RECEIPT_KEYS = [
-  'base_branch', 'base_sha', 'branch', 'business', 'design', 'head_sha', 'no_module_reason', 'qa_verdict', 'schema_version',
-  'verdict', 'verified_at',
+  'base_branch', 'base_sha', 'branch', 'business', 'design', 'head_sha', 'no_module_reason', 'qa_verdict', 'repro',
+  'schema_version', 'verdict', 'verified_at',
 ];
 
 // 规模上限（ARCH §6 性能）：500 条 AC、2000 个用例，校验 + 绑定 + 判定不超过 5 秒（不含套件自身耗时）。

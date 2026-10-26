@@ -173,4 +173,4 @@ function integrityBlocks({ results, business, directory, spec }) {
   return mismatches;
 }
 
-module.exports = { SHORT_SHA_LENGTH, integrityBlocks };
+module.exports = { SHORT_SHA_LENGTH, integrityBlocks, readCopy, sha256 };

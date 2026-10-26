@@ -9,7 +9,7 @@
 const { exitOnHelp } = require('../shared/cli-help');
 const { ensureContainerDirectories, getMainRepoRoot, loadConfig, resolveRepoRoot } = require('../shared/config');
 const { oneLine } = require('../shared/result-block');
-const { resolveBusinessConfig } = require('./business-config');
+const { MAX_REPEAT, resolveBusinessConfig } = require('./business-config');
 const { buildResults, evaluateSuiteOutcome, judgeAc, resultsDirectory, writeResults } = require('./business-results');
 const { compareText } = require('./business-spec');
 const { analyzeSpec } = require('./qa-paths');
@@ -18,7 +18,7 @@ const { installSignalHandlers, runCommand } = require('./qa-run-process');
 const { checkReportPaths, git, readReport, removeReport, removeResults } = require('./qa-run-reports');
 
 const USAGE = [
-  'Usage: pnpm agent -- qa run',
+  'Usage: pnpm agent -- qa run [--repeat N]',
   '',
   '按 agent.config.json 的 qa.business.suites 逐套运行业务测试命令（仓库根目录、经 shell 执行），',
   '读取各套件的 JUnit XML 报告，把用例绑定到 PRD 原子 AC / TC / 路径，',
@@ -27,10 +27,41 @@ const USAGE = [
   '任一套件未正常完成或存在失败用例时 STATUS=FAILED(REASON=SUITE_FAILED)；套件都正常完成、',
   '但 requiredPriorities 内的自动化 AC 仍有未证明的（AC_OPEN 非空）时 STATUS=FAILED(REASON=AC_NOT_PROVEN)，',
   '结果照常写出，退出码非零，判定与 qa verify 的业务门禁一致。',
+  `--repeat N（1 到 ${MAX_REPEAT}，默认取 qa.business.repeat）在同一 HEAD 上把全部套件运行 N 轮，第 1 轮作为主结果，`,
+  '逐用例比较各轮状态：必需优先级的自动化 AC 绑定的用例不一致或套件状态不一致时 STATUS=FAILED(REASON=FLAKY)，',
+  '其余不一致只给 WARNING；参数非法时 STATUS=BLOCKED(REASON=ARGS_INVALID)，不运行任何套件。',
   'qa.business.enabled 只决定 qa verify 是否启用门禁，不影响本命令。',
 ].join('\n');
 
+const REPEAT_VALUE_PATTERN = /^[0-9]+$/u;
+
 const COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+// 只接受 --repeat N / --repeat=N（N 为 1 到 MAX_REPEAT 的十进制整数），且最多出现一次；其他参数一律拒绝，
+// 以免拼错的参数被静默忽略、以为跑了多轮。返回 { ok, repeat|null, error }。
+function parseArgs(argv) {
+  let repeat = null;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    let value;
+    if (arg === '--repeat') {
+      if (index + 1 >= argv.length) return { ok: false, repeat: null, error: '--repeat 缺少取值' };
+      index += 1;
+      value = argv[index];
+    } else if (arg.startsWith('--repeat=')) {
+      value = arg.slice('--repeat='.length);
+    } else {
+      return { ok: false, repeat: null, error: `未知参数 ${JSON.stringify(arg)}` };
+    }
+    if (repeat !== null) return { ok: false, repeat: null, error: '--repeat 只能指定一次' };
+    const parsed = REPEAT_VALUE_PATTERN.test(value) ? Number(value) : NaN;
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_REPEAT) {
+      return { ok: false, repeat: null, error: `--repeat 须为 1 到 ${MAX_REPEAT} 之间的整数，实际为 ${JSON.stringify(value)}` };
+    }
+    repeat = parsed;
+  }
+  return { ok: true, repeat, error: null };
+}
 
 // ---------------------------------------------------------------------------
 // 运行
@@ -97,6 +128,7 @@ async function runBusinessSuites({
   killGraceMs = 5000,
   now = () => new Date(),
   handleSignals = true,
+  repeat = null,
 } = {}) {
   const business = resolveBusinessConfig(config);
   if (!business.ok) {
@@ -166,34 +198,40 @@ async function runBusinessSuites({
   }
 
   const known = { headSha, worktreeClean, configDigest: business.digest };
+  const runs = repeat ?? business.repeat;
   const controller = { current: null, interrupted: null };
   const removeHandlers = handleSignals ? installSignalHandlers(controller) : () => {};
-  const observations = [];
+  // rounds[k] 为第 k+1 轮的全部套件观察；第 1 轮作为主结果，其余轮只用于逐用例比较。
+  const rounds = [];
   try {
-    for (const suite of business.suites) {
-      if (controller.interrupted) break;
-      removeReport(repoRoot, suite.report);
-      const ran = await runCommand({
-        command: suite.command,
-        cwd: repoRoot,
-        env,
-        shell,
-        timeoutMs: suite.timeoutSeconds * 1000,
-        killGraceMs,
-        controller,
-      });
-      if (controller.interrupted) break;
-      const report = ran.spawnError || ran.timedOut ? { bytes: null, problem: null } : readReport(repoRoot, suite.report);
-      const evaluated = evaluateSuiteOutcome({
-        spawnError: ran.spawnError,
-        timedOut: ran.timedOut,
-        exitCode: ran.exitCode,
-        signal: ran.signal,
-        reportBytes: report.bytes,
-        reportProblem: report.problem,
-        timeoutSeconds: suite.timeoutSeconds,
-      });
-      observations.push({ suite, ran, report, evaluated });
+    for (let run = 1; run <= runs && !controller.interrupted; run += 1) {
+      const observations = [];
+      for (const suite of business.suites) {
+        if (controller.interrupted) break;
+        removeReport(repoRoot, suite.report);
+        const ran = await runCommand({
+          command: suite.command,
+          cwd: repoRoot,
+          env,
+          shell,
+          timeoutMs: suite.timeoutSeconds * 1000,
+          killGraceMs,
+          controller,
+        });
+        if (controller.interrupted) break;
+        const report = ran.spawnError || ran.timedOut ? { bytes: null, problem: null } : readReport(repoRoot, suite.report);
+        const evaluated = evaluateSuiteOutcome({
+          spawnError: ran.spawnError,
+          timedOut: ran.timedOut,
+          exitCode: ran.exitCode,
+          signal: ran.signal,
+          reportBytes: report.bytes,
+          reportProblem: report.problem,
+          timeoutSeconds: suite.timeoutSeconds,
+        });
+        observations.push({ suite, ran, report, evaluated });
+      }
+      rounds.push(observations);
     }
   } catch (error) {
     return failed(
@@ -214,6 +252,18 @@ async function runBusinessSuites({
     );
   }
 
+  const suiteRecord = ({ suite, ran, evaluated }) => ({
+    name: suite.name,
+    platform: suite.platform,
+    command: suite.command,
+    exitCode: ran.exitCode,
+    status: evaluated.status,
+    durationMs: ran.durationMs,
+    detail: evaluated.detail,
+    report: evaluated.report ? { path: suite.report, sha256: evaluated.report.sha256, bytes: evaluated.report.bytes } : null,
+    cases: evaluated.cases,
+  });
+  const [firstRound, ...laterRounds] = rounds;
   let results;
   let resultsFile;
   try {
@@ -223,23 +273,21 @@ async function runBusinessSuites({
       worktreeClean,
       configDigest: business.digest,
       generatedAt: now().toISOString(),
-      suites: observations.map(({ suite, ran, evaluated }) => ({
-        name: suite.name,
-        platform: suite.platform,
-        command: suite.command,
-        exitCode: ran.exitCode,
-        status: evaluated.status,
-        durationMs: ran.durationMs,
-        detail: evaluated.detail,
-        report: evaluated.report ? { path: suite.report, sha256: evaluated.report.sha256, bytes: evaluated.report.bytes } : null,
-        cases: evaluated.cases,
-      })),
+      suites: firstRound.map(suiteRecord),
+      requiredPriorities: business.requiredPriorities,
+      rounds: laterRounds.map((observations, index) => ({ run: index + 2, suites: observations.map(suiteRecord) })),
     });
     const reportCopies = {};
-    for (const { suite, report, evaluated } of observations) {
+    for (const { suite, report, evaluated } of firstRound) {
       if (evaluated.report) reportCopies[suite.name] = report.bytes;
     }
-    resultsFile = writeResults({ directory, results, reportCopies });
+    const extraCopies = [];
+    laterRounds.forEach((observations, index) => {
+      for (const { suite, report, evaluated } of observations) {
+        if (evaluated.report) extraCopies.push({ name: suite.name, run: index + 2, bytes: report.bytes });
+      }
+    });
+    resultsFile = writeResults({ directory, results, reportCopies, extraCopies });
   } catch (error) {
     return failed(
       'WRITE_FAILED',
@@ -253,7 +301,24 @@ async function runBusinessSuites({
   const warnings = worktreeClean
     ? []
     : ['工作区存在未提交改动，qa verify 会以 RESULTS_DIRTY_WORKTREE 拒绝这份结果；请把报告路径加入 .gitignore，或提交/清理改动后重新执行 pnpm agent -- qa run'];
+  const { flaky, unstable_suites: unstableSuites, summary: repeatSummary } = results.repeat;
+  const optionalFlaky = flaky.filter((item) => !item.required);
+  if (optionalFlaky.length > 0) {
+    warnings.push(`${optionalFlaky.length} 条非必需优先级用例在 ${repeatSummary.runs} 轮之间结果不一致（FLAKY），qa verify 会披露为 RISK_FLAKY；见 FLAKY_CASE`);
+  }
   const written = { ...known, results, resultsFile, acOpen: described.acOpen, warnings };
+  // 不稳定优先于套件失败：第 1 轮失败而后续轮通过（或相反）时，先要解决不确定性，单轮的结论都不可信。
+  if (repeatSummary.required_flaky > 0 || unstableSuites.length > 0) {
+    const parts = [];
+    if (repeatSummary.required_flaky > 0) parts.push(`${repeatSummary.required_flaky} 条必需优先级用例`);
+    if (unstableSuites.length > 0) parts.push(`${unstableSuites.length} 个套件的运行状态`);
+    return failed(
+      'FLAKY',
+      `${repeatSummary.runs} 轮运行之间 ${parts.join('、')}不一致；结果已记录`,
+      '按 FLAKY_CASE / FLAKY_SUITE 定位不稳定来源（时钟、随机数、并发顺序、外部依赖、共享状态），修复并提交后重新执行 pnpm agent -- qa run --repeat N 确认各轮一致',
+      written,
+    );
+  }
   // 套件失败的原因优先：它已经说明了为什么有 AC 没被证明，不再叠加第二个原因。
   if (!described.ok) {
     return failed(
@@ -281,11 +346,21 @@ async function runBusinessSuites({
   });
 }
 
-async function main() {
+async function main(argv = process.argv.slice(2)) {
+  const args = parseArgs(argv);
+  if (!args.ok) {
+    console.log(formatRunReport(blocked(
+      'ARGS_INVALID',
+      `参数无效：${args.error}，未运行任何套件`,
+      `用法：pnpm agent -- qa run [--repeat N]（N 为 1 到 ${MAX_REPEAT} 的整数）`,
+    )).join('\n'));
+    process.exitCode = 1;
+    return;
+  }
   const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
   const config = loadConfig({ repoRoot });
   const mainRoot = getMainRepoRoot(repoRoot);
-  const outcome = await runBusinessSuites({ repoRoot, mainRoot, config });
+  const outcome = await runBusinessSuites({ repoRoot, mainRoot, config, repeat: args.repeat });
   console.log(formatRunReport(outcome).join('\n'));
   // 不调用 process.exit：输出较大时管道写入可能尚未排空。
   process.exitCode = outcome.status === 'OK' ? 0 : 1;
@@ -303,4 +378,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { checkReportPaths, formatRunReport, runBusinessSuites };
+module.exports = { checkReportPaths, formatRunReport, parseArgs, runBusinessSuites };
