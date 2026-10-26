@@ -39,6 +39,7 @@ const {
 } = require('./qa-integrity');
 const { verifyBusinessAcceptance } = require('./qa-business-gate');
 const { designLines, evaluateDesignGate } = require('./qa-design');
+const { evaluateReproGate, reproLines } = require('./qa-repro');
 const { parsePrdStories } = require('./business-spec');
 const { exitOnHelp } = require('../shared/cli-help');
 const { oneLine, resultBlockLines, resultExitCode } = require('../shared/result-block');
@@ -251,11 +252,15 @@ const QA_VERIFY_BLOCKED_NEXT_ACTION = {
   INTEGRITY_CONFIG_INVALID: '修正 agent.config.json 中 qa.integrity 的配置后重跑 pnpm agent -- qa verify',
   DESIGN_GATE_BLOCKED: '按 DESIGN_BLOCK 行修复 TEST-DESIGN.md 或补齐通过的 TC（pnpm agent -- qa run）；改写已有预期先执行 pnpm agent -- qa design amend，再重跑 pnpm agent -- qa verify',
   DESIGN_CONFIG_INVALID: '修正 agent.config.json 中 qa.design 的配置后重跑 pnpm agent -- qa verify',
+  REPRO_GATE_BLOCKED: '按 REPRO_BLOCK 行配置 qa.repro.command 或对每条新增 BUG 行执行 pnpm agent -- qa repro --bug <BUG-ID>（base 须失败、HEAD 须通过），再重跑 pnpm agent -- qa verify',
+  REPRO_CONFIG_INVALID: '修正 agent.config.json 中 qa.repro 的配置后重跑 pnpm agent -- qa verify',
+  REPRO_DIFF_UNSUPPORTED: '把测试文件的改名或复制拆成删除加新增后重新提交，再执行 pnpm agent -- qa repro 与 pnpm agent -- qa verify',
 };
 const QA_VERIFY_FAILED_NEXT_ACTION = {
   QA_FETCH_FAILED: '核实网络、代理与 GH_TOKEN 后重试 pnpm agent -- qa verify；按 tool_error 留痕，不改写命令或更换入口',
   INTEGRITY_GIT_FAILED: '核实 BASE_SHA/HEAD_SHA 在本地仓库可读后重试 pnpm agent -- qa verify；按 tool_error 留痕',
   DESIGN_GIT_FAILED: '核实 BASE_SHA/HEAD_SHA 在本地仓库可读后重试 pnpm agent -- qa verify；按 tool_error 留痕',
+  REPRO_GIT_FAILED: '核实 BASE_SHA/HEAD_SHA 在本地仓库可读后重试 pnpm agent -- qa verify；按 tool_error 留痕',
 };
 
 const QA_VERIFY_BLOCKED_SUMMARY = {
@@ -264,6 +269,7 @@ const QA_VERIFY_BLOCKED_SUMMARY = {
   QA_TARGET_MISSING: '未识别到当前会话 QA 目标，回执未签发',
   TEST_INTEGRITY_BLOCKED: '测试完整性门禁未通过，回执未签发',
   DESIGN_GATE_BLOCKED: '测试设计门禁未通过，回执未签发',
+  REPRO_GATE_BLOCKED: '缺陷复现门禁未通过，回执未签发',
 };
 
 // 门禁阻断 { reason, summary? } → 单条阻断时与改造前的结果块逐字一致；多条时 REASON 取第一条（按门禁执行顺序），
@@ -882,12 +888,32 @@ function checkDesignGate({ config, receipt }) {
   };
 }
 
+// 缺陷复现门禁（qa.repro）：只读 base/HEAD 的 TEST-DESIGN.md 与 qa repro 写下的结果文件，不重跑测试。
+// 本分支新增的 BUG 行缺少绑定当前 BASE_SHA/HEAD_SHA 的复现 PASS 即阻断；返回 { blocked, risk, repro }，repro 是放行时写进回执的摘要。
+function checkReproGate({ config, mainRoot, receipt }) {
+  const result = evaluateReproGate({ repoRoot, config, mainRoot, baseSha: receipt.base_sha, headSha: receipt.head_sha });
+  for (const line of reproLines(result)) {
+    log(line, line.startsWith('REPRO_BLOCK') ? 'red' : line.startsWith('REPRO_RISK') ? 'yellow' : 'gray');
+  }
+  return {
+    blocked: result.status === 'BLOCKED',
+    risk: result.risks.length > 0,
+    repro: {
+      gate: result.status,
+      defect_repro: `${result.defectRepro.passed}/${result.defectRepro.total}`,
+      new_defects: result.newDefects,
+      risk_count: result.risks.length,
+    },
+  };
+}
+
 // 执行分两段：
 // 1. 前置条件，失败即立即退出——后续门禁没有可信的判定对象：配置加载失败、不在功能分支（QA_BRANCH_REQUIRED）、
 //    fetch 失败（QA_FETCH_FAILED）、本地 HEAD 与远端分支不一致（HEAD_NOT_PUSHED）、功能分支落后配置主干
 //    （STALE_QA_BASE），以及任何未预期异常。
 // 2. 可独立评估的门禁，全部执行完再统一判定：架构检查、QA 文档或 projectChecks、测试范围证据、业务验收门禁。
-//    测试设计门禁（模板源跳过）。每个门禁照常打印自己的明细行（❌ 文档错误、BUSINESS_BLOCK=、DESIGN_BLOCK= 等），阻断另汇总为 QA_VERIFY_BLOCK=<code>|<summary>；
+//    测试设计门禁与缺陷复现门禁（模板源均跳过）。每个门禁照常打印自己的明细行（❌ 文档错误、BUSINESS_BLOCK=、DESIGN_BLOCK=、
+//    REPRO_BLOCK= 等），阻断另汇总为 QA_VERIFY_BLOCK=<code>|<summary>；
 //    任一阻断即不签发回执。
 function main() {
   const config = loadConfig({ repoRoot });
@@ -923,6 +949,7 @@ function main() {
   if (templateSource) {
     log('模板源仓库：跳过业务 PRD/QA 验收门禁。', 'yellow');
     log('DESIGN_GATE=SKIPPED', 'gray');
+    log('REPRO_GATE=SKIPPED', 'gray');
   } else {
     const verdict = args.scope === 'project' ? runProjectVerify(args, config) : runSessionVerify(args);
     if (verdict.blocker) blockers.push({ reason: verdict.blocker });
@@ -959,6 +986,15 @@ function main() {
     } catch (error) {
       collectGateError(blockers, error);
     }
+
+    try {
+      const reproGate = checkReproGate({ config, mainRoot, receipt });
+      if (reproGate.blocked) blockers.push({ reason: 'REPRO_GATE_BLOCKED' });
+      else receipt.repro = reproGate.repro;
+      if (reproGate.risk) risk = true;
+    } catch (error) {
+      collectGateError(blockers, error);
+    }
   }
 
   if (blockers.length > 0) {
@@ -967,7 +1003,7 @@ function main() {
     return describeQaVerifyOutcome({ blockers });
   }
 
-  // 放行时任一风险来源（--no-module 声明、文档警告、完整性风险或豁免、业务风险披露、设计风险）都把裁决降为 PASS_WITH_RISK。
+  // 放行时任一风险来源（--no-module 声明、文档警告、完整性风险或豁免、业务风险披露、设计风险、复现风险）都把裁决降为 PASS_WITH_RISK。
   receipt.qa_verdict = risk ? 'PASS_WITH_RISK' : 'PASS';
   if (noModuleReason) receipt.no_module_reason = noModuleReason;
   log(`QA_VERDICT=${receipt.qa_verdict}`, VERDICT_COLORS[receipt.qa_verdict]);
@@ -980,7 +1016,7 @@ function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name> | --no-module --reason <text>]\n\nRun QA verification and write the local base/head SHA receipt with a PASS or PASS_WITH_RISK verdict.\nA session run with no identifiable QA target is BLOCKED unless --no-module --reason <text> declares it (recorded as a risk).\nThe test integrity gate (qa.integrity) checks the BASE_SHA..HEAD_SHA test diff on every run.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.\nOutside the template source, the test design gate (qa.design) checks TEST-DESIGN.md against the PRD and the qa run results;\nmode=warn reports DESIGN_RISK lines, mode=enforce withholds the receipt on any DESIGN_BLOCK.');
+  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name> | --no-module --reason <text>]\n\nRun QA verification and write the local base/head SHA receipt with a PASS or PASS_WITH_RISK verdict.\nA session run with no identifiable QA target is BLOCKED unless --no-module --reason <text> declares it (recorded as a risk).\nThe test integrity gate (qa.integrity) checks the BASE_SHA..HEAD_SHA test diff on every run.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.\nOutside the template source, the test design gate (qa.design) checks TEST-DESIGN.md against the PRD and the qa run results;\nmode=warn reports DESIGN_RISK lines, mode=enforce withholds the receipt on any DESIGN_BLOCK.\nOutside the template source, the defect reproduction gate (qa.repro) reads the results written by `pnpm agent -- qa repro --bug <ID>`\nand withholds the receipt on any REPRO_BLOCK: every BUG row added on this branch needs a run where base fails and HEAD passes.');
   let outcome;
   try {
     outcome = main();

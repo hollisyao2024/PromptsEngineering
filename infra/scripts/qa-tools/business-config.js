@@ -15,9 +15,11 @@ const NO_PLATFORM = '-';
 const TAG_PATTERN = /^[a-z][a-z0-9-]*$/u;
 const DRIVE_PREFIX = /^[A-Za-z]:/u;
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/u;
-const BUSINESS_KEYS = ['enabled', 'requiredPriorities', 'suites'];
+const BUSINESS_KEYS = ['enabled', 'requiredPriorities', 'repeat', 'suites'];
 const SUITE_KEYS = ['name', 'platform', 'command', 'report', 'timeoutSeconds'];
 const DEFAULT_PRIORITIES = ['P0'];
+const DEFAULT_REPEAT = 1;
+const MAX_REPEAT = 20;
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const show = (value) => JSON.stringify(value) ?? String(value);
@@ -58,6 +60,17 @@ function resolvePriorities(raw, fail) {
     return null;
   }
   return PRIORITIES.filter((priority) => raw.includes(priority));
+}
+
+// qa run 的默认运行轮数（G6）：缺省 1；须为 1..MAX_REPEAT 的整数。不进入配置摘要：
+// 轮数只决定结果有多少轮可比，不改变单轮结论；是否达到要求由门禁按 results.repeat.runs 单独判定。
+function resolveRepeat(raw, fail) {
+  if (raw === undefined) return DEFAULT_REPEAT;
+  if (!Number.isInteger(raw) || raw < 1 || raw > MAX_REPEAT) {
+    fail(`${FIELD}.repeat`, `${show(raw)} 须为 1 到 ${MAX_REPEAT} 之间的整数（qa run 的默认运行轮数）`);
+    return DEFAULT_REPEAT;
+  }
+  return raw;
 }
 
 function resolveSuite(raw, index, seenNames, fail) {
@@ -103,8 +116,8 @@ function digestOf(requiredPriorities, suites) {
   return `sha256:${crypto.createHash('sha256').update(canonical).digest('hex')}`;
 }
 
-// 返回 { ok, enabled, requiredPriorities, suites, digest, errors:[{field,message}] }。
-// ok=false 时 requiredPriorities/suites 为默认空值、digest 为 null，调用方不得据此运行；
+// 返回 { ok, enabled, requiredPriorities, repeat, suites, digest, errors:[{field,message}] }。
+// ok=false 时 requiredPriorities/repeat/suites 为默认空值、digest 为 null，调用方不得据此运行；
 // enabled 始终独立判读，无法判读（非布尔、qa.business 非对象，或 qa.business 下出现未知键）时按 true 处理（fail-closed）。
 // 未知键也算无法判读：loadConfig 合并模板默认值后 enabled 恒为 false，开关键拼错（如 enable）不会让 enabled 缺省，只能靠未知键本身触发。
 function resolveBusinessConfig(config) {
@@ -115,6 +128,7 @@ function resolveBusinessConfig(config) {
 
   let enabled = false;
   let requiredPriorities = [...DEFAULT_PRIORITIES];
+  let repeat = DEFAULT_REPEAT;
   const suites = [];
 
   if (raw !== undefined && !isObject(raw)) {
@@ -123,6 +137,7 @@ function resolveBusinessConfig(config) {
   } else if (raw !== undefined) {
     enabled = resolveEnabled(raw.enabled, fail);
     requiredPriorities = resolvePriorities(raw.requiredPriorities, fail) ?? requiredPriorities;
+    repeat = resolveRepeat(raw.repeat, fail);
     if (raw.suites !== undefined && !Array.isArray(raw.suites)) {
       fail(`${FIELD}.suites`, '须为数组');
     } else if (raw.suites !== undefined) {
@@ -140,9 +155,9 @@ function resolveBusinessConfig(config) {
   }
 
   if (errors.length > 0) {
-    return { ok: false, enabled, requiredPriorities: [...DEFAULT_PRIORITIES], suites: [], digest: null, errors };
+    return { ok: false, enabled, requiredPriorities: [...DEFAULT_PRIORITIES], repeat: DEFAULT_REPEAT, suites: [], digest: null, errors };
   }
-  return { ok: true, enabled, requiredPriorities, suites, digest: digestOf(requiredPriorities, suites), errors };
+  return { ok: true, enabled, requiredPriorities, repeat, suites, digest: digestOf(requiredPriorities, suites), errors };
 }
 
 // 已登记套件的命令原文，按套件顺序返回，供 task exec 的测试范围护栏放行与登记一致的命令。
@@ -154,7 +169,9 @@ function registeredSuiteCommands(config) {
 }
 
 module.exports = {
+  DEFAULT_REPEAT,
   DEFAULT_TIMEOUT_SECONDS,
+  MAX_REPEAT,
   MAX_TIMEOUT_SECONDS,
   NO_PLATFORM,
   registeredSuiteCommands,

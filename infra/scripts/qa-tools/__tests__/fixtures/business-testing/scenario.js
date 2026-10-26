@@ -13,6 +13,7 @@ const { commitAll, createProject, junitReport, runGit, runNodeScript, shopProjec
 
 const QA_RUN = path.join(__dirname, '..', '..', '..', 'qa-run.js');
 const EMIT = path.join(__dirname, 'suites', 'emit.js');
+const ALTERNATE = path.join(__dirname, 'suites', 'alternate.js');
 
 const quote = (value) => JSON.stringify(String(value));
 
@@ -60,6 +61,23 @@ function createScenario({ files = {}, shop = true } = {}) {
       return entry;
     },
 
+    // 每次启动轮换一个变体的套件：variants 为 [{ cases | xml, code }]，第 k 次启动使用 variants[k % n]，
+    // 用来制造多次运行之间的不一致。没有 cases/xml 的变体不产出报告。
+    alternating(name, { platform = '-', variants, report = `reports/${name}.xml` } = {}) {
+      const plan = { label: name, variants: variants.map((variant, index) => {
+        const content = variant.xml !== undefined ? variant.xml : (variant.cases ? junitReport(variant.cases, { suite: name }) : undefined);
+        if (content === undefined) return { source: '-', code: variant.code || 0 };
+        const source = path.join(aux, `${name}.variant${index}.xml`);
+        fs.writeFileSync(source, content);
+        return { source, code: variant.code || 0 };
+      }) };
+      const planFile = path.join(aux, `${name}.plan.json`);
+      fs.writeFileSync(planFile, JSON.stringify(plan));
+      fs.rmSync(`${planFile}.count`, { force: true });
+      const args = [ALTERNATE, planFile, report, marker];
+      return { name, platform, command: `${quote(process.execPath)} ${args.map(quote).join(' ')}`, report };
+    },
+
     // 写入 qa.business 配置并提交，返回提交后的 HEAD。
     configure(suites, business = {}) {
       project.write({ 'agent.config.json': `${JSON.stringify({ qa: { business: { enabled: true, ...business, suites } } }, null, 2)}\n` });
@@ -67,8 +85,14 @@ function createScenario({ files = {}, shop = true } = {}) {
     },
 
     // 运行真实的 qa run；套件有失败时它以非零退出，但结果照常写出。env 追加到子进程环境（如注入探针变量）。
-    run({ env = {} } = {}) {
-      return runNodeScript(QA_RUN, { cwd: project.repo, env: { ...process.env, ...env } });
+    run({ env = {}, args = [] } = {}) {
+      return runNodeScript(QA_RUN, { cwd: project.repo, args, env: { ...process.env, ...env } });
+    },
+
+    // 套件启动标记：每行一个 JSON，按启动顺序排列。
+    markers() {
+      if (!fs.existsSync(marker)) return [];
+      return fs.readFileSync(marker, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
     },
 
     // 基线：web 与 ios 两个套件全部通过，AC-SHOP-002-01 是人工验收。
@@ -103,8 +127,8 @@ function createScenario({ files = {}, shop = true } = {}) {
       return results;
     },
 
-    copyFile(name) {
-      return path.join(resultsDir, 'reports', `${name}.xml`);
+    copyFile(name, run = 1) {
+      return path.join(resultsDir, 'reports', run === 1 ? `${name}.xml` : `${name}.run${run}.xml`);
     },
 
     cleanup() {

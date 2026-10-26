@@ -20,10 +20,11 @@ const fields = (resolved) => resolved.errors.map((error) => error.field);
 
 // ---------------------------------------------------------------- 默认值
 
-test('模板默认配置关闭业务门禁且没有套件', () => {
+test('模板默认配置关闭业务门禁且没有套件，默认运行 1 轮', () => {
   assert.deepEqual(DEFAULT_CONFIG.qa.business, {
     enabled: false,
     requiredPriorities: ['P0'],
+    repeat: 1,
     suites: [],
   });
 
@@ -31,6 +32,7 @@ test('模板默认配置关闭业务门禁且没有套件', () => {
   assert.equal(resolved.ok, true);
   assert.equal(resolved.enabled, false);
   assert.deepEqual(resolved.requiredPriorities, ['P0']);
+  assert.equal(resolved.repeat, 1);
   assert.deepEqual(resolved.suites, []);
   assert.deepEqual(resolved.errors, []);
 });

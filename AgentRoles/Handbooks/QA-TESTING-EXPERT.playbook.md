@@ -345,6 +345,7 @@ TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不�
 |--------|--------|------|
 | `enabled` | `false` | 是否启用业务验收门禁；值不是布尔类型，或 `qa.business` 下出现未知键（如把 `enabled` 拼成 `enable`）时按已启用处理（失败即关闭） |
 | `requiredPriorities` | `["P0"]` | 进入门禁的优先级；只检查这些优先级且验证方式为 `auto` 的 AC |
+| `repeat` | `1` | `qa run` 的默认运行轮数（1–20）；`--repeat N` 可覆盖；结果轮数低于该值时 `qa verify` 阻断为 `REPEAT_INSUFFICIENT` |
 | `suites` | `[]` | 业务测试套件列表；启用时至少声明一个，按配置顺序运行 |
 
 套件字段（`suites` 的每一项，不允许出现其他键）：
@@ -459,17 +460,19 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `RESULTS_CONFIG_DRIFT` | `qa run` 之后套件或 `requiredPriorities` 又被修改 | 重新运行 `pnpm agent -- qa run` |
 | `SUITE_HARD_FAILURE` | 套件启动失败、超时、没有产生报告，或报告无法解析 | 先按原因修复套件命令或报告路径，再重新运行 `pnpm agent -- qa run` |
 | `SUITE_EXIT_UNEXPLAINED` | 套件以非零退出码结束，但报告中没有任何失败用例，退出码无法由报告解释 | 排查 globalSetup/teardown 等报告之外的失败，修复套件命令或报告配置使两者一致，再重新运行 `pnpm agent -- qa run` |
-| `REPORT_TAMPERED` | 报告副本的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
-| `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果，与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
+| `REPORT_TAMPERED` | 报告副本（含多轮运行的 `<套件>.run<k>.xml`，主体记为 `<套件>#run<k>`）的 SHA256 或大小与记录不符，或副本缺失 | 不要手改结果目录里的文件，重新运行 `pnpm agent -- qa run` |
+| `RESULTS_MISMATCH` | 用报告副本与当前规格重新计算的结果（含 repeat 段的多轮比较），与结果文件中的记录不一致 | 重新运行 `pnpm agent -- qa run` |
 | `AC_NOT_PROVEN` | 进入门禁的 `auto` AC 没有被通过的用例证明，详情为「优先级 状态: 原因」（`qa run` 以 `FAILED(REASON=AC_NOT_PROVEN)` 提前给出同一判定） | 修复失败用例，或为未覆盖的 AC 补写自动化用例（用例名带 AC/TC 标识）后运行 `qa run`；确属无法自动化的 AC 在 PRD 中标为 manual |
 | `PATH_COVERAGE_GAP` | 只统计通过的路径后，按覆盖准则仍有转移或状态未被覆盖，详情列出经过它的路径、状态及其未通过的 TC | 修复列出的未通过 TC 或补写用例使路径通过；部分步骤未实现时可把路径拆短使已通过段落独立计入覆盖；或修正 PATHS.md 的关联 TC 与覆盖准则，再运行 `qa run` |
+| `FLAKY` | `qa run --repeat N` 的多轮结果中，必需优先级用例的状态或某套件的状态在各轮之间不一致；主体为 `套件:用例名` 或套件名，详情列出各轮状态 | 排查不确定来源（时间、随机数、顺序依赖、共享状态、外部依赖）并修复，再运行 `qa run --repeat N`；不得放宽断言或跳过用例 |
+| `REPEAT_INSUFFICIENT` | 结果的运行轮数低于 `qa.business.repeat`（缺少 repeat 段的旧结果按 1 轮计） | 运行 `qa run --repeat N`（N 不低于配置值，或省略 `--repeat` 使用配置值） |
 | `GATE_ERROR` | 业务验收门禁自身出错 | 带着错误信息排查后重新运行 `pnpm agent -- qa verify` |
 
 ##### 流程阻断码（结果块 `REASON=`）
 
 `qa verify` 结尾固定输出 `STATUS=OK|BLOCKED|FAILED`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时另给 `REASON=`；上表的业务门禁码出现在 `BUSINESS_BLOCK=` 行，结果块的 `REASON=` 则是下面的流程码。`BLOCKED` 表示前置条件未满足、按 `NEXT_ACTION` 补齐后重跑即可；`FAILED` 表示命令本身没有跑完，先按 `tool_error` 留痕再决定是否重试，不改写命令或更换入口。
 
-前置条件 `QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE` 与 `FAILED` 类错误遇到即停止。前置条件通过后，架构检查、QA 文档（或 `--project` 的 projectChecks）、测试范围证据与业务验收门禁全部执行完再判定：各门禁照常打印明细（`❌` 文档错误、`BUSINESS_BLOCK=` 等），每个阻断另汇总为一行 `QA_VERIFY_BLOCK=<代码>|<摘要>`，排在结果块之前。只有一个阻断时结果块与单门禁一致；多个时 `REASON=` 取第一个（按上述执行顺序），`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 按 `<代码>: <处理>` 以「；」分隔列出。任一阻断都不签发回执。
+前置条件 `QA_BRANCH_REQUIRED`、`QA_FETCH_FAILED`、`HEAD_NOT_PUSHED`、`STALE_QA_BASE` 与 `FAILED` 类错误遇到即停止。前置条件通过后，架构检查、QA 文档（或 `--project` 的 projectChecks）、测试范围证据、业务验收、测试完整性、测试设计与缺陷复现门禁全部执行完再判定：各门禁照常打印明细（`❌` 文档错误、`BUSINESS_BLOCK=` 等），每个阻断另汇总为一行 `QA_VERIFY_BLOCK=<代码>|<摘要>`，排在结果块之前。只有一个阻断时结果块与单门禁一致；多个时 `REASON=` 取第一个（按上述执行顺序），`SUMMARY=` 以「N 项门禁阻断」开头并点名全部代码，`NEXT_ACTION=` 按 `<代码>: <处理>` 以「；」分隔列出。任一阻断都不签发回执。
 
 | 代码 | 状态 | 含义 | 处理 |
 |------|------|------|------|
@@ -484,12 +487,16 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `INTEGRITY_CONFIG_INVALID` | BLOCKED | `qa.integrity` 配置不合法（未知键、模式非法、正则无法编译） | 修正 `agent.config.json` 后重跑 `qa verify` |
 | `DESIGN_GATE_BLOCKED` | BLOCKED | 测试设计门禁（`enforce`）未通过，具体原因见 `DESIGN_BLOCK=` 行（§测试设计门禁） | 修正 `TEST-DESIGN.md` 或补齐通过的 TC 后重跑 `qa run`；改写已有预期先 `qa design amend` |
 | `DESIGN_CONFIG_INVALID` | BLOCKED | `qa.design` 配置不合法（未知键、模式或取值非法） | 修正 `agent.config.json` 后重跑 `qa verify` |
+| `REPRO_GATE_BLOCKED` | BLOCKED | 缺陷复现门禁未通过，具体原因见 `REPRO_BLOCK=` 行（§缺陷复现门禁） | 为列出的 BUG 运行 `qa repro --bug <ID>` 并修复失败项后重跑 |
+| `REPRO_CONFIG_INVALID` | BLOCKED | `qa.repro` 配置不合法（未知键、类型错误） | 修正 `agent.config.json` 后重跑 `qa verify` |
+| `REPRO_DIFF_UNSUPPORTED` | BLOCKED | base..HEAD 的测试文件改动无法计算摘要（未知改动状态，或 HEAD 中找不到该文件） | 按明细整理提交后重跑 `qa repro` 与 `qa verify` |
 | `BUSINESS_GATE_BLOCKED` | BLOCKED | 业务验收门禁未通过，具体原因见 `BUSINESS_BLOCK=` 行（上表） | 补齐后重跑 `pnpm agent -- qa run`，再 `qa verify` |
 | `ARCHITECTURE_PACKAGE_MISSING` | BLOCKED | 项目声明了架构包（`architecture.config.json` 或 lock 登记）但 `architecture/` 目录缺失 | 执行 `pnpm agent -- template sync --include architecture` 安装架构包后重跑 `qa verify` |
 | `ARCHITECTURE_CHECK_FAILED` | BLOCKED | `architecture check` 有失败项（告警不阻断） | 执行 `pnpm agent -- architecture check` 并修复列出的失败项后重跑 `qa verify` |
 | `QA_FETCH_FAILED` | FAILED | 签发回执前的 `git fetch --prune` 连续 2 次失败（同一命令只重试一次） | 核实网络、代理与 `GH_TOKEN` 后重试；按 `tool_error` 留痕 |
 | `INTEGRITY_GIT_FAILED` | FAILED | 完整性门禁读取 base/head 的 Git 对象失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `DESIGN_GIT_FAILED` | FAILED | 设计门禁读取 base/head 的提交或设计文件失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
+| `REPRO_GIT_FAILED` | FAILED | 复现门禁读取 base/head 的设计文件或测试文件改动失败 | 核实 `BASE_SHA`/`HEAD_SHA` 在本地可读后重试；按 `tool_error` 留痕 |
 | `UNEXPECTED_ERROR` | FAILED | 未预期异常，堆栈写到 stderr | 修复后重跑 `qa verify` |
 
 `qa plan` 的结果块同形，`REASON=` 取 `PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`（逐项 `MODULE_SET_MISMATCH=<missingArch|extraArch|missingTask|extraTask>|<module>`，补齐或移除对应 `docs/arch-modules/<domain>/ARCH.md`、`docs/task-modules/<domain>/TASK.md`）或 `UNEXPECTED_ERROR`。
@@ -507,6 +514,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `RISK_UNKNOWN_IDS` | 用例引用了规格中不存在的标识 | 修正标识的拼写，或回到 PRD 补写对应的 AC/TC |
 | `RISK_SUITE_EXIT_NONZERO` | 套件命令退出码非零，报告中有失败用例，结果以报告为准 | 修复失败用例；报告中没有失败用例时改为阻断 `SUITE_EXIT_UNEXPLAINED` |
 | `RISK_MODULE_WITHOUT_TABLE` | 有的模块没有原子 AC 表，不在门禁覆盖内 | 为该模块补写原子 AC 表，或在评审中确认无需业务测试 |
+| `RISK_FLAKY` | 非必需优先级用例在多轮之间结果不一致，不阻断 | 按明细排查不确定来源，必要时提高该 AC 的优先级使其受 `FLAKY` 阻断 |
 
 ---
 
@@ -580,14 +588,16 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 
 每个 BUG 行都要有一个能复现它的用例：
 
-- 在修复前的 base 提交上运行该用例必须失败，在当前 HEAD 上必须通过；两次运行的提交 SHA 与结果一起记录在 QA 证据中。
+- 在修复前的 base 提交上运行该用例必须失败，在当前 HEAD 上必须通过；由 `qa repro` 执行并绑定两侧 SHA，门禁见 §缺陷复现门禁。
 - 复现用例的预期取自关联规则；没有关联规则的缺陷先补 RUL 行，再写用例。
 - 在 base 上也通过的用例没有复现能力，要重写。
 
 ### 不稳定治理（flaky）
 
 - 不开启自动重试，不用「多跑几次直到通过」洗白结果；重试只会把不稳定的用例洗成「偶尔通过」。
-- 用例结果在相同输入下不一致即为不稳定：P0 用例不稳定时结论不能为 PASS；先定位等待条件、数据隔离、时钟或并发的根因并修复。
+- 用 `pnpm agent -- qa run --repeat N`（1–20，缺省取 `qa.business.repeat`，默认 1）把同一提交连跑 N 轮并逐用例比对；多轮是检测手段，不是取最好一轮。输出 `REPEAT_RUNS`、`FLAKY`（不一致用例数）、`FLAKY_RATE` 与逐条 `FLAKY_CASE=` / `FLAKY_SUITE=`。
+- `qa verify`：必需优先级用例或套件在各轮不一致即 `FLAKY` 阻断，结果轮数低于配置值即 `REPEAT_INSUFFICIENT` 阻断，非必需优先级不一致记 `RISK_FLAKY`；各轮报告副本同样防篡改。
+- 用例结果在相同输入下不一致即为不稳定：先定位等待条件、数据隔离、时钟或并发的根因并修复。
 - 无法立即修复的用例登记为缺陷并在报告中披露，不跳过、不删除、不放宽断言。
 
 ### 测试有效性红线
@@ -638,6 +648,39 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 - **配置**：`qa.design.mode` 默认 `warn`，全部阻断降为 `DESIGN_RISK=`；`enforce` 时 TC 证明依赖 `qa run`，须先启用 `qa.business`。`requiredPriorities`、`requiredDimensions`、`sourceGlobs` 可按项目调整，未知键 `DESIGN_CONFIG_INVALID` fail-closed。
 - **局限**：门禁只约束子代理工具与提交时序，`DESIGN_ISOLATION` 是头部自报值，不能证明主代理没读过实现。
 
+### 缺陷复现门禁（qa repro）
+
+`qa verify` 在设计门禁之后只读复现结果、不重跑；模板源输出 `REPRO_GATE=SKIPPED`。逐个为本分支新增的 BUG 行（HEAD 的 `TEST-DESIGN.md` 有、base 没有）执行：
+
+```bash
+pnpm agent -- qa repro --bug <BUG-ID> [--base <ref>]   # --base 缺省取 origin/<base> 与 HEAD 的 merge-base
+```
+
+- **执行**：工作区须干净。在容器 `tmp/qa-repro/runs/` 下以 base SHA 建临时 detached worktree，叠加 HEAD 相对 base 的测试文件改动（按 `qa.integrity.testGlobs` 判定）并 bootstrap，两侧各运行一次 `qa.repro.command`（单次上限 30 分钟）；完成后按精确路径清理，输出 `REPRO_CLEANUP=DONE|FAILED`。
+- **命令契约**：环境变量 `XIRANG_REPRO_BUG`、`XIRANG_REPRO_TCS`（逗号分隔）、`XIRANG_REPRO_PATTERN`（BUG 与 TC 的正则或式，供运行器过滤）、`XIRANG_REPRO_SIDE=base|head`；命令须把 JUnit 写到 `$XIRANG_REPRO_REPORT`。结论只以报告为准，退出码只记录；只有 `name` 含该 BUG 或其任一 TC 的用例计入。
+- **判定**：每侧取失败 > 报错 > 跳过 > 通过，无绑定用例为 missing。HEAD 必须 passed；base failed 为 `PASS`，base error 为 `PASS_WITH_RISK`（`REPRO_BASE_ERROR`），其余为 `FAIL`。
+- **结果**：写入容器 `tmp/qa-repro/<worktree>/`，绑定 base/head SHA、测试文件摘要、TC 列表与命令；输出 `REPRO_VERDICT`、`REPRO_RESULT_FILE=` 等字段。
+
+| 代码 | 出处 | 级别 | 含义 | 处理 |
+|------|------|------|------|------|
+| `REPRO_MISSING` | verify | 阻断 | 新增 BUG 行没有复现结果，或未列 TC | 补 TC 后运行 `qa repro --bug <ID>` |
+| `REPRO_INVALID` | verify | 阻断 | 结果文件无法读取、解析，或结构与结论不可信 | 不手改结果，重跑 `qa repro` |
+| `REPRO_STALE` | verify | 阻断 | base/head SHA、测试文件摘要、TC 或命令已变化 | 最后一次提交后重跑 `qa repro` |
+| `REPRO_FAILED` | verify | 阻断 | 复现结论为 `FAIL` | 按下方 CLI 原因修复后重跑 |
+| `REPRO_COMMAND_MISSING` | 两者 | 阻断 | 有新增 BUG 行但未配置 `qa.repro.command` | 配置命令 |
+| `REPRO_DISABLED` | 两者 | 风险 | `qa.repro.enabled=false`，新增 BUG 行未经复现；CLI 直接 BLOCKED | 在报告中披露 |
+| `REPRO_BASE_ERROR` | 两者 | 风险 | base 侧以报错而非断言失败告终，可能是环境差异 | 复核报错原因 |
+| `REPRO_HEAD_NOT_PASSING` | CLI | 阻断 | HEAD 上绑定用例未全部通过 | 修复实现或用例 |
+| `REPRO_BASE_PASSED` | CLI | 阻断 | base 上也通过，用例没有复现能力 | 重写用例 |
+| `REPRO_BASE_MISSING` | CLI | 阻断 | base 侧没有绑定用例结果（被跳过或未运行） | 修正命令过滤或用例名 |
+| `REPRO_BUG_UNKNOWN` / `REPRO_WORKTREE_DIRTY` | CLI | 阻断 | HEAD 设计中无该 BUG 或未列 TC；工作区不干净 | 登记并提交后重跑 |
+| `REPRO_HEAD_MOVED` / `REPRO_BOOTSTRAP_FAILED` / `REPRO_OVERLAY_INVALID` | CLI | 阻断 | 复现期间 HEAD 变化；临时 worktree 依赖准备失败；测试文件路径越界 | 按明细修复后重跑 |
+| `REPRO_CLEANUP_FAILED` | CLI | FAILED | 临时目录清理失败，输出 `REPRO_CLEANUP_PATH=` | 核实归属后手工 `git worktree remove --force` 与 `prune` |
+
+- **输出**：`REPRO_GATE=PASS|PASS_WITH_RISK|BLOCKED|SKIPPED`、`DEFECT_REPRO=<通过>/<新增总数>`、`NEW_DEFECTS`（来源为 `qa-*` 的新增 BUG 行数），逐条 `REPRO_BLOCK=` / `REPRO_RISK=`（各最多 60 行）；摘要写入回执 `repro` 字段。
+- **配置**：`qa.repro.enabled` 默认 `true`，`command` 默认空（无新增 BUG 行时不阻断）；未知键 `REPRO_CONFIG_INVALID` fail-closed。
+- **局限**：只证明绑定用例在缺陷版本上失败；base 侧报错只记风险，复现的是不是同一个缺陷仍由评审确认。
+
 ---
 
 ## 测试策略与覆盖
@@ -665,11 +708,13 @@ pnpm run qa:verify -- --project         # project 模式
 pnpm agent -- qa verify --no-module --reason "<理由>"   # 确实不涉及 QA 模块时显式放行，记为风险
 pnpm agent -- qa integrity check        # 测试完整性预检（qa verify 也会执行）
 pnpm agent -- qa integrity waive --path <file> --code <code> --reason "<理由>"  # 生成豁免行，写入任务证据
+pnpm agent -- qa repro --bug <BUG-ID>   # 缺陷复现：base 失败、HEAD 通过（qa verify 只读结果）
 
 # 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
 pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步骤、专家与章节（只读）
 pnpm agent -- qa paths                  # 校验原子 AC 与 PATHS.md，输出覆盖矩阵（只读）
 pnpm agent -- qa run                    # 在最后一次提交之后运行业务测试套件并写入结果
+pnpm agent -- qa run --repeat 3         # 连跑 N 轮逐用例比对，输出 FLAKY / FLAKY_RATE
 
 # 合并
 pnpm run qa:merge                       # session 模式

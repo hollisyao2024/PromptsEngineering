@@ -40,6 +40,19 @@ function detailLines(results, openIds) {
   return lines;
 }
 
+// 多轮运行（G6）的摘要与不稳定明细；旧结果没有 repeat 段时不输出。
+// FLAKY_CASE=<套件>|<必需优先级或 ->|<各轮状态>|<用例名>；FLAKY_SUITE=<套件>|<各轮套件状态>。
+function repeatLines(repeat) {
+  if (!repeat) return [];
+  return [
+    `REPEAT_RUNS=${repeat.runs}`,
+    `FLAKY=${repeat.summary.flaky}`,
+    `FLAKY_RATE=${repeat.summary.rate.toFixed(4)}`,
+    ...repeat.flaky.map((item) => `FLAKY_CASE=${item.suite}|${item.priorities.join(',') || '-'}|${item.statuses.join(',')}|${oneLine(item.name)}`),
+    ...repeat.unstable_suites.map((item) => `FLAKY_SUITE=${item.name}|${item.statuses.join(',')}`),
+  ];
+}
+
 function formatRunReport(outcome) {
   const lines = [
     `STATUS=${outcome.status}`,
@@ -74,6 +87,7 @@ function formatRunReport(outcome) {
       `PATH_TOTAL=${paths.total}`,
       `PATH_PASSED=${paths.passed}`,
     );
+    lines.push(...repeatLines(results.repeat));
     if (results.unknown_ids.length > 0) lines.push(`UNKNOWN_IDS=${results.unknown_ids.join(',')}`);
   }
   lines.push(...outcome.acOpen.map((item) => `AC_OPEN=${item.id}|${item.priority}|${item.state}|${oneLine(item.reason)}`));

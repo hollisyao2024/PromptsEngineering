@@ -33,7 +33,12 @@
     "business": {
       "enabled": false,
       "requiredPriorities": ["P0"],
+      "repeat": 1,
       "suites": []
+    },
+    "repro": {
+      "enabled": true,
+      "command": ""
     },
     "design": {
       "mode": "warn",
