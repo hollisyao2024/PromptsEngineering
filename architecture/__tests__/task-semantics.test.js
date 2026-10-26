@@ -41,7 +41,7 @@ test('installed stores keep the original Task example bytes and do not conflict'
   put(f,init,legacy(engine));
   const p=plan(f,config);assert.deepEqual(p.conflicts,[],engine);applyPlan(p,{runRoot:f.runRoot});
   assert.equal(read(f,init),legacy(engine));
-  assert.match(read(f,store+'/prisma/schema.prisma'),/model Task \{\n  id        String   @id/);assert.doesNotMatch(read(f,store+'/prisma/schema.prisma'),/@@map\("task"\)/);
+  assert.match(read(f,store+'/prisma/schema.prisma'),/model Task \{\r?\n  id        String   @id/);assert.doesNotMatch(read(f,store+'/prisma/schema.prisma'),/@@map\("task"\)/);
   assert.match(read(f,'apps/api/src/tasks.ts'),/deleteMany/);
   assert.equal(plan(f,config).changes.length,0);
  }

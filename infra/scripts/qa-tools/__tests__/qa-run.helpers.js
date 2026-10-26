@@ -331,6 +331,7 @@ module.exports = {
   symlinkOrSkip,
   createScenario,
   startHungSuite,
+  withinCeiling,
   expectBlocked,
   provingSuites,
   expectNotProven,

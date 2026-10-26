@@ -35,10 +35,17 @@ function groupAlive(pid) {
   }
 }
 
+// Windows 没有进程组信号：taskkill /T /F 按父子关系强制结束整棵进程树。
+// taskkill 失败（树已退出时也会报“找不到进程”）不抛出，交给 exit 事件收尾。
+function killTreeWindows(pid) {
+  const result = spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+  return !result.error;
+}
+
 // 先发 signal 并给 graceMs 的宽限，仍有成员存活再 SIGKILL，最后确认进程组已空。
 async function terminateProcessGroup(pid, signal, graceMs) {
   if (IS_WINDOWS) {
-    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    killTreeWindows(pid);
     return;
   }
   signalGroup(pid, signal);
@@ -63,6 +70,9 @@ function runCommand({ command, cwd, env, shell, timeoutMs, killGraceMs, controll
       if (terminating || !child || child.pid === undefined) return;
       terminating = terminateProcessGroup(child.pid, signal, killGraceMs);
     };
+    // Windows 上 taskkill /F 强杀的进程以退出码 1 结束，看起来像套件自己失败；
+    // 由本模块终止时改记为 POSIX 被信号终止的形态（exitCode=null），与其他平台的结果一致。
+    const forcedOnWindows = () => IS_WINDOWS && terminating !== null;
 
     const complete = async () => {
       if (done) return;
@@ -95,14 +105,17 @@ function runCommand({ command, cwd, env, shell, timeoutMs, killGraceMs, controll
       complete();
     });
     child.once('exit', (exitCode, signal) => {
-      observed.exitCode = exitCode;
-      observed.signal = signal;
+      const forced = forcedOnWindows();
+      observed.exitCode = forced ? null : exitCode;
+      observed.signal = forced ? 'SIGKILL' : signal;
       complete();
     });
     controller.current = {
       terminate,
       kill: () => {
-        if (!IS_WINDOWS && child.pid !== undefined) signalGroup(child.pid, 'SIGKILL');
+        if (child.pid === undefined) return;
+        if (IS_WINDOWS) killTreeWindows(child.pid);
+        else signalGroup(child.pid, 'SIGKILL');
       },
     };
     timer = setTimeout(() => {

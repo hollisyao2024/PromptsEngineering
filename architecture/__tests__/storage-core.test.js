@@ -35,3 +35,8 @@ test('storage source module loads as declared ESM without module-type reparsing'
   assert.equal(result.status,0,result.stderr);
   assert.doesNotMatch(result.stderr,/MODULE_TYPELESS_PACKAGE_JSON/);
 });
+test('POSIX storage directories with group or other access are rejected',{skip:process.platform==='win32'&&'Windows permissions are ACLs; stat() mode bits are synthetic'},async t=>{
+  const {createLocalProvider}=await core();const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'xirang-storage-mode-')));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const directory=path.join(root,'objects');await fs.mkdir(directory,{mode:0o700});await fs.chmod(directory,0o755);
+  await assert.rejects(()=>createLocalProvider({directory}),e=>e.code==='CONFIGURATION'&&/0700/.test(e.message));
+});

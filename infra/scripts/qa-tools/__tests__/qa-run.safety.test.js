@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { junitReport } = require('./fixtures/business-testing/builders');
+const { runBusinessSuites } = require('../qa-run');
 const {
   WEB_CASES,
   fieldsOf,
@@ -20,6 +21,7 @@ const {
   reap,
   runCli,
   startCli,
+  withinCeiling,
   symlinkOrSkip,
   createScenario,
   expectBlocked,
@@ -279,7 +281,12 @@ test('--help 打印用法并以 0 退出，不运行任何套件', () => {
 
 // ---------------------------------------------------------------- 中断
 
-test('运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启动后续套件', async () => {
+// Windows 上 child.kill('SIGINT') 实为 TerminateProcess：CLI 的信号处理器不会运行，套件进程树被遗留，
+// 且孤儿进程持有 CLI 的 stdio 管道，close 事件永不触发、用例无限挂起。中断路径由下方进程内用例在各平台覆盖。
+const CLI_SIGNAL_UNSUPPORTED = process.platform === 'win32'
+  && 'Windows 无法从外部向子进程投递可捕获的 SIGINT（TerminateProcess），由进程内中断用例覆盖';
+
+test('运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启动后续套件', { skip: CLI_SIGNAL_UNSUPPORTED }, async () => {
   const s = createScenario();
   let pids = null;
   try {
@@ -302,6 +309,41 @@ test('运行中收到 SIGINT 时终止整棵进程树、不写结果、不再启
     assert.deepEqual(s.markers(), [], '被中断后不得启动后续套件');
   } finally {
     reap(pids);
+    s.cleanup();
+  }
+});
+
+// 进程内调用库注册的 SIGINT 处理器（不经 process.emit，避免触发测试框架自身的终止处理器），
+// 各平台都验证中断会终止整棵进程树：POSIX 走进程组信号，Windows 走 taskkill /T /F。
+test('库接口的 SIGINT 处理器终止整棵进程树、不写结果、不再启动后续套件，并在返回后移除处理器', async () => {
+  const s = createScenario();
+  const before = new Set(process.listeners('SIGINT'));
+  const added = () => process.listeners('SIGINT').filter((handler) => !before.has(handler));
+  let pids = null;
+  let running = null;
+  try {
+    const pidFile = path.join(s.aux, 'stuck.pids');
+    s.configure([
+      s.hang('stuck', { platform: 'web', pidFile, timeoutSeconds: 120 }),
+      s.suite('after', { platform: 'web', cases: WEB_CASES }),
+    ]);
+
+    running = runBusinessSuites(s.libraryOptions({ handleSignals: true }));
+    pids = await waitForPids(pidFile);
+    const handlers = added();
+    assert.equal(handlers.length, 1, '运行期间库应注册且只注册一个 SIGINT 处理器');
+    handlers[0]('SIGINT');
+    const outcome = await withinCeiling(running, '库在收到 SIGINT 后没有结束套件运行');
+
+    assert.equal(outcome.status, 'FAILED', outcome.summary);
+    assert.equal(outcome.reason, 'INTERRUPTED', outcome.summary);
+    await assertAllDead(pids);
+    assert.equal(s.results().code, 'RESULTS_MISSING', '被中断的运行不得留下结果');
+    assert.deepEqual(s.markers(), [], '被中断后不得启动后续套件');
+    assert.deepEqual(added(), [], '运行结束后应移除信号处理器');
+  } finally {
+    reap(pids);
+    if (running) await withinCeiling(running, '库没有结束套件运行').catch(() => {});
     s.cleanup();
   }
 });

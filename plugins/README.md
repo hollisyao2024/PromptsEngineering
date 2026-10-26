@@ -4,7 +4,7 @@
 
 `xirang/` 是自包含的 `0.1.2` 插件；Claude Code 与 OpenAI portable 清单共享四个技能及包内资源。根目录的两个 marketplace 文件负责发现，不写入已有项目的模板分发清单。
 
-维护者使用 Node、Git、`zip`、`unzip` 验证与打包。消费者运行项目探测器只需要 Node 和可用的 Git，不需要打包工具。
+维护者使用 Node、Git、`zip`（Windows 改用系统自带 `tar.exe`）、`unzip` 验证与打包。消费者运行项目探测器只需要 Node 和可用的 Git，不需要打包工具。
 
 ```bash
 pnpm agent -- test --file plugins/__tests__/inspect-project.test.cjs -- node --test

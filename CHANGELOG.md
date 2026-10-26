@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.13.2] - 2026-10-26
+
+- 修复 Windows 全量测试：qa run 按进程树终止、ESM file URL、release 链接替换、插件打包改用 tar.exe 等。
+
 ## [v3.13.1] - 2026-10-26
 
 - 修复 Windows CRLF 检出下 contracts `generate.mjs --check` 误报漂移，仅换行差异不再视为生成漂移。
