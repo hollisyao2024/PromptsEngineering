@@ -295,20 +295,29 @@ test('PRD 示例与 TEST-DESIGN 模板放进同一个项目，设计门禁只剩
 const QA_SUBAGENTS = ['.claude/agents/xirang-qa-designer.md', '.claude/agents/xirang-qa-redteam.md'];
 
 // 只解析本测试需要的扁平 `key: value` frontmatter；子代理文件不使用嵌套 YAML。
+// Windows core.autocrlf=true 会把工作区检出为 CRLF，先归一化为 LF 再匹配。
 function frontmatterOf(file, content) {
-  const match = /^---\n([\s\S]*?)\n---\n/u.exec(content);
+  const normalized = content.replace(/\r\n/gu, '\n');
+  const match = /^---\n([\s\S]*?)\n---\n/u.exec(normalized);
   assert.ok(match, `${file} 必须以 YAML frontmatter 开头`);
   const fields = {};
   for (const line of match[1].split('\n')) {
     const colon = line.indexOf(':');
     if (colon > 0) fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
   }
-  return { fields, body: content.slice(match[0].length) };
+  return { fields, body: normalized.slice(match[0].length) };
 }
 
 function toolList(value) {
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
+
+test('frontmatterOf 兼容 CRLF 检出：Windows core.autocrlf=true 时仍能解析字段与正文', () => {
+  const { fields, body } = frontmatterOf('crlf.md', '---\r\nname: x\r\ndescription: y\r\n---\r\nbody\r\n');
+  assert.equal(fields.name, 'x');
+  assert.equal(fields.description, 'y');
+  assert.equal(body, 'body\n');
+});
 
 test('盲测子代理没有任何工具：材料包由主代理内联传入，只返回表格行', () => {
   // 盲测唯一的程序级约束：子代理拿不到 Read/Grep/Glob/Bash，就读不到源码。
