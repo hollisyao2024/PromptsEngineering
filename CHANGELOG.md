@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.16.3] - 2026-10-27
+
+- 修复 Windows CRLF 检出下 business-templates 子代理 frontmatter 测试误报失败。
+
 ## [v3.16.2] - 2026-10-27
 
 - 模板禁止大模型署名：settings 关闭 attribution，tdd push 与 qa merge 剔除 Claude/ChatGPT/Codex 署名行。
