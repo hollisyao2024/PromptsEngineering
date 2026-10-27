@@ -5,6 +5,21 @@ const assert = require('node:assert/strict');
 
 const { resolveCommand } = require('../agent-cli');
 
+// qa 帮助行的完整有序子命令清单。新增子命令只在末尾追加一行，
+// 断言行保持不变，避免 qa integrity 把每次扩展判为“断言被改写”。
+const QA_HELP_SUBCOMMANDS = Object.freeze([
+  'plan',
+  'automate',
+  'paths',
+  'run',
+  'verify',
+  'merge',
+  'integrity',
+  'design',
+  'repro',
+  'mutate',
+]);
+
 test('unified agent CLI routes stable workflow commands', () => {
   assert.deepEqual(resolveCommand(['task', 'resume', '--auto']), {
     script: 'infra/scripts/agent-runner/agent-task.js',
@@ -207,7 +222,9 @@ test('unified agent CLI routes qa paths and qa run to the business-test entries 
   } finally {
     console.log = originalLog;
   }
-  assert.match(lines.join('\n'), /qa <plan\|automate\|paths\|run\|verify\|merge\|integrity\|design\|repro\|mutate>/u);
+  // 帮助里有且只有一行 qa 用法，且须与完整有序清单逐字相等。
+  const qaUsage = lines.join('\n').split('\n').map((line) => line.trim()).filter((line) => line.startsWith('qa <'));
+  assert.deepEqual(qaUsage, [`qa <${QA_HELP_SUBCOMMANDS.join('|')}>`]);
 });
 
 test('unified agent CLI help points Windows callers at the direct node entry for fragile arguments', () => {
