@@ -63,3 +63,12 @@ test('squash commit summary ignores HTML comment marker lines', () => {
   });
   assert.equal(message, 'fix: marked (#8)\n\n- real point');
 });
+
+test('squash commit summary drops model attribution lines', () => {
+  const message = buildCommitMessage({
+    number: 9,
+    title: 'fix: signed',
+    body: '### 概要\n- real point\n- Co-Authored-By: Claude <noreply@anthropic.com>\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nCo-authored-by: Codex <codex@openai.com>\n\n### 变更内容\n- abc',
+  });
+  assert.equal(message, 'fix: signed (#9)\n\n- real point');
+});

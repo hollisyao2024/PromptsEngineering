@@ -176,3 +176,8 @@ test('failure recovery protocol lives in AGENTS.md and is not duplicated in conv
   assert.doesNotMatch(agents, /CONVENTIONS\.md.*失败分类与恢复/u);
   assert.doesNotMatch(read('.codex/README.md'), /CONVENTIONS\.md#失败分类与恢复/u);
 });
+
+test('AGENTS.md forbids model attribution for every LLM in commits and PRs', () => {
+  const agents = read('AGENTS.md');
+  assert.match(agents, /不加.*Claude Code.*ChatGPT\/Codex.*署名/u);
+});

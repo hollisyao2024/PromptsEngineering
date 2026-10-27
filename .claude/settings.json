@@ -123,5 +123,11 @@
     ]
   },
 
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+
   "cleanupPeriodDays": 30
 }

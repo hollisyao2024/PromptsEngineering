@@ -3,6 +3,7 @@
  * 纯文本函数，不调用 git 或 GitHub；由 tdd-push.js 使用并重新导出。
  */
 const crypto = require('crypto');
+const { isLlmAttributionLine } = require('../shared/llm-attribution');
 
 const BRANCH_TYPE_PREFIXES = {
   feature: 'feat',
@@ -124,7 +125,7 @@ function commitBullets(commit) {
   return commit.body
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => /^[-*]\s+\S/.test(line))
+    .filter((line) => /^[-*]\s+\S/.test(line) && !isLlmAttributionLine(line))
     .map((line) => line.replace(/^[-*]\s+/, ''));
 }
 

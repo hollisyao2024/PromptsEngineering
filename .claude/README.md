@@ -42,6 +42,9 @@
 - 修改状态文件（`docs/AGENT_STATE.md`）
 - 危险命令（`rm -rf`、强制推送、硬重置）
 
+#### 🚫 不加大模型署名
+- `attribution` 的 `commit`、`pr` 置空、`sessionUrl` 关闭：Claude Code 不在提交与 PR 中写 `Co-Authored-By`、`Generated with` 或会话链接；对象写法兼容旧版本，不用 `false` 简写
+
 #### ⚠️ 需要确认的操作
 - 依赖安装（`npm install`、`pnpm install`）
 - 推送到远程（`git push`）
