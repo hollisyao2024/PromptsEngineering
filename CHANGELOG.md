@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.16.3] - 2026-10-27
+
 - 修复 Windows CRLF 检出下 business-templates 子代理 frontmatter 测试误报失败。
 
 ## [v3.16.2] - 2026-10-27
