@@ -173,3 +173,8 @@ test('team allowlist stays valid JSON with unique entries', () => {
   const allow = settings.permissions.allow;
   assert.equal(new Set(allow).size, allow.length, 'allow entries must be unique');
 });
+
+test('shipped settings disable model attribution in commits and PRs', () => {
+  assert.deepEqual(settings.attribution, { commit: '', pr: '', sessionUrl: false });
+  assert.equal(settings.includeCoAuthoredBy, undefined, 'deprecated key must not be reintroduced');
+});

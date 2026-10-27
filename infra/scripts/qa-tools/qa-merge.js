@@ -42,6 +42,7 @@ const defectBlockerCheckers = require('./check-defect-blockers');
 const { checkMergeEvidence, resolveMergeEvidenceConfig } = require('./merge-evidence');
 const { cleanupContainerStorage } = require('../worktree-tools/container-storage-cleanup');
 const { exitOnHelp } = require('../shared/cli-help');
+const { isLlmAttributionLine } = require('../shared/llm-attribution');
 const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 const {
   buildGitHubGitEnv,
@@ -428,7 +429,8 @@ function buildSquashCommitParts(pr) {
       const summaryLines = nextSection !== -1 ? rest.slice(0, nextSection) : rest.slice(0, 5);
       summary = summaryLines
         .map((l) => l.trim())
-        .filter((l) => l && !/^<!--.*-->$/.test(l))
+        // 注释标记与大模型署名行不进入 squash 提交信息。
+        .filter((l) => l && !/^<!--.*-->$/.test(l) && !isLlmAttributionLine(l))
         .join('\n');
     }
   }

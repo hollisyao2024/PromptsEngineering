@@ -14,6 +14,7 @@ const {
   sanitizeGitHubRemoteUrl,
 } = require('../shared/github-auth');
 const { createGitHubBackend, repoApiPath } = require('../shared/github-api');
+const { stripLlmAttribution } = require('../shared/llm-attribution');
 const { exitOnHelp } = require('../shared/cli-help');
 const { buildProxyEnvironment } = require('../../../tooling/xirang/system-proxy');
 const {
@@ -225,7 +226,8 @@ function loadRecordedModelReview() {
 }
 
 async function updatePrReviewSection(pr, reviewDecision, { backend, runGh: _runGh = runGh, refreshBody = (body) => body }) {
-  const nextBody = mergeReviewSectionIntoBody(refreshBody(pr.body || ''), reviewDecision);
+  // 已有 PR 描述中手工补上的大模型署名行一并剔除（AGENTS.md「GitHub 与安全」）。
+  const nextBody = stripLlmAttribution(mergeReviewSectionIntoBody(refreshBody(pr.body || ''), reviewDecision));
   if (backend.mode === 'api') {
     await backend.apiRequest('PATCH', repoApiPath(backend, `/pulls/${pr.number}`), {
       token: backend.token,

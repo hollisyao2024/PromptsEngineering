@@ -167,3 +167,27 @@ test('PR body surfaces a recorded model review decision after the Review Gate li
   const plain = buildPrBody('feat: x', { gateResult: 'skipped', reason: 'docs only', baseRef: 'origin/main' }, []);
   assert.doesNotMatch(plain, /Model-Review/u);
 });
+
+const attributedCommits = [
+  {
+    sha: 'c'.repeat(40),
+    subject: 'feat: attributed',
+    body: '- keep this point\n- Co-Authored-By: Claude <noreply@anthropic.com>\n- 🤖 Generated with [Claude Code](https://claude.com/claude-code)\n- Co-authored-by: Codex <codex@openai.com>',
+  },
+];
+
+test('PR summary drops model attribution bullets from commit bodies', () => {
+  const body = buildPrBody('feat: attributed', reviewDecision, attributedCommits);
+  assert.match(body, /### 概要\n- keep this point\n\n### 变更内容/u);
+  assert.doesNotMatch(body, /Co-Authored-By|Generated with|anthropic|openai/iu);
+});
+
+test('existing PR body loses manually added model attribution lines on refresh', async () => {
+  const old = `### 概要\n- hand written\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n### Review Gate\n- Gate-Result: old\n\n### 语义审查\n- manual note\n\nCo-authored-by: ChatGPT <noreply@openai.com>\n`;
+  const { backend, calls } = existingPrBackend(old);
+  await ensurePullRequest({ branch: 'fix/x', baseBranch: 'stable', reviewDecision, backend, commits });
+  const next = calls[1].body.body;
+  assert.match(next, /- hand written/u);
+  assert.match(next, /### 语义审查\n- manual note/u);
+  assert.doesNotMatch(next, /Generated with|Co-authored-by|anthropic|openai/iu);
+});

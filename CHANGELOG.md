@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.16.2] - 2026-10-27
+
+- 模板禁止大模型署名：settings 关闭 attribution，tdd push 与 qa merge 剔除 Claude/ChatGPT/Codex 署名行。
+
 ## [v3.16.0] - 2026-10-27
 
 - 新增 qa mutate run/accept 变异门禁（默认关闭），qa verify 输出 MUTATION_* 并写回执 mutation。

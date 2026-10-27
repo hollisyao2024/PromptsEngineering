@@ -154,6 +154,7 @@ pnpm agent -- finish
 - 功能分支只有在精确 expected SHA 的 `--force-with-lease` 保护下才可清理。
 - 删除前解析并复核精确目标；失败、阻塞、等待确认和恢复态不得清理任务/worktree 状态。
 - 不记录或提交密钥、凭据、个人信息和大段原始日志。
+- 提交信息与 PR 描述不加 Claude Code、ChatGPT/Codex 等任何大模型署名（`Co-Authored-By`、`Generated with` 等）；`tdd push` 与 `qa merge` 会剔除此类行。
 
 ## 模板所有权与升级
 
