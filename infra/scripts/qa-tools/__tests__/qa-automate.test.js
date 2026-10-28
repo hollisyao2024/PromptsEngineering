@@ -142,3 +142,42 @@ test('qa automate: 模块目录不存在时列出已有模块，避免静默停�
   assert.equal(run.value('AVAILABLE_MODULES'), 'shop');
   assert.match(run.value('SUMMARY'), /docs\/prd-modules\/shopx\/ 不存在/);
 });
+
+test('qa automate --all: 一次列出全部模块的步骤，并把最早未完成的步骤作为统一下一步', (t) => {
+  const scenario = createScenario({ files: { ...SPEC_FILE, 'docs/prd-modules/admin/README.md': '# 管理后台\n' } });
+  t.after(() => scenario.cleanup());
+
+  const run = automate(scenario.project.repo, ['--all']);
+  const statuses = run.lines.filter((line) => line.startsWith('MODULE_STATUS=')).map((line) => line.slice('MODULE_STATUS='.length));
+  assert.equal(run.result.status, 0, run.result.stdout + run.result.stderr);
+  assert.equal(run.value('STATUS'), 'PENDING');
+  assert.equal(run.value('MODULES_TOTAL'), '2');
+  assert.deepEqual(statuses, ['admin|PENDING|1|ac-table', 'shop|PENDING|4|suite-config']);
+  assert.ok(run.lines.includes('STEP_MODULES=1|ac-table|admin'), run.result.stdout);
+  assert.ok(run.lines.includes('STEP_MODULES=4|suite-config|shop'), run.result.stdout);
+  assert.equal(run.value('CURRENT_STEP'), '1');
+  assert.match(run.value('ACTIVATE'), /\[\[ACTIVATE: PRD\]\]/);
+  assert.match(run.value('NEXT_ACTION'), /admin/);
+  assert.match(run.value('NEXT_ACTION'), /P0/);
+  assert.match(run.value('NEXT_ACTION'), /qa automate --all/);
+});
+
+test('qa automate --all: 还没有任何模块时提示先按需求拆分模块', (t) => {
+  const project = createProject({ 'README.md': '# 空项目\n' }, { git: true });
+  t.after(() => project.cleanup());
+
+  const run = automate(project.repo, ['--all']);
+  assert.equal(run.result.status, 0, run.result.stdout + run.result.stderr);
+  assert.equal(run.value('STATUS'), 'PENDING');
+  assert.equal(run.value('MODULES_TOTAL'), '0');
+  assert.match(run.value('NEXT_ACTION'), /模块/);
+});
+
+test('qa automate --all: 与 --module 同时给出时 BLOCKED', (t) => {
+  const project = createProject({ 'README.md': '# 空项目\n' }, { git: true });
+  t.after(() => project.cleanup());
+
+  const run = automate(project.repo, ['--all', '--module', 'shop']);
+  assert.equal(run.result.status, 2, run.result.stdout + run.result.stderr);
+  assert.equal(run.value('STATUS'), 'BLOCKED');
+});

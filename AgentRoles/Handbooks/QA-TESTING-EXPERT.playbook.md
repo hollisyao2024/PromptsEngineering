@@ -211,7 +211,7 @@ PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa pat
 → 编写并评审自动化用例（测试名携带 AC/TC 标识）→ 提交 → pnpm agent -- qa run → pnpm agent -- qa verify
 ```
 
-> 单个模块可用 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）按上述链条逐步推进，见本章「单模块编排」。
+> 单个模块可用 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）按上述链条逐步推进，见本章「单模块编排」；全部模块一次汇总用 `pnpm agent -- qa automate --all`。套件与门禁开关用 `pnpm agent -- qa setup` 一键配置，见本章「配置与使用顺序」。
 
 ### 预言机：期望值从哪里来
 
@@ -339,6 +339,20 @@ TC-USER-006 AC-USER-002-02 连续输错密码未达 5 次，提示错误且不�
 
 ### 配置与使用顺序
 
+#### 一键配置：qa setup
+
+`pnpm agent -- qa setup` 检测项目测试栈，把 qa 配置写入稀疏 `agent.config.json`，无需手写下面的 JSON：
+
+- **检测范围**：仓库根、`apps/*`、`packages/*` 的 `package.json` 依赖中的 `vitest`、`jest`（须同时有 `jest-junit`，否则输出 `MANUAL=`）、`@playwright/test`；仓库根的 `@stryker-mutator/core`、pytest（`pyproject.toml` 或 `requirements*.txt` 中出现 pytest，或存在 `pytest.ini`、`conftest.py`）。`go.mod` 只输出 `MANUAL=` 登记建议。启动前缀按锁文件选择 `pnpm exec`、`yarn`、`bunx`、`npx --no-install`、`uv run`、`poetry run` 或 `python -m`。
+- **写入内容**：每个运行器一个 `qa.business.suites` 套件，报告写 `reports/qa/<套件名>.junit.xml`（Playwright 套件的 `platform` 为 `web`，其余为 `-`）；按 vitest → jest → pytest → Playwright 的优先级生成 `qa.repro.command`；仓库根有 Stryker 时写入 `qa.mutation.enabled/command/report`。报告目录未被忽略时追加到 `.gitignore`。
+- **开关自动判定**：`qa.business.enabled` 只在规格就绪时写 `true`，条件与 `qa verify` 业务门禁对齐：有原子 AC、`qa paths` 无违规、必需优先级 auto AC 都被测试名引用、至少一个套件、AC 声明的端都有同 `platform` 套件；不满足时保持关闭并在 `GATE=business|off|<原因>` 说明（`NO_ATOMIC_AC`、`SPEC_VIOLATIONS`、`UNREFERENCED_AC`、`NO_SUITE`、`PLATFORM_SUITE_MISSING`）。复现门禁默认开启，只补 `command`；变异门禁检测到 Stryker 才开启。
+- **不覆盖项目值**：只补缺失的键；已写的值原样保留；某节显式写成 `enabled: false` 时整节跳过（`SKIP=`）。重复执行幂等：补齐规格或新增运行器后再跑一次，对应门禁会自动打开。
+- **输出**：`DETECTED=<运行器>|<目录>|<依据>`、`WRITE=<键>|<值>`、`SKIP=`、`MANUAL=`、每个门禁一行 `GATE=<门禁>|on|off|<原因>`（含 design、integrity 的当前模式）与 `RISK=`（如 `qa.design.sourceGlobs` 没匹配任何已跟踪文件）。`--dry-run` 只预演，主 worktree 上也可用；正式写入须在 linked worktree，主 worktree 阻断，模板源跳过。写入后提交 `agent.config.json` 与 `.gitignore`，再在干净工作区运行 `qa run`。
+
+检测不到运行器、或需要自定义命令时，按下文手动配置 `qa.business`。
+
+#### 手动配置
+
 在稀疏的 `agent.config.json` 里配置 `qa.business`；默认 `enabled` 为 `false`，此时 `qa verify` 的行为与输出保持不变。
 
 | 配置项 | 默认值 | 含义 |
@@ -401,10 +415,12 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | 1 | `ac-table` | `docs/prd-modules/<模块>/` 有原子 AC 表，且本模块 PRD 内无表格违规 | PRD；`PRD-WRITER-EXPERT.md`、模块模板 §3.2 |
 | 2 | `paths-model` | `docs/qa-modules/<模块>/PATHS.md` 存在，`qa paths` 无本模块违规（只有 manual AC 时免） | QA；本章「路径推导」 |
 | 3 | `test-cases` | 测试文件（`*.spec.*`/`*.test.*`）引用每条必需优先级 auto AC 的 AC ID 或其 TC | QA；本章「数据驱动用例与测试命名」 |
-| 4 | `suite-config` | `qa.business` 合法、`enabled=true`、`suites` 非空 | QA；本章「配置与使用顺序」 |
+| 4 | `suite-config` | `qa.business` 合法、`enabled=true`、`suites` 非空；可由 `pnpm agent -- qa setup` 自动完成 | QA；本章「配置与使用顺序」 |
 | 5 | `run-results` | `qa run` 结果绑定当前 HEAD、干净工作区与当前配置摘要，本模块必需优先级 auto AC 全部被证明 | QA；本章「配置与使用顺序」 |
 
 输出 `STATUS=OK|PENDING|BLOCKED`、`CURRENT_STEP=`、`EXPERT=`、`ACTIVATE=`、`READ=`、每步 `STEP=<n>|<name>|done|pending|blocked|<说明>`，以及本模块的 `VIOLATION=`、未被引用的 `UNREFERENCED_AC=` 和 `RISK=`。未完成是 `PENDING`（退出码 0）；配置非法、结果文件损坏或必需 AC 失败为 `BLOCKED`（非零）。前一步未完成时，后续步骤一律报 `pending`，防止跳步。套件不按模块登记，所以步骤 4 只检查全局配置；步骤 5 只证明本模块，其他模块的规格违规以 `RISK=SPEC_OTHER_MODULES` 提示，全局终判仍是 `qa verify` 业务门禁。
+
+`pnpm agent -- qa automate --all` 一次汇总全部模块（`docs/prd-modules/` 与 `docs/qa-modules/` 下的模块目录），复用同一份规格分析，不可与 `--module` 同用。输出 `MODULES_TOTAL=`、每模块一行 `MODULE_STATUS=<模块>|<状态>|<当前步骤号或 ->|<步骤名或 ->`、每个未完成步骤一行 `STEP_MODULES=<n>|<步骤名>|<模块列表>`，以及全部模块中最靠前的 `CURRENT_STEP=`、`EXPERT=`、`ACTIVATE=`、`READ=` 和去重后的 `VIOLATION=`、`UNREFERENCED_AC=`、`RISK=`。没有任何模块时为 `PENDING`、`MODULES_TOTAL=0`，从第 1 步开始。第 1 步待办时，一次为全部模块起草原子 AC 表，再把各模块的 P0 候选汇总给用户确认一次，不逐模块提问。任一模块 `BLOCKED` 时整体 `BLOCKED`（非零）。
 
 收到 `/qa automate <模块>` 或「把某模块的业务测试自动化做完」等自然语言时：
 
@@ -753,7 +769,9 @@ pnpm agent -- qa mutate run             # 变异门禁：只变异变更源码�
 pnpm agent -- qa mutate accept --mutant <id> --reason "<理由>"  # 等价变异体豁免行，写入任务证据
 
 # 业务测试自动化（启用 qa.business 时；详见「业务测试自动化」一章）
+pnpm agent -- qa setup [--dry-run]      # 一键配置：检测测试栈，补齐套件、复现与变异命令，就绪时开启门禁
 pnpm agent -- qa automate --module <模块>  # 单模块五步编排：当前步骤、专家与章节（只读）
+pnpm agent -- qa automate --all         # 全部模块的起草状态与当前步骤汇总（只读）
 pnpm agent -- qa paths                  # 校验原子 AC 与 PATHS.md，输出覆盖矩阵（只读）
 pnpm agent -- qa run                    # 在最后一次提交之后运行业务测试套件并写入结果
 pnpm agent -- qa run --repeat 3         # 连跑 N 轮逐用例比对，输出 FLAKY / FLAKY_RATE

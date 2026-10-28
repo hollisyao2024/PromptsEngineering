@@ -65,6 +65,8 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 |---------|---------|---------|
 | `/qa plan` | `pnpm agent -- qa plan` | `pnpm run qa:generate` |
 | `/qa automate <模块>` | `pnpm agent -- qa automate --module <模块>` | — |
+| `/qa automate --all` | `pnpm agent -- qa automate --all` | — |
+| `/qa setup` | `pnpm agent -- qa setup` | — |
 | `/qa paths` | `pnpm agent -- qa paths` | — |
 | `/qa run` | `pnpm agent -- qa run` | — |
 | `/qa verify` | `pnpm agent -- qa verify` | `pnpm run qa:verify` |
@@ -78,6 +80,8 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
   - **手动模式**：不自动串联
   - **保留边界**：只重新生成带 `QA-GENERATED` 标记的文档；`TEST-DESIGN.md`、`PATHS.md`、业务测试套件与已评审的 TC 行不会被生成或覆盖，刷新规则见 §业务测试自动化。
 - `/qa automate <模块>`：单模块业务测试自动化的编排入口。只读检查五步（1 原子 AC 表 → 2 `PATHS.md` 且 `qa paths` 无本模块违规 → 3 用例名引用必需优先级 auto AC 的 AC/TC → 4 `qa.business` 启用并登记套件 → 5 提交后 `qa run` 结果绑定当前 HEAD 且本模块必需 AC 全部通过），输出 `STATUS=OK|PENDING|BLOCKED`、`STEP=<n>|<name>|done|pending|blocked|<说明>`、`CURRENT_STEP=`、`ACTIVATE=`、`READ=`。脚本不生成 AC、PATHS 或用例；收到该命令或「把某模块的业务测试自动化做完」等自然语言时，按 Playbook §业务测试自动化「单模块编排」逐步推进。
+  - `--all`：一次汇总全部模块，输出 `MODULES_TOTAL=`、`MODULE_STATUS=<模块>|<状态>|<步骤>|<步骤名>`、`STEP_MODULES=<n>|<步骤名>|<模块列表>` 与最靠前的 `CURRENT_STEP=`；第 1 步待办时一次为全部模块起草 AC 表，再把 P0 候选汇总给用户确认一次。不可与 `--module` 同用。
+- `/qa setup`：一键配置。检测项目测试栈（根目录、`apps/*`、`packages/*` 的 Vitest、Jest+jest-junit、Playwright，仓库根的 Stryker、pytest；Jest 缺 jest-junit 与 Go 只输出 `MANUAL=` 登记建议），只补 `agent.config.json` 中缺失的 `qa.business.suites`、`qa.repro.command`、`qa.mutation.command`；规格就绪（有原子 AC、无规格违规、必需 AC 都被用例名引用、套件覆盖所需平台）才开启 `qa.business.enabled`，仓库根装了 `@stryker-mutator/core` 才开启 `qa.mutation.enabled`；显式写成 `enabled:false` 的节整节保持不动。报告目录写入 `.gitignore`。输出 `DETECTED=`、`WRITE=`、`SKIP=`、`MANUAL=`、`GATE=<门禁>|on|off|<原因>`；`--dry-run` 只预演。主 worktree 非 dry-run 阻断，模板源跳过。可重复执行，新增运行器或规格补齐后再跑一次即可自动打开对应门禁。
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
 - `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞并给出结论；裁决只有 PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，PASS_WITH_RISK 须逐条评审风险。找不到 QA 目标即阻断（`QA_TARGET_MISSING`），确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明；签发回执前同样执行测试完整性门禁（`qa integrity`，模板源也执行）与测试设计门禁（`qa design check`，模板源跳过）。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。

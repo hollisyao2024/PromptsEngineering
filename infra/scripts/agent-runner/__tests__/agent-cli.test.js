@@ -18,6 +18,7 @@ const QA_HELP_SUBCOMMANDS = Object.freeze([
   'design',
   'repro',
   'mutate',
+  'setup',
 ]);
 
 test('unified agent CLI routes stable workflow commands', () => {
