@@ -19,6 +19,7 @@ const ROUTES = new Map([
   ['tdd:guard', 'infra/scripts/tdd-tools/tdd-completion-guard.js'],
   ['qa:plan', 'infra/scripts/qa-tools/generate-qa.js'],
   ['qa:automate', 'infra/scripts/qa-tools/qa-automate.js'],
+  ['qa:setup', 'infra/scripts/qa-tools/qa-setup.js'],
   ['qa:paths', 'infra/scripts/qa-tools/qa-paths.js'],
   ['qa:run', 'infra/scripts/qa-tools/qa-run.js'],
   ['qa:verify', 'infra/scripts/qa-tools/qa-verify.js'],
@@ -151,7 +152,7 @@ Core commands:
   task <paths|context|start|checkpoint|exec|resume|extend|transition|finish|cancel>
   worktree <new|list|resume|bootstrap|remove|cancel|audit>
   tdd <sync|push|commit|review-gate|finish|guard>
-  qa <plan|automate|paths|run|verify|merge|integrity|design|repro|mutate>
+  qa <plan|automate|paths|run|verify|merge|integrity|design|repro|mutate|setup>
   template <sync|update|backfill>
   cloud <bootstrap|setup-script|doctor>
   architecture <catalog|detect|validate|plan|init|update|adopt|apply|resume|check|install-deps>

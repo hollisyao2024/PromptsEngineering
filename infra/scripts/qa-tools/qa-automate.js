@@ -33,12 +33,14 @@ const { analyzeSpec, formatViolation } = require('./qa-paths');
 
 const USAGE = [
   'Usage: pnpm agent -- qa automate --module <模块>',
+  '       pnpm agent -- qa automate --all',
   '',
+  '--all 一次检查 docs/prd-modules 与 docs/qa-modules 下的全部模块，按步骤汇总待办模块（不能与 --module 同用）。',
   '只读检查单个模块业务测试自动化的五个步骤，输出当前步骤、要激活的专家与要读的手册章节：',
   '  1 ac-table      模块 PRD §3.2 原子 AC 表（PRD 专家）',
   '  2 paths-model   docs/qa-modules/<模块>/PATHS.md 且 qa paths 无本模块违规（QA 专家）',
   '  3 test-cases    测试用例名引用每条必需优先级 auto AC 的 AC/TC 编号（QA 专家）',
-  '  4 suite-config  agent.config.json 的 qa.business 已启用并登记套件',
+  '  4 suite-config  agent.config.json 的 qa.business 已启用并登记套件（可由 pnpm agent -- qa setup 自动完成）',
   '  5 run-results   提交后 qa run 的结果绑定当前 HEAD，且本模块必需 AC 全部通过',
   '',
   '全部完成 STATUS=OK；未完成 STATUS=PENDING（退出码 0）；需先修正 STATUS=BLOCKED（非零退出）。',
@@ -85,7 +87,7 @@ const STEPS = [
     name: 'suite-config',
     expert: 'QA',
     read: `${PLAYBOOK}#配置与使用顺序`,
-    action: () => '在 agent.config.json 设置 qa.business.enabled=true 并在 qa.business.suites 登记套件（name、command、report，可选 platform）',
+    action: () => '执行 pnpm agent -- qa setup，自动登记 qa.business.suites 并在规格就绪时开启 qa.business.enabled；检测不到运行器时手动登记套件（name、command、report，可选 platform）',
   },
   {
     n: 5,
@@ -98,17 +100,21 @@ const STEPS = [
 
 function parseArgs(argv) {
   let module = '';
+  let all = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--') continue;
-    if (arg === '--module') module = argv[++index] ?? '';
+    if (arg === '--all') all = true;
+    else if (arg === '--module') module = argv[++index] ?? '';
     else if (arg.startsWith('--module=')) module = arg.slice('--module='.length);
     else if (!arg.startsWith('-') && !module) module = arg;
     else throw new Error(`未知参数：${arg}`);
   }
-  if (!module) throw new Error('缺少 --module <模块>');
+  if (all && module) throw new Error('--all 与 --module 不能同时使用');
+  if (all) return { module: '', all };
+  if (!module) throw new Error('缺少 --module <模块>（或用 --all 检查全部模块）');
   if (!MODULE_PATTERN.test(module)) throw new Error(`模块名「${module}」不合法：只允许字母、数字、下划线与连字符`);
-  return { module };
+  return { module, all };
 }
 
 function git(repoRoot, args) {
@@ -164,8 +170,8 @@ function referencedIds(repoRoot) {
   return ids;
 }
 
-function inspect({ repoRoot, mainRoot, config, module, exists = true }) {
-  const analysis = analyzeSpec({ repoRoot });
+// --all 时规格分析与用例扫描对全部模块只算一次，由调用方注入 analysis 与 referenced。
+function inspect({ repoRoot, mainRoot, config, module, exists = true, analysis = analyzeSpec({ repoRoot }), referenced = null }) {
   const business = resolveBusinessConfig(config);
   const required = new Set(business.requiredPriorities);
   const acs = analysis.spec.acs.filter((ac) => ac.domain === module);
@@ -195,8 +201,8 @@ function inspect({ repoRoot, mainRoot, config, module, exists = true }) {
   extra.push(...[...prdViolations, ...pathsViolations].map(formatViolation));
 
   // 步骤 3：必需优先级 auto AC 全部被用例引用；其余 auto AC 未引用只披露为风险。
-  const referenced = referencedIds(repoRoot);
-  const isReferenced = (ac) => referenced.has(ac.id) || ac.tcs.some((tc) => referenced.has(tc));
+  const ids = referenced || referencedIds(repoRoot);
+  const isReferenced = (ac) => ids.has(ac.id) || ac.tcs.some((tc) => ids.has(tc));
   const missing = requiredAuto.filter((ac) => !isReferenced(ac));
   if (acs.length === 0) states.push(['pending', '等待原子 AC']);
   else if (missing.length > 0) states.push(['pending', `${missing.length} 条必需优先级 auto AC 没有用例引用`]);
@@ -280,24 +286,100 @@ function formatReport({ module, inspection, resolution = null }) {
     ...extra,
     ...risks,
   ];
-  return { status, lines };
+  return { status, step: current, lines };
+}
+
+// --all 汇总：每个模块一行 MODULE_STATUS，再按步骤列出停在该步的模块；当前步骤取最早未完成的一步，
+// 让模型一次处理同一步的全部模块（例如一次为所有模块起草 AC 表、一次汇总 P0 候选给用户确认）。
+function formatAll({ reports, requiredPriorities }) {
+  if (reports.length === 0) {
+    return {
+      status: 'PENDING',
+      lines: [
+        'STATUS=PENDING',
+        `SUMMARY=${PRD_MODULES_DIR}/ 与 ${QA_MODULES_DIR}/ 下没有模块目录`,
+        `NEXT_ACTION=先按需求在 ${PRD_MODULES_DIR}/ 下拆分模块目录（每个功能域一个目录），再执行 pnpm agent -- qa automate --all`,
+        'MODULES_TOTAL=0',
+        'CURRENT_STEP=1',
+        `EXPERT=${STEPS[0].expert}`,
+        `ACTIVATE=[[ACTIVATE: ${STEPS[0].expert}]]`,
+        `READ=${STEPS[0].read}`,
+      ],
+    };
+  }
+  const counts = { OK: 0, PENDING: 0, BLOCKED: 0 };
+  for (const { report } of reports) counts[report.status] += 1;
+  const status = counts.BLOCKED > 0 ? 'BLOCKED' : counts.PENDING > 0 ? 'PENDING' : 'OK';
+  const byStep = STEPS.map((step) => ({ step, modules: reports.filter(({ report }) => report.step === step).map(({ module }) => module) }));
+  const current = byStep.find((item) => item.modules.length > 0) || null;
+
+  let nextAction;
+  if (!current) {
+    nextAction = 'NEXT_ACTION=走项目自身的 TDD/QA 合并链（tdd sync → tdd push → qa plan → qa verify → qa merge），由 qa verify 业务门禁做全局终判';
+  } else if (current.step.n === 1) {
+    const list = current.modules.join(',');
+    nextAction = `NEXT_ACTION=激活 PRD 专家，一次为 ${list} 起草原子 AC 表（${PRD_MODULES_DIR}/<模块>/PRD.md §3.2），把必需优先级（${requiredPriorities.join('/')}）候选汇总给用户一次确认后写入；完成后重新执行 pnpm agent -- qa automate --all`;
+  } else {
+    nextAction = `NEXT_ACTION=${current.step.action('<模块>')}；涉及模块：${current.modules.join(',')}；完成后重新执行 pnpm agent -- qa automate --all`;
+  }
+  // 各模块的违规与风险行合并去重；“其他模块有违规”在 --all 下已逐模块列出，不再重复提示。
+  const details = new Set();
+  for (const { report } of reports) {
+    for (const line of report.lines) {
+      if (/^(VIOLATION|UNREFERENCED_AC)=/.test(line) || (line.startsWith('RISK=') && !line.startsWith('RISK=SPEC_OTHER_MODULES'))) details.add(line);
+    }
+  }
+  return {
+    status,
+    lines: [
+      `STATUS=${status}`,
+      `SUMMARY=共 ${reports.length} 个模块：完成 ${counts.OK}、待办 ${counts.PENDING}、阻断 ${counts.BLOCKED}${current ? `；最早停在步骤 ${current.step.n}（${current.step.name}）` : ''}`,
+      nextAction,
+      `MODULES_TOTAL=${reports.length}`,
+      ...reports.map(({ module, report }) => `MODULE_STATUS=${module}|${report.status}|${report.step ? report.step.n : '-'}|${report.step ? report.step.name : '-'}`),
+      ...byStep.filter((item) => item.modules.length > 0).map((item) => `STEP_MODULES=${item.step.n}|${item.step.name}|${item.modules.join(',')}`),
+      `CURRENT_STEP=${current ? current.step.n : '-'}`,
+      `EXPERT=${current ? current.step.expert : '-'}`,
+      `ACTIVATE=${current ? `[[ACTIVATE: ${current.step.expert}]]` : '-'}`,
+      `READ=${current ? current.step.read : '-'}`,
+      ...details,
+    ],
+  };
+}
+
+function runAll({ repoRoot, config }) {
+  const mainRoot = getMainRepoRoot(repoRoot);
+  const analysis = analyzeSpec({ repoRoot });
+  const referenced = referencedIds(repoRoot);
+  const reports = listModuleDirs(repoRoot).map((module) => ({
+    module,
+    report: formatReport({ module, inspection: inspect({ repoRoot, mainRoot, config, module, analysis, referenced }) }),
+  }));
+  return formatAll({ reports, requiredPriorities: resolveBusinessConfig(config).requiredPriorities });
 }
 
 function main(argv = process.argv.slice(2)) {
   let module;
+  let all;
   try {
-    ({ module } = parseArgs(argv));
+    ({ module, all } = parseArgs(argv));
   } catch (error) {
     console.log([
       'STATUS=BLOCKED',
       `SUMMARY=${oneLine(error.message)}`,
-      'NEXT_ACTION=执行 pnpm agent -- qa automate --module <模块>，模块名取 docs/prd-modules/ 下的目录名',
+      'NEXT_ACTION=执行 pnpm agent -- qa automate --module <模块>（模块名取 docs/prd-modules/ 下的目录名）或 pnpm agent -- qa automate --all',
     ].join('\n'));
     process.exitCode = 2;
     return;
   }
   const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
   const config = loadConfig({ repoRoot });
+  if (all) {
+    const { status, lines } = runAll({ repoRoot, config });
+    console.log(lines.join('\n'));
+    process.exitCode = status === 'BLOCKED' ? 1 : 0;
+    return;
+  }
   const resolution = resolveModule(repoRoot, module);
   module = resolution.module;
   const inspection = inspect({ repoRoot, mainRoot: getMainRepoRoot(repoRoot), config, module, exists: resolution.exists });
@@ -320,4 +402,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { STEPS, formatReport, inspect, parseArgs, resolveModule };
+module.exports = { STEPS, formatAll, formatReport, inspect, listModuleDirs, parseArgs, referencedIds, resolveModule };

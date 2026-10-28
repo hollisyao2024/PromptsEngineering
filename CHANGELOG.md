@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.0] - 2026-10-28
+
+- 新增 `qa setup` 一键检测测试栈并补齐 qa 配置、就绪时自动开启门禁，`qa automate --all` 汇总全部模块进度。
+
 ## [v3.16.3] - 2026-10-27
 
 - 修复 Windows CRLF 检出下 business-templates 子代理 frontmatter 测试误报失败。

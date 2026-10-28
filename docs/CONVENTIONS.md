@@ -202,6 +202,8 @@ pnpm agent -- qa run
 
 `qa paths` 只读，校验 PRD 原子 AC 表与 `docs/qa-modules/<domain>/PATHS.md` 并输出 AC/路径追溯矩阵；`qa run` 按 `agent.config.json` 的 `qa.business.suites` 运行套件，把 JUnit XML 报告绑定到原子 AC、TC 与路径，结果写入容器 tmp。两者与 `qa verify` 业务验收门禁的关系见 §8「业务验收门禁（可选）」。
 
+`pnpm agent -- qa setup [--dry-run]` 一键配置：检测项目测试运行器，只补稀疏 `agent.config.json` 中缺失的 `qa.business.suites`、`qa.repro.command` 与 `qa.mutation.*`，规格就绪（与业务验收门禁的阻断条件对齐）时才开启 `qa.business.enabled`；显式 `enabled:false` 的节与项目已写的值保持不动，报告目录追加到 `.gitignore`。正式写入只在 linked worktree 执行，模板源跳过。`pnpm agent -- qa automate --all` 只读汇总全部模块的业务测试自动化进度。
+
 ### 客户端与服务端快捷命令
 
 用户快捷命令与模板稳定入口如下；执行命令从模板默认配置与目标项目稀疏 `agent.config.json` 的合并结果读取，项目可在任意叶级覆盖：
