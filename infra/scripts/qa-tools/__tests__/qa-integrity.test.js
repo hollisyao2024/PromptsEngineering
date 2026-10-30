@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -81,6 +82,16 @@ function run(t, baseFiles, changes, options = {}) {
 }
 
 const codes = (items) => items.map((item) => item.code);
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
+
+// 夹具 lock：与 tooling/xirang/engine.js 的写法一致，每条记录的 base 是上游 LF 内容的 sha256。
+function lockOf(files) {
+  const records = Object.fromEntries(Object.entries(files).map(([file, content]) => [
+    file,
+    { owner: 'xirang:agent', version: '1', strategy: 'overwrite', base: sha256(content) },
+  ]));
+  return `${JSON.stringify({ schemaVersion: 1, files: records, packages: {} }, null, 2)}\n`;
+}
 
 const JS_BASE = [
   "const test = require('node:test');",
@@ -283,6 +294,97 @@ test('buildWaiver only accepts a current, waivable finding with a reason', (t) =
   assert.throws(() => buildWaiver({ ...base, path: 'src/a.test.js', code: 'TEST_ONLY_ADDED', reason: 'x' }), /不可豁免/u);
   assert.throws(() => buildWaiver({ ...base, path: 'src/a.test.js', code: 'TEST_FILE_DELETED', reason: 'x' }), /没有.*TEST_FILE_DELETED/u);
   assert.throws(() => buildWaiver({ ...base, path: 'src/a.test.js', code: 'TEST_CASES_DECREASED', reason: '  ' }), /--reason/u);
+});
+
+test('template-synced changes that match the xirang.lock.json baselines on both sides are risks, not blocks', (t) => {
+  const fewerAsserts = JS_BASE.replace('  assert.equal(add(0, 0), 0);\n', '');
+  const skipped = JS_BASE.replace("test('subtracts'", `${IT_SKIP}('subtracts'`);
+  const focused = `${IT_ONLY}('x', () => {\n  assert.ok(true);\n});\n`;
+  const rewritten = JS_BASE.replace('assert.equal(add(1, 2), 3);', 'assert.equal(add(1, 2), 4);');
+  const baseTests = { 'a.test.js': JS_BASE, 'b.test.js': JS_BASE, 'c.test.js': JS_BASE, 'e.test.js': JS_BASE };
+  const { result } = run(t, { ...baseTests, 'xirang.lock.json': lockOf(baseTests) }, {
+    'a.test.js': fewerAsserts,
+    'b.test.js': null,
+    'c.test.js': skipped,
+    // CRLF 检出的上游文件：lock 记录 LF 内容的摘要，判定须按 engine.js 的 verifiedText 规则归一。
+    'd.test.js': focused.replace(/\n/gu, '\r\n'),
+    'e.test.js': rewritten,
+    'xirang.lock.json': lockOf({ 'a.test.js': fewerAsserts, 'c.test.js': skipped, 'd.test.js': focused, 'e.test.js': rewritten }),
+  });
+  assert.equal(result.status, 'PASS_WITH_RISK');
+  assert.deepEqual(result.blocks, []);
+  assert.equal(result.templateSynced, 5);
+  assert.deepEqual(result.risks.map((item) => `${item.code}|${item.path}`).sort(), [
+    'TEST_ASSERTS_DECREASED|a.test.js',
+    'TEST_EXPECTATION_CHANGED|e.test.js',
+    'TEST_FILE_DELETED|b.test.js',
+    'TEST_ONLY_ADDED|d.test.js',
+    'TEST_SKIP_ADDED|c.test.js',
+  ]);
+  assert.ok(result.risks.every((item) => /模板同步/u.test(item.detail)), '每条风险都标注来自模板同步');
+  assert.equal(integrityLines(result)[0], 'TEST_INTEGRITY=PASS_WITH_RISK FILES=5 WAIVERS=0 TEMPLATE_SYNCED=5');
+});
+
+test('a template-owned test edited locally on either side, or deleted while still locked, keeps blocking', (t) => {
+  const fewerAsserts = JS_BASE.replace('  assert.equal(add(0, 0), 0);\n', '');
+  const localExtra = `${JS_BASE}test('local', () => {\n  assert.ok(true);\n});\n`;
+  const baseTests = { 'head-edit.test.js': JS_BASE, 'base-edit.test.js': JS_BASE, 'gone.test.js': JS_BASE };
+  const { result } = run(t, {
+    ...baseTests,
+    // base 侧已有本地追加的用例，lock 仍记录上游原文：这次同步会丢掉本地用例，不能当成纯上游变化。
+    'base-edit.test.js': localExtra,
+    'xirang.lock.json': lockOf(baseTests),
+  }, {
+    // HEAD 内容与 lock 记录的上游基线不一致：断言是本地删的。
+    'head-edit.test.js': fewerAsserts,
+    'base-edit.test.js': fewerAsserts,
+    // 文件被删但 HEAD lock 仍登记它：不是模板 remove，而是本地删除。
+    'gone.test.js': null,
+    'xirang.lock.json': lockOf({ ...baseTests, 'base-edit.test.js': fewerAsserts }),
+  });
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.templateSynced, 0);
+  assert.deepEqual(result.blocks.map((item) => `${item.code}|${item.path}`).sort(), [
+    'TEST_ASSERTS_DECREASED|base-edit.test.js',
+    'TEST_ASSERTS_DECREASED|head-edit.test.js',
+    'TEST_CASES_DECREASED|base-edit.test.js',
+    'TEST_FILE_DELETED|gone.test.js',
+  ]);
+  assert.equal(integrityLines(result)[0], 'TEST_INTEGRITY=BLOCKED FILES=3 WAIVERS=0');
+});
+
+test('a missing, malformed or wrong-schema lock leaves the original verdict unchanged', (t) => {
+  const fewerAsserts = JS_BASE.replace('  assert.equal(add(0, 0), 0);\n', '');
+  const goodBase = lockOf({ 'a.test.js': JS_BASE });
+  const goodHead = lockOf({ 'a.test.js': fewerAsserts });
+  const wrongSchema = JSON.stringify({ schemaVersion: 2, files: JSON.parse(goodHead).files, packages: {} });
+  const badDigest = JSON.stringify({ schemaVersion: 1, files: { 'a.test.js': { owner: 'xirang:agent', strategy: 'overwrite', base: 'nothex' } }, packages: {} });
+  for (const [label, baseLock, headLock] of [
+    ['no lock', undefined, undefined],
+    ['head lock missing', goodBase, undefined],
+    ['base lock missing', undefined, goodHead],
+    ['malformed head lock', goodBase, '{not json'],
+    ['wrong schema', goodBase, wrongSchema],
+    ['invalid digest', goodBase, badDigest],
+  ]) {
+    const base = { 'a.test.js': JS_BASE, ...(baseLock ? { 'xirang.lock.json': baseLock } : {}) };
+    const head = { 'a.test.js': fewerAsserts, ...(headLock ? { 'xirang.lock.json': headLock } : {}) };
+    const { result } = run(t, base, head);
+    assert.equal(result.status, 'BLOCKED', label);
+    assert.equal(result.templateSynced, 0, label);
+    assert.deepEqual(codes(result.blocks), ['TEST_ASSERTS_DECREASED'], label);
+  }
+});
+
+test('buildWaiver refuses a template-synced finding because it is already a risk', (t) => {
+  const { repo, baseSha, headSha } = makeRepo(t, { 'a.test.js': JS_BASE, 'xirang.lock.json': lockOf({ 'a.test.js': JS_BASE }) }, {
+    'a.test.js': null,
+    'xirang.lock.json': lockOf({}),
+  });
+  assert.throws(() => buildWaiver({
+    cwd: repo, baseSha, headSha, integrity: integrity(),
+    path: 'a.test.js', code: 'TEST_FILE_DELETED', reason: '上游删除',
+  }), /模板同步.*无需豁免/u);
 });
 
 test('integrityLines prints the summary first, then blocks, then risks', () => {
