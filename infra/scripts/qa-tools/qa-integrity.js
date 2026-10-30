@@ -7,12 +7,16 @@
  * 对比 base..HEAD 中匹配 qa.integrity.testGlobs 的测试文件：
  * - 新增 skip/only、删除测试文件、用例数或断言数下降 → 阻断（enforce）或风险（warn）；
  * - 已有断言行被改写 → 风险 TEST_EXPECTATION_CHANGED（预期值变化须人工复核出处）；
- * - 删除/下降类发现可用 `qa integrity waive` 生成绑定文件 blob 的豁免行，写入当前任务证据后降为风险。
+ * - 删除/下降类发现可用 `qa integrity waive` 生成绑定文件 blob 的豁免行，写入当前任务证据后降为风险；
+ * - 模板同步：文件在 base 与 HEAD 两侧都与各自 xirang.lock.json 记录的上游基线逐字一致时，变化只来自上游模板，
+ *   全部发现自动降为风险并标注，项目无法也不应在本地改回。
  *
- * 计数逐行进行，注释行（// # * /*）不计；正则可被刻意绕过（如 if (false)），由变异门禁兜底。
+ * 计数逐行进行，注释行（// # * /*）不计；正则可被刻意绕过（如 if (false)），由变异门禁兜底；
+ * 同理，手工改写 lock 摘要伪装模板同步属刻意绕过，不在本门禁防护范围内。
  */
 
 const path = require('path');
+const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
 const BLOCK_CODES = Object.freeze([
@@ -33,6 +37,10 @@ const PATTERN_GROUPS = Object.freeze(['skip', 'only', 'case', 'assert']);
 const WAIVER_PREFIX = 'TEST_INTEGRITY_WAIVER=';
 const BLOB_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const COMMENT_PREFIXES = ['//', '#', '*', '/*'];
+// 与 tooling/xirang/engine.js 的 LOCK 常量一致：模板同步的所有权与上游基线摘要都记在这里。
+const LOCK_FILE = 'xirang.lock.json';
+const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
+const TEMPLATE_SYNC_NOTE = '模板同步（两侧内容与 xirang.lock.json 基线一致）';
 
 function nonempty(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -227,9 +235,57 @@ function compareFile(findings, { file, beforeContent, afterContent, blob, integr
   }
 }
 
-// 原始发现（未套用模式与豁免）：每条带当前内容的 blob，删除类绑定 base 侧 blob。
+// 读取某提交的 lock 文件表；缺失、非法 JSON 或 schema 不符都返回 null，调用方据此不做模板同步判定。
+function readLockFiles(cwd, sha) {
+  const content = git(cwd, ['cat-file', 'blob', `${sha}:${LOCK_FILE}`], { allowFailure: true });
+  if (content === null) return null;
+  let lock;
+  try {
+    lock = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  if (!lock || typeof lock !== 'object' || lock.schemaVersion !== 1) return null;
+  const { files } = lock;
+  if (!files || typeof files !== 'object' || Array.isArray(files)) return null;
+  return files;
+}
+
+function lockRecord(files, file) {
+  return Object.prototype.hasOwnProperty.call(files, file) ? files[file] : null;
+}
+
+// 摘要规则同 engine.js 的 verifiedText：接受原始内容的 sha256，或（文本内容）CRLF→LF 归一后的 sha256。
+function matchesBaseline(content, record) {
+  if (!record || typeof record !== 'object' || !SHA256_PATTERN.test(record.base || '')) return false;
+  const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
+  if (digest(content) === record.base) return true;
+  if (content.includes('\0')) return false;
+  const normalized = content.replace(/\r\n/gu, '\n');
+  return normalized !== content && digest(normalized) === record.base;
+}
+
+// 模板同步判定：base 侧（文件已存在时）与 HEAD 侧都逐字等于各自 lock 记录的上游基线，删除则要求 HEAD lock 已不再登记。
+// 任一侧被本地改过、lock 缺失或损坏都返回 false，回到原判定；beforeContent/afterContent 为 null 分别表示新增/删除。
+function isTemplateSynced(locks, { from, to, beforeContent, afterContent }) {
+  if (beforeContent !== null && (locks.base === null || !matchesBaseline(beforeContent, lockRecord(locks.base, from)))) {
+    return false;
+  }
+  if (locks.head === null) return false;
+  if (afterContent === null) return lockRecord(locks.head, from) === null;
+  return matchesBaseline(afterContent, lockRecord(locks.head, to));
+}
+
+// 原始发现（未套用模式与豁免）：每条带当前内容的 blob，删除类绑定 base 侧 blob；模板同步的文件其发现带 templateSynced。
 function analyzeIntegrity({ cwd, baseSha, headSha, integrity }) {
   const findings = [];
+  const locks = { base: readLockFiles(cwd, baseSha), head: readLockFiles(cwd, headSha) };
+  const hasLock = locks.base !== null || locks.head !== null;
+  // 只为有发现的文件做同步判定；没有任何 lock（如模板源仓库）时完全跳过。
+  const collect = (fileFindings, change) => {
+    const synced = hasLock && fileFindings.length > 0 && isTemplateSynced(locks, change());
+    for (const finding of fileFindings) findings.push(synced ? { ...finding, templateSynced: true } : finding);
+  };
   let files = 0;
   for (const { letter, from, to } of diffEntries(cwd, baseSha, headSha)) {
     const fromTest = isTestFile(from, integrity);
@@ -238,19 +294,26 @@ function analyzeIntegrity({ cwd, baseSha, headSha, integrity }) {
     if (deleted) {
       if (!fromTest) continue;
       files += 1;
-      findings.push({ code: 'TEST_FILE_DELETED', path: from, detail: '测试文件被删除', blob: blobId(cwd, baseSha, from) });
+      collect(
+        [{ code: 'TEST_FILE_DELETED', path: from, detail: '测试文件被删除', blob: blobId(cwd, baseSha, from) }],
+        () => ({ from, to, beforeContent: readBlob(cwd, baseSha, from), afterContent: null }),
+      );
       continue;
     }
     if (!toTest || !['A', 'C', 'M', 'T', 'R'].includes(letter)) continue;
     files += 1;
     const added = letter === 'A' || letter === 'C' || (letter === 'R' && !fromTest);
-    compareFile(findings, {
+    const beforeContent = added ? null : readBlob(cwd, baseSha, from);
+    const afterContent = readBlob(cwd, headSha, to);
+    const fileFindings = [];
+    compareFile(fileFindings, {
       file: to,
-      beforeContent: added ? null : readBlob(cwd, baseSha, from),
-      afterContent: readBlob(cwd, headSha, to),
+      beforeContent,
+      afterContent,
       blob: blobId(cwd, headSha, to),
       integrity,
     });
+    collect(fileFindings, () => ({ from, to, beforeContent, afterContent }));
   }
   return { files, findings };
 }
@@ -287,15 +350,21 @@ function statusOf(blocks, risks) {
   return risks.length > 0 ? 'PASS_WITH_RISK' : 'PASS';
 }
 
-// 判定：豁免只对“同路径、同代码、同 blob”的发现生效；warn 模式把所有阻断降为风险。
+// 判定：模板同步的发现一律降为风险并标注；豁免只对“同路径、同代码、同 blob”的发现生效；warn 模式把所有阻断降为风险。
 function evaluateIntegrity({ cwd, baseSha, headSha, integrity, waiverRecords = [] }) {
   const { files, findings } = analyzeIntegrity({ cwd, baseSha, headSha, integrity });
   const { waivers, invalid } = parseWaivers(waiverRecords);
   const blocks = [];
   const risks = [];
   let waived = 0;
+  let templateSynced = 0;
   for (const finding of findings) {
     const item = { code: finding.code, path: finding.path, detail: finding.detail };
+    if (finding.templateSynced) {
+      templateSynced += 1;
+      risks.push({ ...item, detail: `${item.detail}；${TEMPLATE_SYNC_NOTE}` });
+      continue;
+    }
     if (RISK_CODES.includes(finding.code)) {
       risks.push(item);
       continue;
@@ -314,13 +383,15 @@ function evaluateIntegrity({ cwd, baseSha, headSha, integrity, waiverRecords = [
   if (integrity.mode === 'warn') {
     risks.push(...blocks.splice(0));
   }
-  return { status: statusOf(blocks, risks), files, blocks, risks, waivers: waived };
+  return { status: statusOf(blocks, risks), files, blocks, risks, waivers: waived, templateSynced };
 }
 
 function integrityLines(result) {
   const field = (text) => String(text).replace(/\s*[\r\n]+\s*/gu, ' ');
+  // TEMPLATE_SYNCED 只在有模板同步发现时追加，既有解析方读到的首行格式不变。
+  const synced = result.templateSynced > 0 ? ` TEMPLATE_SYNCED=${result.templateSynced}` : '';
   return [
-    `TEST_INTEGRITY=${result.status} FILES=${result.files} WAIVERS=${result.waivers}`,
+    `TEST_INTEGRITY=${result.status} FILES=${result.files} WAIVERS=${result.waivers}${synced}`,
     ...result.blocks.map((item) => `TEST_INTEGRITY_BLOCK=${item.code}|${item.path}|${field(item.detail)}`),
     ...result.risks.map((item) => `TEST_INTEGRITY_RISK=${item.code}|${item.path}|${field(item.detail)}`),
   ];
@@ -335,6 +406,7 @@ function buildWaiver({ cwd, baseSha, headSha, integrity, path: file, code, reaso
   const { findings } = analyzeIntegrity({ cwd, baseSha, headSha, integrity });
   const finding = findings.find((item) => item.path === file && item.code === code);
   if (!finding) throw new Error(`当前 diff 中没有 ${file} 的 ${code} 发现，无需豁免`);
+  if (finding.templateSynced) throw new Error(`${file} 的 ${code} 来自${TEMPLATE_SYNC_NOTE}，已自动降为风险，无需豁免`);
   const waiver = { path: file, code, blob: finding.blob, reason: reason.trim() };
   return { line: `${WAIVER_PREFIX}${JSON.stringify(waiver)}`, waiver };
 }
@@ -444,6 +516,8 @@ if (require.main === module) {
     'Added skip/only markers, deleted test files and fewer cases or assertions block;',
     'rewritten assertion lines are reported as risks. waive prints a blob-bound waiver line',
     `for ${WAIVABLE_CODES.join('|')} that must be recorded in the current task evidence.`,
+    `Changes whose content matches the ${LOCK_FILE} baselines on both sides are template syncs`,
+    'and are reported as risks (TEMPLATE_SYNCED=<n>) without a waiver.',
   ].join('\n'));
   let outcome;
   try {

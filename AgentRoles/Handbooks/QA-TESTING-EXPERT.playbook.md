@@ -499,7 +499,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `QA_ARGS_INVALID` | BLOCKED | 参数不合法：`--no-module` 未带 `--reason`、`--reason` 单独使用，或 `--no-module` 与 `--module` 同用 | 按用法修正参数后重跑 `qa verify` |
 | `QA_TARGET_MISSING` | BLOCKED | 未识别到当前会话的 QA 目标，不再按无事可做放行 | 用 `--module <name>` 指定；确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明 |
 | `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误，裁决为 BLOCKED | 修复上方列出的错误后重跑 `qa verify` |
-| `TEST_INTEGRITY_BLOCKED` | BLOCKED | 测试完整性门禁未通过，具体原因见 `TEST_INTEGRITY_BLOCK=` 行（§测试完整性门禁） | 修复，或对可豁免项执行 `qa integrity waive` 并写入任务证据后重跑 |
+| `TEST_INTEGRITY_BLOCKED` | BLOCKED | 测试完整性门禁未通过，具体原因见 `TEST_INTEGRITY_BLOCK=` 行（§测试完整性门禁）；与 lock 基线一致的模板同步变化不在此列 | 修复，或对可豁免项执行 `qa integrity waive` 并写入任务证据后重跑 |
 | `INTEGRITY_CONFIG_INVALID` | BLOCKED | `qa.integrity` 配置不合法（未知键、模式非法、正则无法编译） | 修正 `agent.config.json` 后重跑 `qa verify` |
 | `DESIGN_GATE_BLOCKED` | BLOCKED | 测试设计门禁（`enforce`）未通过，具体原因见 `DESIGN_BLOCK=` 行（§测试设计门禁） | 修正 `TEST-DESIGN.md` 或补齐通过的 TC 后重跑 `qa run`；改写已有预期先 `qa design amend` |
 | `DESIGN_CONFIG_INVALID` | BLOCKED | `qa.design` 配置不合法（未知键、模式或取值非法） | 修正 `agent.config.json` 后重跑 `qa verify` |
@@ -639,6 +639,7 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 | `TEST_EXPECTATION_CHANGED` | 风险 | 已有断言行被改写 | 在交付报告中复核新预期的规格出处 |
 
 - **豁免**：只有“少了”的三类可豁免。执行 `pnpm agent -- qa integrity waive --path <file> --code <code> --reason <理由>`，把输出的 `TEST_INTEGRITY_WAIVER=` 行原样写进当前任务 checkpoint 的 `--evidence`；豁免绑定该文件在 HEAD 的 blob，文件再改即失效。豁免后的发现降为风险，并在报告中披露。
+- **模板同步**：文件在 base 与 HEAD 两侧都与各自 `xirang.lock.json` 记录的上游基线逐字一致（允许 CRLF 检出；新增只看 HEAD，删除要求 HEAD lock 已不登记）时，变化来自上游模板，该文件全部发现（含 skip/only）降为风险，detail 标注“模板同步”，首行追加 `TEMPLATE_SYNCED=<n>`，无需也不能 `waive`。任一侧被本地改过、lock 缺失或损坏均按原规则判定；手工改写 lock 摘要属刻意绕过，与正则局限同级。
 - **配置**：`qa.integrity.mode` 默认 `enforce`；存量项目可暂用 `warn`，此时全部阻断降为 `TEST_INTEGRITY_RISK=`。`patterns.skip|only|case|assert` 是按行匹配的正则列表，可按语言调整；未知键 fail-closed。
 - **局限**：逐行正则可被刻意绕过（如 `if (false)` 包住断言），由变异门禁兜底；它防的是无意或省事的放宽，不替代评审。
 
