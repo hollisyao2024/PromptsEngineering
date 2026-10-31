@@ -208,7 +208,7 @@
 
 ```text
 PRD 原子 AC 表 → docs/qa-modules/{domain}/PATHS.md → pnpm agent -- qa paths（STATUS=OK）
-→ 编写并评审自动化用例（测试名携带 AC/TC 标识）→ 提交 → pnpm agent -- qa run → pnpm agent -- qa verify
+→ 编写并评审自动化用例（测试名携带 AC/TC 标识）→ 提交 → pnpm agent -- qa verify（结果缺失或过期时自动先跑一次 qa run）
 ```
 
 > 单个模块可用 `/qa automate <模块>`（`pnpm agent -- qa automate --module <模块>`）按上述链条逐步推进，见本章「单模块编排」；全部模块一次汇总用 `pnpm agent -- qa automate --all`。套件与门禁开关用 `pnpm agent -- qa setup` 一键配置，见本章「配置与使用顺序」。
@@ -399,8 +399,8 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 1. `pnpm agent -- qa paths`，处理全部 `VIOLATION=` 直至 `STATUS=OK`；
 2. 编写并评审自动化用例，测试名携带 AC/TC 标识；
 3. 提交全部改动（用例、PATHS.md、`.gitignore`）；
-4. 在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；只有 `STATUS=OK` 才表示套件都正常完成且必需优先级的 `auto` AC 全部有通过的用例，否则 `STATUS=FAILED` 且退出码非零：`REASON=SUITE_FAILED`（套件失败，优先）或 `REASON=AC_NOT_PROVEN`（逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，缺用例、被跳过、声明的端没有套件覆盖）。两种 FAILED 都已写出结果；补用例或修复后重新提交、重跑，不要带着 FAILED 进入 `qa verify`；
-5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，阻断时输出原因、不签发回执；放行时回执附带 `business` 摘要（`gate`、`required_priorities`、`acs_proven`、`risk_count`、`config_digest`），仅作审计记录：`qa merge` 复验不以它为依据，只打印为 `QA_RECEIPT_BUSINESS=` 审计行。
+4. （可选，`qa verify` 会在结果缺失或过期时自动补跑）在最后一次提交之后运行 `pnpm agent -- qa run`：逐个套件输出 `SUITE=` 行，并以 `RESULTS_FILE=<绝对路径>` 给出结果文件；结果绑定当前 HEAD 与配置摘要，之后再提交会使结果过期（`RESULTS_STALE_HEAD`）；每个套件运行前会先删除旧报告；只有 `STATUS=OK` 才表示套件都正常完成且必需优先级的 `auto` AC 全部有通过的用例，否则 `STATUS=FAILED` 且退出码非零：`REASON=SUITE_FAILED`（套件失败，优先）或 `REASON=AC_NOT_PROVEN`（逐条输出 `AC_OPEN=<AC>|<优先级>|<状态>|<原因>`，缺用例、被跳过、声明的端没有套件覆盖）。两种 FAILED 都已写出结果；补用例或修复后重新提交、重跑，不要带着 FAILED 进入 `qa verify`；
+5. `pnpm agent -- qa verify`：启用 `qa.business` 时先运行业务验收门禁，结果缺失、HEAD 过期、配置漂移、运行时工作区不干净或轮数不足，且当前工作区干净时，自动运行一次 `qa run` 后重判（`BUSINESS_AUTO_RUN=TRIGGERED|<码>`，`qa run` 输出以 `[qa run] ` 前缀写到 stderr）；工作区不干净时跳过并输出 `BUSINESS_AUTO_RUN=SKIPPED|DIRTY_WORKTREE`；失败、被篡改或与报告不一致的结果不重跑；`--no-auto-run` 保持只读复验；阻断时输出原因、不签发回执；放行时回执附带 `business` 摘要（`gate`、`required_priorities`、`acs_proven`、`risk_count`、`config_digest`），仅作审计记录：`qa merge` 复验不以它为依据，只打印为 `QA_RECEIPT_BUSINESS=` 审计行。
 
 套件命令退出码非零时：报告中有失败用例，则以报告为准并披露 `RISK_SUITE_EXIT_NONZERO`（失败用例本身由 AC 判定阻断）；报告中没有任何失败用例，则退出码无法由报告解释，阻断为 `SUITE_EXIT_UNEXPLAINED`（常见于 globalSetup/teardown 出错）。启动失败、超时、缺少或无法解析报告属于 `SUITE_HARD_FAILURE`。
 

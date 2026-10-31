@@ -10,6 +10,7 @@ const path = require('node:path');
 const { runGit } = require('./fixtures/business-testing/builders');
 const { IOS_CASES, WEB_CASES, createScenario } = require('./fixtures/business-testing/scenario');
 const {
+  NO_MODULE_ARGS,
   attachOrigin,
   pushBranch,
   receiptPath,
@@ -135,11 +136,13 @@ function assertGreen(s, run) {
 }
 
 // 一次“破坏 → 变红 → 恢复 → 变绿”的循环；恢复放在 finally 里，红色断言失败时也不会把后续循环带进脏状态。
+// 变红一侧以 --no-auto-run 只读复验：闭环关心门禁能否识别破坏，结果缺失或过期时的自动补跑另由 qa-verify-business 覆盖。
 async function cycleOf(t, s, observed, name, { breakIt, expect, allow = [], recover }) {
   await t.test(name, () => {
     try {
       breakIt();
-      for (const item of assertRed(s, runVerify(s), expect, { allow })) observed.add(item.code);
+      const red = runVerify(s, { args: [...NO_MODULE_ARGS, '--no-auto-run'] });
+      for (const item of assertRed(s, red, expect, { allow })) observed.add(item.code);
     } finally {
       recover();
     }

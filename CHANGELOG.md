@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.2] - 2026-10-31
+
+- 业务门禁开启时 qa verify 在结果缺失或过期时自动先跑一次 qa run；`--no-auto-run` 保持只读。
+
 ## [v3.17.1] - 2026-10-30
 
 - integrity 门禁识别与 xirang.lock.json 基线一致的模板同步测试变化，降为风险不再阻断更新。

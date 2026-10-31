@@ -276,7 +276,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 默认关闭。项目在 `agent.config.json` 设置 `qa.business.enabled=true` 并登记 `qa.business.suites` 后，`qa verify` 在测试范围校验之后、签发回执之前增加业务验收门禁；官方息壤源不启用此门禁。规格只来自 PRD 原子 AC 表，预期结果取自 PRD、数据字典、UX 规范与 ARCH 接口契约，不得取自被测代码的当前输出；推导与判定细则见 QA 手册「业务测试自动化」一章。
 
 - 规格：`pnpm agent -- qa paths` 校验原子 AC 表与 `PATHS.md`，有违规即 `STATUS=BLOCKED`。
-- 结果：`pnpm agent -- qa run` 须在最后一次提交之后运行，且运行时工作区干净；结果写入容器 tmp，绑定当前 HEAD、配置摘要与报告 SHA256，之后再提交或修改套件配置都会使结果失效。`--repeat N`（1–20，缺省取 `qa.business.repeat`，默认 1）把同一提交连跑 N 轮逐用例比对，输出 `REPEAT_RUNS`、`FLAKY`、`FLAKY_RATE`。
+- 结果：`pnpm agent -- qa run` 须在最后一次提交之后运行，且运行时工作区干净；结果写入容器 tmp，绑定当前 HEAD、配置摘要与报告 SHA256，之后再提交或修改套件配置都会使结果失效；结果缺失、HEAD 过期、配置漂移、运行时工作区不干净或轮数不足，且当前工作区干净时，自动运行一次 `qa run` 后重判（`BUSINESS_AUTO_RUN=TRIGGERED|<码>`，`qa run` 输出以 `[qa run] ` 前缀写到 stderr）；工作区不干净时跳过并输出 `BUSINESS_AUTO_RUN=SKIPPED|DIRTY_WORKTREE`；失败、被篡改或与报告不一致的结果不重跑；`--no-auto-run` 保持只读复验。`--repeat N`（1–20，缺省取 `qa.business.repeat`，默认 1）把同一提交连跑 N 轮逐用例比对，输出 `REPEAT_RUNS`、`FLAKY`、`FLAKY_RATE`。
 - 判定：必需优先级（默认 `P0`）的 `auto` AC 缺少通过的用例、按覆盖准则仍有未覆盖的转移、结果过期或被篡改、套件硬失败、必需优先级用例或套件在多轮间不一致（`FLAKY`）、运行轮数低于配置值时，`qa verify` 阻断且不签发回执；非必需优先级多轮不一致记 `RISK_FLAKY`；人工验证、低优先级或标识缺失等情形只披露为风险，不单独阻断。
 - 输出：`BUSINESS_GATE=PASS|BLOCKED`；阻断项为 `BUSINESS_BLOCK=<code>|<subject>|<detail>`，风险项为 `BUSINESS_RISK=<code>|<detail>`。
 

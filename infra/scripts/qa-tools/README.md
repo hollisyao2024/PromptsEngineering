@@ -592,7 +592,7 @@ pnpm agent -- qa run
 - `task exec` 的测试范围护栏拦截 `pnpm exec playwright test` 这类无目标文件的聚合命令（见 `docs/CONVENTIONS.md` §8）。登记在 `qa.business.suites[].command` 的命令例外：与登记原文逐词相同时放行，便于把 `qa run` 将要运行的同一条套件命令也落成任务证据。登记命令里含引号、变量、管道、重定向、通配符等需要 shell 解释的词时不参与匹配；加了包装器（`sh -c …`）或改了任何参数的变体、`qa.business` 配置无效时，都按原规则拦截。`pnpm agent -- test --file <文件> -- <运行器>` 对同一批登记命令同样放行：只校验文件，并把文件原样追加到命令末尾，所以登记的套件命令须能接受末尾的文件参数；未登记命令仍只接受既有的文件级运行器。
 - 须在最后一次提交之后运行，且工作区干净：报告、截图等驱动产物请加入 `.gitignore`，否则门禁报 `RESULTS_DIRTY_WORKTREE`；运行之后再提交则报 `RESULTS_STALE_HEAD`。
 - `qa run --repeat N`（1–20，缺省取 `qa.business.repeat`，默认 1）把同一提交连跑 N 轮并逐用例比对，输出 `REPEAT_RUNS=`、`FLAKY=`、`FLAKY_RATE=` 与不一致明细 `FLAKY_CASE=`、`FLAKY_SUITE=`。`qa verify` 的业务验收门禁据此判定：必需优先级用例或套件多轮不一致报 `BUSINESS_BLOCK=FLAKY`，结果轮数低于 `qa.business.repeat` 报 `BUSINESS_BLOCK=REPEAT_INSUFFICIENT`，非必需优先级不一致只记 `BUSINESS_RISK=RISK_FLAKY`；`qa verify` 不另输出 `FLAKY=` 行，回执也不含轮数。
-- `qa.business.enabled=true`（默认 `false`）时，`qa verify` 在测试范围校验之后、签发回执之前运行业务验收门禁：输出 `BUSINESS_GATE=PASS|BLOCKED`，阻断项为 `BUSINESS_BLOCK=`，风险项为 `BUSINESS_RISK=`；阻断时不签发回执。官方息壤源自身不启用该门禁。
+- `qa.business.enabled=true`（默认 `false`）时，`qa verify` 在测试范围校验之后、签发回执之前运行业务验收门禁：输出 `BUSINESS_GATE=PASS|BLOCKED`，阻断项为 `BUSINESS_BLOCK=`，风险项为 `BUSINESS_RISK=`；阻断时不签发回执。结果缺失、HEAD 过期、配置漂移、运行时工作区不干净或轮数不足，且当前工作区干净时，自动运行一次 `qa run` 后重判（`BUSINESS_AUTO_RUN=TRIGGERED|<码>`，`qa run` 输出以 `[qa run] ` 前缀写到 stderr）；工作区不干净时跳过并输出 `BUSINESS_AUTO_RUN=SKIPPED|DIRTY_WORKTREE`；失败、被篡改或与报告不一致的结果不重跑；`--no-auto-run` 保持只读复验。官方息壤源自身不启用该门禁。
 
 配置示例（写入项目 `agent.config.json`，只保存与默认值不同的键）：
 
@@ -681,7 +681,7 @@ pnpm agent -- qa merge
 
 `qa plan` 与 `qa verify` 都以 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=` 三行结束，非 OK 时另给 `REASON=<code>`，退出码非零；执行器按 `NEXT_ACTION` 行动即可，不必从堆栈推断原因，代码清单见上文第 0、1 节与 Playbook §qa verify 阻断码。
 
-启用 `qa.business` 的项目在 `qa verify` 之前依次运行 `pnpm agent -- qa paths` 与 `pnpm agent -- qa run`（见上文第 7 节）；业务验收门禁同样只在本机运行，结果不跨电脑共享，换电脑后须重新 `qa run`。
+启用 `qa.business` 的项目在 `qa verify` 之前运行 `pnpm agent -- qa paths`；`qa run` 可手动先跑，结果缺失或过期时 `qa verify` 会自动补跑一次（见上文第 7 节）；业务验收门禁同样只在本机运行，结果不跨电脑共享，换电脑后须重新 `qa run`。
 
 ---
 
