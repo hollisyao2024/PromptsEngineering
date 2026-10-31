@@ -84,7 +84,7 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 - `/qa setup`：一键配置。检测项目测试栈（根目录、`apps/*`、`packages/*` 的 Vitest、Jest+jest-junit、Playwright，仓库根的 Stryker、pytest；Jest 缺 jest-junit 与 Go 只输出 `MANUAL=` 登记建议），只补 `agent.config.json` 中缺失的 `qa.business.suites`、`qa.repro.command`、`qa.mutation.command`；规格就绪（有原子 AC、无规格违规、必需 AC 都被用例名引用、套件覆盖所需平台）才开启 `qa.business.enabled`，仓库根装了 `@stryker-mutator/core` 才开启 `qa.mutation.enabled`；显式写成 `enabled:false` 的节整节保持不动。报告目录写入 `.gitignore`。输出 `DETECTED=`、`WRITE=`、`SKIP=`、`MANUAL=`、`GATE=<门禁>|on|off|<原因>`；`--dry-run` 只预演。主 worktree 非 dry-run 阻断，模板源跳过。可重复执行，新增运行器或规格补齐后再跑一次即可自动打开对应门禁。
 - `/qa paths`：只读校验 PRD 原子 AC 表与 `PATHS.md`，输出 `STATUS=`、覆盖矩阵（`MATRIX_AC=`、`MATRIX_PATH=`）与全部 `VIOLATION=`；`STATUS=OK` 才可进入用例编写。不创建目录、不写文件。
 - `/qa run`：按 `agent.config.json` 的 `qa.business.suites` 顺序运行业务测试套件，解析 JUnit XML 报告并把结果绑定当前 HEAD 与配置摘要，写入容器 tmp，输出 `SUITE=` 与 `RESULTS_FILE=`。须在最后一次提交之后运行，之后再提交会使结果过期。套件失败，或必需优先级的自动化 AC 仍未被通过的用例证明（逐条输出 `AC_OPEN=`）时 `STATUS=FAILED`、退出码非零，`STATUS=OK` 才可进入 `/qa verify`。
-- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞并给出结论；裁决只有 PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，PASS_WITH_RISK 须逐条评审风险。找不到 QA 目标即阻断（`QA_TARGET_MISSING`），确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明；签发回执前同样执行测试完整性门禁（`qa integrity`，模板源也执行）与测试设计门禁（`qa design check`，模板源跳过）。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
+- `/qa verify`：基于会话状态验证适用输入、覆盖率、缺陷阻塞并给出结论；裁决只有 PASS / PASS_WITH_RISK / BLOCKED，以脚本输出的 `QA_VERDICT=` 为准，PASS_WITH_RISK 须逐条评审风险。找不到 QA 目标即阻断（`QA_TARGET_MISSING`），确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明；签发回执前同样执行测试完整性门禁（`qa integrity`，模板源也执行）与测试设计门禁（`qa design check`，模板源跳过）。前置：`/qa plan` 已执行且测试有有效结果（见 §测试执行验证门禁）。`qa.business.enabled=true` 时先运行业务验收门禁（读取 `/qa run` 的结果；结果缺失、过期或配置漂移且工作区干净时自动运行一次 `qa run` 再判定，`--no-auto-run` 保持只读；阻断时输出原因且不签发回执，模板源跳过），默认配置下行为不变。结尾同样输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，非 OK 时附 `REASON=`，按 Playbook §qa verify 阻断码的「流程阻断码」处理；签发回执前的 fetch 失败至多重试一次，仍失败为 `FAILED`、`REASON=QA_FETCH_FAILED`。
 - `/qa integrity check|waive`：测试完整性门禁的预检与豁免。新增 skip/only、删除测试文件、用例数或断言数下降即阻断；删除/下降类确属有意时用 `waive` 生成绑定文件 blob 的豁免行写入任务证据；两侧都与 `xirang.lock.json` 基线一致的模板同步变化自动降为风险。详见 Playbook §测试完整性门禁。
 - `/qa design context|check|amend`：测试设计门禁。`context` 只打包规格到容器 tmp 并输出 `DESIGN_CONTEXT_SHA256`；`check` 校验规则表、出处、覆盖、维度反例、TC 证明、设计先于源码与预期变更登记；`amend` 为新增、修改、删除的设计行追加变更记录。`qa.design.mode` 默认 `warn`，`enforce` 时阻断并依赖 `/qa run` 结果。详见 Playbook §测试设计门禁。
 - `/qa merge`：刷新远端 → 复验本机 QA 回执与 PR base/head SHA → 本地门禁 → 固定 head 合并 → 按 `release.*` 写入版本元数据（配置归 OPS 治理）→ 普通推送 → 远端复核 → 封印清理。前置：`/qa verify` 已签发有效回执；任一 SHA 漂移先阻断并重新 QA，不自动 rebase 或 force-push。发布门禁不可跳过：`--skip-checks` 已移除，传入即在任何副作用前失败。`--dry-run` 只预演。详情见 Playbook §qa merge 流程详解。
@@ -157,7 +157,7 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 - **预言机**：预期结果只来自 PRD 原子 AC、数据字典、UX 规范与 ARCH 接口契约，禁止以被测代码当前输出作期望值；规格有歧义时回流 PRD 澄清。
 - **单模块编排**：`/qa automate <模块>` 给出当前步骤与要激活的专家；每完成一步重跑该命令，直到 `STATUS=OK`。
 - **路径与用例**：先推导 `PATHS.md` 并运行 `pnpm agent -- qa paths` 至 `STATUS=OK`，P0 路径须评审；再按覆盖准则与用例预算编写自动化用例，测试名携带 AC/TC 标识。
-- **执行顺序**：提交全部改动后运行 `pnpm agent -- qa run`（须在最后一次提交之后），再运行 `pnpm agent -- qa verify`；判定顺序与阻断码速查见 Playbook §业务测试自动化。
+- **执行顺序**：提交全部改动后运行 `pnpm agent -- qa verify`：结果缺失或过期且工作区干净时它先自动运行一次 `qa run` 再判定；想提前看套件结果可先手动运行 `pnpm agent -- qa run`（须在最后一次提交之后）。判定顺序与阻断码速查见 Playbook §业务测试自动化。
 - **刷新**：刷新只新增或提出差异，不覆盖已评审用例；`PATHS.md`、业务测试套件与已评审的 TC 行由 QA 维护，其他专家通过评审提出修改。
 
 ### 自动串联模式（从 TDD 触发）
@@ -249,7 +249,7 @@ QA 完成测试编写后、执行 `/qa verify` 前，按以下规则核对；每
 - QA 主档与模块文档按模板记录稳定策略、用例、缺陷与发布建议；执行结果可追溯至本次 QA 证据
 - 治理流程中 PRD、ARCH、TASK、QA 四套模块清单的模块集合一致；日常流程核对适用的已有文档
 - 追溯矩阵的 Story/AC/Test Case ID 映射准确；本次 Pass/Fail/Blocked 与缺陷 ID 可在 QA 证据中追溯
-- 启用 `qa.business` 时：PRD 原子 AC 表与 `PATHS.md` 经 `pnpm agent -- qa paths` 校验为 `STATUS=OK`，自动化用例的测试名携带 AC/TC 标识，`pnpm agent -- qa run` 在最后一次提交之后运行且 `STATUS=OK`，`qa verify` 的业务验收门禁通过且 `BUSINESS_RISK=` 披露项已评审
+- 启用 `qa.business` 时：PRD 原子 AC 表与 `PATHS.md` 经 `pnpm agent -- qa paths` 校验为 `STATUS=OK`，自动化用例的测试名携带 AC/TC 标识，最后一次提交之后的 `qa run`（手动运行或由 `qa verify` 自动补跑）`STATUS=OK`，`qa verify` 的业务验收门禁通过且 `BUSINESS_RISK=` 披露项已评审
 - 发布结论已明确（PASS / PASS_WITH_RISK / BLOCKED），适用本地门禁通过，QA 回执绑定当前 base/head SHA。
 - 报告列出：P0 规则验证数、反例覆盖、缺陷复现、新发现缺陷、不稳定率、修订的预期值与 `DESIGN_ISOLATION`。
 - 在 QA 回执和任务 state 中记录 `QA_VALIDATED` 结论

@@ -108,6 +108,7 @@ function reasonValue(value) {
 function parseArgs(argv) {
   let scope = 'session';
   let writeReports = false;
+  let autoRun = true;
   let noModule = false;
   let reasonGiven = false;
   let noModuleReason = null;
@@ -172,6 +173,10 @@ function parseArgs(argv) {
       writeReports = true;
       continue;
     }
+    if (arg === '--no-auto-run') {
+      autoRun = false;
+      continue;
+    }
   }
 
   // --no-module 是“本次确实不涉及 QA 模块”的显式声明：必须带理由，且不能与命令行指定的模块同用。
@@ -186,6 +191,7 @@ function parseArgs(argv) {
     writeReports,
     noModule,
     noModuleReason,
+    autoRun,
   };
 }
 
@@ -819,12 +825,77 @@ function runSessionVerify(args) {
   };
 }
 
+// 结果缺失或不再绑定当前提交/配置/干净工作区/轮数时，重新生成即可消除阻断，可以自动运行一次 qa run。
+// 新鲜结果上的失败（AC_NOT_PROVEN、FLAKY、SUITE_*）不重跑，避免把失败重试成通过；
+// 篡改或结构不符（REPORT_TAMPERED、RESULTS_INVALID、RESULTS_MISMATCH）不重跑，避免覆盖可疑证据；
+// 配置、规格错误与 GATE_ERROR 重跑也无法消除，照常报告。
+const AUTO_RUN_CODES = new Set([
+  'RESULTS_MISSING',
+  'RESULTS_STALE_HEAD',
+  'RESULTS_CONFIG_DRIFT',
+  'RESULTS_DIRTY_WORKTREE',
+  'REPEAT_INSUFFICIENT',
+]);
+const QA_RUN_SCRIPT = path.join(__dirname, 'qa-run.js');
+const QA_RUN_MAX_BUFFER = 64 * 1024 * 1024;
+
+// 全部阻断码都可由重新生成结果消除时返回去重后的阻断码，否则返回 null（不自动运行）。
+function autoRunCodes(gate) {
+  if (!gate.enabled || !gate.blocked || !gate.outcome) return null;
+  const blocks = Array.isArray(gate.outcome.blocks) ? gate.outcome.blocks : [];
+  if (blocks.length === 0 || !blocks.every((item) => AUTO_RUN_CODES.has(item.code))) return null;
+  return [...new Set(blocks.map((item) => item.code))];
+}
+
+// 以子进程运行 qa run（repeat 取 qa.business.repeat），返回其结果块的 STATUS。
+// 套件原始输出（qa run 的 stderr）直接透传；qa run 的结果块加前缀转到 stderr，
+// 保证 verify 的 stdout 只有自己的结果块，调用方仍能按 STATUS/SUMMARY/NEXT_ACTION 解析。
+function runQaRunOnce() {
+  const result = spawnSync(process.execPath, [QA_RUN_SCRIPT], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'inherit'],
+    maxBuffer: QA_RUN_MAX_BUFFER,
+  });
+  const stdout = result.stdout || '';
+  for (const line of stdout.split(/\r?\n/u)) {
+    if (line !== '') process.stderr.write(`[qa run] ${line}\n`);
+  }
+  if (result.error) {
+    process.stderr.write(`[qa run] 启动失败：${result.error.message}\n`);
+    return 'FAILED';
+  }
+  const statusLine = stdout.split(/\r?\n/u).reverse().find((line) => line.startsWith('STATUS='));
+  return statusLine ? statusLine.slice('STATUS='.length).trim() || 'UNKNOWN' : 'UNKNOWN';
+}
+
 // 业务验收门禁：qa.business 启用时复验 `qa run` 写出的结果。
+// autoRun 为真且阻断全部来自结果缺失或过期时，在干净工作区自动运行一次 qa run 后重新判定（只重判一次，不循环）。
 // 返回 { passed, business }：阻断时 passed 为 false（调用方不得签发回执）；放行且门禁已启用时 business 是写进回执的摘要。
 // 未启用时什么都不读、不输出，business 为 null，回执保持门禁接入前的结构。
-function checkBusinessGate({ config, mainRoot, headSha }) {
-  const gate = verifyBusinessAcceptance({ repoRoot, mainRoot, config, headSha });
+function checkBusinessGate({ config, mainRoot, headSha, autoRun = true }) {
+  let gate = verifyBusinessAcceptance({ repoRoot, mainRoot, config, headSha });
   if (!gate.enabled) return { passed: true, business: null };
+  const codes = autoRun ? autoRunCodes(gate) : null;
+  if (codes) {
+    // 脏工作区上的 qa run 结果本就不被采信（RESULTS_DIRTY_WORKTREE），此时跳过，原样报告首次判定；
+    // 工作区状态读取失败同样不运行（失败即关闭）。
+    let skipReason = null;
+    try {
+      if (runGit(['status', '--porcelain', '--untracked-files=normal']).trim() !== '') skipReason = 'DIRTY_WORKTREE';
+    } catch (error) {
+      skipReason = 'GIT_STATUS_FAILED';
+    }
+    if (skipReason) {
+      log(`BUSINESS_AUTO_RUN=SKIPPED|${skipReason}`, 'yellow');
+    } else {
+      log(`BUSINESS_AUTO_RUN=TRIGGERED|${codes.join(',')}`, 'cyan');
+      const status = runQaRunOnce();
+      log(`BUSINESS_AUTO_RUN_STATUS=${status}`, status === 'OK' ? 'green' : 'yellow');
+      gate = verifyBusinessAcceptance({ repoRoot, mainRoot, config, headSha });
+    }
+  }
   for (const line of gate.lines) {
     log(line, line.startsWith('BUSINESS_RISK=') ? 'yellow' : gate.blocked ? 'red' : 'green');
   }
@@ -1003,7 +1074,7 @@ function main() {
       collectGateError(blockers, error);
     }
 
-    const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha });
+    const gate = checkBusinessGate({ config, mainRoot, headSha: receipt.head_sha, autoRun: args.autoRun });
     if (!gate.passed) blockers.push({ reason: 'BUSINESS_GATE_BLOCKED' });
     else if (gate.business) {
       receipt.business = gate.business;
@@ -1057,7 +1128,7 @@ function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name> | --no-module --reason <text>]\n\nRun QA verification and write the local base/head SHA receipt with a PASS or PASS_WITH_RISK verdict.\nA session run with no identifiable QA target is BLOCKED unless --no-module --reason <text> declares it (recorded as a risk).\nThe test integrity gate (qa.integrity) checks the BASE_SHA..HEAD_SHA test diff on every run.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.\nOutside the template source, the test design gate (qa.design) checks TEST-DESIGN.md against the PRD and the qa run results;\nmode=warn reports DESIGN_RISK lines, mode=enforce withholds the receipt on any DESIGN_BLOCK.\nOutside the template source, the defect reproduction gate (qa.repro) reads the results written by `pnpm agent -- qa repro --bug <ID>`\nand withholds the receipt on any REPRO_BLOCK: every BUG row added on this branch needs a run where base fails and HEAD passes.\nOutside the template source, the mutation gate (qa.mutation, off by default) reads the results written by `pnpm agent -- qa mutate run`\nand withholds the receipt on any MUTATION_BLOCK: low score, P0 tests that kill no mutant, or results not bound to the current HEAD.');
+  exitOnHelp('Usage: pnpm agent -- qa verify [--project | --scope <session|project>] [--module <name> | --no-module --reason <text>] [--no-auto-run]\n\nRun QA verification and write the local base/head SHA receipt with a PASS or PASS_WITH_RISK verdict.\nA session run with no identifiable QA target is BLOCKED unless --no-module --reason <text> declares it (recorded as a risk).\nThe test integrity gate (qa.integrity) checks the BASE_SHA..HEAD_SHA test diff on every run.\nWhen qa.business.enabled is true, also re-check the results written by `pnpm agent -- qa run`\nand withhold the receipt unless every required acceptance criterion is proven.\nWhen those results are missing or stale (new commit, config change, dirty-tree run, too few rounds) and the worktree is clean,\nqa verify runs `pnpm agent -- qa run` once and re-checks (BUSINESS_AUTO_RUN=TRIGGERED); failed or tampered results are never re-run.\n--no-auto-run keeps the check read-only.\nOutside the template source, the test design gate (qa.design) checks TEST-DESIGN.md against the PRD and the qa run results;\nmode=warn reports DESIGN_RISK lines, mode=enforce withholds the receipt on any DESIGN_BLOCK.\nOutside the template source, the defect reproduction gate (qa.repro) reads the results written by `pnpm agent -- qa repro --bug <ID>`\nand withholds the receipt on any REPRO_BLOCK: every BUG row added on this branch needs a run where base fails and HEAD passes.\nOutside the template source, the mutation gate (qa.mutation, off by default) reads the results written by `pnpm agent -- qa mutate run`\nand withholds the receipt on any MUTATION_BLOCK: low score, P0 tests that kill no mutant, or results not bound to the current HEAD.');
   let outcome;
   try {
     outcome = main();

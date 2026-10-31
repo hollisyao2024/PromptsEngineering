@@ -15,6 +15,7 @@ const {
   withStatus,
 } = require('./fixtures/business-testing/scenario');
 const {
+  NO_MODULE_ARGS,
   advanceHead,
   attachOrigin,
   pushBranch,
@@ -87,6 +88,9 @@ const output = (run) => `${run.stdout}${run.stderr}`;
 const has = (run, pattern) => run.lines.some((line) => pattern.test(line));
 const indexOfLine = (run, prefix) => run.lines.findIndex((line) => line.startsWith(prefix));
 const readReceiptFile = (s) => JSON.parse(fs.readFileSync(receiptPath(s), 'utf8'));
+// 只读复验：关闭结果缺失/过期时的自动 qa run，用于断言门禁本身的阻断行为。
+const READ_ONLY_ARGS = [...NO_MODULE_ARGS, '--no-auto-run'];
+const autoRunLines = (run) => run.lines.filter((line) => line.startsWith('BUSINESS_AUTO_RUN'));
 
 // ---------------------------------------------------------------------------
 // 默认关闭，行为不变
@@ -187,6 +191,7 @@ test('qa verify --help 说明业务验收门禁由 qa.business 控制', (t) => {
   assert.equal(help.status, 0, output(help));
   assert.match(help.text, /qa\.business/u);
   assert.match(help.text, /qa run/u);
+  assert.match(help.text, /--no-auto-run/u);
 });
 
 // ---------------------------------------------------------------------------
@@ -247,23 +252,23 @@ test('启用后 P0 AC 的用例失败时 qa verify 阻断：列出该 AC、非�
 // 结果缺失、陈旧或被改动
 // ---------------------------------------------------------------------------
 
-test('启用后没有结果文件时 qa verify 阻断，并提示先运行 qa run', (t) => {
+test('启用后没有结果文件且带 --no-auto-run 时 qa verify 阻断，并提示先运行 qa run', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s, { run: false });
 
-  const verify = runVerify(s);
+  const verify = runVerify(s, { args: READ_ONLY_ARGS });
   assert.equal(verify.status, 1, output(verify));
   assert.ok(has(verify, /^BUSINESS_BLOCK=RESULTS_MISSING\|/u), verify.text);
   assert.match(verify.text, /^BUSINESS_NEXT_ACTION=.*pnpm agent -- qa run/mu);
   assert.equal(fs.existsSync(receiptPath(s)), false);
 });
 
-test('结果之后又有新提交时 qa verify 阻断（RESULTS_STALE_HEAD），重新运行 qa run 后放行', (t) => {
+test('结果之后又有新提交且带 --no-auto-run 时 qa verify 阻断（RESULTS_STALE_HEAD），重新运行 qa run 后放行', (t) => {
   const s = scenarioFor(t);
   readyForVerify(s);
   advanceHead(s);
 
-  const stale = runVerify(s);
+  const stale = runVerify(s, { args: READ_ONLY_ARGS });
   assert.equal(stale.status, 1, output(stale));
   assert.ok(has(stale, /^BUSINESS_BLOCK=RESULTS_STALE_HEAD\|/u), stale.text);
   assert.equal(fs.existsSync(receiptPath(s)), false);
@@ -331,7 +336,7 @@ test('多个门禁同时失败时 qa verify 一次列出全部阻断：架构、
   commitAll(s.project.repo, 'add architecture config and broken QA doc');
   pushBranch(s);
 
-  const verify = runVerify(s);
+  const verify = runVerify(s, { args: READ_ONLY_ARGS });
   assert.equal(verify.status, 1, output(verify));
   const blocks = verify.lines.filter((line) => line.startsWith('QA_VERIFY_BLOCK='));
   assert.deepEqual(blocks.map((line) => line.split('|')[0]), [
@@ -375,4 +380,95 @@ test('只有一个门禁阻断时结果块与改造前一致，另列一条 QA_V
     'SUMMARY=业务验收门禁未通过，回执未签发',
     'NEXT_ACTION=按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// 结果缺失或过期时自动运行一次 qa run（--no-auto-run 关闭）
+// ---------------------------------------------------------------------------
+
+test('启用后没有结果文件时 qa verify 自动运行一次 qa run，结果绑定当前 HEAD 后放行并签发回执', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { run: false });
+  assert.equal(fs.existsSync(s.resultsFile), false);
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 0, output(verify));
+  assert.deepEqual(autoRunLines(verify), ['BUSINESS_AUTO_RUN=TRIGGERED|RESULTS_MISSING', 'BUSINESS_AUTO_RUN_STATUS=OK'], verify.text);
+  assert.ok(verify.lines.includes('BUSINESS_GATE=PASS'), verify.text);
+  assert.equal(has(verify, /^BUSINESS_BLOCK=/u), false, verify.text);
+  // 自动运行先于最终判定：触发行在 BUSINESS_GATE 之前，且只有一行最终门禁结论。
+  assert.ok(indexOfLine(verify, 'BUSINESS_AUTO_RUN=') < indexOfLine(verify, 'BUSINESS_GATE='), verify.text);
+  assert.equal(verify.lines.filter((line) => line.startsWith('BUSINESS_GATE=')).length, 1, verify.text);
+  // qa run 自身的结果块不混进 verify 的 stdout：stdout 末尾仍是 verify 的结果块。
+  assert.equal(verify.lines.filter((line) => line.startsWith('STATUS=')).length, 1, verify.text);
+  assert.match(verify.stderr, /\[qa run\] STATUS=OK/u);
+
+  assert.ok(fs.existsSync(s.resultsFile), '结果文件由真实 qa run 写出');
+  assert.equal(JSON.parse(fs.readFileSync(s.resultsFile, 'utf8')).head_sha, s.head());
+  const receipt = readReceiptFile(s);
+  assert.equal(receipt.head_sha, s.head());
+  assert.equal(receipt.business.gate, 'PASS');
+});
+
+test('结果之后又有新提交时 qa verify 自动重跑 qa run 并放行（RESULTS_STALE_HEAD 触发）', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s);
+  advanceHead(s);
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 0, output(verify));
+  assert.deepEqual(autoRunLines(verify), ['BUSINESS_AUTO_RUN=TRIGGERED|RESULTS_STALE_HEAD', 'BUSINESS_AUTO_RUN_STATUS=OK'], verify.text);
+  assert.ok(verify.lines.includes('BUSINESS_GATE=PASS'), verify.text);
+  assert.equal(readReceiptFile(s).head_sha, s.head());
+});
+
+test('结果新鲜但 P0 用例失败时 qa verify 不自动重跑 qa run，照常阻断（AC_NOT_PROVEN）', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { web: withStatus(WEB_CASES, 'TC-SHOP-002', 'failed') });
+  const before = fs.readFileSync(s.resultsFile, 'utf8');
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(autoRunLines(verify), [], verify.text);
+  assert.ok(has(verify, /^BUSINESS_BLOCK=AC_NOT_PROVEN\|AC-SHOP-001-02\|/u), verify.text);
+  assert.equal(fs.readFileSync(s.resultsFile, 'utf8'), before, '失败结果不得被重跑覆盖');
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});
+
+test('报告副本被改动时 qa verify 不自动重跑 qa run（证据不被覆盖），照常阻断（REPORT_TAMPERED）', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s);
+  fs.appendFileSync(s.copyFile('web'), '\n<!-- 事后追加 -->\n');
+  const before = fs.readFileSync(s.resultsFile, 'utf8');
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(autoRunLines(verify), [], verify.text);
+  assert.ok(has(verify, /^BUSINESS_BLOCK=REPORT_TAMPERED\|/u), verify.text);
+  assert.equal(fs.readFileSync(s.resultsFile, 'utf8'), before);
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});
+
+test('工作区有未提交改动时 qa verify 不自动运行 qa run，输出 SKIPPED|DIRTY_WORKTREE 并阻断', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { run: false });
+  s.project.write({ 'scratch.txt': '未提交的改动\n' });
+
+  const verify = runVerify(s);
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(autoRunLines(verify), ['BUSINESS_AUTO_RUN=SKIPPED|DIRTY_WORKTREE'], verify.text);
+  assert.ok(has(verify, /^BUSINESS_BLOCK=RESULTS_MISSING\|/u), verify.text);
+  assert.equal(fs.existsSync(s.resultsFile), false, '未运行 qa run，不得写出结果');
+  assert.equal(fs.existsSync(receiptPath(s)), false);
+});
+
+test('带 --no-auto-run 时 qa verify 只读复验：不运行 qa run，不输出 BUSINESS_AUTO_RUN', (t) => {
+  const s = scenarioFor(t);
+  readyForVerify(s, { run: false });
+
+  const verify = runVerify(s, { args: READ_ONLY_ARGS });
+  assert.equal(verify.status, 1, output(verify));
+  assert.deepEqual(autoRunLines(verify), [], verify.text);
+  assert.ok(has(verify, /^BUSINESS_BLOCK=RESULTS_MISSING\|/u), verify.text);
+  assert.equal(fs.existsSync(s.resultsFile), false);
 });
