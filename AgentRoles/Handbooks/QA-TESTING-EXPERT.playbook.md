@@ -496,6 +496,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 | `STALE_QA_BASE` | BLOCKED | 功能分支落后于远端配置主干 | 在当前 worktree 执行 `git merge --no-edit origin/<base>`，重跑受影响测试并追加 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，再 `pnpm agent -- tdd push` 与 `qa verify` |
 | `HEAD_NOT_PUSHED` | BLOCKED | 本地 HEAD 与远端功能分支不一致 | `pnpm agent -- tdd push` 后重跑 `qa verify` |
 | `TEST_SCOPE_EVIDENCE` | BLOCKED | 当前 mutation 任务缺少或不合法的 `TEST_SCOPE_DECISION`/`TEST_SCOPE_RESULT`，包括 evidence 引用的任务日志缺失或 SHA256 不符 | 在任务 checkpoint 中补录决策与绑定当前 HEAD 的结果后重跑 `qa verify` |
+| `TEST_SCOPE_TASK_STATE` | BLOCKED | 当前位置有任务，但其状态（`blocked`、`cleanup_pending` 等）使其不能提供证据；摘要列出任务、状态与未解决步骤 | 解决阻塞步骤或核实未知结果；未开始且只等用户确认的步骤改记 `task checkpoint --step <id> --status pending --next "<等待内容>"`，补录证据无效 |
 | `QA_ARGS_INVALID` | BLOCKED | 参数不合法：`--no-module` 未带 `--reason`、`--reason` 单独使用，或 `--no-module` 与 `--module` 同用 | 按用法修正参数后重跑 `qa verify` |
 | `QA_TARGET_MISSING` | BLOCKED | 未识别到当前会话的 QA 目标，不再按无事可做放行 | 用 `--module <name>` 指定；确实不涉及 QA 模块时用 `--no-module --reason <理由>` 显式声明 |
 | `QA_VERDICT_NO_GO` | BLOCKED | QA 文档检查有错误，裁决为 BLOCKED | 修复上方列出的错误后重跑 `qa verify` |

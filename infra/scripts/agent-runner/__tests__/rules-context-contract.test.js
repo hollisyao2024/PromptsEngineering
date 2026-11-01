@@ -30,6 +30,37 @@ test('applied projects read three complete rules while the official template sou
   }
 });
 
+test('runtime-injected base rules are not re-read while uninjected, truncated or unconfirmed files still are', () => {
+  const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+  const task = fs.readFileSync(path.join(ROOT, 'infra/scripts/agent-runner/agent-task.js'), 'utf8');
+  assert.match(agents, /运行环境已把.*正文完整注入当前上下文.*不再重读/u);
+  assert.match(agents, /`@` 路径本身只表示引用.*不能当作已加载/u);
+  assert.match(agents, /未注入、被截断或无法确认时仍须完整读取/u);
+  // 注入免读不得放松 fail-closed：目标缺失或为空时门禁照常生效。
+  assert.match(agents, /注入免读不放松.*缺失、为空或读取失败/u);
+  assert.match(agents, /已完整读取或注入的必需基础规则，阶段切换不重复全文加载/u);
+  assert.match(task, /files already injected to EOF need no re-read \(@ paths do not count\)/u);
+});
+
+test('compaction restores only what the next step needs without skipping tests, evidence or key reads', () => {
+  const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+  const budget = agents.split('## 上下文预算与阶段交接')[1].split('\n## ')[0];
+  const rule = budget.split('\n').find((line) => line.startsWith('- 上下文压缩后'));
+  assert.ok(rule, 'context budget section must define the post-compaction scope');
+  for (const required of [
+    '不全量重读',
+    '只读接下来要 Edit 的文件',
+    '其余用 Grep 点查',
+    '决策和下一动作写入当前步骤的 `task checkpoint --next`',
+    '不对仍在执行的副作用步骤调用恢复入口',
+    '不得因此跳过测试、证据或关键读取',
+  ]) {
+    assert.ok(rule.includes(required), `missing: ${required}`);
+  }
+  // 压缩恢复范围不能吞掉基础规则门禁：正文不在上下文时仍须补读。
+  assert.match(rule, /基础规则.*必须加载的上下文.*补读/u);
+});
+
 test('handoff and CLI no longer require the removed rule loader', () => {
   const task = fs.readFileSync(path.join(ROOT, 'infra/scripts/agent-runner/agent-task.js'), 'utf8');
   const conventions = fs.readFileSync(path.join(ROOT, 'docs/CONVENTIONS.md'), 'utf8');

@@ -249,6 +249,7 @@ const QA_VERIFY_BLOCKED_NEXT_ACTION = {
   HEAD_NOT_PUSHED: '执行 pnpm agent -- tdd push 推送当前 HEAD 后重跑 pnpm agent -- qa verify',
   QA_BRANCH_REQUIRED: '在任务功能分支的 worktree 中重跑 pnpm agent -- qa verify',
   TEST_SCOPE_EVIDENCE: '在当前 mutation 任务 checkpoint 中补录 TEST_SCOPE_DECISION 与绑定当前 HEAD 的 TEST_SCOPE_RESULT 后重跑 pnpm agent -- qa verify',
+  TEST_SCOPE_TASK_STATE: '原因是任务状态，不是证据：先解决 blocked 步骤或核实 verify_required 的真实结果；未开始且只等用户确认的步骤改用 pnpm agent -- task checkpoint --task <id> --step <id> --status pending --next "<等待内容>"，再重跑 pnpm agent -- qa verify',
   QA_VERDICT_NO_GO: '修复上方列出的 QA 文档错误后重跑 pnpm agent -- qa verify',
   BUSINESS_GATE_BLOCKED: '按 BUSINESS_BLOCK 行补齐业务验收并重跑 pnpm agent -- qa run，再执行 pnpm agent -- qa verify',
   ARCHITECTURE_PACKAGE_MISSING: '执行 pnpm agent -- template sync --include architecture 安装架构包后重跑 pnpm agent -- qa verify',

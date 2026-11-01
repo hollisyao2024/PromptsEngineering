@@ -158,6 +158,7 @@ pnpm agent -- task cancel --task <id> --force
 - `safe` 步骤中断后回到 `pending`，可重放。
 - `verify_first` 步骤中断时转为 `verify_required`，先查询真实外部状态。
 - `done` 必须有证据；`blocked`/错误/等待必须有 `nextAction`。
+- 未开始且只等用户决定的步骤记 `checkpoint --step <id> --status pending --next "<等待内容>"`，不标 `blocked`：任务保持 `running`，QA 证据可用，轮到该步骤时输出 `CONTINUATION_ACTION=WAIT_FOR_USER`、`AUTO_CONTINUE=false`，`task finish` 仍因其未完成而阻断。只接受当前 `pending`，或无 `started_at` 与结构化失败的 `blocked`；已开始、结果未知或已有失败记录的步骤一律拒绝。该标记不是授权，也不授权执行被等待的动作。
 - schema v1 状态在读取时升级为 v2，保留既有步骤、证据与生命周期状态。
 - `--type operation` 是工作类型，与治理阶段 `--phase ops` 无关；旧阶段值 `devops` 读取时单向升级为 `ops`，输入 `--phase devops` 一律拒绝并提示改用 `ops`。
 - 新任务以 `evidence_order` 追加引用 `{step_id,index}`，与步骤证据同一原子写入；QA 与测试命令入口共用该顺序，回流到较早步骤仍按实际 checkpoint 追加顺序判断。索引必须完整、无重复且保持每步内部追加顺序，损坏时 fail-closed。旧 v1/v2 文件缺少索引时保留既有步骤顺序；首次步骤 checkpoint 先按该旧顺序建立历史引用，再追加新证据，不按步骤更新时间猜测旧证据时序。旧历史无法复原真实先后时须补录当前决策和结果。

@@ -138,18 +138,37 @@ function canSupplyQaEvidence(state) {
     && !step.recoveries?.some(item => item.failure_index === deferred.failure_index);
 }
 
+function matchesLocation(state, context) {
+  return samePath(state.project_root, context.projectRoot)
+    && samePath(state.worktree, context.worktree)
+    && state.branch === context.branch;
+}
+
 // Tasks that may supply QA evidence for this worktree and branch; shared by TEST_SCOPE and integrity waivers.
 function matchQaTasks({ states, context }) {
-  return states.filter((state) => canSupplyQaEvidence(state)
-    && samePath(state.project_root, context.projectRoot)
-    && samePath(state.worktree, context.worktree)
-    && state.branch === context.branch);
+  return states.filter((state) => canSupplyQaEvidence(state) && matchesLocation(state, context));
+}
+
+// A task at this location that only its status excludes must be named: adding evidence cannot unblock it.
+function noMatchingTaskError(states, context) {
+  const excluded = states.filter((state) => matchesLocation(state, context));
+  if (excluded.length === 0) return new Error('QA requires a matching mutation task with test scope evidence');
+  const details = excluded.map((state) => {
+    const unresolved = (state.steps || [])
+      .filter((step) => ['blocked', 'verify_required'].includes(step.status))
+      .map((step) => `${step.id}:${step.status}`);
+    return `${state.task_id} status=${state.status}${unresolved.length ? ` unresolved=${unresolved.join(',')}` : ''}`;
+  });
+  return Object.assign(
+    new Error(`QA requires a matching mutation task with test scope evidence, but its status excludes it: ${details.join('; ')}`),
+    { code: 'TEST_SCOPE_TASK_STATE' },
+  );
 }
 
 function verifyTestScopeEvidence({ states, context, headSha, runsRoot, templateSource = false }) {
   if (templateSource) return { skipped: true };
   const matches = matchQaTasks({ states, context });
-  if (matches.length === 0) throw new Error('QA requires a matching mutation task with test scope evidence');
+  if (matches.length === 0) throw noMatchingTaskError(states, context);
   if (matches.length > 1) throw new Error('QA found ambiguous mutation tasks for this worktree and branch');
 
   const task = matches[0];

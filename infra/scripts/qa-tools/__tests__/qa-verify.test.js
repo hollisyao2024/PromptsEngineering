@@ -63,6 +63,16 @@ test('qa verify reports verdict and business gate blocks with their own reason c
   assert.match(ok.nextAction, /qa merge/);
 });
 
+test('a task-state block points at the task state instead of asking for more evidence', () => {
+  const error = Object.assign(new Error('task change status=blocked unresolved=S4:blocked'), { code: 'TEST_SCOPE_TASK_STATE' });
+  const outcome = describeQaVerifyOutcome({ error });
+  assert.equal(outcome.status, 'BLOCKED');
+  assert.equal(outcome.reason, 'TEST_SCOPE_TASK_STATE');
+  assert.match(outcome.summary, /S4:blocked/u);
+  assert.match(outcome.nextAction, /--status pending/u);
+  assert.doesNotMatch(outcome.nextAction, /补录/u);
+});
+
 test('qa verify folds every collected gate block into one BLOCKED outcome', () => {
   const scope = { reason: 'TEST_SCOPE_EVIDENCE', summary: 'TEST_SCOPE_RESULT head_sha mismatch' };
   const single = describeQaVerifyOutcome({ blockers: [scope] });

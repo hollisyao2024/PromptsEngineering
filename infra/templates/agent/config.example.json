@@ -122,6 +122,73 @@
   "testing": {
     "targetedRunners": []
   },
+  "codemap": {
+    "scanDirs": ["apps", "packages"],
+    "includePatterns": [
+      "^apps/[^/]+/src/app/",
+      "^apps/[^/]+/src/lib/",
+      "^apps/[^/]+/src/services/",
+      "^apps/[^/]+/src/instrumentation\\.ts$",
+      "^apps/[^/]+/src/proxy\\.ts$",
+      "^apps/[^/]+/scripts/qa/",
+      "^packages/[^/]+/src/"
+    ],
+    "groups": [
+      {
+        "id": "web-runtime",
+        "title": "Web Runtime",
+        "pattern": "^apps/[^/]+/src/(instrumentation\\.ts|proxy\\.ts)$",
+        "summary": "Web 应用运行时入口与全局请求拦截。",
+        "detailLimit": 4
+      },
+      {
+        "id": "web-app",
+        "title": "Web Pages",
+        "pattern": "^apps/[^/]+/src/app/(?!api/)",
+        "bucketPattern": "^apps/[^/]+/src/app/([^/]+)/",
+        "summary": "Next.js 页面、布局和前端路由入口。",
+        "detailLimit": 10
+      },
+      {
+        "id": "web-api",
+        "title": "Web API Routes",
+        "pattern": "^apps/[^/]+/src/app/api/",
+        "bucketPattern": "^apps/[^/]+/src/app/api/([^/]+)",
+        "summary": "Next.js API 路由入口。",
+        "detailLimit": 12
+      },
+      {
+        "id": "web-lib",
+        "title": "Web Core Libs",
+        "pattern": "^apps/[^/]+/src/lib/",
+        "bucketPattern": "^apps/[^/]+/src/lib/([^/]+)",
+        "summary": "跨页面复用的核心库、领域工具与基础设施封装。",
+        "detailLimit": 10
+      },
+      {
+        "id": "web-services",
+        "title": "Web Services",
+        "pattern": "^apps/[^/]+/src/services/",
+        "bucketPattern": "^apps/[^/]+/src/services/([^/]+)",
+        "summary": "业务服务层与后台流程编排。",
+        "detailLimit": 10
+      },
+      {
+        "id": "qa-scripts",
+        "title": "QA Scripts",
+        "pattern": "^apps/[^/]+/scripts/qa/",
+        "summary": "手动验证和专项检查脚本。",
+        "detailLimit": 6
+      },
+      {
+        "id": "database",
+        "title": "Database Package",
+        "pattern": "^packages/[^/]+/src/",
+        "summary": "数据库访问入口与共享数据层导出。",
+        "detailLimit": 8
+      }
+    ]
+  },
   "paths": {
     "primaryApp": "",
     "appDirs": [],

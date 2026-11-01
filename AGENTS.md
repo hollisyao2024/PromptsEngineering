@@ -7,9 +7,9 @@
 @./docs/CONVENTIONS.md
 @./RULES.md
 
-- 新执行上下文进入实际项目任务时，先使用只读工具按 UTF-8 完整读取 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`，并确认各文件已读到末尾；`@` 路径只表示引用，不能当作正文已加载。输出截断时按行范围补读至文件末尾。
+- 新执行上下文进入实际项目任务时，先使用只读工具按 UTF-8 完整读取 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`，并确认各文件已读到末尾；运行环境已把某文件正文完整注入当前上下文（可见正文直到末尾、无截断提示）时，该文件视为已读、不再重读。`@` 路径本身只表示引用，未见正文不能当作已加载；未注入、被截断或无法确认时仍须完整读取。输出截断时按行范围补读至文件末尾。注入免读不放松下条缺失、为空或读取失败门禁。
 - 仅在通过只读 `git remote get-url origin` 确认当前仓库是官方息壤源 `hollisyao2024/PromptsEngineering.git`，且该源未提供 `RULES.md` 时，`RULES.md` 免读；实际项目的 `RULES.md` 缺失、为空或读取失败时停止后续副作用；仅明确的首次应用或模板更新可在 `RULES.md` 缺失时继续模板初始化，按既有任务、worktree 与所有权门禁创建，创建后必须完整读取再执行其他项目副作用；已有空文件或读取失败不适用此例外。两类仓库的 `AGENTS.md` 或 `docs/CONVENTIONS.md` 缺失、为空或读取失败时也停止后续副作用。
-- 当前执行上下文已完整读取的必需基础规则，阶段切换不重复全文加载；激活专家仍完整读取对应文件，handbook 与阶段文档按需点读。
+- 当前执行上下文已完整读取或注入的必需基础规则，阶段切换不重复全文加载；激活专家仍完整读取对应文件，handbook 与阶段文档按需点读。
 - `docs/CONVENTIONS.md` 由模板提供；`RULES.md` 由实际项目维护；首次应用与更新仅在缺失时从模板骨架初始化，已有文件保持不变，模板源根目录不提供项目规则文件。
 - 不得输出模型隐藏思维过程；用中文给出结论、证据、风险与下一动作。
 
@@ -84,7 +84,8 @@
 
 - `180000` token 是自动压缩硬保险；软水位为 `80000` 正常推进、`80000-120000` 只并行独立只读检查、`120000-150000` 收口当前阶段并准备胶囊、`150000` 以上由新上下文续跑。优先自然阶段边界，不机械切断关键验证。
 - 新对话始终可创建，轻量问答和状态查询不限制，长命令继续运行；`1-2 条重型任务`、单线程 `8-10 次模型请求/分钟`、活跃合计约 `2.5M TPM` 是目标水位。`3M` 告警、`4M` 对后台/heartbeat/自动恢复执行暂停、`4.5M` 只让新增重型模型请求排队；只节流模型请求，不中断 shell、测试、构建或部署。
-- 完成必需的基础规则预读后，新执行上下文已知任务 ID 时先执行 `pnpm agent -- task resume --task <id>`，再执行 `pnpm agent -- task context --task <id>`；仅在尚未识别任务时使用 `resume --auto`，多候选不得猜选。当前任务内正常阶段切换只刷新 context，不对仍在执行的副作用步骤调用恢复入口。只读取胶囊、当前代码和必要的章节，不全文加载 Handbook 或大型模块文档。
+- 确认必需的基础规则已完整加载后，新执行上下文已知任务 ID 时先执行 `pnpm agent -- task resume --task <id>`，再执行 `pnpm agent -- task context --task <id>`；仅在尚未识别任务时使用 `resume --auto`，多候选不得猜选。当前任务内正常阶段切换只刷新 context，不对仍在执行的副作用步骤调用恢复入口。只读取胶囊、当前代码和必要的章节，不全文加载 Handbook 或大型模块文档。
+- 上下文压缩后不全量重读：只读接下来要 Edit 的文件，其余用 Grep 点查；决策和下一动作写入当前步骤的 `task checkpoint --next`，不靠重读恢复。同一执行器压缩后只刷新 context，不对仍在执行的副作用步骤调用恢复入口；基础规则按「必须加载的上下文」判定，正文已不在上下文时才补读。不得因此跳过测试、证据或关键读取。
 - 普通工具调用默认输出不超过 `4000` token；任何预计超过 5 秒或 2KB 输出的测试、构建、部署命令使用 `pnpm agent -- task exec --task <id> --name <name> -- <command...>`，完整日志写入任务 evidence，只回传约 8KB/80 行摘要。
 - 禁止对大日志反复执行 `write_stdin` 轮询；同一长命令最多做一次状态探测，之后等待完成或读取 `task exec` 生成的摘要。
 - 已获端到端授权的 PRD → ARCH → TASK → TDD → QA 流程必须自动连续推进；每次阶段转换先生成胶囊、读取下一阶段专家和必要材料，然后在当前任务中继续执行。阶段完成、角色切换或生成胶囊不是结束任务的理由，不重复要求用户确认已授权范围。
@@ -107,7 +108,7 @@ pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<�
 - 一个 checkpoint 可同时完成步骤和验收项，并记录简短证据、退出码、路径或哈希。
 - 范围演进只用 `pnpm agent -- task extend --task <id> --reason "<原因>" ...` 追加步骤/验收项，不改写已完成历史。
 - 治理阶段转换使用 `pnpm agent -- task transition --task <id> --phase <next> --evidence "<里程碑证据>"`；禁止跳阶段，回流只走状态机允许的路径。按输出的 `CONTEXT_COMMAND` 刷新胶囊，`AUTO_CONTINUE=true` 时依 `CONTINUATION_ACTION` 自动继续当前任务，或执行 completion guard；`RESOLVE_BLOCKER` 时先核实并解决真实阻塞，不能盲重放、忽略拒绝或自行批准。`CONTEXT_REFRESH_REQUIRED=true` 不代表必须更换执行器，旧脚本的 `CONTEXT_HANDOFF_REQUIRED=true` 也按上述接管确认协议处理，不能仅据此停止已授权工作。
-- 出错、等待用户或上下文即将压缩时必须写 `--next`。
+- 出错、等待用户或上下文即将压缩时必须写 `--next`；未开始且只等用户决定的步骤用 `--status pending --next "<等待内容>"`，不标 `blocked`，遇 `CONTINUATION_ACTION=WAIT_FOR_USER` 时停下询问，细则见 `docs/CONVENTIONS.md` §6。
 - 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
 - 失败先按可观察证据区分 `tool_error`（普通工具故障：修复并核实副作用后再决定是否重试）、`policy_denied`（工具明确拒绝：保留原始理由和调用编号，停止该操作，不改写命令、换入口或扩大权限）和 `unknown_result`（超时或断连：先核实真实状态，不盲目重放）。已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕：`not_started` 必须有明确未启动证据并配 `blocked`，`started|unknown` 配 `verify_required`，没有证据不推断未启动。恢复前先核实外部副作用并提供 `--recovery-evidence`；它不是权限许可，不能自我批准，resume 不执行重试，故障历史只追加。
 - 若 task start/checkpoint 本身不可执行，先在当前对话记录目标、验收、操作、时间、调用编号、启动状态和下一动作；仅有 `blocked by policy` 时说明“执行工具策略拒绝，具体规则未知”，不得擅自归因于 Auto-review、目录越界或 pnpm。继续获准且不依赖该操作的只读核查，不因记账失败停止整个查询；禁止改写命令、换工具或迁移记录以重试被拒绝动作。独立证据写入也需获准，不伪造 state.json；恢复后先核实副作用再补记，不跳过 mutation 的 worktree、QA 或安全门禁。
