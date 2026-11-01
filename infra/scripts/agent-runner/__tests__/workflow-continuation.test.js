@@ -120,6 +120,76 @@ test('only proven independent cleanup can be deferred while QA automatically con
   assert.equal(fields(buildTaskContext(input)).AUTO_CONTINUE, 'false');
 });
 
+test('a not-started step waiting for the user keeps the task running and stops auto-continue', t => {
+  const input = { ...fixture(t), phase: 'tdd' }; createTask(input);
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: ['built'] });
+  let state = checkpointTask({ ...input, stepId: 'S2', status: 'pending', nextAction: 'Ask the user how to merge' });
+  assert.equal(state.status, 'running');
+  assert.equal(state.steps[1].status, 'pending');
+  let capsule = fields(buildTaskContext(input));
+  assert.equal(capsule.CONTINUATION_ACTION, 'WAIT_FOR_USER');
+  assert.equal(capsule.AUTO_CONTINUE, 'false');
+  assert.equal(capsule.NEXT_ACTION, 'Ask the user how to merge');
+  // 等待不是 running：恢复入口不得把它改写为中断或待核验。
+  assert.equal(resumeTask(input).steps[1].status, 'pending');
+  // 其他步骤的 checkpoint 不带 --next 时，等待说明不能丢失。
+  checkpointTask({ ...input, stepId: 'S3', status: 'done', evidence: ['independent work'] });
+  assert.equal(fields(buildTaskContext(input)).NEXT_ACTION, 'Ask the user how to merge');
+  assert.equal(fields(buildTaskContext(input)).CONTINUATION_ACTION, 'WAIT_FOR_USER');
+  // 等待不算完成：完成门禁仍阻断，阶段推进不被阻断。
+  assert.equal(finishTask(input).status, 'BLOCKED');
+  assert.equal(transitionTaskPhase({ ...input, phase: 'qa', evidence: ['TDD verified'] }).current_phase, 'qa');
+  // 用户确认后开始执行，等待标记随状态变化清除。
+  state = checkpointTask({ ...input, stepId: 'S2', status: 'running', nextAction: 'Merge' });
+  assert.equal(state.steps[1].awaiting_user, undefined);
+  capsule = fields(buildTaskContext(input));
+  assert.equal(capsule.CONTINUATION_ACTION, 'CONTINUE_CURRENT_TASK');
+});
+
+test('a waiting step only stops auto-continue once it is the first incomplete step', t => {
+  const input = { ...fixture(t), phase: 'tdd' }; createTask(input);
+  checkpointTask({ ...input, stepId: 'S2', status: 'pending', nextAction: 'Wait for the user' });
+  assert.equal(fields(buildTaskContext(input)).CONTINUATION_ACTION, 'CONTINUE_CURRENT_TASK');
+});
+
+test('a never-started step marked blocked can return to waiting without keeping the task blocked', t => {
+  const input = { ...fixture(t), phase: 'tdd' }; createTask(input);
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: ['built'] });
+  assert.equal(checkpointTask({ ...input, stepId: 'S2', status: 'blocked', evidence: ['awaiting approval'], nextAction: 'Ask' }).status, 'blocked');
+  const state = checkpointTask({ ...input, stepId: 'S2', status: 'pending', evidence: ['not started'], nextAction: 'Ask the user' });
+  assert.equal(state.status, 'running');
+  assert.equal(state.last_error, null);
+  assert.equal(fields(buildTaskContext(input)).CONTINUATION_ACTION, 'WAIT_FOR_USER');
+});
+
+test('pending checkpoints require --next and never erase a started or unknown step', t => {
+  const input = { ...fixture(t), phase: 'tdd', steps: [
+    { title: 'waiting', replay: 'safe' },
+    { title: 'started', replay: 'verify_first' },
+    { title: 'unknown', replay: 'verify_first' },
+    { title: 'failed', replay: 'verify_first' },
+    { title: 'done', replay: 'safe' },
+    { title: 'started then blocked', replay: 'verify_first' },
+  ] };
+  createTask(input);
+  assert.throws(() => checkpointTask({ ...input, stepId: 'S1', status: 'pending' }), /--next/u);
+  assert.equal(readTaskState(input).steps[0].awaiting_user, undefined);
+  checkpointTask({ ...input, stepId: 'S2', status: 'running' });
+  checkpointTask({ ...input, stepId: 'S3', status: 'verify_required', evidence: ['timed out'], nextAction: 'Verify' });
+  checkpointTask({ ...input, stepId: 'S4', status: 'blocked', failureKind: 'policy_denied', executionState: 'not_started',
+    evidence: ['denied'], nextAction: 'Ask' });
+  checkpointTask({ ...input, stepId: 'S5', status: 'done', evidence: ['ok'] });
+  checkpointTask({ ...input, stepId: 'S6', status: 'running' });
+  checkpointTask({ ...input, stepId: 'S6', status: 'blocked', evidence: ['stuck'], nextAction: 'Check' });
+  for (const stepId of ['S2', 'S3', 'S4', 'S5', 'S6']) {
+    assert.throws(() => checkpointTask({ ...input, stepId, status: 'pending', nextAction: 'Wait' }),
+      new RegExp(`${stepId}.*not-started`, 'u'), stepId);
+  }
+  const state = readTaskState(input);
+  assert.deepEqual(state.steps.slice(1).map(step => step.status),
+    ['running', 'verify_required', 'blocked', 'done', 'blocked']);
+});
+
 test('completion routing never marks QA entry, pending acceptance or cleanup as completed', t => {
   const input = { ...fixture(t), phase: 'qa', steps: [{ title: 'verify QA', replay: 'safe' }] };
   createTask(input);

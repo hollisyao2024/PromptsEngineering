@@ -115,6 +115,42 @@ test('missing, foreign and ambiguous mutation tasks cannot supply QA evidence', 
   assert.throws(() => verify([state(undefined, { branch: 'other-branch' })]), /matching mutation task/);
 });
 
+function blockedTask(overrides = {}) {
+  const task = state(undefined, { status: 'blocked', ...overrides });
+  task.steps.push({ id: 'S4', status: 'blocked', evidence: [] });
+  return task;
+}
+
+test('a same-location task excluded by its status is named as the cause, not missing evidence', () => {
+  assert.throws(() => verify([blockedTask()]), (error) => {
+    assert.equal(error.code, 'TEST_SCOPE_TASK_STATE');
+    assert.match(error.message, /change/u);
+    assert.match(error.message, /status=blocked/u);
+    assert.match(error.message, /S4:blocked/u);
+    return true;
+  });
+  assert.throws(() => verify([state(undefined, { status: 'cleanup_pending' })]), (error) => {
+    assert.equal(error.code, 'TEST_SCOPE_TASK_STATE');
+    assert.match(error.message, /status=cleanup_pending/u);
+    return true;
+  });
+});
+
+test('a blocked task elsewhere stays a plain missing-task error, and an eligible task still wins', () => {
+  assert.throws(() => verify([blockedTask({ worktree: '/project/worktrees/other' })]), (error) => {
+    assert.equal(error.code, undefined);
+    assert.match(error.message, /matching mutation task/u);
+    return true;
+  });
+  assert.equal(verify([blockedTask({ task_id: 'stale' }), state()]).taskId, 'change');
+});
+
+test('a step waiting for the user as pending leaves the task able to supply QA evidence', () => {
+  const task = state();
+  task.steps.push({ id: 'S4', status: 'pending', awaiting_user: true, evidence: [] });
+  assert.equal(verify([task]).taskId, 'change');
+});
+
 function deferredCleanupState(phase = 'qa') {
   const task = state(undefined, {
     status: 'blocked', current_phase: phase,

@@ -16,6 +16,40 @@ const {
 } = require('../agent-task');
 const { fixture, pathsFixture, startInput } = require('./agent-task.helpers');
 
+// Fixed stand-in for the fixture temp root (default Windows length), so byte budgets
+// measure capsule text rather than how long the current machine's temp path is.
+const REFERENCE_TEMP_ROOT = 'x'.repeat(52);
+const FULL_EVIDENCE = `verified delivery ${'unique supporting detail '.repeat(70)}`;
+
+function capsuleBytesAtReferenceRoot(capsule, root) {
+  return Buffer.byteLength(capsule.split(root).join(REFERENCE_TEMP_ROOT), 'utf8');
+}
+
+function seedEvidenceIndexTask(paths, overrides = {}) {
+  const input = startInput(paths, { phase: 'tdd', ...overrides });
+  createTask(input);
+  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: [FULL_EVIDENCE] });
+  checkpointTask({ ...input, stepId: 'S2', status: 'verify_required',
+    failureKind: 'unknown_result', executionState: 'unknown',
+    evidence: ['push outcome is unknown'], nextAction: 'Check remote SHA' });
+  checkpointTask({ ...input, acceptanceId: 'AC1', status: 'done', evidence: ['acceptance checked'] });
+  return input;
+}
+
+function nestedFixturePaths(paths) {
+  const root = path.join(paths.root, 'x'.repeat(100));
+  const nested = {
+    root,
+    runsRoot: path.join(root, 'agent-task-runs'),
+    lockDir: path.join(root, 'agent-locks'),
+    projectRoot: path.join(root, 'repo'),
+    worktree: path.join(root, 'worktree'),
+  };
+  fs.mkdirSync(nested.projectRoot, { recursive: true });
+  fs.mkdirSync(nested.worktree, { recursive: true });
+  return nested;
+}
+
 test('task context is bounded, read-only, and supports point reads', (t) => {
   const paths = fixture(t);
   createTask(startInput(paths, {
@@ -75,14 +109,7 @@ test('task context is bounded, read-only, and supports point reads', (t) => {
 
 test('task context indexes evidence without repeating its body or changing recovery routing', (t) => {
   const paths = fixture(t);
-  const input = startInput(paths, { phase: 'tdd' });
-  createTask(input);
-  const fullEvidence = `verified delivery ${'unique supporting detail '.repeat(70)}`;
-  checkpointTask({ ...input, stepId: 'S1', status: 'done', evidence: [fullEvidence] });
-  checkpointTask({ ...input, stepId: 'S2', status: 'verify_required',
-    failureKind: 'unknown_result', executionState: 'unknown',
-    evidence: ['push outcome is unknown'], nextAction: 'Check remote SHA' });
-  checkpointTask({ ...input, acceptanceId: 'AC1', status: 'done', evidence: ['acceptance checked'] });
+  const input = seedEvidenceIndexTask(paths);
   const stateBefore = readTaskState(input);
 
   const capsule = buildTaskContext(input);
@@ -95,8 +122,27 @@ test('task context indexes evidence without repeating its body or changing recov
   assert.match(capsule, /S1:1.*S2:1.*AC1:1/u);
   assert.ok(capsule.includes(`STATE_PATH=${path.join(paths.runsRoot, 'durable-task', 'state.json')}`));
   assert.doesNotMatch(capsule, /unique supporting detail|push outcome is unknown|acceptance checked/u);
-  assert.ok(Buffer.byteLength(capsule, 'utf8') < Buffer.byteLength(fullEvidence, 'utf8'));
+  assert.ok(capsuleBytesAtReferenceRoot(capsule, paths.root) < Buffer.byteLength(FULL_EVIDENCE, 'utf8'));
   assert.deepEqual(readTaskState(input), stateBefore);
+});
+
+test('task context byte budget tracks capsule text, not the temp root length', (t) => {
+  const shortPaths = fixture(t);
+  const longPaths = nestedFixturePaths(fixture(t));
+  const shortCapsule = buildTaskContext(seedEvidenceIndexTask(shortPaths));
+  const longCapsule = buildTaskContext(seedEvidenceIndexTask(longPaths));
+
+  assert.ok(Buffer.byteLength(longCapsule, 'utf8') > Buffer.byteLength(shortCapsule, 'utf8'));
+  assert.equal(
+    capsuleBytesAtReferenceRoot(longCapsule, longPaths.root),
+    capsuleBytesAtReferenceRoot(shortCapsule, shortPaths.root),
+  );
+
+  // Oversized capsule text must exceed the budget at either root length.
+  for (const paths of [fixture(t), nestedFixturePaths(fixture(t))]) {
+    const capsule = buildTaskContext(seedEvidenceIndexTask(paths, { goal: 'g'.repeat(400) }));
+    assert.ok(capsuleBytesAtReferenceRoot(capsule, paths.root) >= Buffer.byteLength(FULL_EVIDENCE, 'utf8'));
+  }
 });
 
 test('task exec preserves logs, strips ANSI summaries, and returns the child exit code', (t) => {

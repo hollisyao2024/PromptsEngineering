@@ -623,6 +623,17 @@ function deriveTaskStatus(state) {
     : 'running';
 }
 
+// pending 只表示“尚未开始、等待用户”：不得借此抹掉已开始、结果未知或有结构化失败的步骤。
+function assertStepCanWait(step, nextAction) {
+  if (!String(nextAction || '').trim()) {
+    throw new Error('pending checkpoint requires --next stating what the step waits for');
+  }
+  const correctable = step.status === 'blocked' && !step.started_at && !step.failures?.length;
+  if (step.status !== 'pending' && !correctable) {
+    throw new Error(`step ${step.id} is ${step.status}; only a not-started step can wait as pending`);
+  }
+}
+
 function checkpointTask(options) {
   const taskId = safeTaskId(options.taskId);
   const evidence = normalizeTextList(options.evidence);
@@ -684,7 +695,7 @@ function checkpointTask(options) {
       }
     }
     if (stepId) {
-      if (!STEP_STATUSES.has(requestedStatus) || requestedStatus === 'pending') {
+      if (!STEP_STATUSES.has(requestedStatus)) {
         throw new Error(`invalid checkpoint status: ${requestedStatus || '(missing)'}`);
       }
       if (requestedStatus === 'done' && evidence.length === 0) {
@@ -692,6 +703,7 @@ function checkpointTask(options) {
       }
       const step = state.steps.find((item) => item.id === stepId);
       if (!step) throw new Error(`unknown step: ${stepId}`);
+      if (requestedStatus === 'pending') assertStepCanWait(step, options.nextAction);
       const failures = step.failures || [];
       const recoveries = step.recoveries || [];
       const failureIndex = failures.length - 1;
@@ -717,6 +729,8 @@ function checkpointTask(options) {
       }
       if (options.replay) step.replay = options.replay;
       step.status = requestedStatus;
+      if (requestedStatus === 'pending') step.awaiting_user = true;
+      else delete step.awaiting_user;
       appendStepEvidence(state, step, evidence);
       step.next_action = String(options.nextAction || step.next_action || step.title);
       if (requestedStatus === 'running') step.started_at = timestamp;
@@ -731,7 +745,7 @@ function checkpointTask(options) {
             call_id: String(options.callId || '').trim() || null,
           } : {}),
         };
-      } else if (requestedStatus === 'done' && state.last_error && state.last_error.step_id === step.id) {
+      } else if (['done', 'pending'].includes(requestedStatus) && state.last_error && state.last_error.step_id === step.id) {
         state.last_error = null;
       }
     }
@@ -1071,7 +1085,7 @@ function buildTaskContext(options) {
   append(`NEXT_ACTION=${state.next_action}`, 900);
   append(`CONTEXT_BUDGET_BYTES=${maxBytes}`);
   append(`STATE_PATH=${statePath}`);
-  append(`HANDOFF_PROMPT=In WORKTREE read AGENTS.md and docs/CONVENTIONS.md completely with read-only UTF-8 tools before task resume; applied projects must also read RULES.md completely. Only when origin identifies the official PromptsEngineering template source and RULES.md is absent, skip that project-owned file. Complete truncated output to EOF; stop side effects on missing, empty, or unreadable required files. Explicit template application or update may initialize a missing RULES.md under existing task/worktree and ownership gates; fully read the created file before other project side effects. Existing empty or unreadable files are not exempt. Then run pnpm agent -- task resume --task ${state.task_id}, then task context --task ${state.task_id}. Follow CONTINUATION_ACTION; continue authorized work without repeated confirmation. A new executor must acknowledge takeover before the current one stops.`);
+  append(`HANDOFF_PROMPT=In WORKTREE read AGENTS.md and docs/CONVENTIONS.md completely with read-only UTF-8 tools before task resume; applied projects must also read RULES.md completely; files already injected to EOF need no re-read (@ paths do not count). Only when origin identifies the official PromptsEngineering template source and RULES.md is absent, skip that project-owned file. Complete truncated output to EOF; stop side effects on missing, empty, or unreadable required files. Explicit template application or update may initialize a missing RULES.md under existing task/worktree and ownership gates; fully read the created file before other project side effects. Existing empty or unreadable files are not exempt. Then run pnpm agent -- task resume --task ${state.task_id}, then task context --task ${state.task_id}. Follow CONTINUATION_ACTION; continue authorized work without repeated confirmation. A new executor must acknowledge takeover before the current one stops.`);
   append('CAPSULE_BEGIN');
 
   for (const include of includes) {
@@ -1143,6 +1157,7 @@ function continuationFields(state) {
   if (state.status === 'completed') action = 'TASK_COMPLETE';
   else if (state.status === 'cleanup_pending') action = 'RESOLVE_BLOCKER';
   else if (blocking || (state.status === 'blocked' && !unresolved.length)) action = 'RESOLVE_BLOCKER';
+  else if (steps.find(step => step.status !== 'done')?.awaiting_user) action = 'WAIT_FOR_USER';
   else if (steps.length && steps.every(step => step.status === 'done')
     && (state.acceptance_criteria || []).every(item => item.status === 'done')) action = 'RUN_COMPLETION_GUARD';
   return [
@@ -1418,6 +1433,7 @@ function printHelp() {
   node infra/scripts/agent-runner/agent-task.js checkpoint --task <id> [--step <S1>] [--acceptance-id <AC1>]... --status <status> [--evidence <text>] [--next <action>]
     Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
     Recovery: --recovery-evidence <verified external outcome or restored authorization>
+    Waiting: --step <S1> --status pending --next <what it waits for> (not-started steps only; CONTINUATION_ACTION=WAIT_FOR_USER once it is first incomplete)
   node infra/scripts/agent-runner/agent-task.js exec --task <id> --name <evidence-name> -- <command...>
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
