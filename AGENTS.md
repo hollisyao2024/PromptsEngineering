@@ -6,7 +6,6 @@
 
 @./docs/CONVENTIONS.md
 @./RULES.md
-
 - 新执行上下文进入实际项目任务时，先使用只读工具按 UTF-8 完整读取 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`，并确认各文件已读到末尾；运行环境已把某文件正文完整注入当前上下文（可见正文直到末尾、无截断提示）时，该文件视为已读、不再重读。`@` 路径本身只表示引用，未见正文不能当作已加载；未注入、被截断或无法确认时仍须完整读取。输出截断时按行范围补读至文件末尾。注入免读不放松下条缺失、为空或读取失败门禁。
 - 仅在通过只读 `git remote get-url origin` 确认当前仓库是官方息壤源 `hollisyao2024/PromptsEngineering.git`，且该源未提供 `RULES.md` 时，`RULES.md` 免读；实际项目的 `RULES.md` 缺失、为空或读取失败时停止后续副作用；仅明确的首次应用或模板更新可在 `RULES.md` 缺失时继续模板初始化，按既有任务、worktree 与所有权门禁创建，创建后必须完整读取再执行其他项目副作用；已有空文件或读取失败不适用此例外。两类仓库的 `AGENTS.md` 或 `docs/CONVENTIONS.md` 缺失、为空或读取失败时也停止后续副作用。
 - 当前执行上下文已完整读取或注入的必需基础规则，阶段切换不重复全文加载；激活专家仍完整读取对应文件，handbook 与阶段文档按需点读。
@@ -158,9 +157,10 @@ pnpm agent -- finish
 - 提交信息与 PR 描述不加 Claude Code、ChatGPT/Codex 等任何大模型署名（`Co-Authored-By`、`Generated with` 等）；`tdd push` 与 `qa merge` 会剔除此类行。
 
 ## 模板所有权与升级
-
 - 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。
-- 仅 `template.role=source` 的息壤源加载 `docs/guides/source-initialization.md` 处理“初始化项目＋路径”；用户速查见源中的 `docs/guides/commands.md`。实际项目不加载这些源专用指南；源中收到更新指令只提示切换到对应实际项目，不代为跨项目更新。
+<!-- xirang:source-only:start -->
+- 息壤源加载 `docs/guides/source-initialization.md` 处理“初始化项目＋路径”；用户速查见 `docs/guides/commands.md`。源中收到更新指令只提示切换到对应实际项目，不代为跨项目更新。
+<!-- xirang:source-only:end -->
 - 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：先核实并明确当前实际项目的绝对路径，以该仓库为唯一目标；按任务门禁创建或恢复专用 linked worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链。固定获取上述官方 GitHub `main` 的最新提交，不传替换来源的参数；无需本地息壤源或再次询问模板名称、仓库。目标不明确先澄清，不猜路径；含糊的“更新项目”不自动触发模板或业务修改。
 - `template sync` 必须通过匿名 HTTPS required fetch 官方公开分支（不读取项目 GH_TOKEN，并隔离 Git 凭据配置）、锁定本次 commit SHA，并从该 SHA 内的 updater 应用；fetch、ref 或源校验失败必须阻断，禁止退回缓存或项目内旧模板。该命令只允许在实际项目的干净 linked worktree 执行，模板源仓库和主 worktree 均阻断。
 - 模型作业包由 `agent/manifest.json` 登记，保留 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 兼容路径；技术标准、选型与初始化由独立 `architecture/` 包提供。
