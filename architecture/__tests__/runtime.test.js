@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createTemplatePlan } = require('../../tooling/xirang/template');
 const { createArchitecturePlan, walk } = require('../scripts/project');
-const { applyPlan, planUpdate, readLock, read, json, hash, resumePlan } = require('../../tooling/xirang/engine');
+const { applyPlan, planUpdate, readLock, readBaselineStore, read, json, hash, resumePlan } = require('../../tooling/xirang/engine');
 const { preparePlanSource } = require('../../tooling/xirang/source-cache');
 const source = path.resolve(__dirname, '../..');
 function fixture(t) {
@@ -57,11 +57,12 @@ test('retired baselines are removed only after last reference and recover after 
   applyPlan(planUpdate({ target: f.target, assets: [asset('architecture/a.js'), asset('packages/a.js')] }), f);
   const removal = p => ({ ...asset(p), content: null, strategy: 'remove' });
   applyPlan(planUpdate({ target: f.target, assets: [removal('architecture/a.js')] }), f);
-  assert.equal(read(f.target, '.xirang/baselines/' + hash(old), true), old);
+  assert.equal(readBaselineStore(f.target).blobs[hash(old)], old);
   const plan = planUpdate({ target: f.target, assets: [removal('packages/a.js')] });
   assert.throws(() => applyPlan(plan, { ...f, afterLockWrite() { throw new Error('power loss'); } }), /power loss/);
   resumePlan(f.target, f);
   assert.equal(read(f.target, '.xirang/baselines/' + hash(old), true), null);
+  assert.equal(readBaselineStore(f.target).blobs[hash(old)], undefined);
   assert.deepEqual(readLock(f.target).files, {});
 });
 test('agent scope leaves installed architecture pointer and choices unchanged', t => {

@@ -23,7 +23,7 @@ pnpm agent -- template sync --scope agent
 
 ## 所有权与基线
 
-作业协议、模板工具由 `manifest` 管理。`xirang.lock.json` 和 `.xirang/baselines/` 必须随项目提交，普通更新根据上次基线检查本地定制；它们不能由手工复制文件替代。
+作业协议、模板工具由 `manifest` 管理。`xirang.lock.json` 和 `.xirang/baselines.json` 必须随项目提交，普通更新根据上次基线检查本地定制；它们不能由手工复制文件替代。
 
 旧项目缺少基线时，先检查 `adoption required` 的差异，再用 `template sync --adopt --dry-run` 预演。确认后的 `--adopt` 保留现有内容作为项目定制并建立依据，不等于所有旧协议和脚本已经换成新实现。旧引导器不支持参数时，从新版息壤源使用 `template update "<目标-worktree>" --scope agent --adopt` 完成一次引导，同样先 `dry-run`。
 

@@ -45,7 +45,8 @@ for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted wor
     assert.equal(fs.readFileSync(path.join(target, 'packages/database/main/prisma/migrations/20260909000000_init/migration.sql'), 'utf8'), sql);
     assert.ok(!fs.existsSync(path.join(target, 'packages/auth'))); assert.ok(!fs.existsSync(path.join(target, 'packages/storage')));
   }
-  const after = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: size(path.join(target, '.xirang/baselines')) };
+  const after = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: fs.statSync(path.join(target, '.xirang/baselines.json')).size };
+  assert.equal(fs.existsSync(path.join(target, '.xirang/baselines')), false);
   assert.ok(after.files <= 8, JSON.stringify(after)); assert.ok(after.bytes < before.bytes / 4); assert.ok(after.baselineBytes < before.baselineBytes);
   assert.ok(!fs.existsSync(path.join(target, 'architecture/modules'))); assert.ok(!fs.existsSync(path.join(target, 'architecture/stacks')));
   assert.equal(readLock(target).packages['architecture:runtime'].selection.mode, 'on-demand');

@@ -1,11 +1,11 @@
-const {readLock,read,verifiedText,json,parseJson,mergeJsonValue}=require('./engine');
+const {readLock,readBaseline,json,parseJson,mergeJsonValue}=require('./engine');
 const shared=new Set(['package.json','.gitignore']);
 const owners=new Set(['agent','architecture:workspace']);
 function baseFor(target,file){
  const record=readLock(target).files[file];if(!record)return {};
  if(!owners.has(record.owner))return {};
  // CRLF checkouts of LF baselines verify after normalization and are returned as LF.
- const text=verifiedText(read(target,'.xirang/baselines/'+record.base,true),record.base);
+ const text=readBaseline(target,record);
  if(text===null)throw new Error('Missing/corrupt root contribution baseline: '+file);
  return {record,text};
 }
