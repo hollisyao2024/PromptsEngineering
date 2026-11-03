@@ -45,7 +45,7 @@ pnpm agent -- template update "<目标目录或目标-worktree>" --include archi
 
 ### 基线单文件协议
 
-基线原文集中保存在 `.xirang/baselines.json`；v2 包含 `schemaVersion: 2`、`encoding: "br-base64"`、`size`（解压后的 UTF-8 字节数）和 `data`（Brotli 9 档压缩后的 Base64）。解压结果为按 SHA-256 排序的紧凑 `blobs` 字典，保存全部原文；lock 的 `files.*.base` 仍引用内容摘要。相同内容只保存一次；它不是缓存，必须随 lock 提交。读取器兼容 v1 的 `schemaVersion:1, blobs:{sha256:原文}`。
+基线原文集中保存在 `.xirang/baselines.json`；v2 包含 `schemaVersion: 2`、`encoding: "br-base64"`、`size`（解压后的 UTF-8 字节数）和 `data`（Brotli 6 档压缩后的 Base64）。解压结果为按 SHA-256 排序的紧凑 `blobs` 字典，保存全部原文；lock 的 `files.*.base` 仍引用内容摘要。相同内容只保存一次；它不是缓存，必须随 lock 提交。读取器兼容 v1 的 `schemaVersion:1, blobs:{sha256:原文}`。
 
 | 规则 | 可观察验收与反例 |
 | --- | --- |

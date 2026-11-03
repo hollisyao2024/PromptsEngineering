@@ -80,7 +80,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 
 updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run，并只按 manifest 修改 template-owned 内容。命令固定输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_AUTH_MODE`（官方为 `ANONYMOUS`）、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 与 `TEMPLATE_CONVERGENCE_STATUS`；失败不得改用缓存或目标项目内的旧快照。
 
-基线存储为单文件 `.xirang/baselines.json`（`schemaVersion:1`、`blobs:{sha256:原文}`），内容去重并逐项校验摘要。新版读取器兼容旧目录；正式更新先验证全部引用、写入新旧并集、发布 lock、剪枝，再删除已登记且校验通过的旧文件；预演不迁移，未登记旧文件保留。包存在但缺项或损坏时阻断，不回退旧目录。包与 lock 必须一起提交；旧执行器不保证读取新格式，通过官方同步获取最新 updater。
+基线存储为单文件 `.xirang/baselines.json`，v2 为 `encoding:br-base64`、解压字节数 `size`、Brotli 6 档无损压缩的 `data`；解压后仍为去重的 `{sha256:原文}`，逐项校验摘要。读取器兼容旧目录及 v1 未压缩 JSON，正式更新自动迁移；不变的压缩包复用原字节。正式更新先验证全部引用、写入新旧并集、发布 lock、剪枝，再删除已登记且校验通过的旧文件；预演不迁移，未登记旧文件保留。包存在但损坏时阻断，不回退旧格式。包与 lock 必须一起提交；旧执行器不保证读取新格式，通过官方同步获取最新 updater。
 
 ## 4. 文档与阶段状态
 
