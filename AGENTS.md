@@ -159,9 +159,9 @@ pnpm agent -- finish
 
 ## 模板所有权与升级
 
-- 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支；源中的用户指令速查统一维护于 `docs/guides/commands.md`，README 提供入口，执行协议以本文件和 `docs/CONVENTIONS.md` 为准。
-- 在息壤源中，用户说“初始化实际项目”（或“初始化项目”）并给出目标路径，即授权按 `docs/CONVENTIONS.md` §初始化实际项目 自动检查、预演、安装文件和复查；默认只安装作业包，复用 `pnpm agent -- template update "<目标绝对路径>" --scope agent`，不操作目标 Git。路径缺失时只问路径；已有项目或接入痕迹只报告对应流程，不自动启动更新或 Git 生命周期，禁止按空目录覆盖。
-- 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：按任务门禁创建或恢复专用 linked worktree，并在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链；无需再次询问模板名称、仓库或命令。含糊的“更新项目”仅在上下文已明确更新息壤模板时按此路由，否则先澄清，不自动触发模板或业务修改。
+- 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。
+- 仅 `template.role=source` 的息壤源加载 `docs/guides/source-initialization.md` 处理“初始化项目＋路径”；用户速查见源中的 `docs/guides/commands.md`。实际项目不加载这些源专用指南；源中收到更新指令只提示切换到对应实际项目，不代为跨项目更新。
+- 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：先核实并明确当前实际项目的绝对路径，以该仓库为唯一目标；按任务门禁创建或恢复专用 linked worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链。固定获取上述官方 GitHub `main` 的最新提交，不传替换来源的参数；无需本地息壤源或再次询问模板名称、仓库。目标不明确先澄清，不猜路径；含糊的“更新项目”不自动触发模板或业务修改。
 - `template sync` 必须通过匿名 HTTPS required fetch 官方公开分支（不读取项目 GH_TOKEN，并隔离 Git 凭据配置）、锁定本次 commit SHA，并从该 SHA 内的 updater 应用；fetch、ref 或源校验失败必须阻断，禁止退回缓存或项目内旧模板。该命令只允许在实际项目的干净 linked worktree 执行，模板源仓库和主 worktree 均阻断。
 - 模型作业包由 `agent/manifest.json` 登记，保留 `AGENTS.md`、`AgentRoles/`、`docs/CONVENTIONS.md`、`infra/scripts/` 兼容路径；技术标准、选型与初始化由独立 `architecture/` 包提供。
 - 架构规划先按项目需求选择应用、存储、平台与目录，记录 `architecture.config.json`；用 `architecture plan/init/update/check` 落地。已选 shadcn 的控件和 DataTable 约束见架构标准，`RULES.md` 不重复抄写。
