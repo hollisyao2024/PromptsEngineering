@@ -15,6 +15,15 @@ const ENVIRONMENT_FILE_PAIRS = Object.freeze([
   Object.freeze({ example: '.env.production.example', runtime: '.env.production' }),
 ]);
 
+function planGitHubTokenDeclaration(filePath, content) {
+  // Match the same assignment syntax as GitHub authentication, without ever
+  // logging values. Commented examples and similarly named keys do not count.
+  if (/^\s*(?:export\s+)?GH_TOKEN\s*=/mu.test(content.toString('utf8'))) return null;
+  const newline = content.includes(Buffer.from('\r\n')) ? '\r\n' : '\n';
+  const separator = content.length && content[content.length - 1] !== 10 ? newline : '';
+  return { filePath, content, suffix: `${separator}GH_TOKEN=${newline}` };
+}
+
 function initializeEnvironmentFiles(targetRoot, write) {
   if (write) {
     for (const { example, runtime } of ENVIRONMENT_FILE_PAIRS) {
@@ -70,8 +79,8 @@ function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
     }
   }
 
-  // Read all required inputs before creating any environment files. Existing
-  // runtime files are never read, and existing examples always take priority.
+  // Read all required inputs before creating any environment files. Only the
+  // local runtime file is inspected for GH_TOKEN; existing examples win.
   const examples = ENVIRONMENT_FILE_PAIRS.map(({ example, runtime }) => {
     const destination = path.join(root, example);
     const exists = Boolean(lstatIfPresent(destination));
@@ -85,6 +94,16 @@ function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
     }
     return { example, destination, exists, content };
   });
+
+  const localExample = examples.find(file => file.example === '.env.example');
+  const exampleContent = localExample.exists
+    ? fs.readFileSync(localExample.destination) : localExample.content;
+  const tokenPlans = ['.env.example', '.env.local'].map(file => {
+    const filePath = path.join(root, file);
+    const stat = lstatIfPresent(filePath);
+    if (stat && !stat.isFile()) throw new Error(`environment file must be a regular file: ${file}`);
+    return planGitHubTokenDeclaration(filePath, stat ? fs.readFileSync(filePath) : exampleContent);
+  }).filter(Boolean);
 
   if (write && gitTarget) {
     // Protect local runtime files even before the tracked gitignore update is
@@ -115,6 +134,19 @@ function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
     return { status: 'created', path: example, reason: 'initialized from template example' };
   });
   files.push(...initializeEnvironmentFiles(root, write));
+  for (const plan of tokenPlans) {
+    if (write) {
+      // Append only. Refuse concurrent edits rather than overwriting credentials
+      // or appending against a stale inspection result.
+      if (!fs.readFileSync(plan.filePath).equals(plan.content)) {
+        throw new Error(`environment file changed during initialization: ${path.basename(plan.filePath)}`);
+      }
+      fs.appendFileSync(plan.filePath, plan.suffix);
+    }
+    const result = files.find(file => path.join(root, file.path) === plan.filePath);
+    if (result.status === 'unchanged') result.status = 'updated';
+    result.reason = 'missing GH_TOKEN declaration initialized with empty value';
+  }
   return { root, files };
 }
 

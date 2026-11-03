@@ -285,6 +285,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 
 - GitHub token 变量统一为 `GH_TOKEN`。
 - `.env.example` 中的 `GH_TOKEN` 必须为空；真实值只写入被忽略的 `.env.local`，不得用形似令牌的伪值充当示例。
+- 模板更新检查 `.env.example` 和 `.env.local` 的 `GH_TOKEN` 声明；缺失时仅追加 `GH_TOKEN=`，已有声明和值保留，dry-run 只报告，预发布与生产环境文件不追加。
 - linked worktree 中按当前 worktree、Git 主 worktree、进程环境依次解析 `GH_TOKEN`；已知示例占位值视为未配置并继续回退，显式的非占位 worktree 令牌仍优先。
 - PR 创建、查询和合并优先使用解析后的 `GH_TOKEN` 调用 GitHub REST API，不探测或依赖 `gh`；仅无令牌时保留现有 `gh` 兼容路径。选定 API 后，请求失败不切换到 `gh`；QA 原有本地固定 SHA 合并及门禁保持不变。CLI 路径通过环境变量接收令牌，`gh` 本身不负责读取项目 `.env.local`。
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
