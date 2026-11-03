@@ -15,7 +15,7 @@
 
 ## 模板文件协议
 
-architecture.config.json 用稳定应用/存储/模块 ID 和消费者引用描述选型。xirang.lock.json 的 files 字典以相对路径关联 owner、strategy、version 和 base SHA-256；base 指向 .xirang/baselines.json 的 blobs[sha256]，旧版目录在正式更新时自动迁移。packages 字典记录已安装能力及参数摘要。一个目标文件只能属于一个 owner。
+architecture.config.json 用稳定应用/存储/模块 ID 和消费者引用描述选型。xirang.lock.json 的 files 字典以相对路径关联 owner、strategy、version 和 base SHA-256；base 指向 .xirang/baselines.json 解压后的原文字典条目，旧目录与未压缩 JSON 在正式更新时自动迁移。packages 字典记录已安装能力及参数摘要。一个目标文件只能属于一个 owner。
 
 这些关系是文件协议，不在 app_metadata 中存储，也不要求项目采用特定数据库。字段与约束见 [dictionary.md](dictionary.md)。
 

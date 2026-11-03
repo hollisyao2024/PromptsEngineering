@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { planUpdate, applyPlan, resumePlan, readLock, hash } = require('../../../../tooling/xirang/engine');
+const { planUpdate, applyPlan, resumePlan, readLock, readBaselineStore, hash } = require('../../../../tooling/xirang/engine');
 const { createTemplatePlan } = require('../../../../tooling/xirang/template');
 
 function fixture(t) {
@@ -345,7 +345,7 @@ test('CRLF checkout of LF baselines and files is not drift; upgrades apply and r
   // Upstream text is written back in the checkout's CRLF style.
   assert.equal(f.get(file), crlf('a\nc\n'));
   assert.equal(f.get('docs/guide.md'), crlf('x\nz\n'));
-  assert.equal(Object.keys(JSON.parse(f.get('.xirang/baselines.json')).blobs).length, 2);
+  assert.equal(Object.keys(readBaselineStore(f.target).blobs).length, 2);
   assert.equal(fs.existsSync(path.join(f.target, '.xirang/baselines')), false);
   toCrlfCheckout(f); f.put(file, crlf('a\nlocal\n'));
   assert.match(planUpdate({ target: f.target, assets: [asset('a\nd\n', 'overwrite')] }).conflicts[0].reason, /overwrite conflict/);

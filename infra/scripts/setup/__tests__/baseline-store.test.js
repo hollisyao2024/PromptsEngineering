@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { planUpdate, applyPlan, resumePlan, hash, json, readLock } = require('../../../../tooling/xirang/engine');
+const { planUpdate, applyPlan, resumePlan, hash, json, readLock, readBaselineStore } = require('../../../../tooling/xirang/engine');
 const PACK = '.xirang/baselines.json';
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-store-'));
@@ -25,7 +25,8 @@ function legacy(f, assets) {
 test('RUL-BASE-001 fresh install uses one deterministic deduplicated baseline file and converges', t => {
   const f = fixture(t), assets = [asset('a', 'same\n'), asset('b', 'same\n')]; apply(f, assets);
   assert.deepEqual(fs.readdirSync(path.join(f.target, '.xirang')), ['baselines.json']);
-  assert.deepEqual(JSON.parse(f.get(PACK)), { schemaVersion: 1, blobs: { [hash('same\n')]: 'same\n' } });
+  assert.equal(JSON.parse(f.get(PACK)).schemaVersion, 2);
+  assert.deepEqual(readBaselineStore(f.target).blobs, { [hash('same\n')]: 'same\n' });
   assert.deepEqual(planUpdate({ target: f.target, assets }).changes, []);
 });
 test('RUL-BASE-002 legacy migration is read-only in plan and retains other scopes and unregistered files', t => {
@@ -36,7 +37,7 @@ test('RUL-BASE-002 legacy migration is read-only in plan and retains other scope
   applyPlan(p, f);
   assert.equal(f.get('a'), 'local\ntwo\nupstream\n'); assert.equal(f.get('b'), 'other\n');
   assert.deepEqual(fs.readdirSync(path.join(f.target, '.xirang/baselines')), ['unregistered']);
-  assert.deepEqual(JSON.parse(f.get(PACK)).blobs, { [hash(next[0].content)]: next[0].content, [hash('other\n')]: 'other\n' });
+  assert.deepEqual(readBaselineStore(f.target).blobs, { [hash(next[0].content)]: next[0].content, [hash('other\n')]: 'other\n' });
   assert.deepEqual(planUpdate({ target: f.target, assets: next }).changes, []);
 });
 test('RUL-BASE-003 malformed or incomplete packed baselines cannot fall back to a legacy file', t => {
@@ -60,7 +61,7 @@ for (const hook of ['afterBaselineWrite', 'afterLockWrite', 'afterBaselineFinali
     resumePlan(f.target, f);
     assert.equal(f.get('a'), 'next'); assert.equal(f.get('b'), 'other');
     assert.equal(fs.existsSync(path.join(f.target, '.xirang/baselines')), false);
-    assert.deepEqual(Object.keys(JSON.parse(f.get(PACK)).blobs).sort(), [hash('next'), hash('other')].sort());
+    assert.deepEqual(Object.keys(readBaselineStore(f.target).blobs).sort(), [hash('next'), hash('other')].sort());
     assert.deepEqual(planUpdate({ target: f.target, assets }).changes, []);
   });
 }
@@ -82,9 +83,9 @@ test('RUL-BASE-005 JSON package survives CRLF checkout and retired blobs lose on
   const f = fixture(t); apply(f, [asset('a', 'base\n'), asset('b', 'base\n', 'architecture:ui')]);
   f.put(PACK, f.get(PACK).replace(/\n/g, '\r\n'));
   apply(f, [asset('a', 'next\n')]);
-  assert.equal(JSON.parse(f.get(PACK)).blobs[hash('base\n')], 'base\n');
+  assert.equal(readBaselineStore(f.target).blobs[hash('base\n')], 'base\n');
   apply(f, [{ ...asset('b', undefined, 'architecture:ui'), strategy: 'remove' }]);
-  assert.equal(JSON.parse(f.get(PACK)).blobs[hash('base\n')], undefined);
+  assert.equal(readBaselineStore(f.target).blobs[hash('base\n')], undefined);
   assert.equal(readLock(f.target).files.a.base, hash('next\n'));
 });
 test('RUL-BASE-003 legacy corruption, symlinks and post-plan edits block without deleting contents', t => {
@@ -118,20 +119,23 @@ test('RUL-BASE-004 old v1 frozen journals finish in legacy format before a later
   resumePlan(f.target, f);
   assert.equal(f.get(`.xirang/baselines/${hash('base')}`), 'base');
   apply(f, assets);
-  assert.equal(JSON.parse(f.get(PACK)).blobs[hash('base')], 'base');
+  assert.equal(readBaselineStore(f.target).blobs[hash('base')], 'base');
   assert.equal(fs.existsSync(path.join(f.target, '.xirang/baselines')), false);
 });
 test('RUL-BASE-001 RUL-BASE-002 real agent template migrates all legacy contents to one file and converges', t => {
   const f = fixture(t), source = path.resolve(__dirname, '../../../..');
   const { createTemplatePlan } = require('../../../../tooling/xirang/template');
   applyPlan(createTemplatePlan({ source, target: f.target, scope: 'agent' }), f);
-  const store = JSON.parse(f.get(PACK));
+  const store = readBaselineStore(f.target);
   assert.ok(Object.keys(store.blobs).length > 100, 'exercise the complete agent package');
   for (const [digest, content] of Object.entries(store.blobs)) f.put(`.xirang/baselines/${digest}`, content);
   fs.unlinkSync(path.join(f.target, PACK));
   const p = createTemplatePlan({ source, target: f.target, scope: 'agent' });
   assert.deepEqual(p.conflicts, []); applyPlan(p, f);
-  assert.deepEqual(JSON.parse(f.get(PACK)), store);
+  assert.deepEqual(readBaselineStore(f.target), store);
+  const beforeBytes = Buffer.byteLength(json({ schemaVersion: 1, blobs: store.blobs })), afterBytes = Buffer.byteLength(f.get(PACK));
+  assert.ok(afterBytes < beforeBytes / 2, 'RUL-BASE-006 full package must shrink by at least 50%');
+  console.log(`BASELINE_COMPRESSION=${beforeBytes}->${afterBytes}; SAVED=${(100 * (1 - afterBytes / beforeBytes)).toFixed(1)}%`);
   assert.deepEqual(fs.readdirSync(path.join(f.target, '.xirang')), ['baselines.json']);
   assert.deepEqual(createTemplatePlan({ source, target: f.target, scope: 'agent' }).changes, []);
   console.log(`BASELINE_MIGRATION=${Object.keys(store.blobs).length}->1; BYTES=${Buffer.byteLength(f.get(PACK))}`);

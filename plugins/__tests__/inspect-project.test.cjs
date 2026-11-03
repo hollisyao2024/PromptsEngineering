@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {spawnSync} = require('node:child_process');
+const zlib = require('node:zlib');
 const {inspectProject} = require('../xirang/scripts/inspect-project.cjs');
 
 function fixture(t) {
@@ -50,6 +51,16 @@ test('RUL-BASE-005 single baseline file is recognized without loading project co
   assert.equal(inspectProject(root).status,'INCOMPLETE');
   write(root,'.xirang/baselines.json',JSON.stringify({schemaVersion:2,blobs:{}}));
   assert.equal(inspectProject(root).status,'INCOMPLETE');
+});
+test('RUL-BASE-007 RUL-BASE-008 compressed packages are inspected without executing project code; corruption blocks',t=>{
+  const root=fixture(t); adopted(root); git(root,'init','--quiet');
+  const content=Buffer.from('{}'),store={schemaVersion:2,encoding:'br-base64',size:content.length,data:zlib.brotliCompressSync(content).toString('base64')};
+  write(root,'.xirang/baselines.json',JSON.stringify(store));
+  assert.equal(inspectProject(root).status,'READY');
+  for(const bad of [{...store,data:'AAAA'},{...store,size:1},{...store,encoding:'unknown'},{...store,data:store.data+'!'}]){
+    write(root,'.xirang/baselines.json',JSON.stringify(bad));
+    assert.equal(inspectProject(root).status,'INCOMPLETE');
+  }
 });
 test('ready project is read without executing its CLI or exposing environment contents',t=>{
   const root=fixture(t); adopted(root); git(root,'init','--quiet');

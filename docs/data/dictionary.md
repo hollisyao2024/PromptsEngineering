@@ -29,7 +29,7 @@
 | applications[] | id、stack、path、sourceDir、targets、components、modules | 栈、目标与组件目录逐应用选择 |
 | datastores[] | id、engine、access、path、consumers | 依稳定 ORM/数据库矩阵选择；consumer 必须存在 |
 | xirang.lock.json | schemaVersion、files、packages | 模板更新器管理，项目随代码提交 |
-| .xirang/baselines.json | schemaVersion=1、blobs[sha256]=原文 | 模板所有，内容去重、逐项摘要校验；旧目录只读兼容并在正式更新时安全迁移 |
+| .xirang/baselines.json | schemaVersion=2、encoding=br-base64、size、data | 模板所有；解压为去重原文字典，size 限制并校验解压字节数，逐条摘要校验；兼容旧目录与 v1 JSON，正式更新自动迁移 |
 | files[path] | owner、version、strategy、base | 路径唯一归属，base 为受管源内容摘要；自有字段不包含业务密钥 |
 | packages[id] | version、source、selection、parametersHash | 已安装包/模块来源与生成参数摘要；按包类型保存适用字段 |
 | 冻结 plan | schemaVersion=2、target、source、inputs、lockBefore、lockAfter、entries、baselineStore、id | 包前态摘要、并集与终态、旧文件清理清单均冻结；兼容 v1 journal 恢复，整体摘要防止误改 |
