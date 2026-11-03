@@ -1,8 +1,22 @@
 # 快速上手：先接入模型作业包
 
-[首页](../../README.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
+[首页](../../README.md) · [常用指令](commands.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
 
 目标：在一个空目录安装作业包，检查协议、配置与更新基线，再准备第一次协作。已有 Git 项目请跳到“已有项目”。
+
+## 让 AI 自动初始化
+
+在息壤源项目中打开 AI 会话，直接发送：
+
+> 初始化实际项目，路径为 `C:\Projects\MyApp\repo`。
+
+AI 读取源的基础规则后，按[初始化实际项目协议](../CONVENTIONS.md#初始化实际项目)自动完成：路径与环境检查 → 目标分流 → 记录操作 → 预演 → 安装 → 读取目标规则 → 收敛复查。目标不存在时可创建空目录；默认只安装模型作业包，不需要预先创建项目文件或选择技术栈。没有冲突就连续执行，不再逐步索取相同授权。
+
+初始化只安装对应文件，不运行目标项目的 `git init`、提交、推送、远端配置或 worktree 操作，也不在目标创建任务记录。只读检查 Git 归属后，发现已有 Git 项目就停止并报告其接入入口；已有息壤痕迹则报告更新或恢复入口，不自动执行。非空且无 Git 的目录先核对接入方案。冲突、规则读取失败或基线不明时停止，不强行覆盖。
+
+完成报告应包含目标绝对路径、源 commit、安装与复查结果、日志位置和待配置项。文件安装并复查通过即完成本次初始化；仅模板接入成功不等于业务开发环境已就绪。下文 GitHub/Git 准备是后续独立操作，不由本指令触发。
+
+这是项目规则提供的 AI 工作流，不是新增 CLI 命令。空白项目中的 AI 若未安装息壤插件、也未获得源位置，不能仅凭这句话发现模板；可改在息壤源中发起。需要手动执行时按下文操作。
 
 ## 环境与目录
 
@@ -55,9 +69,9 @@ pnpm agent -- template update ../xirang-demo --scope agent --dry-run
 
 检查工具给出的路径是否对应你的项目。仓库中的 Claude Code、Codex、Gemini CLI 入口是接入材料；客户端版本、规则加载方式、沙箱和执行权限需要在你的环境验证。工具无法读文件或运行 Node/pnpm 时，先解决环境问题。
 
-## 准备自己的 GitHub 项目
+## 后续可选：准备自己的 GitHub 项目
 
-下面由维护者完成初始仓库设置；若目录已有 Git 历史，不要重新初始化。
+本节不属于“初始化实际项目”的自动执行范围。后续需要开发交付时，由维护者单独发起初始仓库设置；若目录已有 Git 历史，不要重新初始化。
 
 ```bash
 cd ../xirang-demo
@@ -81,6 +95,16 @@ node infra/scripts/shared/github-auth-run.js -- git push -u origin main
 先用项目现有流程建立干净的 linked worktree，再从息壤源执行 `template update "<该-worktree>" --scope agent --dry-run`。核对计划后再应用；已有业务、项目规则和配置按所有权保留。
 
 已接入息壤的项目，登记更新任务并创建专用 worktree 后，在输出的 `NEXT_CWD` 中使用 `pnpm agent -- template sync`，继续原有交付链。缺基线、旧版接管、架构选型与恢复见[完整参考](template-reference.md)。
+
+### 初始化与更新有什么不同
+
+| 情况 | 对 AI 的指令 | 执行位置与命令 |
+| --- | --- | --- |
+| 空白新项目首次接入 | 在息壤源说“初始化实际项目，路径为 `<目标路径>`” | 源中执行 `template update "<目标绝对路径>" --scope agent`，先预演、安装后复查 |
+| 已有代码库首次接入 | 提供项目路径并要求接入息壤 | 先按目标项目规则建立干净 linked worktree，源中 `template update "<该-worktree>" --scope agent` |
+| 已接入项目日常升级 | 在实际项目说“更新息壤模板” | 目标项目登记 mutation 任务并创建专用 worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，完成项目 TDD/QA/合并门禁 |
+
+首次接入使用当前已核实的本地息壤源，报告实际源 SHA；不声称自动取得最新官方版本。日常升级则由 `template sync` 匿名拉取官方 `main`，固定来源 SHA，使用该版本的 updater 自动预演、应用和复查；获取失败即停止。它按已记录的版本基线和文件所有权处理差异，保留项目自有 `RULES.md`、配置与业务代码，冲突和未知基线必须先解决。默认同步作业包及已采用的架构模块，不自动增加技术选择；明确只更新作业包时才追加 `--scope agent`。
 
 ## 下一步与排错
 
