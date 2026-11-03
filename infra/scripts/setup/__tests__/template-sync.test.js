@@ -155,7 +155,7 @@ function createTarget(testRoot, options = {}) {
     '.env.production',
   ]) {
     if (options.omitEnvironmentFiles) continue;
-    write(mainRoot, file, `${file}=PROJECT_SENTINEL\n`);
+    write(mainRoot, file, `${file}=PROJECT_SENTINEL\n${['.env.example', '.env.local'].includes(file) ? 'GH_TOKEN=\n' : ''}`);
   }
   if (options.role) {
     write(mainRoot, 'agent.config.json', `${JSON.stringify({ template: { role: options.role } }, null, 2)}\n`);
@@ -187,7 +187,7 @@ test('sync from linked worktree fills environment files in the target main repo'
   }
   commitAll(upstream, 'environment examples');
   const { mainRoot, linkedRoot } = createTarget(testRoot, { omitEnvironmentFiles: true });
-  write(mainRoot, '.env.example', 'MAIN_EXAMPLE=preserved\n');
+  write(mainRoot, '.env.example', 'MAIN_EXAMPLE=preserved\nGH_TOKEN=\n');
   const args = [`--source-repo=${upstream}`, '--source-branch=main'];
   const dry = runSync(linkedRoot, [...args, '--dry-run']);
   assert.equal(dry.status, 0, combinedOutput(dry));
@@ -206,7 +206,7 @@ test('sync from linked worktree fills environment files in the target main repo'
     assert.equal(fs.existsSync(path.join(linkedRoot, runtime)), false);
     assert.equal(git(mainRoot, ['check-ignore', runtime]), runtime);
   }
-  assert.equal(fs.readFileSync(path.join(mainRoot, '.env.example'), 'utf8'), 'MAIN_EXAMPLE=preserved\n');
+  assert.equal(fs.readFileSync(path.join(mainRoot, '.env.example'), 'utf8'), 'MAIN_EXAMPLE=preserved\nGH_TOKEN=\n');
   commitAll(linkedRoot, 'applied template');
   const second = runSync(linkedRoot, args);
   assert.equal(second.status, 0, combinedOutput(second));
