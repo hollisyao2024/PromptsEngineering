@@ -4,7 +4,7 @@
 
 把 vibe coding 接入任务、独立 Git worktree、测试、QA 与合并流程，让每项修改有验收、每次交付有证据、中断后有恢复入口。
 
-[快速上手](docs/guides/quickstart.md) · [插件入口](docs/guides/plugin-quickstart.md) · [并行协作教程](docs/guides/parallel-collaboration.md) · [完整使用参考](docs/guides/template-reference.md) · [English](README.en.md)
+[常用指令](docs/guides/commands.md) · [快速上手](docs/guides/quickstart.md) · [插件入口](docs/guides/plugin-quickstart.md) · [并行协作教程](docs/guides/parallel-collaboration.md) · [完整使用参考](docs/guides/template-reference.md) · [English](README.en.md)
 
 ## 你可能遇到的问题
 

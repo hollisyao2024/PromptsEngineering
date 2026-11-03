@@ -72,7 +72,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 执行流程：匿名 required fetch 官方 `main` 并固定 `FETCH_HEAD^{commit}`（失败即阻断，不回退缓存）→ 在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中快进到该 SHA（克隆被改动、远端或分支不符时阻断）→ 校验息壤身份与 manifest → 运行克隆自身的 `task start` 与 `worktree new --phase tdd --task <id>`，从最新官方 `main` 创建新任务 worktree 与分支 → 把候选文件复制到该 worktree 并校验 JSON → 输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`。之后在 `NEXT_CWD` 中按息壤源自身的 TDD/QA 门禁（`tdd sync → tdd push → qa plan → qa verify → qa merge`）交付到官方 `main`，版本递增与 CHANGELOG 由 `tdd sync` 处理。`--dry-run` 只刷新克隆并列出计划，不创建任务或 worktree；`--task <id>` 指定任务标识（默认 `backfill-<时间戳>`）。写入官方源只用官方源自身的 `GH_TOKEN`，项目 token 不是回退：凭据文件按 `--source-env <path>` > 环境变量 `XIRANG_SOURCE_ENV_FILE` > 项目 `.env.local` 同名键的顺序确定（通常指向官方源主 worktree 的 `.env.local`），须存在、含可用 `GH_TOKEN` 且不是项目自身的 `.env.local`；克隆内 `.env.local` 以软链接指向该文件，指向漂移时纠正，不复制、不输出，已有普通文件则阻断。未配置或无效时正式回灌在创建任务与 worktree 前 `STATUS=BLOCKED`，`--dry-run` 只输出 `TEMPLATE_SOURCE_AUTH` 与 `AUTH_WARNING`。项目 `AGENT_*`、`GH_TOKEN`、`GITHUB_TOKEN` 环境变量不传给克隆的 CLI。官方息壤源自身不是回灌对象，`template.role=source` 时阻断。
 ### 初始化实际项目
 
-在已核实的息壤源中，“初始化实际项目，路径为 `<目标路径>`”是现有接入流程的自然语言入口。默认仅安装作业包，不选择技术栈。只给路径已足够授权以下流程；无冲突时连续执行，不重复询问是否安装：
+在已核实的息壤源中，“初始化实际项目，路径为 `<目标路径>`”（简称“初始化项目”）是现有接入流程的自然语言入口。默认仅安装作业包，不选择技术栈。只给路径已足够授权以下流程；无冲突时连续执行，不重复询问是否安装：
 
 1. **检查**：确认 Git、Node.js、pnpm 可用，源 origin 为官方息壤仓库，记录实际源目录与 commit SHA；源的待提交模板修改不得当作已发布版本安装。将目标解析为绝对路径，检查真实路径及已有父目录；拒绝文件、符号链接、磁盘根、用户主目录、息壤源目录及其内部目录，禁止把继承了父目录 Git 仓库的路径当作空白项目。缺路径只问路径，路径有歧义先澄清。
 2. **分流**：不存在的独立目标可创建为空目录；已有空目录可继续。目标已属于 Git 仓库时停止文件安装，报告已有项目接入入口，不自动创建目标 worktree 或进入其 Git 生命周期。发现 `xirang.lock.json`、`.xirang/` 或息壤入口等接入痕迹时，按已接入或不完整接入诊断，不重新初始化；仅说明下节更新或恢复入口，不凭初始化指令自动更新。非空且无 Git 的目录先报告内容与接入方案，不擅自覆盖。已有空规则、无法读取的规则和未知基线均阻断。

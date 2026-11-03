@@ -1,6 +1,6 @@
 # 快速上手：先接入模型作业包
 
-[首页](../../README.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
+[首页](../../README.md) · [常用指令](commands.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
 
 目标：在一个空目录安装作业包，检查协议、配置与更新基线，再准备第一次协作。已有 Git 项目请跳到“已有项目”。
 
