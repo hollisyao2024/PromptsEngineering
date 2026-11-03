@@ -56,7 +56,7 @@ pnpm agent -- template update ../xirang-demo --scope agent --initialize --dry-ru
 首次接入成功需同时满足：
 
 1. 安装命令退出码为 0，输出成功状态。
-2. 目标含 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`、`agent.config.json`、`xirang.lock.json` 与 `.xirang/baselines/`。
+2. 目标含 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`、`agent.config.json`、`xirang.lock.json` 与 `.xirang/baselines.json`。
 3. 再次预演没有待应用差异和冲突。纯作业包接入不生成业务应用或架构目录。
 
 这只验证模板接入，不表示业务代码、模型行为或所有操作系统已通过测试。
@@ -82,7 +82,7 @@ git init -b main
 
 在 GitHub 创建自己的空仓库，把它设为目标项目的 `origin`。按 [GitHub 鉴权约定](../CONVENTIONS.md#9-github命名与安全)，只在被忽略的 `.env.local` 配置项目 `GH_TOKEN`；不要把令牌发给 AI、贴进 Issue 或写进命令历史。
 
-完成首次基线提交和远端初始化后，再开始任务/worktree 生命周期。首次提交必须包含 `xirang.lock.json` 与 `.xirang/baselines/`；不要忽略它们。远端 Git 操作使用生成的封装，例如：
+完成首次基线提交和远端初始化后，再开始任务/worktree 生命周期。首次提交必须包含 `xirang.lock.json` 与 `.xirang/baselines.json`；不要忽略它们。远端 Git 操作使用生成的封装，例如：
 
 ```bash
 node infra/scripts/shared/github-auth-run.js -- git push -u origin main

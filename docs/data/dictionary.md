@@ -29,10 +29,13 @@
 | applications[] | id、stack、path、sourceDir、targets、components、modules | 栈、目标与组件目录逐应用选择 |
 | datastores[] | id、engine、access、path、consumers | 依稳定 ORM/数据库矩阵选择；consumer 必须存在 |
 | xirang.lock.json | schemaVersion、files、packages | 模板更新器管理，项目随代码提交 |
+| .xirang/baselines.json | schemaVersion=1、blobs[sha256]=原文 | 模板所有，内容去重、逐项摘要校验；旧目录只读兼容并在正式更新时安全迁移 |
 | files[path] | owner、version、strategy、base | 路径唯一归属，base 为受管源内容摘要；自有字段不包含业务密钥 |
 | packages[id] | version、source、selection、parametersHash | 已安装包/模块来源与生成参数摘要；按包类型保存适用字段 |
-| 冻结 plan | target、source、inputs、lockBefore、lockAfter、entries、id | before/after 摘要和输入校验；计划整体摘要防止误改 |
+| 冻结 plan | schemaVersion=2、target、source、inputs、lockBefore、lockAfter、entries、baselineStore、id | 包前态摘要、并集与终态、旧文件清理清单均冻结；兼容 v1 journal 恢复，整体摘要防止误改 |
 | 外部 journal | status、plan、completed | 容器 tmp 运行态，用于逐项恢复；不替代 Git 历史 |
+
+v2 计划在首个项目写入前持久化一次，完成时发布 `completed` 摘要；中断恢复以冻结计划中的逐文件 before/after 哈希与基线包前/中/后态为准，不依赖未落盘的进度列表。
 
 计划和锁记录文件安装结果；依赖安装、项目检查、构建和生产部署有各自结果，不能相互替代。
 

@@ -31,7 +31,7 @@ pnpm agent -- template update ../xirang-demo --scope agent
 pnpm agent -- template update ../xirang-demo --scope agent --dry-run
 ```
 
-Stop on conflicts or a blocked status. Successful adoption means the target contains the rule files, project configuration, `xirang.lock.json`, and `.xirang/baselines/`, and the repeated dry run has no pending changes. This checks template installation; it does not validate an application.
+Stop on conflicts or a blocked status. Successful adoption means the target contains the rule files, project configuration, `xirang.lock.json`, and `.xirang/baselines.json`, and the repeated dry run has no pending changes. This checks template installation; it does not validate an application.
 
 For an existing Git project, prepare a clean dedicated linked worktree using that project's lifecycle, and use its path as the target. Do not apply directly over a busy working directory.
 

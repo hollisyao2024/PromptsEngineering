@@ -44,7 +44,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 
 ## 3. 模板所有权
 
-作业包入口 `agent/manifest.json`，架构包入口 `architecture/manifest.json`；共用 `tooling/xirang` 的冻结计划与版本化基线。`xirang.lock.json` 与 `.xirang/baselines/` 随项目提交，运行日志位于容器 tmp。Manifest 支持以下策略：
+作业包入口 `agent/manifest.json`，架构包入口 `architecture/manifest.json`；共用 `tooling/xirang` 的冻结计划与版本化基线。`xirang.lock.json` 与 `.xirang/baselines.json` 随项目提交，运行日志位于容器 tmp。Manifest 支持以下策略：
 
 - `overwrite`：模板自有文件升级，先比对已安装基线并阻断未经接管的本地修改。
 - `update` / `merge-json` / `merge-yaml`：基线、项目当前、新模板三方合并；重叠修改明确冲突。
@@ -79,6 +79,8 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 普通同步始终 required fetch，不提供静默离线降级：在容器 tmp 的隔离目录拉取配置分支，解析并固定 `FETCH_HEAD^{commit}`，校验息壤身份、manifest 和同步能力，再调用该固定 SHA 中的最新版 updater。fetch、分支、SHA 或源形状异常时，必须在目标 tracked 文件写入前非零退出；官方公开仓库通过匿名 HTTPS 获取，不读取或发送项目 `GH_TOKEN`，并屏蔽 Git system/global 配置、helper、askpass、额外认证头、Cookie 和 URL 重写；项目自身远端操作继续使用共享 GitHub 鉴权封装。匿名 fetch 失败不切换 token 重试，官方源改为私有时阻断。
 
 updater 必须执行 dry-run → 冲突门禁 → apply → convergence dry-run，并只按 manifest 修改 template-owned 内容。命令固定输出 `TEMPLATE_ID`、`TEMPLATE_REPO`、`TEMPLATE_BRANCH`、`TEMPLATE_COMMIT`、`TEMPLATE_AUTH_MODE`（官方为 `ANONYMOUS`）、`TEMPLATE_FETCH_STATUS`、`TEMPLATE_APPLY_STATUS` 与 `TEMPLATE_CONVERGENCE_STATUS`；失败不得改用缓存或目标项目内的旧快照。
+
+基线存储为单文件 `.xirang/baselines.json`（`schemaVersion:1`、`blobs:{sha256:原文}`），内容去重并逐项校验摘要。新版读取器兼容旧目录；正式更新先验证全部引用、写入新旧并集、发布 lock、剪枝，再删除已登记且校验通过的旧文件；预演不迁移，未登记旧文件保留。包存在但缺项或损坏时阻断，不回退旧目录。包与 lock 必须一起提交；旧执行器不保证读取新格式，通过官方同步获取最新 updater。
 
 ## 4. 文档与阶段状态
 

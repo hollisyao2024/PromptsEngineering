@@ -15,7 +15,7 @@
 3. **记录**：写入前在息壤源记录目标绝对路径、来源 SHA、验收和副作用步骤。仅安装目标文件且不修改目标 tracked 文件时可使用 `type=operation`；已有 Git 项目中的 tracked 文件会变化时使用 `type=mutation` 并记录本次用户授权的初始化例外，不执行目标 Git 生命周期。不要为仅运行 updater 修改源 tracked 文件或创建源开发 worktree，不在目标创建任务或 worktree。验收为安装成功、Git 元数据保持不变、规则与基线齐全、复查无差异；源任务状态记录和目录创建也按副作用规则执行。
 4. **预演**：在已核实的源目录执行 `pnpm agent -- template update "<目标绝对路径>" --scope agent --initialize --dry-run`。简述新增、更新、合并、跳过和冲突。非零退出、`STATUS=BLOCKED` 或冲突时停止应用并保留证据，不删文件或基线、不加忽略冲突参数。
 5. **安装**：预演通过后，在同一源目录执行 `pnpm agent -- template update "<目标绝对路径>" --scope agent --initialize`。此模式只安装文件，包括已有 Git 仓库；不生成 Git 回灌提交/引用或改写 `.git/info/exclude`。复用现有清单、冻结计划、哈希校验和收敛检查，不整仓复制。失败或结果未知时先核实目标与日志，不盲目重放。首次生成后完整读取目标三份基础规则，再执行后续项目操作。
-6. **复查与报告**：再次执行同一 dry-run，要求退出码 0、无待应用差异和冲突；核对 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`、`agent.config.json`、`xirang.lock.json` 和 `.xirang/baselines/` 存在且可读。安装须有 `STATUS=UPDATED`、`CONVERGENCE_STATUS=OK`，不能只凭目录存在宣称成功。报告真实目标、来源 SHA、安装与复查结果、日志位置，以及 Git/远端、凭据、项目规则和业务验证的待办；完成相应任务记录。
+6. **复查与报告**：再次执行同一 dry-run，要求退出码 0、无待应用差异和冲突；核对 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`、`agent.config.json`、`xirang.lock.json` 和 `.xirang/baselines.json` 存在且可读。安装须有 `STATUS=UPDATED`、`CONVERGENCE_STATUS=OK`，不能只凭目录存在宣称成功。报告真实目标、来源 SHA、安装与复查结果、日志位置，以及 Git/远端、凭据、项目规则和业务验证的待办；完成相应任务记录。
 
 初始化仅把清单规定的文件安装到目标目录；不执行目标的 `git init`、暂存、提交、分支或 worktree 创建、远端配置、推送，不创建 GitHub 仓库或填写凭据。允许只读识别 Git 归属以防误写已有项目。Git 开发准备由用户后续另行发起，不作为本次完成门禁；部署和生成业务应用也不在范围内。需要架构入口时使用 `--include architecture` 替代 `--scope agent`，仍须单独确认技术选择。用法见[快速上手](quickstart.md)。
 

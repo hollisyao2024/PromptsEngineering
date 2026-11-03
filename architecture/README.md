@@ -150,7 +150,7 @@ pnpm agent -- architecture update --scope architecture:table:apps/web/src/compon
 
 3.3 全量架构目录升级到 3.4 时，只对 lock 中 architecture:runtime 自有且不在轻量清单内的文件计划 remove。基线缺失或本地定制会报冲突；未登记的项目说明、业务源码、组件修改和迁移保留。未修改的多余模板文件及空目录移除后，新 lock 不再引用的旧 baseline 才被清理；其他 owner 仍引用的基线和未知孤立文件保留。该收缩只作用于工具源码，不执行业务模块卸载。`--scope agent` 不收缩架构目录。
 
-上次模板、项目当前、新模板组成三方依据。`xirang.lock.json` 和 `.xirang/baselines/` 必须一起提交；不能手工把本地文件标成“未修改”。缺少基线的旧项目会得到 adoption-required：
+上次模板、项目当前、新模板组成三方依据。`xirang.lock.json` 和 `.xirang/baselines.json` 必须一起提交；不能手工把本地文件标成“未修改”。缺少基线的旧项目会得到 adoption-required：
 
 ```bash
 pnpm agent -- architecture adopt --dry-run

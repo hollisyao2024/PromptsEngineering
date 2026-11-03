@@ -331,8 +331,8 @@ test('merge-json and adopted overwrite compare CRLF local content by normalized 
 });
 // Baseline files themselves are also rewritten as CRLF by such checkouts; they must still verify against their LF hash.
 function toCrlfCheckout(f) {
-  const dir = path.join(f.target, '.xirang/baselines');
-  for (const name of fs.readdirSync(dir)) fs.writeFileSync(path.join(dir, name), crlf(fs.readFileSync(path.join(dir, name), 'utf8')));
+  const store = path.join(f.target, '.xirang/baselines.json');
+  fs.writeFileSync(store, crlf(fs.readFileSync(store, 'utf8')));
 }
 test('CRLF checkout of LF baselines and files is not drift; upgrades apply and real edits still conflict', t => {
   const f = fixture(t), file = 'apps/web/component.ts';
@@ -345,7 +345,8 @@ test('CRLF checkout of LF baselines and files is not drift; upgrades apply and r
   // Upstream text is written back in the checkout's CRLF style.
   assert.equal(f.get(file), crlf('a\nc\n'));
   assert.equal(f.get('docs/guide.md'), crlf('x\nz\n'));
-  assert.equal(fs.readdirSync(path.join(f.target, '.xirang/baselines')).length, 2);
+  assert.equal(Object.keys(JSON.parse(f.get('.xirang/baselines.json')).blobs).length, 2);
+  assert.equal(fs.existsSync(path.join(f.target, '.xirang/baselines')), false);
   toCrlfCheckout(f); f.put(file, crlf('a\nlocal\n'));
   assert.match(planUpdate({ target: f.target, assets: [asset('a\nd\n', 'overwrite')] }).conflicts[0].reason, /overwrite conflict/);
 });

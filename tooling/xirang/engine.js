@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const LOCK = 'xirang.lock.json';
+const BASELINES = '.xirang/baselines.json';
 const STRATEGIES = new Set(['overwrite', 'update', 'merge-json', 'merge-yaml', 'append', 'append-json', 'append-lines', 'managed-block', 'init-if-missing', 'project-owned', 'remove']);
 const hash = value => value === null || value === undefined ? null : crypto.createHash('sha256').update(value).digest('hex');
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -73,8 +74,90 @@ function verifiedText(text, digest) {
   const normalized = text.replace(/\r\n/g, '\n');
   return normalized !== text && hash(normalized) === digest ? normalized : null;
 }
-function baseline(target, record) {
+function readBaselineStore(target) {
+  const raw = read(target, BASELINES, true);
+  if (raw === null) return { raw, blobs: null };
+  let store;
+  try { store = parseJson(raw, 'baseline store'); }
+  catch (error) { throw new Error(`invalid baseline store: ${error.message}`); }
+  if (store?.schemaVersion !== 1 || !isObject(store.blobs) || Object.keys(store).some(key => !['schemaVersion', 'blobs'].includes(key))) throw new Error('invalid baseline store schema');
+  for (const [digest, text] of Object.entries(store.blobs)) {
+    if (!/^[a-f0-9]{64}$/.test(digest) || typeof text !== 'string' || hash(text) !== digest) throw new Error(`corrupt baseline store entry: ${digest}`);
+  }
+  return { raw, blobs: store.blobs };
+}
+function baseline(target, record, store = readBaselineStore(target)) {
   if (!record) return undefined;
+  // Once a packed store exists it is authoritative: missing entries are corruption, not a legacy fallback.
+  const text = store.blobs === null ? verifiedText(read(target, `.xirang/baselines/${record.base}`, true), record.base) : store.blobs[record.base];
+  if (text === undefined || text === null) throw new Error(`missing or corrupt baseline: ${record.base}`);
+  return text;
+}
+function planBaselines(target, previous, nextLock, entries, store) {
+  const old = {}, legacy = [];
+  for (const record of Object.values(previous.files)) {
+    old[record.base] = baseline(target, record, store);
+  }
+  for (const digest of Object.keys(old).sort()) {
+    const raw = read(target, `.xirang/baselines/${digest}`, true);
+    if (raw === null) continue;
+    if (verifiedText(raw, digest) === null) throw new Error(`corrupt legacy baseline: ${digest}`);
+    legacy.push({ digest, before: hash(raw) });
+  }
+  const available = { ...old };
+  for (const entry of entries) if (!entry.reason && !['project-owned', 'remove'].includes(entry.strategy)) available[hash(entry.upstream)] = entry.upstream;
+  const blobs = {};
+  for (const record of Object.values(nextLock.files)) {
+    const text = available[record.base];
+    if (typeof text !== 'string' || hash(text) !== record.base) throw new Error(`missing or corrupt next baseline: ${record.base}`);
+    blobs[record.base] = text;
+  }
+  // Publish a union first so either the old or new lock remains readable across a power loss.
+  const encode = value => store.raw !== null && equal(parseJson(store.raw), value) ? store.raw : json(value);
+  return { before: hash(store.raw), staged: encode({ schemaVersion: 1, blobs: { ...old, ...blobs } }), after: encode({ schemaVersion: 1, blobs }), legacy };
+}
+function verifyBaselineState(plan, recovering) {
+  const b = plan.baselineStore, current = read(plan.target, BASELINES, true);
+  const allowed = [b.before, ...(recovering ? [hash(b.staged), hash(b.after)] : [])];
+  if (!allowed.includes(hash(current))) throw new Error('baseline store drift; preserve journal and inspect');
+  // Validate legacy copies even when the packed copy is valid; never erase an externally edited copy.
+  for (const item of b.legacy) {
+    const raw = read(plan.target, `.xirang/baselines/${item.digest}`, true);
+    if (raw === null && recovering) continue;
+    if (hash(raw) !== item.before) throw new Error(`legacy baseline drift: ${item.digest}`);
+  }
+}
+function validateBaselinePlan(plan, retained) {
+  const b = plan.baselineStore;
+  const validDigest = value => /^[a-f0-9]{64}$/.test(value);
+  if (!b || !(b.before === null || validDigest(b.before)) || !Array.isArray(b.legacy)) throw new Error('invalid baseline plan');
+  const staged = parseJson(b.staged, 'staged baselines'), final = parseJson(b.after, 'final baselines');
+  for (const store of [staged, final]) {
+    if (store.schemaVersion !== 1 || !isObject(store.blobs)) throw new Error('invalid baseline plan schema');
+    for (const [digest, text] of Object.entries(store.blobs)) if (!validDigest(digest) || typeof text !== 'string' || hash(text) !== digest) throw new Error('invalid baseline plan content');
+  }
+  if (!equal(Object.keys(final.blobs).sort(), [...retained].sort())) throw new Error('baseline plan does not match next lock');
+  for (const [digest, text] of Object.entries(final.blobs)) if (staged.blobs[digest] !== text) throw new Error('staged baseline plan missing final content');
+  const seen = new Set();
+  for (const item of b.legacy) {
+    if (!validDigest(item.digest) || !validDigest(item.before) || seen.has(item.digest)) throw new Error('unsafe legacy baseline removal');
+    seen.add(item.digest);
+  }
+}
+function removeLegacyBaselines(plan, options) {
+  for (const item of plan.baselineStore.legacy) {
+    const relative = `.xirang/baselines/${item.digest}`, raw = read(plan.target, relative, true);
+    if (raw === null) continue;
+    if (hash(raw) !== item.before) throw new Error(`legacy baseline drift: ${item.digest}`);
+    const file = safePath(plan.target, relative, true);
+    fs.unlinkSync(file);
+    // Only the now-empty legacy directory is removable; unrelated files and directories stay untouched.
+    const directory = safePath(plan.target, '.xirang/baselines', true);
+    try { fs.rmdirSync(directory); } catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) throw error; }
+    options.afterLegacyBaselineRemove?.(item);
+  }
+}
+function legacyBaseline(target, record) {
   const text = verifiedText(read(target, `.xirang/baselines/${record.base}`, true), record.base);
   if (text === null) throw new Error(`missing or corrupt baseline: ${record.base}`);
   return text;
@@ -223,7 +306,8 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
   target = path.resolve(target);
   const lockBefore = read(target, LOCK, true), previous = readLock(target);
   // A corrupt retained baseline must not be silently carried into the next lock.
-  for (const record of Object.values(previous.files)) baseline(target, record);
+  const baselineStoreBefore = readBaselineStore(target);
+  for (const record of Object.values(previous.files)) baseline(target, record, baselineStoreBefore);
   const nextLock = structuredClone(previous);
   nextLock.packages = { ...nextLock.packages, ...packages };
   const entries = [], conflicts = [], seen = new Set();
@@ -235,7 +319,7 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     if (asset.strategy !== 'remove' && typeof asset.content !== 'string') throw new Error(`asset content must be text: ${asset.path}`);
     if (!asset.owner) throw new Error(`asset owner required: ${asset.path}`);
     const local = read(target, asset.path), record = previous.files[asset.path];
-    const base = lockBefore === null && asset.strategy === 'overwrite' ? legacy?.files[asset.path] : baseline(target, record);
+    const base = lockBefore === null && asset.strategy === 'overwrite' ? legacy?.files[asset.path] : baseline(target, record, baselineStoreBefore);
     let after = local, reason = '';
     try {
       if (record && record.owner !== asset.owner) throw new Error(`owner conflict: ${record.owner} -> ${asset.owner}`);
@@ -266,19 +350,16 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
   const baselineRemovals = [...new Set(Object.values(previous.files).map(record => record.base))]
     .filter(digest => !retainedBases.has(digest)).sort();
   if (lockBefore !== lockAfter) metadataChanges.push(LOCK);
-  for (const entry of entries) {
-    if (entry.strategy === 'project-owned' || entry.strategy === 'remove' || entry.reason) continue;
-    const p = `.xirang/baselines/${hash(entry.upstream)}`;
-    if (read(target, p, true) === null && !metadataChanges.includes(p)) metadataChanges.push(p);
-  }
-  const plan = { schemaVersion: 1, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, lockPrunes, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineRemovals.map(digest => `.xirang/baselines/${digest}`)] };
+  const baselineStore = planBaselines(target, previous, nextLock, entries, baselineStoreBefore);
+  if (baselineStoreBefore.raw === null || !equal(parseJson(baselineStoreBefore.raw), parseJson(baselineStore.after))) metadataChanges.push(BASELINES);
+  const plan = { schemaVersion: 2, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, lockPrunes, baselineStore, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineStore.legacy.map(item => `.xirang/baselines/${item.digest}`)] };
   if (legacy && lockBefore === null) plan.legacyBaselineCommit = legacy.commit;
   plan.id = hash(json(plan));
   return plan;
 }
 function validatePlan(plan) {
   const { id, ...body } = plan;
-  if (plan.schemaVersion !== 1 || hash(json(body)) !== id) throw new Error('plan digest mismatch');
+  if (![1, 2].includes(plan.schemaVersion) || hash(json(body)) !== id) throw new Error('plan digest mismatch');
   for (const entry of plan.entries) {
     safePath(plan.target, entry.path);
     if (hash(entry.after) !== entry.afterHash) throw new Error(`plan content hash mismatch: ${entry.path}`);
@@ -287,6 +368,7 @@ function validatePlan(plan) {
   if (plan.conflicts.length) throw new Error(`plan has ${plan.conflicts.length} conflict(s)`);
   const retained = new Set(Object.values(parseJson(plan.lockAfter, 'next lock').files).map(record => record.base));
   for (const digest of plan.baselineRemovals || []) if (!/^[a-f0-9]{64}$/.test(digest) || retained.has(digest)) throw new Error('unsafe baseline removal');
+  if (plan.schemaVersion === 2) validateBaselinePlan(plan, retained);
 }
 function atomicWrite(file, text, mode = 0o644) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -364,10 +446,16 @@ function execute(plan, options, recovering) {
       if (actual !== entry.before && !(recovering && actual === entry.afterHash)) throw new Error(`target drift: ${entry.path}`);
     }
     // Recheck baseline integrity at execution, not only when planning.
-    for (const record of Object.values(readLock(plan.target).files)) baseline(plan.target, record);
+    if (plan.schemaVersion === 2) verifyBaselineState(plan, recovering);
+    const currentStore = plan.schemaVersion === 2 ? readBaselineStore(plan.target) : null;
+    for (const record of Object.values(readLock(plan.target).files)) {
+      if (plan.schemaVersion === 2) baseline(plan.target, record, currentStore);
+      else legacyBaseline(plan.target, record);
+    }
     if (!recovering) {
       const previousBases = new Set(Object.values(readLock(plan.target).files).map(record => record.base));
       for (const digest of plan.baselineRemovals || []) if (!previousBases.has(digest)) throw new Error('baseline removal lacks previous ownership');
+      for (const item of plan.baselineStore?.legacy || []) if (!previousBases.has(item.digest)) throw new Error('legacy baseline removal lacks previous ownership');
     }
     journal = { schemaVersion: 1, status: 'running', plan, completed: journal?.plan?.id === plan.id ? journal.completed : [] };
     atomicWrite(journalFile, json(journal), 0o600);
@@ -379,10 +467,25 @@ function execute(plan, options, recovering) {
       if (entry.after === null) { fs.unlinkSync(file); removeEmptyParents(plan.target, file); }
       else atomicWrite(file, entry.after, entry.mode);
       if (hash(read(plan.target, entry.path)) !== entry.afterHash) throw new Error(`post-write verification failed: ${entry.path}`);
-      journal.completed.push(entry.path); atomicWrite(journalFile, json(journal), 0o600);
+      journal.completed.push(entry.path);
+      // v2 packs can be large. The frozen plan is already durable and recovery verifies every file's before/after
+      // hash, so rewriting the entire plan after each file adds no recovery guarantee. Keep v1 journal behavior.
+      if (plan.schemaVersion === 1) atomicWrite(journalFile, json(journal), 0o600);
       options.afterWrite?.(entry);
     }
-    for (const entry of plan.entries) {
+    let publishedBaseline;
+    const verifyPublishedBaseline = () => {
+      if (plan.schemaVersion === 2 && read(plan.target, BASELINES, true) !== publishedBaseline) throw new Error('baseline store drift after publication; preserve journal');
+    };
+    if (plan.schemaVersion === 2) {
+      verifyBaselineState(plan, recovering);
+      // Recovery after lock publication may already hold the final package. Do not resurrect retired content.
+      const content = currentLock === plan.lockAfter ? plan.baselineStore.after : plan.baselineStore.staged;
+      if (read(plan.target, BASELINES, true) !== content) atomicWrite(safePath(plan.target, BASELINES, true), content);
+      publishedBaseline = content;
+      options.afterBaselineWrite?.();
+      verifyPublishedBaseline();
+    } else for (const entry of plan.entries) {
       if (entry.strategy === 'project-owned' || entry.strategy === 'remove') continue;
       const digest = hash(entry.upstream), file = safePath(plan.target, `.xirang/baselines/${digest}`, true);
       const existing = read(plan.target, `.xirang/baselines/${digest}`, true);
@@ -391,11 +494,23 @@ function execute(plan, options, recovering) {
     }
     // Verify the whole result again before committing the version lock.
     for (const entry of plan.entries) if (hash(read(plan.target, entry.path)) !== entry.afterHash) throw new Error(`final target drift: ${entry.path}`);
+    if (plan.schemaVersion === 2) verifyBaselineState(plan, true);
+    verifyPublishedBaseline();
     if (read(plan.target, LOCK, true) !== currentLock) throw new Error('lock drift during apply; preserve journal and inspect concurrent changes');
     if (read(plan.target, LOCK, true) !== plan.lockAfter) atomicWrite(safePath(plan.target, LOCK, true), plan.lockAfter);
     options.afterLockWrite?.();
+    if (plan.schemaVersion === 2) {
+      verifyPublishedBaseline();
+      verifyBaselineState(plan, true);
+      if (read(plan.target, BASELINES, true) !== plan.baselineStore.after) atomicWrite(safePath(plan.target, BASELINES, true), plan.baselineStore.after);
+      publishedBaseline = plan.baselineStore.after;
+      options.afterBaselineFinalize?.();
+      verifyPublishedBaseline();
+      verifyBaselineState(plan, true);
+      removeLegacyBaselines(plan, options);
+    }
     // The new lock is durable before retiring baselines; recovery no longer needs their contents.
-    for (const digest of plan.baselineRemovals || []) {
+    for (const digest of plan.schemaVersion === 2 ? [] : plan.baselineRemovals || []) {
       const relative = `.xirang/baselines/${digest}`, existing = read(plan.target, relative, true);
       if (existing === null) continue;
       if (verifiedText(existing, digest) === null) throw new Error('retired baseline changed; preserve journal and inspect');
@@ -411,4 +526,4 @@ function resumePlan(target, options = {}) {
   if (fs.realpathSync(journal.plan.target) !== fs.realpathSync(target)) throw new Error('journal target mismatch');
   return execute(journal.plan, options, true);
 }
-module.exports = { planUpdate, applyPlan, resumePlan, readLock, hash, verifiedText, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite, withMutex, validatePlan };
+module.exports = { planUpdate, applyPlan, resumePlan, readLock, readBaseline: baseline, readBaselineStore, hash, verifiedText, json, safePath, read, parseJson, mergeText, mergeJsonValue, managedBlock, atomicWrite, withMutex, validatePlan };

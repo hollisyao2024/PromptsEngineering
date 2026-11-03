@@ -1,6 +1,6 @@
 # 模板安装与升级标准
 
-模型作业包和应用架构包独立选择，共用 tooling/xirang 引擎。项目选型为 architecture.config.json；作业配置为 agent.config.json；安装版本、文件归属和生成参数为 xirang.lock.json；原始模板内容位于 .xirang/baselines。后两者一同提交，允许跨电脑升级。
+模型作业包和应用架构包独立选择，共用 tooling/xirang 引擎。项目选型为 architecture.config.json；作业配置为 agent.config.json；安装版本、文件归属和生成参数为 xirang.lock.json；原始模板内容位于 .xirang/baselines.json。后两者一同提交，允许跨电脑升级。
 
 3.4 起，实际项目的 architecture/ 只保存轻量入口、metadata 与 runtime.json 固定来源。完整运行源码保留在息壤源或容器 cache，按提交和摘要校验；缺失时可匿名重建同一版本。template sync 才获取最新 main；固定缓存命中不代表最新。仅采用作业包的项目不创建架构目录。
 

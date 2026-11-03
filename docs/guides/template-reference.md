@@ -39,7 +39,7 @@ pnpm agent -- template update "<目标目录或目标-worktree>" --include archi
 
 首次接入会初始化缺失的项目配置、环境示例及 `RULES.md`；后续模板更新也会补齐缺失的 `RULES.md`，已有文件（包括空文件）保持原样，由项目维护；已有 `agent.config.json`、环境文件、`RULES.md`、业务源码和真实项目文档保持项目所有。根 `package.json` 按字段合并，项目名称、业务依赖和项目独有脚本保留。
 
-将生成的 `xirang.lock.json` 与 `.xirang/baselines/` 一起提交。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。新项目应在完成自身 Git 初始化后纳入版本管理；已有 Git 项目完成下面的交付链再合并。
+将生成的 `xirang.lock.json` 与 `.xirang/baselines.json` 一起提交。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。新项目应在完成自身 Git 初始化后纳入版本管理；已有 Git 项目完成下面的交付链再合并。
 
 ## 已接入项目的日常更新
 
@@ -85,7 +85,7 @@ pnpm agent -- qa merge
 
 ## 从缺少基线的旧版接入
 
-旧版或手工复制的项目可能没有 `xirang.lock.json` 和 `.xirang/baselines/`。当已有受管文件需要接管时，普通更新会报告 `adoption required`；这需要先检查现有文件相对模板的差异。
+旧版或手工复制的项目可能没有 `xirang.lock.json` 和基线原文（`.xirang/baselines.json` 或旧版 `.xirang/baselines/`）。当已有受管文件需要接管时，普通更新会报告 `adoption required`；这需要先检查现有文件相对模板的差异。
 
 已支持接管参数的项目，在干净 linked worktree 中执行：
 

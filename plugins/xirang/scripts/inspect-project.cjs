@@ -63,7 +63,11 @@ function inspectProject(projectPath, {gitCommand = 'git'} = {}) {
   } catch { report.problems.push('missing or invalid agent CLI'); }
   if (!source) {
     json('xirang.lock.json');
-    try {
+    if (exists('.xirang/baselines.json')) {
+      // Packed baselines are authoritative. A broken package must not be hidden by a legacy directory.
+      const store = json('.xirang/baselines.json');
+      if (store && (store.schemaVersion !== 1 || !store.blobs || typeof store.blobs !== 'object' || Array.isArray(store.blobs))) report.problems.push('invalid baseline store schema');
+    } else try {
       if (!fs.statSync(path.join(projectRoot,'.xirang/baselines')).isDirectory()) throw new Error('not a directory');
     } catch { report.problems.push('missing .xirang/baselines'); }
   }

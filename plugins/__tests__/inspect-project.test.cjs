@@ -40,6 +40,17 @@ test('an adopted directory without Git needs initialization, not a mutation atte
   const root=fixture(t); adopted(root);
   assert.equal(inspectProject(root).status,'NEEDS_GIT');
 });
+test('RUL-BASE-005 single baseline file is recognized without loading project code; invalid package blocks',t=>{
+  const root=fixture(t); adopted(root); git(root,'init','--quiet');
+  // Only remove fixture-owned files to simulate a project installed with the new storage format.
+  fs.unlinkSync(path.join(root,'.xirang/baselines/fixture.json')); fs.rmdirSync(path.join(root,'.xirang/baselines'));
+  write(root,'.xirang/baselines.json',JSON.stringify({schemaVersion:1,blobs:{}}));
+  assert.equal(inspectProject(root).status,'READY');
+  write(root,'.xirang/baselines.json','{');
+  assert.equal(inspectProject(root).status,'INCOMPLETE');
+  write(root,'.xirang/baselines.json',JSON.stringify({schemaVersion:2,blobs:{}}));
+  assert.equal(inspectProject(root).status,'INCOMPLETE');
+});
 test('ready project is read without executing its CLI or exposing environment contents',t=>{
   const root=fixture(t); adopted(root); git(root,'init','--quiet');
   write(root,'.env.local','PRIVATE_TEST_SENTINEL=do-not-return\n');
