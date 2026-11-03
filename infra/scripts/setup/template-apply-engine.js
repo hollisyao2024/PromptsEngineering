@@ -506,7 +506,8 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
   const targetRoot = path.resolve(args.target || process.cwd());
-  if (args.write) require('../../../tooling/xirang/target').assertMutationTarget(targetRoot);
+  if (args.initialize !== undefined && typeof args.initialize !== 'boolean') throw new Error('--initialize does not take a value');
+  if (args.write) require('../../../tooling/xirang/target').assertMutationTarget(targetRoot, { initialize: args.initialize === true });
   // The public CLI always uses the frozen, baseline-aware engine. Legacy
   // applyRule exports remain for callers testing individual old strategies.
   const unified = path.join(sourceRoot, 'tooling/xirang/template.js');

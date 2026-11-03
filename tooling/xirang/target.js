@@ -3,11 +3,14 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { read, parseJson, safePath } = require('./engine');
 
-function assertMutationTarget(target) {
+function assertMutationTarget(target, { initialize = false } = {}) {
   const config = read(target, 'agent.config.json');
   if (config && parseJson(config, 'agent.config.json').template?.role === 'source') {
     throw new Error('Template and architecture mutations cannot target the Xirang source repository');
   }
+  // Explicit file initialization may target an existing checkout. Ordinary
+  // updates and all architecture mutations keep the linked-worktree gate.
+  if (initialize) return;
   const git = spawnSync('git', ['rev-parse', '--git-common-dir', '--git-dir'], { cwd: target, encoding: 'utf8', shell: false });
   if (git.status === 0) {
     const [common, directory] = git.stdout.trim().split('\n');

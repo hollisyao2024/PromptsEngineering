@@ -140,6 +140,9 @@ function validateJsonFiles(targetRoot, files) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.initialize !== undefined && typeof args.initialize !== 'boolean') throw new Error('--initialize does not take a value');
+  const initialize = args.initialize === true;
+  const localOptions = { filesOnly: initialize };
   const sourceRoot = path.resolve(args.source || path.join(__dirname, '..', '..', '..'));
   const targetRoot = path.resolve(process.cwd(), args.target || '');
   const applyEngine = path.join(sourceRoot, 'infra/scripts/setup/template-apply-engine.js');
@@ -158,13 +161,13 @@ function main() {
     block('template apply engine not found', { source: sourceRoot });
   }
   const { assertMutationTarget, assertPlanOutput } = require('../../../tooling/xirang/target');
-  if (!dryRunOnly) assertMutationTarget(targetRoot);
+  if (!dryRunOnly) assertMutationTarget(targetRoot, { initialize });
   const unified = fs.existsSync(path.join(sourceRoot, 'tooling/xirang/template.js'));
   if (unified) require(path.join(sourceRoot, 'tooling/xirang/template.js')).validateSelectionOptions?.(args.scope, args.include);
 
   const targetIsGitWorktree = isGitWorktree(targetRoot);
-  const reportRoot = targetIsGitWorktree ? getMainRepoRoot(targetRoot) : getMainRepoRoot(sourceRoot);
-  const configRoot = targetIsGitWorktree ? targetRoot : sourceRoot;
+  const reportRoot = targetIsGitWorktree && !initialize ? getMainRepoRoot(targetRoot) : getMainRepoRoot(sourceRoot);
+  const configRoot = targetIsGitWorktree && !initialize ? targetRoot : sourceRoot;
   const config = loadConfig({ repoRoot: configRoot, cli: args });
   const reportDir = resolveFromRepo(
     reportRoot,
@@ -186,16 +189,17 @@ function main() {
   for (const include of includes) includeArgs.push('--include', include);
 
   const baseArgs = [applyEngine, '--source', sourceRoot, '--target', targetRoot, ...includeArgs];
+  if (initialize) baseArgs.push('--initialize');
   if (args.scope) baseArgs.push('--scope', args.scope);
   if (args.adopt) baseArgs.push('--adopt');
   if (args['legacy-baseline']) baseArgs.push('--legacy-baseline', args['legacy-baseline']);
-  const codexConfigPlan = initializeCodexConfig(targetRoot, false);
+  const codexConfigPlan = initializeCodexConfig(targetRoot, false, localOptions);
   // Fail before any write when the legacy config cannot be migrated safely.
   const agentConfigPlan = migrateLegacyAgentConfig(targetRoot, false);
   const dryRun = run(process.execPath, unified ? [...baseArgs, '--plan-out', planPath] : baseArgs, { cwd: sourceRoot });
   writeLog(dryRunLog, dryRun.output);
   process.stdout.write(dryRun.output);
-  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false));
+  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false, localOptions));
   reportCodexConfig(codexConfigPlan);
   reportAgentConfigMigration(agentConfigPlan);
 
@@ -234,8 +238,8 @@ function main() {
   if (writeRun.status !== 0) {
     block('write failed', { write_log: writeLogPath });
   }
-  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, true));
-  reportCodexConfig(initializeCodexConfig(targetRoot, true));
+  reportProjectEnvironmentFiles(initializeProjectEnvironmentFiles(sourceRoot, targetRoot, true, localOptions));
+  reportCodexConfig(initializeCodexConfig(targetRoot, true, localOptions));
   reportAgentConfigMigration(migrateLegacyAgentConfig(targetRoot, true));
 
   validateJsonFiles(targetRoot, [
@@ -247,7 +251,13 @@ function main() {
   ]);
 
   console.log('VALIDATION_JSON=OK');
-  if (isGitWorktree(targetRoot)) {
+  if (initialize) {
+    // Initial file installation must not create backfill commits/refs, refresh
+    // the index, or modify info/exclude, even in an existing Git repository.
+    console.log('VALIDATION_DIFF_CHECK=SKIPPED');
+    console.log('BACKFILL_BASELINE=skipped');
+    console.log('REASON=file-only initialization preserves Git metadata');
+  } else if (isGitWorktree(targetRoot)) {
     const diffCheck = run('git', ['diff', '--check'], { cwd: targetRoot });
     process.stdout.write(diffCheck.output);
     if (diffCheck.status !== 0) {
@@ -289,7 +299,7 @@ function main() {
       counts: JSON.stringify(convergenceCounts),
     });
   }
-  const codexConfigConvergence = initializeCodexConfig(targetRoot, false);
+  const codexConfigConvergence = initializeCodexConfig(targetRoot, false, localOptions);
   if (codexConfigConvergence.status !== 'unchanged' || codexConfigConvergence.linkStatus !== 'unchanged') {
     block('Codex config did not converge', { config: CODEX_CONFIG_RELATIVE });
   }
@@ -298,7 +308,7 @@ function main() {
     block('agent.config.json legacy migration did not converge');
   }
   console.log('AGENT_CONFIG_CONVERGENCE_STATUS=OK');
-  if (initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false).files.some(file => file.status !== 'unchanged')) {
+  if (initializeProjectEnvironmentFiles(sourceRoot, targetRoot, false, localOptions).files.some(file => file.status !== 'unchanged')) {
     block('Environment files did not converge');
   }
   console.log('ENVIRONMENT_CONVERGENCE_STATUS=OK');
@@ -314,7 +324,7 @@ function main() {
 }
 
 if (require.main === module) {
-  exitOnHelp('Usage: pnpm agent -- template update <target> [--plan | --write] [--legacy-baseline <ref>]\n\nApply this template to a target project (dry-run first).');
+  exitOnHelp('Usage: pnpm agent -- template update <target> [--dry-run] [--initialize] [--legacy-baseline <ref>]\n\n--initialize installs files without Git mutations, including in an existing checkout.');
   try {
     main();
   } catch (error) {

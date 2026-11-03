@@ -66,13 +66,13 @@ function reportEnvironmentFiles(results) {
 
 // Environment files belong to the project's main checkout. Template-owned
 // tracked files still go through the normal development-worktree apply plan.
-function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
+function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write, { filesOnly = false } = {}) {
   const gitTarget = isGitWorktree(targetRoot);
   if (!gitTarget && lstatIfPresent(path.join(targetRoot, '.git'))) {
     throw new Error('Cannot resolve environment project Git root');
   }
-  const root = gitTarget ? getMainRepoRoot(targetRoot) : path.resolve(targetRoot);
-  if (gitTarget) {
+  const root = gitTarget && !filesOnly ? getMainRepoRoot(targetRoot) : path.resolve(targetRoot);
+  if (gitTarget && !filesOnly) {
     const verified = run('git', ['rev-parse', '--show-toplevel'], { cwd: root });
     if (verified.status !== 0 || path.resolve(verified.stdout.trim()) !== path.resolve(root)) {
       throw new Error('Cannot verify environment main repo root');
@@ -105,7 +105,7 @@ function initializeProjectEnvironmentFiles(sourceRoot, targetRoot, write) {
     return planGitHubTokenDeclaration(filePath, stat ? fs.readFileSync(filePath) : exampleContent);
   }).filter(Boolean);
 
-  if (write && gitTarget) {
+  if (write && gitTarget && !filesOnly) {
     // Protect local runtime files even before the tracked gitignore update is
     // merged. These root-anchored rules do not ignore the example files.
     const resolved = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd: root });
@@ -273,8 +273,8 @@ function writePrivateConfigAtomically(filePath, content, mode, previous) {
   }
 }
 
-function initializeCodexConfig(targetRoot, write) {
-  const mainRoot = isGitWorktree(targetRoot) ? getMainRepoRoot(targetRoot) : targetRoot;
+function initializeCodexConfig(targetRoot, write, { filesOnly = false } = {}) {
+  const mainRoot = !filesOnly && isGitWorktree(targetRoot) ? getMainRepoRoot(targetRoot) : targetRoot;
   const mainConfig = path.join(mainRoot, CODEX_CONFIG_RELATIVE);
   const linkedConfig = path.join(targetRoot, CODEX_CONFIG_RELATIVE);
   const mainStat = lstatIfPresent(mainConfig);
@@ -299,8 +299,12 @@ function initializeCodexConfig(targetRoot, write) {
   if (missing.length && isGitWorktree(mainRoot)) {
     const tracked = run('git', ['ls-files', '--error-unmatch', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
     if (tracked.status === 0) throw new Error(`${CODEX_CONFIG_RELATIVE} is tracked; refusing to change a project-owned file`);
-    const ignored = run('git', ['check-ignore', '--quiet', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
-    if (ignored.status !== 0) throw new Error(`${CODEX_CONFIG_RELATIVE} must be ignored by the main project before initialization`);
+    // Initialization installs the managed .gitignore before creating local
+    // config. Its preview must also work before that file exists.
+    if (!filesOnly || write) {
+      const ignored = run('git', ['check-ignore', '--quiet', '--', CODEX_CONFIG_RELATIVE], { cwd: mainRoot });
+      if (ignored.status !== 0) throw new Error(`${CODEX_CONFIG_RELATIVE} must be ignored by the main project before initialization`);
+    }
   }
   if (!write) return { status, linkStatus, missing };
 

@@ -30,13 +30,13 @@
 
 先采用**模型作业包**。它提供协议、任务、worktree 和交付工具，不要求更换现有技术栈。
 
-在息壤源项目的 AI 会话中说“初始化项目，路径为 `<目标绝对路径>`”，即可自动检查、预演、安装文件和复查，不操作目标 Git。默认只接入作业包；已有项目只报告对应流程。更新时打开对应实际项目，说“更新息壤模板”，固定从 GitHub 官方源的 `main` 获取最新版。两种指令各在所属项目执行，详见[常用指令](docs/guides/commands.md)。
+在息壤源项目的 AI 会话中说“初始化项目，路径为 `<目标绝对路径>`”，即可自动检查、预演、安装文件和复查，不操作目标 Git。默认只接入作业包；已有 Git 仓库同样可初始化，直接在源与目标主目录操作，无需为安装创建 worktree。更新时打开对应实际项目，说“更新息壤模板”，固定从 GitHub 官方源的 `main` 获取最新版。详见[常用指令](docs/guides/commands.md)。
 
-在已获取的息壤源仓库执行，目标目录须存在；已有 Git 项目须使用干净的专用 linked worktree：
+在已获取的息壤源仓库执行，目标目录须存在；初始化模式支持已有 Git 仓库，保留 Git 元数据：
 
 ```bash
-pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent --dry-run
-pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent
+pnpm agent -- template update "<目标目录>" --scope agent --initialize --dry-run
+pnpm agent -- template update "<目标目录>" --scope agent --initialize
 ```
 
 从获取源码、准备环境到检查生成结果，按[快速上手](docs/guides/quickstart.md)操作。首次接入成功的判据是：生成协议和基线文件，再次预演无待应用差异；业务测试通过是后续项目验收。

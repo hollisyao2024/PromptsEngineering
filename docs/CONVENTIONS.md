@@ -74,7 +74,7 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 
 模板的稳定身份为“息壤”（`xirang` / `Xirang`），默认上游是 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。官方来源由 `template.identity` 与 `template.upstream` 声明，同步与回灌共用该来源。
 
-实际项目中的自然语言“更新息壤模板”确定性映射为 `pnpm agent -- template sync`，唯一目标是当前已核实并向用户明确绝对路径的实际仓库；目标不明确先澄清，不猜路径。该快捷指令固定获取 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 最新提交，不传 `--source-repo`、`--source-branch` 替换来源，不依赖本地息壤源；配置来源偏离官方值时由 CLI 阻断。执行器必须先建立 mutation 任务及专用 linked worktree，再在干净的 `NEXT_CWD` 运行命令，并继续项目既有的 TDD/QA 交付链。模板源角色或主 worktree 不得运行同步；息壤源中收到该指令只提示切换到实际项目，不代为跨项目更新。
+实际项目中的自然语言“更新息壤模板”确定性映射为 `pnpm agent -- template sync`，唯一目标是当前已核实并向用户明确绝对路径的实际仓库；目标不明确先澄清，不猜路径。该快捷指令固定获取 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 最新提交，不传 `--source-repo`、`--source-branch` 替换来源；配置来源偏离官方值时由 CLI 阻断。执行器必须先建立 mutation 任务及专用 linked worktree，再在干净的 `NEXT_CWD` 运行命令，并继续项目既有的 TDD/QA 交付链。模板源角色或主 worktree 不得运行同步。
 
 普通同步始终 required fetch，不提供静默离线降级：在容器 tmp 的隔离目录拉取配置分支，解析并固定 `FETCH_HEAD^{commit}`，校验息壤身份、manifest 和同步能力，再调用该固定 SHA 中的最新版 updater。fetch、分支、SHA 或源形状异常时，必须在目标 tracked 文件写入前非零退出；官方公开仓库通过匿名 HTTPS 获取，不读取或发送项目 `GH_TOKEN`，并屏蔽 Git system/global 配置、helper、askpass、额外认证头、Cookie 和 URL 重写；项目自身远端操作继续使用共享 GitHub 鉴权封装。匿名 fetch 失败不切换 token 重试，官方源改为私有时阻断。
 

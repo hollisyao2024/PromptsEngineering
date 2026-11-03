@@ -30,6 +30,7 @@ function buildAgentAssets(source,target,manifestPath='infra/templates/agent/temp
       const p=relative?`${rule.path}/${relative}`:rule.path;
       if(effective(p)!==rule)continue;
       let content=readSource(relative?`${from}/${relative}`:from),strategy=rule.strategy;
+      if(p.endsWith('.md')) content=require('./source-only').stripSourceOnly(content,p);
       // Project scripts still calling renamed template paths are migrated before the scripts merge.
       let transformLocal;
       if(strategy==='merge-package-scripts'){content=json({scripts:parseJson(content,from).scripts||{}});strategy='merge-json';transformLocal=rewritePackageScripts;}
@@ -120,7 +121,8 @@ function runTemplate(args,source,target) {
   validateSelectionOptions(args.scope, args.include);
   if (args['legacy-baseline'] !== undefined && args.adopt) throw new Error('--legacy-baseline cannot be combined with --adopt');
   if (args.write !== undefined && typeof args.write !== 'boolean') throw new Error('--write does not take a value');
-  if (args.write) assertMutationTarget(target);
+  if (args.initialize !== undefined && typeof args.initialize !== 'boolean') throw new Error('--initialize does not take a value');
+  if (args.write) assertMutationTarget(target, { initialize: args.initialize === true });
   const out = args['plan-out'] && assertPlanOutput(target, args['plan-out']);
   const plan=args.plan?parseJson(fs.readFileSync(args.plan,'utf8'),'plan'):createTemplatePlan({source,target,scope:args.scope,adopt:!!args.adopt,manifestPath:args.manifest,include:args.include,legacyBaseline:args['legacy-baseline']});
   if(path.resolve(plan.target)!==path.resolve(target))throw new Error('plan target mismatch');
