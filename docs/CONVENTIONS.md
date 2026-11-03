@@ -70,6 +70,19 @@ CLI > 环境变量 > agent.config.json > infra/templates/agent/config.example.js
 “回灌息壤模板”确定性映射为 `pnpm agent -- template backfill`，是显式操作，仅处理已记录 baseline（`refs/agent/backfill-baseline` 或 `--base`）之后的 template-owned `overwrite` 改动；项目规则、配置、业务文档和 generated 文件不可回灌。命令没有 `<source>` 位置参数，也不接受 `--source`、`--target`、`--template`；目标固定为官方息壤源 `main`，旧 `template.sourceRepo` 与 `AGENT_TEMPLATE_SOURCE_REPO` 已移除并被忽略。
 
 执行流程：匿名 required fetch 官方 `main` 并固定 `FETCH_HEAD^{commit}`（失败即阻断，不回退缓存）→ 在项目容器 `cache/xirang/backfill-source/repo` 的可重建克隆中快进到该 SHA（克隆被改动、远端或分支不符时阻断）→ 校验息壤身份与 manifest → 运行克隆自身的 `task start` 与 `worktree new --phase tdd --task <id>`，从最新官方 `main` 创建新任务 worktree 与分支 → 把候选文件复制到该 worktree 并校验 JSON → 输出 `TASK_ID`、`NEXT_CWD`、`BACKFILL_BRANCH`。之后在 `NEXT_CWD` 中按息壤源自身的 TDD/QA 门禁（`tdd sync → tdd push → qa plan → qa verify → qa merge`）交付到官方 `main`，版本递增与 CHANGELOG 由 `tdd sync` 处理。`--dry-run` 只刷新克隆并列出计划，不创建任务或 worktree；`--task <id>` 指定任务标识（默认 `backfill-<时间戳>`）。写入官方源只用官方源自身的 `GH_TOKEN`，项目 token 不是回退：凭据文件按 `--source-env <path>` > 环境变量 `XIRANG_SOURCE_ENV_FILE` > 项目 `.env.local` 同名键的顺序确定（通常指向官方源主 worktree 的 `.env.local`），须存在、含可用 `GH_TOKEN` 且不是项目自身的 `.env.local`；克隆内 `.env.local` 以软链接指向该文件，指向漂移时纠正，不复制、不输出，已有普通文件则阻断。未配置或无效时正式回灌在创建任务与 worktree 前 `STATUS=BLOCKED`，`--dry-run` 只输出 `TEMPLATE_SOURCE_AUTH` 与 `AUTH_WARNING`。项目 `AGENT_*`、`GH_TOKEN`、`GITHUB_TOKEN` 环境变量不传给克隆的 CLI。官方息壤源自身不是回灌对象，`template.role=source` 时阻断。
+### 初始化实际项目
+
+在已核实的息壤源中，“初始化实际项目，路径为 `<目标路径>`”是现有接入流程的自然语言入口。默认仅安装作业包，不选择技术栈。只给路径已足够授权以下流程；无冲突时连续执行，不重复询问是否安装：
+
+1. **检查**：确认 Git、Node.js、pnpm 可用，源 origin 为官方息壤仓库，记录实际源目录与 commit SHA；源的待提交模板修改不得当作已发布版本安装。将目标解析为绝对路径，检查真实路径及已有父目录；拒绝文件、符号链接、磁盘根、用户主目录、息壤源目录及其内部目录，禁止把继承了父目录 Git 仓库的路径当作空白项目。缺路径只问路径，路径有歧义先澄清。
+2. **分流**：不存在的独立目标可创建为空目录；已有空目录可继续。目标已属于 Git 仓库时停止文件安装，报告已有项目接入入口，不自动创建目标 worktree 或进入其 Git 生命周期。发现 `xirang.lock.json`、`.xirang/` 或息壤入口等接入痕迹时，按已接入或不完整接入诊断，不重新初始化；仅说明下节更新或恢复入口，不凭初始化指令自动更新。非空且无 Git 的目录先报告内容与接入方案，不擅自覆盖。已有空规则、无法读取的规则和未知基线均阻断。
+3. **记录**：写入前记录目标绝对路径、来源 SHA、验收和副作用步骤。空目录接入在息壤源使用 `type=operation` 任务记录，不为仅运行 updater 修改源 tracked 文件或创建源开发 worktree，不在目标创建任务或 worktree。验收为安装成功、基础规则与基线齐全、复查无差异；源任务状态记录和目录创建也按副作用规则执行。
+4. **预演**：在已核实的源目录执行 `pnpm agent -- template update "<目标绝对路径>" --scope agent --dry-run`。简述新增、更新、合并、跳过和冲突。非零退出、`STATUS=BLOCKED` 或冲突时停止应用并保留证据，不删文件或基线、不加忽略冲突参数。
+5. **安装**：预演通过后，在同一源目录执行 `pnpm agent -- template update "<目标绝对路径>" --scope agent`。复用现有 updater 的清单、冻结计划、哈希校验和内置收敛检查，不整仓复制。失败或结果未知时先核实目标与日志，不盲目重放。首次生成后，完整读取目标 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md` 至末尾，再执行后续项目操作。
+6. **复查与报告**：再次执行同一 dry-run，要求退出码 0、无待应用差异和冲突；核对 `AGENTS.md`、`docs/CONVENTIONS.md`、`RULES.md`、`agent.config.json`、`xirang.lock.json` 和 `.xirang/baselines/` 存在且可读。安装须有 `STATUS=UPDATED`、`CONVERGENCE_STATUS=OK`，不能只凭目录存在宣称成功。报告真实目标、来源 SHA、安装与复查结果、日志位置，以及 Git/远端、凭据、项目规则和业务验证的待办；完成相应任务记录。
+
+初始化仅把清单规定的文件安装到目标目录；不执行目标的 `git init`、暂存、提交、分支或 worktree 创建、远端配置、推送，不创建 GitHub 仓库或填写凭据。允许只读识别 Git 归属以防误写已有项目。Git 开发准备由用户后续另行发起，不作为本次完成门禁；部署和生成业务应用也不在范围内。需要架构入口时使用 `--include architecture` 替代 `--scope agent`，仍须单独确认技术选择。用法见 `docs/guides/quickstart.md`。
+
 ### 息壤官方同步
 
 模板的稳定身份为“息壤”（`xirang` / `Xirang`），默认上游是 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。官方来源由 `template.identity` 与 `template.upstream` 声明，同步与回灌共用该来源。
