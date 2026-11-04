@@ -16,6 +16,8 @@
 .env.production
 
 # Agent/test/runtime outputs
+# Dependencies belong to each worktree; lockfile policy belongs to the project.
+node_modules/
 **/test-results/
 **/playwright-report/
 **/.last-run.json

@@ -23,6 +23,8 @@
 
 主 worktree 保持在 base branch。修改 tracked 文件只在专属 worktree 中进行；只读诊断可在任意 worktree。每个 worktree 独立安装依赖，包内容复用交给包管理器 store。
 
+分发的 `.gitignore` 受管块忽略各层 `node_modules/`，不替项目选择锁文件策略。首次使用包管理器生成的锁文件须按项目策略审查并在修改 worktree 提交，不得为通过干净工作区门禁反复删除依赖或锁文件。模板初始化不伪造空锁文件，也不覆盖已有忽略规则或已跟踪文件。若 pnpm 包装入口在任务开始前生成文件，可直接运行等价的 `node infra/scripts/agent-runner/agent-cli.js ...` 进行任务登记与只读排查，再在专用 worktree 处理合法元数据；不放宽模板同步的干净工作区检查。
+
 ## 2. 配置
 
 有效配置按以下优先级合并：
@@ -193,6 +195,8 @@ Windows 上 pnpm 经 cmd.exe 转发 script 参数，会丢弃换行后的全部�
 pnpm agent -- task context --task <id> [--max-bytes 8192] [--include <path#Lx-Ly>]...
 pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 ```
+
+`task exec` 默认在任务绑定的 worktree（无绑定时为主仓库）执行，不随调用者当前目录隐式切换。合并后先离开开发目录、切换到主 worktree，再用 `task exec --task <id> --name <name> --cwd main -- <command...>` 留证运行 `worktree audit --apply`、远端 fetch 或 `finish`；此模式只选择状态中登记的主仓库，开发目录已清理也可执行。`--cwd` 只接受 `main|worktree`，不接受任意路径，所选目录须为真实目录；输出 `EXEC_CWD`，日志仍写原任务 evidence，测试范围及生命周期门禁继续生效。该选项不授权在主干修改 tracked 文件，也不允许绕过拒绝策略或清理当前目录中的活动进程。
 
 命令必须输出可解析的 `STATUS`、`SUMMARY`、`NEXT_ACTION`，失败时退出码非零。
 
