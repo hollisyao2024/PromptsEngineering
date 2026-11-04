@@ -86,8 +86,13 @@ function createTemplatePlan({source,target,scope='all',adopt=false,manifestPath,
     const kit=require('./architecture-kit').buildRuntimeAssets({source,target});
     assets.push(...kit.assets);inputs.push(...kit.inputs);Object.assign(packages,kit.packages);
   }
-  // The runtime engine is shared; one owner consistently manages it regardless of entry point.
-  for(const asset of assets)if(asset.path.startsWith('tooling/xirang/'))asset.owner='xirang:engine';
+  // Ownership and version must agree across both entry points, including custom agent manifests.
+  const shared = assets.filter(asset => asset.path.startsWith('tooling/xirang/'));
+  if (shared.length) {
+    const engine = require('./architecture-kit').sharedEngineMetadata(source);
+    inputs.push(engine.input);
+    for (const asset of shared) { asset.owner = 'xirang:engine'; asset.version = engine.version; }
+  }
   const unique=new Map();
   for(const asset of assets){if(unique.has(asset.path)){const old=unique.get(asset.path),combined=require('./root-contributions').mergeRootContributions(old,asset,target);if(combined)unique.set(asset.path,combined);else if(old.content!==asset.content||old.strategy!==asset.strategy||old.owner!==asset.owner)throw new Error(`duplicate template owner: ${asset.path}`);}else unique.set(asset.path,asset);}
   const {spawnSync}=require('node:child_process');const commit=spawnSync('git',['rev-parse','HEAD'],{cwd:source,encoding:'utf8',shell:false});

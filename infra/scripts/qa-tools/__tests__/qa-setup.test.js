@@ -290,9 +290,13 @@ test('qa setup: .gitignore 已忽略报告目录时不重复追加', (t) => {
   });
   t.after(() => project.cleanup());
 
+  // RUL-QASETUP-001：Git 可在检出时转换换行；无写入契约保护检出后的原始字节。
+  const before = fs.readFileSync(path.join(project.wt, '.gitignore'));
+  assert.equal(before.toString('utf8').replace(/\r\n/g, '\n'), 'reports/\n');
+
   const run = setup(project.wt);
   assert.equal(run.value('STATUS'), 'OK', run.output);
-  assert.equal(readText(path.join(project.wt, '.gitignore')), 'reports/\n');
+  assert.deepEqual(fs.readFileSync(path.join(project.wt, '.gitignore')), before);
   assert.equal(run.all('WRITE').some((line) => line.startsWith('.gitignore|')), false, run.output);
 });
 
@@ -315,11 +319,13 @@ test('qa setup: 模板源仓库输出 SKIPPED 且不写文件', (t) => {
   const source = json({ template: { role: 'source' } });
   const project = linkedProject({ 'package.json': packageJson({ vitest: '^2.0.0' }), 'agent.config.json': source });
   t.after(() => project.cleanup());
+  const before = fs.readFileSync(configPath(project.wt));
+  assert.deepEqual(JSON.parse(before.toString('utf8')), { template: { role: 'source' } });
 
   const run = setup(project.wt);
   assert.equal(run.result.status, 0, run.output);
   assert.equal(run.value('STATUS'), 'SKIPPED');
-  assert.equal(readText(configPath(project.wt)), source);
+  assert.deepEqual(fs.readFileSync(configPath(project.wt)), before);
 });
 
 test('qa setup: agent.config.json 非法时 BLOCKED 且不写任何文件', (t) => {
@@ -337,12 +343,14 @@ test('qa setup: 合并后的 qa 配置不合法时 BLOCKED 且不写任何文件
   const broken = json({ qa: { business: { enable: true } } });
   const project = linkedProject({ 'package.json': packageJson({ vitest: '^2.0.0' }), 'agent.config.json': broken });
   t.after(() => project.cleanup());
+  const before = fs.readFileSync(configPath(project.wt));
+  assert.deepEqual(JSON.parse(before.toString('utf8')), { qa: { business: { enable: true } } });
 
   const run = setup(project.wt);
   assert.equal(run.result.status, 1, run.output);
   assert.equal(run.value('STATUS'), 'BLOCKED');
   assert.match(run.value('SUMMARY'), /qa\.business\.enable/);
-  assert.equal(readText(configPath(project.wt)), broken);
+  assert.deepEqual(fs.readFileSync(configPath(project.wt)), before);
   assert.equal(fs.existsSync(path.join(project.wt, '.gitignore')), false);
 });
 

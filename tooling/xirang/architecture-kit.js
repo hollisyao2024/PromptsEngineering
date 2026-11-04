@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { readLock, read, hash, json, safePath } = require('./engine');
+const { readLock, read, hash, json, safePath, parseJson } = require('./engine');
 const { describeSource, POINTER } = require('./source-cache');
 
 const METADATA = ['architecture/manifest.json', 'architecture/architecture.schema.json',
@@ -27,18 +27,27 @@ runtime.json 固定官方来源、提交、版本与内容摘要。首次同步�
 源码与完整指南：https://github.com/hollisyao2024/PromptsEngineering/tree/SOURCE_REF/architecture 。架构命令输出 ARCHITECTURE_SOURCE_ROOT，可在其 architecture/guides/ 和 architecture/standards/ 点读当前固定版本的指南。模板完整方案是可裁减目录，不强制安装全部组件。RULES.md、项目配置、业务代码和已有迁移仍由项目维护。
 `;
 
+function sharedEngineMetadata(source) {
+  const relative = 'infra/templates/agent/template.manifest.json', text = read(source, relative);
+  const version = text === null ? null : parseJson(text, 'shared engine manifest').templateVersion;
+  if (typeof version !== 'string' || !version.trim()) throw new Error('Shared engine source has no agent template version');
+  return { version, input: { path: safePath(source, relative), hash: hash(text) } };
+}
 function buildRuntimeAssets({ source, target, includeEngine = true }) {
   const described = describeSource(source), descriptor = described.descriptor;
   const assets = [], inputs = described.inputs;
-  const add = (p, content, strategy = 'overwrite', owner = 'architecture:runtime', mode) => {
-    assets.push({ path: p, content, strategy, owner, version: descriptor.version, ...(mode ? { mode } : {}) });
+  const add = (p, content, strategy = 'overwrite', owner = 'architecture:runtime', mode, version = descriptor.version) => {
+    assets.push({ path: p, content, strategy, owner, version, ...(mode ? { mode } : {}) });
   };
   for (const file of METADATA) add(file, read(source, file));
   add('architecture/README.md', README.replace('SOURCE_REF', descriptor.commit || 'main'));
   add('architecture/scripts/cli.js', LAUNCHER);
   add(POINTER, json(descriptor));
-  if (includeEngine) for (const file of described.files.filter(f => f.path.startsWith('tooling/xirang/'))) {
-    add(file.path, fs.readFileSync(safePath(source, file.path), 'utf8'), 'overwrite', 'xirang:engine', file.mode);
+  if (includeEngine) {
+    const engine = sharedEngineMetadata(source);
+    for (const file of described.files.filter(f => f.path.startsWith('tooling/xirang/'))) {
+      add(file.path, fs.readFileSync(safePath(source, file.path), 'utf8'), 'overwrite', 'xirang:engine', file.mode, engine.version);
+    }
   }
   const retained = new Set(assets.map(asset => asset.path));
   for (const [file, record] of Object.entries(readLock(target).files)) {
@@ -51,4 +60,4 @@ function buildRuntimeAssets({ source, target, includeEngine = true }) {
   } } };
 }
 
-module.exports = { buildRuntimeAssets, METADATA };
+module.exports = { buildRuntimeAssets, sharedEngineMetadata, METADATA };

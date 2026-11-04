@@ -327,7 +327,7 @@ function buildArchitectureAssets({ source = DEFAULT_SOURCE, target, config: raw,
   if (scope && scope !== 'architecture' && !packages[scope]) throw new Error(`scope is not an installed/selected module: ${scope}`);
   if (includeRuntime) {
     const kit = require('../../tooling/xirang/architecture-kit').buildRuntimeAssets({source,target});
-    for(const asset of kit.assets)add(asset.path,asset.content,asset.strategy,asset.owner,{mode:asset.mode});
+    for(const asset of kit.assets)add(asset.path,asset.content,asset.strategy,asset.owner,{mode:asset.mode,version:asset.version});
     for(const input of kit.inputs)inputMap.set(input.path,input);
     Object.assign(packages,kit.packages);
   }

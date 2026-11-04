@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
+const { constants: bufferConstants } = require('node:buffer');
 const { spawnSync } = require('node:child_process');
 
 const LOCK = 'xirang.lock.json';
@@ -74,17 +76,49 @@ function verifiedText(text, digest) {
   const normalized = text.replace(/\r\n/g, '\n');
   return normalized !== text && hash(normalized) === digest ? normalized : null;
 }
+function decodeBaselineStore(raw) {
+  try {
+    const store = parseJson(raw, 'baseline store');
+    let blobs;
+    if (store?.schemaVersion === 1) {
+      if (Object.keys(store).some(key => !['schemaVersion', 'blobs'].includes(key))) throw new Error('unknown fields');
+      blobs = store.blobs;
+    } else if (store?.schemaVersion === 2) {
+      if (store.encoding !== 'br-base64' || Object.keys(store).some(key => !['schemaVersion', 'encoding', 'size', 'data'].includes(key))
+        || !Number.isSafeInteger(store.size) || store.size < 1 || store.size > bufferConstants.MAX_LENGTH
+        || typeof store.data !== 'string' || !store.data.length) throw new Error('invalid compressed envelope');
+      const packed = Buffer.from(store.data, 'base64');
+      // Buffer.from accepts garbage and noncanonical padding; require an exact canonical Base64 round trip.
+      if (packed.toString('base64') !== store.data) throw new Error('invalid base64');
+      const decoded = zlib.brotliDecompressSync(packed, { maxOutputLength: store.size, info: true });
+      const content = decoded.buffer;
+      if (content.length !== store.size || decoded.engine.bytesWritten !== packed.length) throw new Error('decompressed size or trailing data mismatch');
+      blobs = parseJson(content.toString('utf8'), 'baseline payload');
+    } else throw new Error('unknown schema');
+    if (!isObject(blobs)) throw new Error('invalid blobs');
+    for (const [digest, text] of Object.entries(blobs)) {
+      if (!/^[a-f0-9]{64}$/.test(digest) || typeof text !== 'string' || hash(text) !== digest) throw new Error(`corrupt entry: ${digest}`);
+    }
+    return { raw, blobs, schemaVersion: store.schemaVersion };
+  } catch (error) { throw new Error(`invalid baseline store: ${error.message}`, { cause: error }); }
+}
+function encodeBaselineStore(blobs) {
+  const content = Buffer.from(JSON.stringify(canonical(blobs)), 'utf8');
+  const packed = zlib.brotliCompressSync(content, { params: {
+    // Level 6 keeps nearly all of the space savings while avoiding level 9/11's extra update latency.
+    [zlib.constants.BROTLI_PARAM_QUALITY]: 6,
+    [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+  } });
+  return json({ schemaVersion: 2, encoding: 'br-base64', size: content.length, data: packed.toString('base64') });
+}
 function readBaselineStore(target) {
   const raw = read(target, BASELINES, true);
-  if (raw === null) return { raw, blobs: null };
-  let store;
-  try { store = parseJson(raw, 'baseline store'); }
-  catch (error) { throw new Error(`invalid baseline store: ${error.message}`); }
-  if (store?.schemaVersion !== 1 || !isObject(store.blobs) || Object.keys(store).some(key => !['schemaVersion', 'blobs'].includes(key))) throw new Error('invalid baseline store schema');
-  for (const [digest, text] of Object.entries(store.blobs)) {
-    if (!/^[a-f0-9]{64}$/.test(digest) || typeof text !== 'string' || hash(text) !== digest) throw new Error(`corrupt baseline store entry: ${digest}`);
-  }
-  return { raw, blobs: store.blobs };
+  return raw === null ? { raw, blobs: null } : decodeBaselineStore(raw);
+}
+function sameBaselineBlobs(left, right) {
+  // Validated blob maps contain strings only; avoid serializing several MiB just to compare dictionaries.
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key) && left[key] === right[key]);
 }
 function baseline(target, record, store = readBaselineStore(target)) {
   if (!record) return undefined;
@@ -98,7 +132,15 @@ function planBaselines(target, previous, nextLock, entries, store) {
   for (const record of Object.values(previous.files)) {
     old[record.base] = baseline(target, record, store);
   }
-  for (const digest of Object.keys(old).sort()) {
+  const digests = Object.keys(old).sort();
+  let hasLegacyDirectory = false;
+  if (digests.length) try {
+    const directory = safePath(target, '.xirang/baselines', true);
+    if (!fs.statSync(directory).isDirectory()) throw new Error('legacy baseline path is not a directory');
+    hasLegacyDirectory = true;
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  // New-format projects usually have no old directory. One checked probe avoids hundreds of missing-file walks.
+  for (const digest of hasLegacyDirectory ? digests : []) {
     const raw = read(target, `.xirang/baselines/${digest}`, true);
     if (raw === null) continue;
     if (verifiedText(raw, digest) === null) throw new Error(`corrupt legacy baseline: ${digest}`);
@@ -113,8 +155,9 @@ function planBaselines(target, previous, nextLock, entries, store) {
     blobs[record.base] = text;
   }
   // Publish a union first so either the old or new lock remains readable across a power loss.
-  const encode = value => store.raw !== null && equal(parseJson(store.raw), value) ? store.raw : json(value);
-  return { before: hash(store.raw), staged: encode({ schemaVersion: 1, blobs: { ...old, ...blobs } }), after: encode({ schemaVersion: 1, blobs }), legacy };
+  const encode = value => store.schemaVersion === 2 && sameBaselineBlobs(store.blobs, value) ? store.raw : encodeBaselineStore(value);
+  const after = encode(blobs), union = { ...old, ...blobs };
+  return { before: hash(store.raw), staged: sameBaselineBlobs(union, blobs) ? after : encode(union), after, legacy };
 }
 function verifyBaselineState(plan, recovering) {
   const b = plan.baselineStore, current = read(plan.target, BASELINES, true);
@@ -131,11 +174,8 @@ function validateBaselinePlan(plan, retained) {
   const b = plan.baselineStore;
   const validDigest = value => /^[a-f0-9]{64}$/.test(value);
   if (!b || !(b.before === null || validDigest(b.before)) || !Array.isArray(b.legacy)) throw new Error('invalid baseline plan');
-  const staged = parseJson(b.staged, 'staged baselines'), final = parseJson(b.after, 'final baselines');
-  for (const store of [staged, final]) {
-    if (store.schemaVersion !== 1 || !isObject(store.blobs)) throw new Error('invalid baseline plan schema');
-    for (const [digest, text] of Object.entries(store.blobs)) if (!validDigest(digest) || typeof text !== 'string' || hash(text) !== digest) throw new Error('invalid baseline plan content');
-  }
+  // Decode both versions: a journal frozen before compression must still finish under the newer engine.
+  const staged = decodeBaselineStore(b.staged), final = decodeBaselineStore(b.after);
   if (!equal(Object.keys(final.blobs).sort(), [...retained].sort())) throw new Error('baseline plan does not match next lock');
   for (const [digest, text] of Object.entries(final.blobs)) if (staged.blobs[digest] !== text) throw new Error('staged baseline plan missing final content');
   const seen = new Set();
@@ -351,7 +391,7 @@ function planUpdate({ target, assets, inputs = [], packages = {}, source = {}, a
     .filter(digest => !retainedBases.has(digest)).sort();
   if (lockBefore !== lockAfter) metadataChanges.push(LOCK);
   const baselineStore = planBaselines(target, previous, nextLock, entries, baselineStoreBefore);
-  if (baselineStoreBefore.raw === null || !equal(parseJson(baselineStoreBefore.raw), parseJson(baselineStore.after))) metadataChanges.push(BASELINES);
+  if (baselineStoreBefore.raw !== baselineStore.after) metadataChanges.push(BASELINES);
   const plan = { schemaVersion: 2, target, source, inputs, lockBefore: hash(lockBefore), lockAfter, entries, conflicts, metadataChanges, baselineRemovals, lockPrunes, baselineStore, changes: [...entries.filter(e => e.before !== e.afterHash).map(e => e.path), ...metadataChanges, ...baselineStore.legacy.map(item => `.xirang/baselines/${item.digest}`)] };
   if (legacy && lockBefore === null) plan.legacyBaselineCommit = legacy.commit;
   plan.id = hash(json(plan));

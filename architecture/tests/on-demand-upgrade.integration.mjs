@@ -19,10 +19,17 @@ function size(root) { return files(root).reduce((sum, p) => sum + fs.statSync(pa
 
 for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted workspace' : 'inert full kit'} shrinks without losing customizations`, t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-34-upgrade-')), target = path.join(root, 'repo'), runRoot = path.join(root, 'runs'); fs.mkdirSync(target);
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let completed = false;
+  t.after(() => {
+    if (!completed && process.env.XIRANG_KEEP_FAILED_UPGRADE === 'true') console.log(`FAILED_UPGRADE_ROOT=${root}`);
+    else fs.rmSync(root, { recursive: true, force: true });
+  });
   oldEngine.applyPlan(oldTemplate.createTemplatePlan({ source: legacy, target, include: ['architecture'] }), { runRoot });
   if (adopted) oldEngine.applyPlan(oldProject.createArchitecturePlan({ source: legacy, target, config: oldProject.expandBlueprint('admin-api', { source: legacy, database: 'sqlite' }) }), { runRoot });
   const before = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: size(path.join(target, '.xirang/baselines')) };
+  // Old engines retained unreferenced history. These files are outside the current lock's deletion authority.
+  const legacyDir = path.join(target, '.xirang/baselines'), registered = new Set(Object.values(readLock(target).files).map(record => record.base));
+  const unregistered = new Map(files(legacyDir).filter(name => !registered.has(name)).map(name => [name, fs.readFileSync(path.join(legacyDir, name))]));
   const custom = new Map([['RULES.md', '# Project-owned rules\n'], ['architecture/project-notes.md', '# Keep project note\n']]);
   for (const [p, text] of custom) fs.writeFileSync(path.join(target, p), text);
   if (adopted) for (const p of ['apps/api/src/server.ts', 'packages/ui/src/ui/button.tsx', 'packages/database/main/prisma/schema.prisma']) {
@@ -45,16 +52,23 @@ for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted wor
     assert.equal(fs.readFileSync(path.join(target, 'packages/database/main/prisma/migrations/20260909000000_init/migration.sql'), 'utf8'), sql);
     assert.ok(!fs.existsSync(path.join(target, 'packages/auth'))); assert.ok(!fs.existsSync(path.join(target, 'packages/storage')));
   }
-  const after = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: fs.statSync(path.join(target, '.xirang/baselines.json')).size };
-  assert.equal(fs.existsSync(path.join(target, '.xirang/baselines')), false);
+  const retained = fs.existsSync(legacyDir) ? files(legacyDir).sort() : [];
+  assert.deepEqual(retained, [...unregistered.keys()].sort(), 'all registered legacy files retire; only pre-existing unregistered files remain');
+  for (const [name, content] of unregistered) assert.deepEqual(fs.readFileSync(path.join(legacyDir, name)), content, `preserve unregistered ${name}`);
+  if (!unregistered.size) assert.equal(fs.existsSync(legacyDir), false);
+  const packedBaselineBytes = fs.statSync(path.join(target, '.xirang/baselines.json')).size;
+  const after = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: packedBaselineBytes + retained.reduce((sum, name) => sum + fs.statSync(path.join(legacyDir, name)).size, 0), packedBaselineBytes, preservedUnregisteredBaselines: retained.length };
   assert.ok(after.files <= 8, JSON.stringify(after)); assert.ok(after.bytes < before.bytes / 4); assert.ok(after.baselineBytes < before.baselineBytes);
   assert.ok(!fs.existsSync(path.join(target, 'architecture/modules'))); assert.ok(!fs.existsSync(path.join(target, 'architecture/stacks')));
   assert.equal(readLock(target).packages['architecture:runtime'].selection.mode, 'on-demand');
   assert.equal(createTemplatePlan({ source, target }).changes.length, 0);
   for (const action of adopted ? ['catalog', 'validate', 'plan'] : ['catalog', 'detect']) {
-    const result = spawnSync(process.execPath, ['architecture/scripts/cli.js', action], { cwd: target, encoding: 'utf8', timeout: 60000 });
+    const diagnostic = path.join(root, 'standalone-plan.json');
+    const args = ['architecture/scripts/cli.js', action, ...(action === 'plan' ? ['--out', diagnostic] : [])];
+    const result = spawnSync(process.execPath, args, { cwd: target, encoding: 'utf8', timeout: 60000 });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    if (action === 'plan') assert.match(result.stdout, /CHANGED_FILES=0/);
+    if (action === 'plan') assert.match(result.stdout, /CHANGED_FILES=0/, `Standalone plan changes: ${JSON.stringify(JSON.parse(fs.readFileSync(diagnostic, 'utf8')).changes)}`);
   }
   console.log(JSON.stringify({ adopted, before, after }));
+  completed = true;
 });

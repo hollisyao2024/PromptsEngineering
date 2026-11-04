@@ -3,6 +3,9 @@
 // Read-only discovery. Never load project JavaScript, environment files or hooks.
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
+const crypto = require('node:crypto');
+const {constants:bufferConstants} = require('node:buffer');
 const {spawnSync} = require('node:child_process');
 
 function inspectProject(projectPath, {gitCommand = 'git'} = {}) {
@@ -66,7 +69,21 @@ function inspectProject(projectPath, {gitCommand = 'git'} = {}) {
     if (exists('.xirang/baselines.json')) {
       // Packed baselines are authoritative. A broken package must not be hidden by a legacy directory.
       const store = json('.xirang/baselines.json');
-      if (store && (store.schemaVersion !== 1 || !store.blobs || typeof store.blobs !== 'object' || Array.isArray(store.blobs))) report.problems.push('invalid baseline store schema');
+      if (store) try {
+        let blobs=store.blobs;
+        if(store.schemaVersion===2){
+          // This standalone plugin must inspect data with built-in modules, never require the project's engine.
+          if(store.encoding!=='br-base64'||!Number.isSafeInteger(store.size)||store.size<1||store.size>bufferConstants.MAX_LENGTH||typeof store.data!=='string'||!store.data.length)throw Error('envelope');
+          const packed=Buffer.from(store.data,'base64');
+          if(packed.toString('base64')!==store.data)throw Error('base64');
+          const decoded=zlib.brotliDecompressSync(packed,{maxOutputLength:store.size,info:true}),content=decoded.buffer;
+          if(content.length!==store.size||decoded.engine.bytesWritten!==packed.length)throw Error('size or trailing data');
+          blobs=JSON.parse(content.toString('utf8'));
+          if(Object.keys(store).some(key=>!['schemaVersion','encoding','size','data'].includes(key)))throw Error('fields');
+          for(const [digest,text] of Object.entries(blobs||{}))if(!/^[a-f0-9]{64}$/.test(digest)||typeof text!=='string'||crypto.createHash('sha256').update(text).digest('hex')!==digest)throw Error('digest');
+        }else if(store.schemaVersion!==1)throw Error('schema');
+        if(!blobs||typeof blobs!=='object'||Array.isArray(blobs))throw Error('blobs');
+      }catch{report.problems.push('invalid baseline store schema or compressed content');}
     } else try {
       if (!fs.statSync(path.join(projectRoot,'.xirang/baselines')).isDirectory()) throw new Error('not a directory');
     } catch { report.problems.push('missing .xirang/baselines'); }
