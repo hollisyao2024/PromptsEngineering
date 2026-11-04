@@ -1247,14 +1247,18 @@ function executeTaskCommand(options) {
     name: '--max-summary-lines', min: 1, max: 400,
   });
   const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+  // Only recorded repository roots are selectable; never accept arbitrary paths.
+  // Explicit main execution must survive removal of the bound development tree.
+  const execCwd = options.execCwd === undefined ? 'worktree' : options.execCwd;
+  if (!['main', 'worktree'].includes(execCwd)) throw new Error('--cwd must be main or worktree');
+  const cwd = path.resolve(execCwd === 'main' ? state.project_root : (state.worktree || state.project_root));
+  const cwdStat = fs.lstatSync(cwd);
+  if (cwdStat.isSymbolicLink() || !cwdStat.isDirectory()) throw new Error(`exec cwd must be a real directory: ${cwd}`);
   assertTestCommandScope(command, state, { registeredCommands: options.registeredCommands });
   const taskDir = path.join(options.runsRoot, taskId);
   const evidenceDir = path.join(taskDir, 'evidence');
   ensureRealDirectory(evidenceDir);
   if (!isPathInside(taskDir, evidenceDir)) throw new Error('task evidence path escapes the task directory');
-  const cwd = path.resolve(state.worktree || state.project_root);
-  const cwdStat = fs.lstatSync(cwd);
-  if (cwdStat.isSymbolicLink() || !cwdStat.isDirectory()) throw new Error(`exec cwd must be a real directory: ${cwd}`);
 
   // 同名证据不覆盖也不报错：依次尝试 <name>.log、<name>-2.log …，以 wx 独占创建，旧日志保持原样。
   const { logPath, descriptor } = openUniqueLog(evidenceDir, name);
@@ -1284,6 +1288,7 @@ function executeTaskCommand(options) {
     status: exitCode === 0 && !result.error ? 'OK' : 'FAILED',
     taskId,
     name,
+    cwd,
     exitCode,
     durationMs,
     logPath,
@@ -1317,7 +1322,7 @@ function parseCliArgs(argv) {
     ['call-id', 'callId'], ['recovery-evidence', 'recoveryEvidence'],
     ['defer-cleanup-step', 'deferCleanupStep'], ['cleanup-evidence', 'cleanupEvidence'],
     ['name', 'name'], ['max-bytes', 'maxBytes'], ['max-summary-bytes', 'maxSummaryBytes'],
-    ['max-summary-lines', 'maxSummaryLines'],
+    ['max-summary-lines', 'maxSummaryLines'], ['cwd', 'execCwd'],
   ]);
   for (let index = 1; index < normalizedArgv.length; index += 1) {
     const arg = normalizedArgv[index];
@@ -1434,7 +1439,7 @@ function printHelp() {
     Failure: --failure-kind <tool_error|policy_denied|unknown_result> --execution-state <not_started|started|unknown> [--call-id <id>]
     Recovery: --recovery-evidence <verified external outcome or restored authorization>
     Waiting: --step <S1> --status pending --next <what it waits for> (not-started steps only; CONTINUATION_ACTION=WAIT_FOR_USER once it is first incomplete)
-  node infra/scripts/agent-runner/agent-task.js exec --task <id> --name <evidence-name> -- <command...>
+  node infra/scripts/agent-runner/agent-task.js exec --task <id> --name <evidence-name> [--cwd main|worktree] -- <command...>
   node infra/scripts/agent-runner/agent-task.js resume [--task <id>|--auto]
   node infra/scripts/agent-runner/agent-task.js extend --task <id> --reason <why> [--add-step <safe-step>] [--add-verify-step <effect-step>] [--add-acceptance <criterion>]
   node infra/scripts/agent-runner/agent-task.js transition --task <id> --phase <phase> --evidence <milestone>
@@ -1489,6 +1494,7 @@ function main(argv = process.argv.slice(2)) {
     console.log(`STATUS=${result.status}`);
     console.log(`TASK_ID=${result.taskId}`);
     console.log(`NAME=${result.name}`);
+    console.log(`EXEC_CWD=${result.cwd}`);
     console.log(`EXIT_CODE=${result.exitCode}`);
     console.log(`DURATION_MS=${result.durationMs}`);
     console.log(`LOG_PATH=${result.logPath}`);
