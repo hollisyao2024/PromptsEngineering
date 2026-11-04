@@ -85,6 +85,9 @@ test('official snapshot uses anonymous environment for init, fetch and checkout 
   const program = `
     const assert = require('node:assert/strict');
     const cp = require('node:child_process');
+    // This mock covers Git transport only; keep host proxy discovery outside this isolated fixture.
+    process.env.http_proxy = process.env.HTTP_PROXY = '';
+    process.env.https_proxy = process.env.HTTPS_PROXY = '';
     const fs = require('node:fs');
     const read = fs.readFileSync;
     fs.readFileSync = function(file, ...args) {
@@ -94,6 +97,7 @@ test('official snapshot uses anonymous environment for init, fetch and checkout 
     const calls = [];
     const sha = 'a'.repeat(40);
     cp.spawnSync = (command, args, options) => {
+      assert.equal(command, 'git', 'transport mock must not intercept system commands');
       assert.ok(!options.env.GH_TOKEN && !options.env.GITHUB_TOKEN, 'no token');
       const nullDevice = process.platform === 'win32' ? 'NUL' : require('node:os').devNull;
       assert.equal(options.env.GIT_CONFIG_GLOBAL, nullDevice);

@@ -19,7 +19,11 @@ function size(root) { return files(root).reduce((sum, p) => sum + fs.statSync(pa
 
 for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted workspace' : 'inert full kit'} shrinks without losing customizations`, t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xirang-34-upgrade-')), target = path.join(root, 'repo'), runRoot = path.join(root, 'runs'); fs.mkdirSync(target);
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let completed = false;
+  t.after(() => {
+    if (!completed && process.env.XIRANG_KEEP_FAILED_UPGRADE === 'true') console.log(`FAILED_UPGRADE_ROOT=${root}`);
+    else fs.rmSync(root, { recursive: true, force: true });
+  });
   oldEngine.applyPlan(oldTemplate.createTemplatePlan({ source: legacy, target, include: ['architecture'] }), { runRoot });
   if (adopted) oldEngine.applyPlan(oldProject.createArchitecturePlan({ source: legacy, target, config: oldProject.expandBlueprint('admin-api', { source: legacy, database: 'sqlite' }) }), { runRoot });
   const before = { files: files(path.join(target, 'architecture')).length, bytes: size(path.join(target, 'architecture')), baselineBytes: size(path.join(target, '.xirang/baselines')) };
@@ -59,9 +63,12 @@ for (const adopted of [false, true]) test(`original 3.3 ${adopted ? 'adopted wor
   assert.equal(readLock(target).packages['architecture:runtime'].selection.mode, 'on-demand');
   assert.equal(createTemplatePlan({ source, target }).changes.length, 0);
   for (const action of adopted ? ['catalog', 'validate', 'plan'] : ['catalog', 'detect']) {
-    const result = spawnSync(process.execPath, ['architecture/scripts/cli.js', action], { cwd: target, encoding: 'utf8', timeout: 60000 });
+    const diagnostic = path.join(root, 'standalone-plan.json');
+    const args = ['architecture/scripts/cli.js', action, ...(action === 'plan' ? ['--out', diagnostic] : [])];
+    const result = spawnSync(process.execPath, args, { cwd: target, encoding: 'utf8', timeout: 60000 });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    if (action === 'plan') assert.match(result.stdout, /CHANGED_FILES=0/);
+    if (action === 'plan') assert.match(result.stdout, /CHANGED_FILES=0/, `Standalone plan changes: ${JSON.stringify(JSON.parse(fs.readFileSync(diagnostic, 'utf8')).changes)}`);
   }
   console.log(JSON.stringify({ adopted, before, after }));
+  completed = true;
 });
