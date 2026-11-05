@@ -2,6 +2,8 @@
 
 > 专为 TDD 阶段的开发者准备，自动化迁移创建、任务勾选与标准化发布，帮助在代码提交前完成质量 Gate 与版本管理。
 
+修改前按项目规则明确验收、登记任务并进入独立 worktree；下面的工具片段不能代替任务与 QA 生命周期。多模型接力先交接同一任务，多人多机或单机并行各用独立任务、分支和依赖目录。worktree 不隔离端口、共享服务、数据库或测试数据；Git 不自动同步本机状态和 QA 回执，换电脑合并须重做本机 QA。
+
 ---
 
 ## 📦 安装与环境
@@ -20,7 +22,7 @@
 ### 1. 通用迁移模板生成
 
 ```bash
-./infra/scripts/tdd-tools/create-migration.sh <description> [--dir <path>] [--dialect <postgres|mysql|oracle|sqlite|generic>]
+./infra/scripts/tdd-tools/create-migration.sh "<description>" --dir "<迁移目录>" --dialect postgres
 ```
 
 **说明：**
@@ -41,7 +43,7 @@
 ### 2. Supabase 专用迁移生成
 
 ```bash
-./infra/scripts/tdd-tools/create-migration-supabase.sh <description>
+./infra/scripts/tdd-tools/create-migration-supabase.sh "<description>"
 ```
 
 **说明：**
@@ -54,9 +56,10 @@
 ### 3. 任务自动勾选（/tdd tick）
 
 ```bash
-pnpm run tdd:sync
-pnpm run tdd:sync -- --project
-或者
+pnpm agent -- tdd sync
+# 明确需要项目作用域时使用
+pnpm agent -- tdd sync --project
+# 旧别名仅作兼容
 pnpm run tdd:tick
 ```
 
@@ -75,10 +78,11 @@ pnpm run tdd:tick
 ### 4. 发布前自动推送（/tdd push）
 
 ```bash
-pnpm run tdd:push [bump|vX.Y.Z] [release-note]
-pnpm run tdd:push -- --project [bump|vX.Y.Z] [release-note]
-pnpm agent -- tdd review-gate [--base <ref>] [--json]
-pnpm agent -- tdd review-gate --record required|optional --reason "<结论>" [--task <id>]
+pnpm agent -- tdd push
+# 明确需要项目作用域时使用
+pnpm agent -- tdd push --project
+pnpm agent -- tdd review-gate --base "origin/<配置主干>" --json
+pnpm agent -- tdd review-gate --record optional --reason "<结论>" --task "<任务ID>"
 ```
 
 **执行流程：**
@@ -87,7 +91,7 @@ pnpm agent -- tdd review-gate --record required|optional --reason "<结论>" [--
   - 若工作树存在未提交改动，自动执行 `git add -A`，并基于当前分支名生成 commit message 后提交到当前分支。
   - 先执行 `tdd:review-gate`，输出 `Review-Class` 与 `Reason`。
   - `tdd review-gate --record <required|optional> --reason <text>` 把模型侧语义审查结论作为 `REVIEW_DECISION=<json>`（含 `head_sha`、`base_ref`）追加到当前任务未完成步骤的 evidence，输出 `REVIEW_RECORDED=<task>/<step>`；`--task` 未给时按当前 worktree 自动选择任务。随后的 `tdd push` 读取最近一条记录，在 PR 描述的 Review Gate 段追加 `Model-Review: <decision>（<reason>）`，没有记录时不写该行。
-  - 通过脚本内认证执行当前分支 push / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。优先使用 gh CLI；gh 不可用时用 `.env.local` 的 `GH_TOKEN` 走 GitHub API。两者都不可用或 PR 创建失败时输出 `STATUS=BLOCKED` 并非零退出，修复后重跑 `tdd push`（已有 PR 时同步 Review Gate，并刷新标记内的概要与变更内容）。
+  - 通过脚本内认证执行当前分支 push / 自动创建当前分支 PR，并在 PR 描述中写入 `Review-Class` / `Reason`。优先使用解析后的 `.env.local` `GH_TOKEN` 调用 GitHub REST API；仅无令牌时保留 gh 兼容路径。选定 API 后请求失败不切换到 gh；创建或查询失败阻断，按下一动作先核实外部结果，不盲目重放。已有 PR 时同步 Review Gate，并刷新标记内的概要与变更内容。
   - 自动提交信息与 PR 标题由分支前缀推导 Conventional 类型（`feature/`→`feat`、`fix/`、`docs/`、`refactor/` 等），去掉末尾 8 位日期。
   - PR「概要」取分支提交正文中的 `-`/`*` 要点，「变更内容」列出短 SHA 与提交标题，二者包在 `<!-- xirang:auto-summary:start/end -->` 标记内；起始标记带生成内容摘要（`digest=`），再次 `tdd push` 仅在标记内容未被修改时按当前提交刷新，人工改过的概要保持原样并提示；标记外的手写章节保持不变。要重新自动生成，删除起始标记里的 `digest=…`；要彻底手工接管，删除这两行标记。早期无标记的自动正文（3.7.13 及更早：概要只有 PR 标题一行；3.7.14：概要取提交要点、变更内容列 sha7）只要与按当前分支提交重建的内容逐字一致，就会在下次推送时升级为带标记的格式；被修改过、或所列提交已不在分支上（如 rebase 后）的正文不改动。工作区自动提交的正文逐条列出改动文件（最多 20 条），使概要不再只有提交标题。`qa merge` 用「概要」作为 squash 提交正文。
   - 若结果为 `required`，Claude Code / Gemini CLI 后续必须执行当前 CLI 对应的 code review；Codex CLI 不执行 `codex review --base <PR目标分支>`，也不要求人工 `Approved`，记录 `Codex review skipped by policy` 后继续后续流程。
@@ -137,18 +141,11 @@ pnpm agent -- tdd commit [git commit 选项...]
 2. 编写/更新迁移脚本时优先使用 `create-migration.sh`（或 Supabase 版本）。
 3. 准备发布时走 `/tdd push`，省去手动版本准备的重复劳动。
 
-### CI/CD
-可在 Release Pipeline 中运行：
+### 交付与 CI/CD 边界
 
-```yaml
-steps:
-  - name: Run TDD Tick
-    run: pnpm run tdd:tick
-  - name: Create Deployment Migration
-    run: ./infra/scripts/tdd-tools/create-migration.sh add_new_feature --dir <migrations-dir> --dialect postgres
-  - name: Publish Release
-    run: pnpm run tdd:push bump "Release prep"
-```
+交付使用 `pnpm agent --` 的 `tdd sync → tdd push → qa plan → qa verify → qa merge`，保留任务 checkpoint、QA 阶段转换和绑定最终 HEAD 的验证证据；上面的 package aliases 只作兼容示例。测试按受影响范围选择，全量须记录触发依据。
+
+TDD、QA 和合并门禁在本地执行，不要求创建、修改或触发 GitHub workflows/required checks；CI/CD 由实际项目显式配置，合并不自动授权迁移执行或部署。合并后离开开发目录，在主 worktree 核对本地/远端主干并执行完成门禁，记录步骤与验收后关闭任务。通过 `task exec` 留证须指定 `--cwd main`，不能仅切换调用目录。
 
 ---
 
@@ -169,6 +166,6 @@ A: 请确认当前分支名包含 `TASK-` 关键字（如 `TASK-PAY-010` 或 `fe
 
 - `package.json` 中的 `tdd:*` 脚本定义
 - `/docs/TASK.md` & `/docs/task-modules/` 任务模板
-- [AGENTS.md](../../AGENTS.md)
+- [AGENTS.md](../../../AGENTS.md)
 
 > 欢迎在脚本新增功能时同步更新本 README，保持工具文档一致性。

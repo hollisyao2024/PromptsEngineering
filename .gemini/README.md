@@ -165,10 +165,10 @@ Jupyter 编辑 → ✅ 自动执行
 
 ### 提交变更
 
-修改团队配置后，提交到 Git：
+修改团队配置前，先按 `AGENTS.md` 明确验收、登记任务并进入专属 worktree。以下仅为该 worktree 内的提交步骤，不能替代定向验证与后续 TDD → QA → 合并流程：
 ```bash
 git add .gemini/settings.json
-git commit -m "chore: update team Gemini CLI settings"
+pnpm agent -- tdd commit -m "chore: update team Gemini CLI settings"
 ```
 
 ### 不要提交

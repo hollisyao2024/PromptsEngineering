@@ -270,9 +270,11 @@ env = { "GITHUB_TOKEN" = "your-token" }
 
 ### 提交变更
 
+先按 `AGENTS.md` 明确验收、登记任务并进入专属 worktree。以下仅为该 worktree 内的提交步骤，不能替代定向验证与后续 TDD → QA → 合并流程：
+
 ```bash
 git add .codex/config.example.toml .codex/README.md
-git commit -m "chore: update Codex config template"
+pnpm agent -- tdd commit -m "chore: update Codex config template"
 ```
 
 ### 不要提交
