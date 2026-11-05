@@ -1,8 +1,16 @@
 # 息壤接入、升级与架构参考
 
-[返回首页](../../README.md) · [快速上手](quickstart.md) · [并行协作](parallel-collaboration.md)
+[返回首页](../../README.md) · [English overview](../../README.en.md) · [常用指令](commands.md) · [快速上手](quickstart.md) · [并行协作](parallel-collaboration.md)
 
-息壤提供两类可独立采用的能力：规范大模型的工程作业流程，以及按照实际项目的选择规划、初始化、检查和升级应用架构。它面向多端 Monorepo，也允许小项目只采用作业流程或少量技术模块。
+息壤用共享项目规则、独立 Git worktree、任务证据和 QA 门禁，支持不同大模型与开发者在同一项目有序协作。它提供两类可独立采用的能力：模型作业流程，以及按项目选择规划、初始化、检查和升级应用架构。作业流程不要求更换现有技术栈；多端 Monorepo 是可选架构方向，小项目也可只采用作业包或少量模块。
+
+| 协作方式 | 机制与边界 |
+| --- | --- |
+| 多模型接力 | 共用规则与验收，依据任务状态、证据和上下文胶囊交接；接手者确认后继续同一任务，不同时写同一 worktree |
+| 多人多机协作 | 独立任务、分支和 worktree，合并前复验远端 base/head SHA；本机锁不提供跨电脑互斥 |
+| 单机多任务并行 | 每个会话进入独立 worktree，分别安装依赖、修改和测试；不共享 `node_modules` |
+
+三种方式可组合。worktree 不隔离共享服务、端口、数据库和测试数据；共享接口、同一文件与依赖锁文件的改动仍需明确负责人和合并顺序。息壤不是自动调度服务，也不保证并行零冲突。工具须能读取规则、操作文件和执行必要命令；Claude Code、Codex、Gemini CLI 的入口材料不代表所有版本与权限组合均已验证，先做[工具接入检查](quickstart.md#工具接入检查)。
 
 模板源维护协议、可运行实现、组件源码、版本清单和生成器；实际项目按选择接入。模板源不预装各技术栈的应用依赖。版本记录见 [CHANGELOG](../../CHANGELOG.md)。
 
@@ -10,8 +18,8 @@
 
 | 项目当前需要 | 操作 | 项目会得到什么 |
 | --- | --- | --- |
-| 只规范模型作业 | 首次从源执行 `template update`，或已接入后执行 `template sync`，指定 `--scope agent` | 作业协议、阶段工具、worktree 与更新引擎；不生成架构目录和业务应用 |
-| 先有架构规划入口 | `template update` 或 `template sync`，指定 `--include architecture` | 作业包加 7 个轻量架构文件；不生成应用、不安装应用依赖 |
+| 只规范模型作业 | 首次从源执行 `template update --initialize`，或已接入后执行 `template sync`，指定 `--scope agent` | 作业协议、阶段工具、worktree 与更新引擎；不生成架构目录和业务应用 |
+| 先有架构规划入口 | 首次从源执行 `template update --initialize`，或已接入后执行 `template sync`，指定 `--include architecture` | 作业包加 7 个轻量架构文件；不生成应用、不安装应用依赖 |
 | 落实选定技术 | 确定 `architecture.config.json`，再执行 `architecture plan/init/check` | 所选应用、组件、模块和依赖闭包；后续可显式追加选择 |
 
 以上是同一套能力的不同采用范围。已有架构项目执行 `--scope agent` 时保持已采用的架构文件；它不是卸载命令。`--scope agent` 不能与 `--include architecture` 同用。
@@ -22,24 +30,28 @@
 
 准备 Node.js、pnpm 和 Git。生成应用时再满足所选技术栈的工具链要求，详见[初始化与安装](../../architecture/README.md#初始化与安装)。
 
-目标目录必须已经存在。全新项目可先使用尚未加入 Git 的空目录；已有 Git 项目先按自身生命周期准备干净的专用 linked worktree，把它作为目标。已有息壤的项目使用下一节的 worktree 命令。项目接入后，tracked 文件修改统一遵守 [AGENTS.md](../../AGENTS.md) 的任务和 worktree 门禁。
+让 AI 执行时，在息壤源项目中说“初始化项目，路径为 `<目标绝对路径>`”；可自动检查、预演、安装和复查，不存在的独立目标可先建为空目录。手动执行下列 CLI 前，目标目录须已存在。新目录与已有 Git 仓库均可初始化，有无提交不影响文件安装；此模式不要求目标 worktree，也不执行目标的 Git 初始化、提交、推送、远端设置或任务/worktree 操作。已有文件按所有权和预演结果处理，冲突不覆盖。已有息壤痕迹先核实更新或恢复状态，日常升级使用下一节的流程。
 
 在息壤源仓库执行下列命令；把占位目标替换为实际路径，包含空格时保留引号：
 
 ~~~bash
 # 先预览作业包
-pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent --dry-run
+pnpm agent -- template update "<目标目录>" --scope agent --initialize --dry-run
 
 # 核对计划后应用；命令内部还会预演、检查冲突并验证再次预演收敛
-pnpm agent -- template update "<目标目录或目标-worktree>" --scope agent
+pnpm agent -- template update "<目标目录>" --scope agent --initialize
 
-# 如果现在需要架构规划入口，可在相同目标上追加
-pnpm agent -- template update "<目标目录或目标-worktree>" --include architecture
+# 再次预演，确认没有待应用差异或冲突
+pnpm agent -- template update "<目标目录>" --scope agent --initialize --dry-run
 ~~~
+
+首次就需要架构规划入口时，将本轮预演、安装和复查中的 `--scope agent` 替换为 `--include architecture`，保留 `--initialize`，不要同时传两个范围参数。已接入后追加架构入口则按下一节在专属 worktree 使用 `template sync --include architecture`。不带 `--initialize` 的普通 `template update` 仍遵守原有目标 linked-worktree 门禁。
 
 首次接入会初始化缺失的项目配置、环境示例及 `RULES.md`；后续模板更新也会补齐缺失的 `RULES.md`，已有文件（包括空文件）保持原样，由项目维护；已有 `agent.config.json`、环境文件、`RULES.md`、业务源码和真实项目文档保持项目所有。根 `package.json` 按字段合并，项目名称、业务依赖和项目独有脚本保留。
 
-将生成的 `xirang.lock.json` 与 `.xirang/baselines.json` 一起提交。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。新项目应在完成自身 Git 初始化后纳入版本管理；已有 Git 项目完成下面的交付链再合并。
+初始化以文件安装和收敛复查通过为完成条件，不代表业务环境、业务测试或模型行为已验证。首次使用当前已核实的本地源并报告源 SHA，不声称自动获取最新版。完成后完整读取目标基础规则，按项目需要配置验证命令；后续 Git 开发准备由维护者独立发起，见[快速上手](quickstart.md#后续可选准备自己的-github-项目)。
+
+将生成的 `xirang.lock.json` 与 `.xirang/baselines.json` 一起纳入项目版本管理。它们记录上游版本、文件所有权和后续三方更新依据；手工复制模板文件不会建立这套依据。文件安装不会代为提交；已有 Git 项目后续记录接入结果时，按自身规则和所有权检查处理，不把初始化误当作已完成 PR 交付。接入后的开发修改、普通更新和架构写入均遵守 [AGENTS.md](../../AGENTS.md) 的任务、验收与 worktree 门禁。
 
 ## 已接入项目的日常更新
 
@@ -76,19 +88,30 @@ pnpm agent -- template sync
 
 默认同步更新作业包和已经采用的架构选择。只更新作业包用 `--scope agent`；首次加上轻量架构入口用 `--include architecture`。同步本身不会添加新的应用、数据库或技术模块，也不会代替项目运行数据库迁移或部署。
 
-官方同步每次通过匿名 HTTPS 获取[官方仓库](https://github.com/hollisyao2024/PromptsEngineering.git)的 main，固定本次 commit SHA，再执行该提交内的 updater。下载不读取项目 `GH_TOKEN`；项目自身的 fetch、push 和 PR 继续使用项目鉴权封装。获取失败或源校验失败会阻断，不使用缓存假装获取了最新版。仅在 Git 配置中设置的代理或 CA 不会被继承；需要时通过 `HTTPS_PROXY`、`GIT_SSL_CAINFO` 或 `GIT_SSL_CAPATH` 环境变量提供。
+官方同步每次通过匿名 HTTPS 获取[官方仓库](https://github.com/hollisyao2024/PromptsEngineering.git)的 main，固定本次 commit SHA，再执行该提交内的 updater。下载不读取项目 `GH_TOKEN`；项目自身的 fetch、push 和 PR 继续使用项目鉴权封装。获取失败或源校验失败会阻断，不使用缓存假装获取了最新版。匿名拉取隔离个人 Git 配置和凭据，代理按显式环境变量及受支持的系统配置解析，不从个人 Git 配置导入代理；CA 需要时通过 `GIT_SSL_CAINFO` 或 `GIT_SSL_CAPATH` 提供。支持范围和失败语义见[本机 GitHub 代理](../../infra/scripts/shared/github-proxy.md)。
 
 文档或脚本更新之后，继续在该 worktree 完成交付：
 
 ~~~bash
 pnpm agent -- tdd sync
 pnpm agent -- tdd push
+~~~
+
+先记录测试范围；通过 `task exec` 留存检查日志，并将结果绑定 `tdd push` 后的最终 HEAD。进入 QA 前执行 `task transition --task <更新任务ID> --phase qa --evidence "TDD_DONE: <提交与验证证据>"`，随后 `task context --task <更新任务ID>` 刷新上下文并激活 QA 专家，再依次执行：
+
+~~~bash
 pnpm agent -- qa plan
 pnpm agent -- qa verify
 pnpm agent -- qa merge
 ~~~
 
-合并前会复验 QA 回执与当前 base/head SHA；发现漂移需重新同步和 QA。合并后在主 worktree 复核本地与远端主分支、执行 `pnpm agent -- finish`，再关闭对应 task。各阶段只运行本地门禁；GitHub workflows 由实际项目维护。
+合并前会复验 QA 回执与当前 base/head SHA；发现漂移需重新同步和 QA。合并后离开开发目录，在主 worktree 复核本地与远端主分支、执行 `pnpm agent -- finish`；通过 `task exec` 留证时须指定 `--cwd main`，否则默认仍在任务绑定的开发 worktree 执行。完成步骤和验收记录后，用 `pnpm agent -- task finish --task <更新任务ID>` 关闭任务。清理阻塞时保留内容与状态，不擅自删除文件。完整顺序见[主 worktree 收尾](parallel-collaboration.md#合并后在主-worktree-收尾)。各阶段只运行本地门禁；GitHub workflows 由实际项目维护。
+
+## 模型接力与跨电脑恢复
+
+同机切换模型继续同一任务；并行任务使用不同任务 ID。原执行器记录进度、证据和唯一下一动作，生成胶囊，传递精确任务 ID、worktree 和分支；接手者确认接管后继续，避免两个执行器同时写入。同机已有任务状态时，先完整读取基础规则，再执行 `task resume --task <任务ID>`、`task context --task <任务ID>`。推送或合并结果不明时，先核实外部状态，不能盲目重放。
+
+Git 推送不自动同步任务状态、胶囊、本机锁、未提交内容或 QA 回执。跨电脑接手需先交接并核对证据，按本机任务门禁登记或恢复任务、明确验收，再用 `pnpm agent -- worktree resume <实际分支名>` 恢复远端任务分支；`task resume` 不会从远端下载状态。不要盲目复制旧路径或锁，换电脑合并须在该电脑重新执行 QA。分步操作见[模型切换与任务恢复](parallel-collaboration.md#切换模型或恢复任务)。
 
 ## 从缺少基线的旧版接入
 
