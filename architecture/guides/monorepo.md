@@ -43,7 +43,7 @@ v2 使用 pnpm@10 及以上固定补丁版本（`packageManager` 形如 `pnpm@<m
 
 pnpm generate 先生成数据库客户端和 API 类型；pnpm build 按依赖拓扑构建。pnpm type-check / test:workspace 会先构建需要导出声明的基础包。各 worktree 自有 node_modules，可共享 pnpm 内容缓存。根锁文件由 pnpm 生成并随实际项目提交；xirang.lock.json 记录模板版本及所有权，两者职责不同。
 
-OpenAPI 生成器的 peer 依赖仍要求 TypeScript 5，contracts 包独立使用 5.9.3，其余应用沿用兼容 TypeScript API 的 6.0.3。CLI/client/Prisma driver adapter 固定一致版本 7.10.0；未选择 npm latest 指向的 8 RC。SQLite 使用适配器兼容范围内的 better-sqlite3 12.11.1。完整原因在 dependencies.json 和 dependency-audit.json。
+OpenAPI 生成器的 peer 依赖仍要求 TypeScript 5，contracts 包独立使用 5.9.3，其余应用沿用兼容 TypeScript API 的 6.0.3。CLI/client/Prisma driver adapter 固定一致版本 7.10.0；未选择 npm latest 指向的 8 RC。SQLite 固定 N-API 版 better-sqlite3 13.0.3，避免 Node 24 的 ObjectWrap 清理崩溃；生成的 Prisma SQLite 工作区同时覆盖适配器内部的旧版驱动依赖，保留严格安装校验。完整原因在 dependencies.json 和 dependency-audit.json。
 
 ## Prisma、数据库与迁移
 

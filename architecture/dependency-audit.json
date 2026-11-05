@@ -312,11 +312,12 @@
     },
     {
       "name": "better-sqlite3",
-      "previous": null,
-      "selected": "12.11.1",
+      "previous": "12.11.1",
+      "selected": "13.0.3",
       "registry": "https://registry.npmjs.org/better-sqlite3",
-      "reason": "Newest compatible 12.x; adapter 7.10.0 requires ^12.6.0; native build verified on macOS arm64/Node 26.7.",
-      "latest": "13.0.3"
+      "reason": "N-API release avoids Node 24 ObjectWrap cleanup aborts. Generated Prisma SQLite workspaces override the adapter 7.10.0 transitive ^12.6.0 dependency to the same driver; strict installation and Node 22/24 runtime regression required.",
+      "latest": "13.0.3",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "pg",
