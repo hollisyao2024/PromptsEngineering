@@ -127,6 +127,13 @@ function buildWorkspace({config,cat,assets,owned,add,copy,readSource,deps,regist
       overrides[name]=deps.frontend[name];
     }
   }
+  // The adapter still declares 12.x; force its native driver onto the N-API release
+  // to avoid ObjectWrap cleanup crashes on Node 24, including nested installs.
+  if(config.datastores.some(d=>d.access==='prisma'&&d.engine==='sqlite')) {
+    const sqliteDriver=deps.prisma['better-sqlite3'];
+    if(!sqliteDriver)throw new Error('Missing Prisma SQLite driver version');
+    overrides['better-sqlite3']=sqliteDriver;
+  }
   add('package.json',json({private:true,packageManager:config.workspace.packageManager,engines:deps.engines,scripts:{generate:'node tooling/workspace/run.mjs generate',build:'node tooling/workspace/run.mjs build','type-check':'node tooling/workspace/run.mjs type-check','test:workspace':'node tooling/workspace/run.mjs test'},devDependencies:{typescript:deps.frontendDev.typescript},...(Object.keys(overrides).length?{pnpm:{overrides}}:{})}),'merge-json',owner);
   const buildDependencies=[...(config.datastores.some(d=>d.access==='prisma')?['@prisma/engines','prisma']:[]),...(config.datastores.some(d=>d.access&&d.engine==='sqlite'&&d.access==='prisma')?['better-sqlite3']:[]),...(config.applications.some(a=>a.stack==='node-ts'||cat.stacks[a.stack].ui)?['esbuild']:[])];
   const yamlList=(key,values)=>key+':'+(values.length?'\n'+values.map(p=>'  - '+JSON.stringify(p)).join('\n'):' []')+'\n';
