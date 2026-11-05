@@ -6,9 +6,9 @@
 
 ## 一句话介绍
 
-中文：息壤 Xirang 是面向多人、多 AI 会话并行开发的工程协作模板，把 vibe coding 接入任务、独立 worktree、测试、QA 与恢复流程。
+中文：息壤 Xirang 让不同大模型、不同开发者在同一项目有序协作，通过统一规则、独立任务和 worktree、QA 与恢复流程支持多模型接力、多人多机协作和单机多任务并行。
 
-English: Xirang is an engineering workflow template for parallel development with people and AI coding sessions, using explicit tasks, isolated Git worktrees, verification gates, and recovery state.
+English: Xirang brings different AI models and developers together on the same project, with shared rules, independent tasks, isolated Git worktrees, QA gates, and recovery state for model handoffs, teamwork across computers, and parallel tasks on one machine.
 
 ## 中文社区首发草稿
 
@@ -18,7 +18,7 @@ English: Xirang is an engineering workflow template for parallel development wit
 
 我在维护息壤 Xirang，尝试用一套项目内协议与脚本处理这些问题：每项修改先明确验收，再进入独立 Git worktree；交付经过测试、QA 和合并前 SHA 复验；长任务保留状态与恢复入口。协作流程可以独立采用，不要求先更换技术栈。
 
-它仍需要开发者拆分业务边界、审阅结果和处理冲突；不承诺零冲突或全自动开发。
+三种方式可以组合，但仍需要开发者拆分业务边界、审阅结果和处理冲突。worktree 不隔离端口、共享服务、数据库或测试数据；模型接力先交接，Git 不自动同步本机状态或 QA 回执，换电脑合并需重新 QA。不承诺零冲突、自动调度或所有客户端即装即用。
 
 如果你已经在用 AI 编程，并准备尝试多人或多会话协作，欢迎从快速上手开始，反馈最先卡住的步骤。复现环境、命令与失败场景比一句“好用”更能帮助改进。
 
@@ -28,11 +28,11 @@ English: Xirang is an engineering workflow template for parallel development wit
 
 Title: Xirang: explicit tasks and isolated worktrees for parallel AI coding
 
-I maintain Xirang, a repository-based workflow template for developers working with multiple AI coding sessions or teammates.
+I maintain Xirang, a repository-based workflow template for handing work between models, collaborating across computers, and running independent AI tasks on one machine.
 
 It combines acceptance criteria, per-task Git worktrees, test and QA gates, commit checks before merging, and recoverable task state. The workflow package can be adopted without replacing an existing application stack.
 
-It does not schedule agents automatically or eliminate semantic conflicts. Developers still need to define task boundaries and review results.
+It does not schedule agents automatically or eliminate semantic conflicts. Worktrees isolate files and dependency directories, while shared ports, services, databases, and test data still need coordination. Model handoffs require an explicit transfer; Git does not synchronize local task state or QA receipts. Merging on a different computer requires QA on that computer. Each client needs file access and the required command execution capabilities.
 
 The repository includes an English overview and a Chinese setup guide and two-task exercise. I would value reproducible onboarding feedback, especially where the instructions or lifecycle tools fail in a clean environment.
 

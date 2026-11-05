@@ -1,6 +1,12 @@
 # 息壤应用架构能力包
 
+[首页](../README.md) · [English overview](../README.en.md) · [快速上手](../docs/guides/quickstart.md) · [并行协作](../docs/guides/parallel-collaboration.md) · [完整参考](../docs/guides/template-reference.md) · [作业包](../agent/README.md)
+
 本包把技术标准、可选择的实现、组件源、初始化脚本和检查放在一起。模型如何工作由 `agent/` 管理；项目选了哪些技术由项目的 `architecture.config.json` 管理；两个包共用 `tooling/xirang/` 的文件更新引擎。
+
+作业流程与应用架构可独立采用，不要求为协作更换现有技术栈。多模型接力、多人多机协作、单机多任务并行共用项目规则与验收，每项并行修改使用独立任务和 worktree；切换模型先交接状态、证据与胶囊。架构选择、共享接口、依赖锁文件和迁移顺序仍需明确负责人。worktree 隔离文件和依赖目录，不隔离端口、共享服务、数据库或测试数据，也不保证零冲突；本包不自动调度代理。
+
+Claude Code、Codex、Gemini CLI 等工具入口属于作业包，不代表所有客户端版本与权限组合均已验证；每个参与者先完成[工具接入检查](../docs/guides/quickstart.md#工具接入检查)。[插件](../docs/guides/plugin-quickstart.md)只提供工作入口，安装插件不等于已接入模板、采用架构或完成业务验证。
 
 认证、权限、队列、存储和高级交互的逐项状态见 [组件目录](open-source-catalog.json)，使用方式见 [开源能力](guides/open-source-components.md) 与 [文件存储](guides/file-storage.md)。完整可选组合见 [Monorepo 配置示例](examples/open-source-monorepo.json)，项目可按需求裁减；该示例的队列需要独立 Redis。
 
@@ -8,19 +14,23 @@
 
 ## 从模板到实际项目
 
-已有项目先按正常流程建立专属 linked worktree。使用息壤源仓库更新目标项目时：
+首次接入新目录或已有 Git 项目时，在息壤源会话说“初始化项目，路径为 `<目标绝对路径>`”，或按下面的文件安装模式执行。手动调用前目标目录须存在；有无 Git 提交均可，不要求目标 worktree，也不执行目标 Git 初始化、提交、推送或任务/worktree 操作。从已核实的息壤源仓库执行：
 
 ```bash
-pnpm agent -- template update <目标-worktree> --include architecture
+pnpm agent -- template update "<目标目录>" --include architecture --initialize --dry-run
+pnpm agent -- template update "<目标目录>" --include architecture --initialize
+pnpm agent -- template update "<目标目录>" --include architecture --initialize --dry-run
 ```
 
-已有息壤的项目可在自身干净 linked worktree 从官方源获取架构目录：
+先核对来源和预演，冲突不覆盖；安装后完整读取目标基础规则，再复查收敛。首次安装报告实际本地源 SHA，不声称自动取得最新版。安装成功只说明入口与基线就绪，不代表已生成应用或通过业务测试。只采用作业包时将 `--include architecture` 替换为 `--scope agent`，两者不能同传；不带 `--initialize` 的普通应用仍守目标 linked-worktree 门禁。
+
+已接入息壤的项目追加架构入口时，先按项目规则登记 mutation 任务与显式验收，创建干净专属 worktree，再在输出的 `NEXT_CWD` 执行：
 
 ```bash
 pnpm agent -- template sync --include architecture
 ```
 
-此时只获得轻量架构入口与执行能力，不生成应用。只需要模型作业流程的项目使用 `--scope agent`，无需安装前端、Go 或数据库依赖。
+此时只获得轻量架构入口与执行能力，不生成应用或安装应用依赖。同步会匿名获取官方 `main` 并固定 SHA，获取或校验失败即阻断，不回退缓存；默认 `template sync` 更新作业包和已采用架构，`--scope agent` 保留已有架构且不卸载。只需要模型作业流程的项目无需安装前端、Go 或数据库依赖。初始化与日常升级的完整边界见[使用参考](../docs/guides/template-reference.md#首次接入项目)。
 
 3.4 起，实际项目只保存以下 7 个架构文件，并复用 `tooling/xirang/` 更新工具：
 
@@ -45,10 +55,12 @@ architecture/
 pnpm agent -- architecture catalog
 pnpm agent -- architecture detect
 pnpm agent -- architecture validate --config architecture.config.json
-pnpm agent -- architecture plan --config architecture.config.json --out <容器-tmp>/architecture-plan.json
+pnpm agent -- architecture plan --config architecture.config.json --out "<已解析的容器-tmp-绝对路径>/architecture-plan.json"
 ```
 
 ARCH 专家根据需求和 detect 结果维护项目配置，记录架构/ADR 后再初始化。`detect` 是只读建议，不能把无法识别的框架或混合存储猜成默认方案。已有 `components.json`、`tsconfig.json` 的别名可解析时保留；JSONC/继承配置和遗留 DataTable 位置会提示进一步核对。目录可确定，技术不由目录名字推断。
+
+这里的 `architecture init` 是应用代码生成，与前面的模板文件安装 `template update --initialize` 不同。接入后的配置修改、生成、依赖安装和更新须遵守项目任务与 worktree 门禁；需求、架构或数据合约变化走治理流程。plan 的输出路径由共享配置解析，不能在 linked worktree 中猜写 `../tmp`。
 
 ## 初始化与安装
 
@@ -88,7 +100,7 @@ pnpm agent -- architecture check
 | --- | --- |
 | react-vite | React/Vite/TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
 | react-next | Next App Router、TypeScript、shadcn、DataTable；`pnpm test`、`pnpm build` |
-| node-ts / Prisma、Drizzle（v2） | 类型化 Node API、Prisma 六种数据库或 Drizzle 四种稳定数据库、OpenAPI、Query 与真实任务 CRUD；见 Monorepo 指南 |
+| node-ts / Prisma、Drizzle（v2） | 类型化 Node API，两套 ORM 均维护 postgres、mysql、mariadb、sqlite 四种数据库，另含 OpenAPI、Query 与真实任务 CRUD；见 Monorepo 指南 |
 | node | Node HTTP API、健康接口、HTTP 测试；`pnpm test`、`pnpm build` |
 | go | Go HTTP API、健康接口、测试；`go test ./...`、`go build .` |
 | tauri | Tauri 2 + React/Vite、Rust 入口、能力清单与平台矩阵；`pnpm build:web`，宿主机完整构建 `pnpm build` |
@@ -100,6 +112,8 @@ pnpm agent -- architecture check
 | private profile | 非空产物扫描、项目填写禁用地址策略、发布链接切换与健康检查脚本 |
 
 这些是可扩展的实现目录，不是所有项目的强制技术栈。不支持的实现明确阻断，先在 catalog 注册实现和验证，不能静默替换用户选择。Tauri 初次构建生成 PNG/ICO/ICNS 起始图标，已有图标保持原样。原生签名、公证、生产迁移、远程部署、业务身份与权限策略需要实际项目配置；v2 蓝图已带可运行任务 CRUD 示例。
+
+表中的 `pnpm test`、`go test ./...` 等是所选生成项目的可用入口，不是每次交付的默认回归命令。实际验证按改动及消费者选择最小充分范围，优先 `pnpm agent -- test --file <测试文件> -- <定向运行器>`；全量须按项目规则记录触发依据。架构检查、生成成功或演示 CRUD 均不替代业务验收，也不自动授权数据库写入或部署。
 
 ## 存放目录与复用
 
@@ -138,7 +152,8 @@ forms、selectors、feedback、advanced 默认位于应用 components 下；UI �
 | 迁移文件/迁移注册表 | append / append-json；既有 ID 不改写 |
 | .gitignore/.envrc 受管块 | managed-block；块外文本保留 |
 | 业务起始代码、项目 lib/utils.ts、真实 ARCH、配置、环境 example | init-if-missing；后续归项目维护 |
-| RULES.md、项目独有文件、未选模块 | 不写入 |
+| RULES.md | 模板文件安装或更新时仅缺失才从骨架初始化；已有内容保持，由项目维护；空文件或读取失败仍按基础规则阻断 |
+| 项目独有文件、未选模块 | 不写入；既有已采用模块的后续维护按其所有权处理 |
 
 ```bash
 pnpm agent -- template sync --scope agent
@@ -165,8 +180,12 @@ adopt 默认只展示计划；`--write` 表示维护者已核对差异，保留�
 pnpm agent -- architecture resume
 ```
 
-同一引擎也恢复模板写入；仅安装作业包时用 `node tooling/xirang/resume.js`。轻量入口的 resume 直接使用冻结日志，不要求中断中的 runtime 指针与 lock 已同步，也不联网获取新源。若首次升级中连入口工具都尚未写全，可从已固定的息壤源码调用 `node architecture/scripts/cli.js resume --target <目标>`。恢复按 before/after 哈希判断已写入项；用户额外修改引起第三种状态时阻断。修复/恢复明确文件后重试，不删除整个 worktree 或日志。恢复后补依赖、checks、构建、再次 dry-run 和项目交付门禁。
+同一引擎也恢复模板写入；仅安装作业包时用 `node tooling/xirang/resume.js`。轻量入口的 resume 直接使用冻结日志，不要求中断中的 runtime 指针与 lock 已同步，也不联网获取新源。若首次升级中连入口工具都尚未写全，可从已固定的息壤源码调用 `node architecture/scripts/cli.js resume --target "<目标>"`。恢复按 before/after 哈希判断已写入项；用户额外修改引起第三种状态时阻断。修复/恢复明确文件后重试，不删除整个 worktree 或日志。恢复后补依赖、checks、构建、再次 dry-run 和项目交付门禁。
 
 文件锁只协调本机写入器，Git worktree/分支仍是最终审查和历史边界。普通初始化/更新不执行数据库迁移或部署。若遗留 writer-recovery.lock，先确认相关进程和日志状态，再恢复精确锁文件；不自动清理不明恢复状态。
+
+冻结计划恢复不等于恢复开发任务。同机模型接力先交接精确任务 ID、worktree、分支与证据，接手确认后读取基础规则，再执行 `task resume`、`task context`；未知推送、合并结果先核实。Git 不自动同步任务状态、胶囊、未提交修改、本机锁或 QA 回执；跨电脑接手先按本机任务门禁登记或恢复任务，再恢复远端分支并重做本机 QA，不盲目复制旧路径或锁。
+
+开发与架构修改的交付顺序仍为 `tdd sync → tdd push → qa plan → qa verify → qa merge`。保留测试范围、最终 HEAD 的验证证据与 QA 阶段转换，合并前复验 base/head SHA；主干漂移时重新同步验证。合并后切回主 worktree 核对本地/远端主干，完成门禁与验收记录后关闭任务；通过 `task exec` 留证须显式 `--cwd main`。详细恢复与收尾见[并行教程](../docs/guides/parallel-collaboration.md)。
 
 ORM 由 `--orm prisma|drizzle` 与首次 `--blueprint` 一起选择；数据库选项为 postgres、mysql、mariadb、sqlite。默认 Prisma；两套稳定 ORM 均覆盖这些数据库。支持矩阵和迁移差异见 [数据标准](standards/data.md)。

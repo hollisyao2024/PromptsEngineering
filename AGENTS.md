@@ -97,8 +97,10 @@
 
 修改 tracked 文件或执行提交、推送、部署、数据写删、Computer Use 等需恢复的副作用时，必须使用任务状态；用户明确要求持久化记录、持续执行，或预计跨会话、压缩、进程重启时也必须使用。单会话只读解释、状态查询、诊断和研究不因步骤数量而创建或恢复任务记录，不把“先建核查任务”作为前置条件。
 
+用 `--phase <phase>` 显式指定当前阶段。以下命令中的引号保护占位值；执行前须替换为真实任务 ID、阶段和验收。
+
 ```bash
-pnpm agent -- task start --task <id> --phase <phase> --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<安全步骤>" --verify-step "<副作用步骤>"
+pnpm agent -- task start --task "<id>" --phase "<phase>" --type mutation --desc "<目标>" --acceptance "<可观察验收>" --step "<安全步骤>" --verify-step "<副作用步骤>"
 ```
 
 - 新任务默认 `type=mutation` 并执行 completion guard；能证明不会修改 tracked 文件时才显式使用 `diagnose|research|operation`。
@@ -136,10 +138,10 @@ TDD 收尾顺序固定：
 除非用户明确要求不合并或只创建 PR，修改任务在 final 前必须完成合并、主分支同步和 completion guard。主 worktree 必须验证：
 
 ```bash
-node infra/scripts/shared/github-auth-run.js -- git fetch origin <base>
+node infra/scripts/shared/github-auth-run.js -- git fetch origin "<base>"
 git status --short --branch
 git rev-parse HEAD
-git rev-parse origin/<base>
+git rev-parse "origin/<base>"
 pnpm agent -- finish
 ```
 
@@ -161,6 +163,7 @@ pnpm agent -- finish
 - 本模板身份为“息壤”（ID `xirang`），官方源固定为 `https://github.com/hollisyao2024/PromptsEngineering.git` 的 `main` 分支。
 <!-- xirang:source-only:start -->
 - 息壤源加载 `docs/guides/source-initialization.md` 处理“初始化项目＋路径”；用户速查见 `docs/guides/commands.md`。源中收到更新指令只提示切换到对应实际项目，不代为跨项目更新。
+- 首次文件安装从已核实源执行 `pnpm agent -- template update "<target>" --scope agent --initialize`，不要求目标 worktree、不执行目标 Git 生命周期，按上述源专用初始化协议记录；先 dry-run、检查冲突，再安装并执行收敛 dry-run。此模式不用于替代已接入项目的日常 `template sync`。
 <!-- xirang:source-only:end -->
 - 在实际项目中，用户说“更新息壤模板”即视为显式 mutation 请求：先核实并明确当前实际项目的绝对路径，以该仓库为唯一目标；按任务门禁创建或恢复专用 linked worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，随后完成项目的 TDD/QA 交付链。固定获取上述官方 GitHub `main` 的最新提交，不传替换来源的参数；无需本地息壤源或再次询问模板名称、仓库。目标不明确先澄清，不猜路径；含糊的“更新项目”不自动触发模板或业务修改。
 - `template sync` 必须通过匿名 HTTPS required fetch 官方公开分支（不读取项目 GH_TOKEN，并隔离 Git 凭据配置）、锁定本次 commit SHA，并从该 SHA 内的 updater 应用；fetch、ref 或源校验失败必须阻断，禁止退回缓存或项目内旧模板。该命令只允许在实际项目的干净 linked worktree 执行，模板源仓库和主 worktree 均阻断。
@@ -168,7 +171,7 @@ pnpm agent -- finish
 - 架构规划先按项目需求选择应用、存储、平台与目录，记录 `architecture.config.json`；用 `architecture plan/init/update/check` 落地。已选 shadcn 的控件和 DataTable 约束见架构标准，`RULES.md` 不重复抄写。
 - 升级按文件/字段所有权执行，`xirang.lock.json` 与 `.xirang/baselines.json` 保存版本依据；未知基线、覆盖漂移、合并冲突或恢复态阻断，不静默丢弃定制。
 - 项目差异只写入稀疏 `agent.config.json`、环境变量、CLI 参数或 project-owned 文件。
-- 应用模板：`pnpm agent -- template update <target>`；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。
+- 普通应用模板：`pnpm agent -- template update "<target>"`，已有 Git 项目使用干净专属 linked worktree；必须先 dry-run、检查冲突，再写入并执行收敛 dry-run。实际项目的日常更新使用前述官方 `template sync`。
 - 回灌息壤模板是显式操作：`pnpm agent -- template backfill`，无 `<source>` 参数，目标固定为官方息壤源 `main`。命令匿名 required fetch 官方 `main`、固定 SHA，在容器 `cache/xirang/backfill-source/repo` 的可重建克隆中用其自身的 `task start` 与 `worktree new` 创建新任务 worktree，并把 template-owned 差异复制进去；随后在输出的 `NEXT_CWD` 中按息壤源自身的 `tdd sync → tdd push → qa plan → qa verify → qa merge` 合并到官方 `main`。不得写入本地模板源旧分支，不得回灌项目配置、规则、业务脚本或 generated 文件。
 
 ## 全仓扫描

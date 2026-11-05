@@ -2,7 +2,7 @@
 
 [推广方案](README.md) · [项目首页](../../README.md)
 
-核对日期：2026-10-20。产品入口和审核要求可能调整，提交前重新核对下方官方文档。已提供 [0.1.2 适配包与安装指南](../guides/plugin-quickstart.md)；包准备、提交与审核上架是独立结果。
+渠道事实核对日期：2026-10-20。下列产品入口与审核要求是当日快照，本次仓库文档审计未重新验证外部平台要求；提交前须核对官方文档。源码已提供[适配包与安装指南](../guides/plugin-quickstart.md)，当前插件版本以[双宿主清单](../../plugins/xirang/README.md)为准；包准备、提交与审核上架是独立结果。
 
 ## 建议路线
 
@@ -24,11 +24,11 @@ GitHub 用于源码与长文档，插件用于进入工作流。两者可以共�
 
 ## Claude Code 的具体路径
 
-官方支持把 `.claude-plugin/marketplace.json` 放在 Git 托管仓库中，用户注册市场后安装插件。本仓库已提供市场清单和四项技能；已用 Claude Code `2.1.299` 实测市场安装、技能清单与卸载，范围见[安装指南](../guides/plugin-quickstart.md#验证范围)。[创建市场](https://code.claude.com/docs/en/plugin-marketplaces)
+官方支持把 `.claude-plugin/marketplace.json` 放在 Git 托管仓库中，用户注册市场后安装插件。本仓库已提供市场清单和四项技能；已用 Claude Code `2.1.299` 实测市场安装、技能清单与卸载，范围见[历史验证范围](../guides/plugin-quickstart.md#历史验证范围)。[创建市场](https://code.claude.com/docs/en/plugin-marketplaces)
 
 Claude 公开目录通过开发者门户提交，需要具备资格的付费 Claude 账号。该目录与 `claude-plugins-official` 不同，后者的收录由 Anthropic 合作渠道处理。自建市场可安装不代表官方收录。[官方发布说明](https://code.claude.com/docs/en/plugins/publish)、[开发者门户](https://claude.ai/directory/manage)
 
-适配包应自包含：技能引用的文件必须随包提供，不能假设安装缓存旁边存在源仓库。源模板的项目初始化与生命周期规则保留在真实项目中执行；插件不应仅靠装入全局指令就绕过 worktree 和状态门禁。
+适配包应自包含：技能引用的文件必须随包提供，不能假设安装缓存旁边存在源仓库。插件不捆绑完整模板或 updater；首次文件安装由已核实源中的 `template update "<目标>" --scope agent --initialize` 执行，先预演、安装后复查，不运行目标 Git 生命周期。已接入项目更新仍在专属任务/worktree 中执行官方 `template sync`；不能靠安装全局指令绕过任务、验收与交付门禁。
 
 ## ChatGPT / Codex 的具体路径
 
@@ -61,5 +61,7 @@ OpenAI 官方文档说明 ChatGPT 和 Codex 共享公共插件目录；插件可
 - 市场提交与公开发布分别取得维护者授权；保留提交状态与结果证据。
 
 当前已完成技能源码、双宿主清单、只读探测器、MIT 正文和独立 ZIP 打包。0.1.0 已验证 Codex CLI 安装、四技能调用与卸载，以及下游项目真实 GitHub PR、QA、合并与推送；0.1.1 只调整发布材料，0.1.2 新增插件隐私政策与 `privacyPolicyUrl`。Claude Code `2.1.299` 已验证市场安装、技能清单、一次性项目流程与卸载，模型驱动的技能触发未验证；ChatGPT 图形界面和多人跨电脑使用尚未独立验证。
+
+上述版本号描述历史验证或政策引入时间，不是当前版本或当前客户端兼容承诺。多模型接力、多人多机与单机并行依赖项目任务和独立 worktree；插件不调度额外代理、不隔离共享运行资源、不自动同步本机状态或 QA 回执，详见[并行协作教程](../guides/parallel-collaboration.md)。
 
 息壤保留 `requires_local_executor: true`，按无 MCP 的桌面执行插件提交。官方当前说明此类目录插件从 ChatGPT 桌面端安装，仅在本地线程使用；不要据此承诺所有 Codex 客户端一键安装。若门户不接受此字段，核实提交组织准入，不移除真实执行限制来绕过检查。[桌面限定插件](https://developers.openai.com/plugins/deploy/desktop-only)
