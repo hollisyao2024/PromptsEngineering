@@ -1,8 +1,18 @@
 # 快速上手：先接入模型作业包
 
-[首页](../../README.md) · [常用指令](commands.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
+[首页](../../README.md) · [English overview](../../README.en.md) · [常用指令](commands.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md)
 
 目标：在新目录或已有项目中安装作业包文件，检查协议、配置与更新基线，再准备第一次协作；目标是否已有 Git 仓库不影响初始化。
+
+接入后，同一项目可以组合使用三种协作方式：
+
+| 方式 | 开始前的约定 |
+| --- | --- |
+| 多模型接力 | 不同 AI 工具共用项目规则与验收，依据任务状态、证据和上下文胶囊接手；同一任务先交接再继续 |
+| 多人多机协作 | 各自使用独立任务、分支和 worktree，约定共享接口与合并顺序 |
+| 单机多任务并行 | 多个 AI 会话各用一个任务和 worktree，独立安装依赖、修改与测试 |
+
+worktree 隔离文件和依赖目录；共享服务、端口、数据库与业务接口仍需协调。息壤不自动调度会话，也不保证并行任务零冲突。完整演练见[并行协作教程](parallel-collaboration.md)。
 
 ## 让 AI 自动初始化
 
@@ -61,6 +71,8 @@ pnpm agent -- template update ../xirang-demo --scope agent --initialize --dry-ru
 
 这只验证模板接入，不表示业务代码、模型行为或所有操作系统已通过测试。
 
+作业包不要求更换现有技术栈。需要架构能力时，再按[完整参考](template-reference.md)单独追加 `--include architecture`，选择并运行 `architecture plan/init/check`；不要与 `--scope agent` 同时使用，普通模板同步不会自动新增技术选择。
+
 ## 工具接入检查
 
 在 AI 编程工具中打开 `xirang-demo`，发送：
@@ -68,6 +80,8 @@ pnpm agent -- template update ../xirang-demo --scope agent --initialize --dry-ru
 > 先按 UTF-8 完整读取 AGENTS.md、docs/CONVENTIONS.md、RULES.md，并确认读到末尾。现在只读检查：说明项目根目录、默认主分支、任务状态与 worktree 的位置；列出开始修改前还缺哪些配置。不要先修改文件、创建任务或放宽工具权限。
 
 检查工具给出的路径是否对应你的项目。仓库中的 Claude Code、Codex、Gemini CLI 入口是接入材料；客户端版本、规则加载方式、沙箱和执行权限需要在你的环境验证。工具无法读文件或运行 Node/pnpm 时，先解决环境问题。
+
+息壤不绑定单一模型。其他工具也可按同一协议接入，但须能读取规则、操作项目文件并执行必要命令；已有入口不代表所有客户端、版本与权限组合都已验证。每个参与协作的工具和电脑都需单独完成这项检查，不因另一个会话通过就视为通过。
 
 ## 后续可选：准备自己的 GitHub 项目
 
@@ -89,6 +103,8 @@ node infra/scripts/shared/github-auth-run.js -- git push -u origin main
 ```
 
 上述命令要求已经配置远端、已有初始提交，并具备推送权限。初始提交与账号身份由维护者设置；模板不会代建 GitHub 仓库或授予权限。
+
+进入并行开发前，还须确认每项任务有明确验收与文件归属，依赖通过各自 worktree 的 `pnpm agent -- worktree bootstrap` 建立，不共享 `node_modules`；运行服务时另行分配端口与测试数据。主 worktree 保持在配置主干，修改进入任务专属 worktree。项目的任务状态、本机锁与 QA 回执不会因 Git 推送自动同步到另一台电脑；跨电脑交付仍需远端提交复验与本机 QA。
 
 ## 已有项目
 
