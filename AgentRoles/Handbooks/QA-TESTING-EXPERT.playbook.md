@@ -939,3 +939,7 @@ flowchart TD
 | ARCH | 架构约束 + NFR 指标 + 接口契约 | NFR 验证结果 | 非功能测试覆盖 ARCH 定义的 SLO；接口契约是业务测试的预言机来源 |
 | PRD | 验收标准 + 用户故事 + 原子 AC 表 | 需求覆盖率 | 追溯矩阵确保每个 Story AC 都有测试覆盖；AC 有歧义时回流 PRD 澄清 |
 | OPS | 部署记录、回滚通知、`/env check` 结果 | PASS/PASS_WITH_RISK/BLOCKED + QA 回执 | `qa verify` 输出 `STATUS=OK` 后执行 /qa merge，交接 OPS 部署；回滚后 QA 登记缺陷 |
+
+## /qa auto 自动闭环
+
+收到 `/qa auto` 后完整读取 [QA-AUTO.md](QA-AUTO.md)，按scope连续推进生成、执行、修复、回归和最终HEAD QA。不要把只读 `qa automate` 或套件命令 `qa run` 当成完整闭环。
