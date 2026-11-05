@@ -638,11 +638,13 @@
     },
     {
       "name": "@uppy/core",
-      "latest": "6.0.1",
-      "selected": "6.0.1",
+      "latest": "6.3.1",
+      "selected": "6.3.1",
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40uppy%2Fcore",
-      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+      "reason": "Uppy React resolves components/pickers requiring core ^6.3.1; 6.0.1 fails strict peers in the documented full consumer. Keep strict peer checks enabled.",
+      "previous": "6.0.1",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "@uppy/react",
@@ -654,35 +656,43 @@
     },
     {
       "name": "@tiptap/react",
-      "latest": "3.31.3",
-      "selected": "3.31.3",
+      "latest": "3.32.3",
+      "selected": "3.32.3",
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40tiptap%2Freact",
-      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+      "reason": "Align the editor cohort with exact 3.32.3 core/pm peers; the 3.31.3 starter-kit ranges resolve incompatible newer extensions. 3.32.3 pins its extension dependencies exactly.",
+      "previous": "3.31.3",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "@tiptap/core",
-      "latest": "3.31.3",
-      "selected": "3.31.3",
+      "latest": "3.32.3",
+      "selected": "3.32.3",
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40tiptap%2Fcore",
-      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+      "reason": "Align the editor cohort with exact 3.32.3 core/pm peers; the 3.31.3 starter-kit ranges resolve incompatible newer extensions. 3.32.3 pins its extension dependencies exactly.",
+      "previous": "3.31.3",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "@tiptap/pm",
-      "latest": "3.31.3",
-      "selected": "3.31.3",
+      "latest": "3.32.3",
+      "selected": "3.32.3",
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40tiptap%2Fpm",
-      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+      "reason": "Align the editor cohort with exact 3.32.3 core/pm peers; the 3.31.3 starter-kit ranges resolve incompatible newer extensions. 3.32.3 pins its extension dependencies exactly.",
+      "previous": "3.31.3",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "@tiptap/starter-kit",
-      "latest": "3.31.3",
-      "selected": "3.31.3",
+      "latest": "3.32.3",
+      "selected": "3.32.3",
       "license": "MIT",
       "registry": "https://registry.npmjs.org/%40tiptap%2Fstarter-kit",
-      "reason": "Selected compatible stable release; strict generated-consumer install and applicable type/runtime tests."
+      "reason": "Align the editor cohort with exact 3.32.3 core/pm peers; the 3.31.3 starter-kit ranges resolve incompatible newer extensions. 3.32.3 pins its extension dependencies exactly.",
+      "previous": "3.31.3",
+      "checkedAt": "2026-11-05"
     },
     {
       "name": "recharts",
