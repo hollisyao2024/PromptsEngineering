@@ -13,7 +13,7 @@
 | 任务 | pg-boss 12.30.0 | 已有 PostgreSQL 时复用基础设施，可用 fromPrisma 同事务投递；不支持 SQLite |
 | 独立队列 | BullMQ 6.3.4 | Redis 后端适合独立队列负载；PostgreSQL 后端作为显式可选实现，单独迁移与验证 |
 | 上传 | Uppy 6 Hooks + shadcn | 上传编排和进度来自 Uppy，控件使用 shadcn，直接对接文件会话；当前传输为单对象上传 |
-| 富文本 | Tiptap 3.31.3 开源核心 | JSON 内容、基础格式与列表，自组 shadcn 工具栏；不包含商业协作服务 |
+| 富文本 | Tiptap 3.32.3 开源核心 | JSON 内容、基础格式与列表，自组 shadcn 工具栏；不包含商业协作服务 |
 | 图表 | Recharts 3.10.1 + shadcn Chart | 主题 Token、提示和文字数据替代；内置柱状组合，原子 Chart 可扩展其他图形 |
 | 虚拟表格 | TanStack Virtual 3.14.11 | 通过现有 DataTable 的行渲染端口减少 DOM，保留同一分页、选择、排序与导出状态 |
 | 拖拽 / 流程画布 | dnd-kit 0.5.0 / React Flow 12.11.6 | 排序提供键盘可用按钮，流程画布受控编辑节点与边；不承担工作流执行 |

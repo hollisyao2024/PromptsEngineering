@@ -733,7 +733,7 @@
       "type": "registry:component",
       "title": "息壤 uploads",
       "dependencies": [
-        "@uppy/core@6.0.1",
+        "@uppy/core@6.3.1",
         "@uppy/react@6.0.0"
       ],
       "registryDependencies": [
@@ -756,10 +756,10 @@
       "type": "registry:component",
       "title": "息壤 editor",
       "dependencies": [
-        "@tiptap/react@3.31.3",
-        "@tiptap/core@3.31.3",
-        "@tiptap/pm@3.31.3",
-        "@tiptap/starter-kit@3.31.3"
+        "@tiptap/react@3.32.3",
+        "@tiptap/core@3.32.3",
+        "@tiptap/pm@3.32.3",
+        "@tiptap/starter-kit@3.32.3"
       ],
       "registryDependencies": [
         "button"
