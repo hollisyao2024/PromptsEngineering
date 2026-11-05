@@ -145,6 +145,10 @@
       "strategy": "overwrite"
     },
     {
+      "path": "AgentRoles/Handbooks/QA-AUTO.md",
+      "strategy": "overwrite"
+    },
+    {
       "path": "AgentRoles/Handbooks/OPS-ENGINEERING-EXPERT.playbook.md",
       "strategy": "overwrite"
     },

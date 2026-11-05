@@ -109,7 +109,7 @@ async function terminateProcessGroup(pid, signal, graceMs, startedAt) {
 
 // controller 由调用方持有：current 是正在运行的套件的 { terminate, kill }，interrupted 记录首个收到的信号。
 // 返回 { spawnError, timedOut, exitCode, signal, durationMs }；resolve 时该套件的进程组已经终止（超时或中断时）。
-function runCommand({ command, cwd, env, shell, timeoutMs, killGraceMs, controller }) {
+function runCommand({ command, args = [], cwd, env, shell, timeoutMs, killGraceMs, controller, outputFd = 2 }) {
   return new Promise((resolve) => {
     const startedAt = process.hrtime.bigint();
     const spawnedAtMs = Date.now();
@@ -138,12 +138,12 @@ function runCommand({ command, cwd, env, shell, timeoutMs, killGraceMs, controll
     };
 
     try {
-      child = spawn(command, {
+      child = spawn(command, args, {
         cwd,
         env: createToolchainEnv(env),
         shell,
         detached: !IS_WINDOWS,
-        stdio: ['ignore', 2, 2],
+        stdio: ['ignore', outputFd, outputFd],
         windowsHide: true,
       });
     } catch (error) {
