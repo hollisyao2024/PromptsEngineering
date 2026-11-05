@@ -353,6 +353,19 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   ], { cwd: linkedRoot, encoding: 'utf8' });
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /template <sync\|update\|backfill>/u);
+  // /qa auto must remain runnable after a real template application.
+  assert.equal(
+    fs.readFileSync(path.join(linkedRoot, 'AgentRoles/Handbooks/QA-AUTO.md'), 'utf8'),
+    fs.readFileSync(path.join(TEMPLATE_ROOT, 'AgentRoles/Handbooks/QA-AUTO.md'), 'utf8'),
+  );
+  const autoPlan = spawnSync(process.execPath, [
+    path.join(linkedRoot, 'infra/scripts/agent-runner/agent-cli.js'),
+    'qa', 'auto', '--project', '--plan',
+  ], { cwd: linkedRoot, encoding: 'utf8' });
+  assert.equal(autoPlan.status, 0, autoPlan.stderr);
+  assert.match(autoPlan.stdout, /^MODE=AGENT$/mu);
+  assert.match(autoPlan.stdout, /^SCOPE=project$/mu);
+  assert.doesNotMatch(autoPlan.stdout, /TESTS_PASSED|STATUS=OK/u);
 
   const second = invoke();
   const secondOutput = `${second.stdout || ''}${second.stderr || ''}`;

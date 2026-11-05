@@ -202,6 +202,8 @@ pnpm agent -- task exec --task <id> --name <evidence-name> -- <command...>
 
 业务测试自动化使用两条 QA 命令：
 
+测试生成、执行、修复与回归的快捷入口为 `/qa auto`（`pnpm agent -- qa auto`）；范围支持当前任务、`--project`、`--module <name>`、`--template xirang`。当前编码代理必须按 `AgentRoles/Handbooks/QA-AUTO.md` 连续执行，无驱动CLI输出接管协议而非通过；配置 `qa.auto` 驱动后可执行有界循环。原有 `qa automate` 仍只读检查进度，`qa run` 仍执行登记套件。
+
 ```bash
 pnpm agent -- qa paths
 pnpm agent -- qa run

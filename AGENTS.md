@@ -176,5 +176,4 @@ pnpm agent -- finish
 跨目录且完整性影响正确性时，Discovery 与 Editing 必须分离，细则见 `docs/CONVENTIONS.md` §全仓扫描。
 
 ## 稳定命令入口
-
 优先使用 `pnpm agent -- <domain> <action>`：`task`、`worktree`、`tdd`、`qa`、`template`、`architecture`、`dev`、`app`、`build`、`ship`、`cd`、`ci`、`env`、`private`、`finish`。已有项目中的旧 package aliases 作为兼容入口保留；新模板不继续扩张别名集合。

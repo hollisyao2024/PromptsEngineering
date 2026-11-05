@@ -832,3 +832,7 @@ chmod +x infra/scripts/qa-tools/*.js
 ---
 
 > 这些脚本持续改进中。欢迎提交 Issue 或 PR 贡献新功能！
+
+## QA自动闭环
+
+`pnpm agent -- qa auto [--project|--module <模块>|--template xirang]` 由当前编码代理连续完成生成测试、执行、修复与验证；独立终端可配置 `qa.auto.driver`、targets、maxRepairs和timeoutSeconds。缺驱动输出接管协议，不报通过。完整协议与配置见 `AgentRoles/Handbooks/QA-AUTO.md`。

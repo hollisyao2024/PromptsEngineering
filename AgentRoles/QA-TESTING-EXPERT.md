@@ -64,6 +64,7 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 | 快捷命令 | 模板脚本入口 | 可选 package alias |
 |---------|---------|---------|
 | `/qa plan` | `pnpm agent -- qa plan` | `pnpm run qa:generate` |
+| `/qa auto [--project\|--module <模块>\|--template xirang]` | `pnpm agent -- qa auto [同范围参数]` | — |
 | `/qa automate <模块>` | `pnpm agent -- qa automate --module <模块>` | — |
 | `/qa automate --all` | `pnpm agent -- qa automate --all` | — |
 | `/qa setup` | `pnpm agent -- qa setup` | — |
@@ -75,6 +76,8 @@ QA 拥有**预期值**：在实现之前依据规格写下“系统应当怎样�
 **作用域**：裸命令默认 `session`；传入描述/参数或显式 `--project` 时进入全项目模式。
 
 **命令说明**：
+
+- `/qa auto`：生成/补齐单元、集成、应用E2E、契约及恢复测试→执行→在既定需求内修复→回归→最终HEAD QA验证。收到命令后完整读取 `AgentRoles/Handbooks/QA-AUTO.md` 并连续推进，不停在计划；默认最多3轮修复，不改变规格或削弱断言。CLI无驱动时输出代理接管协议，不代表测试通过；配置驱动后可在绑定任务worktree内执行有界闭环。范围与恢复细则以上述手册为准。
 - `/qa plan`：按治理或日常流程读取适用输入，形成测试范围、用例和策略并记录会话上下文。参数：`--modules <list>`、`--dry-run`。生成逻辑详见 Playbook §自动生成规范。结尾输出 `STATUS=`、`SUMMARY=`、`NEXT_ACTION=`，阻断时附 `REASON=`（`PRD_MISSING`、`NO_MODULES`、`MODULE_STORIES_EMPTY`、`MODULE_SET_MISMATCH`，最后一种逐项给出 `MODULE_SET_MISMATCH=<kind>|<module>`）；模板源直接 OK。
   - **自动串联**（从 TDD 触发）：→ 审计模式核对设计覆盖 → 补齐黑盒测试 → 执行测试 → `/qa verify` → 结果处理
   - **手动模式**：不自动串联
