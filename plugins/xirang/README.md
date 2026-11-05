@@ -1,4 +1,6 @@
-# Xirang / 息壤 plugin 0.1.2
+# Xirang / 息壤 plugin
+
+The current version is declared in [plugin.json](plugin.json) and [.claude-plugin/plugin.json](.claude-plugin/plugin.json); their versions must match. Historical test results below apply only to the versions and environments stated.
 
 Four skills for local AI coding projects: adopt Xirang, start isolated tasks, resume work, and verify delivery. Skills define the workflows; the plugin packages them for installation and updates; the project template supplies the CLI, rules, ownership baselines, and lifecycle gates.
 
@@ -45,6 +47,8 @@ Claude Code：从完整息壤仓库注册其市场，再安装 `xirang@xirang-pl
 ## 验证与许可边界
 
 本包用于仓库分发和公共市场提交准备；打包成功不代表市场审核通过。0.1.0 已在 Codex CLI 做实际安装、技能调用与卸载，并在下游项目验证真实 GitHub PR、QA 与合并；0.1.1 仅调整元数据、许可和说明。Claude Code `2.1.299` 已验证 0.1.1 的市场安装、四项技能清单、一次性项目流程与卸载，模型驱动的技能触发未验证；0.1.2 仅新增隐私政策。ChatGPT 图形界面仍需独立实测。不承诺所有客户端或纯网页会话可执行本地 Git/pnpm。
+
+当前清单版本不等于已经完成该版本的全部宿主实测。插件支持通过项目流程协调多模型接力、多人多机与单机多任务：每项并行修改独占任务和 worktree，模型接手先交接；端口、服务、数据库和接口仍需项目协调。Git 不自动同步本机任务状态、未提交内容、锁或 QA 回执，跨电脑接手需按本机门禁恢复并重新 QA；恢复技能不是自动调度器或状态同步服务。
 
 ## Data and permissions
 
