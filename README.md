@@ -81,7 +81,7 @@ pnpm agent -- template update "<目标目录>" --scope agent --initialize
 
 其他 AI 编程工具也可按相同协议接入，前提是能读取项目规则、操作文件并执行所需命令。实际兼容性取决于客户端能力与权限，已有入口也不代表所有版本组合均已验证。接入前按[工具接入检查](docs/guides/quickstart.md#工具接入检查)确认规则确实被加载、命令可以运行。
 
-已有 `0.1.0` 轻量插件，提供接入、启动任务、恢复、检查交付四项技能；Claude Code 与 OpenAI 本地市场清单指向同一份源码。安装步骤与实际验证范围见[插件上手](docs/guides/plugin-quickstart.md)。尚未提交公共市场，插件安装也不代表目标项目已接入模板。
+轻量插件提供接入、启动任务、恢复、检查交付四项技能；Claude Code 与 OpenAI 本地市场清单指向同一份源码。当前版本以[插件清单](plugins/xirang/plugin.json)为准，安装步骤与历史验证范围见[插件上手](docs/guides/plugin-quickstart.md)。公共市场提交与审核状态需单独核实，插件安装也不代表目标项目已接入模板。
 
 ## 按需采用架构能力
 
@@ -99,4 +99,4 @@ pnpm agent -- template update "<目标目录>" --scope agent --initialize
 
 遇到问题请在 [Issues](https://github.com/hollisyao2024/PromptsEngineering/issues) 提供脱敏复现步骤。欢迎分享采用过程与失败场景；如果项目对你有帮助，可以 Star，便于之后找到它。
 
-许可状态：`package.json` 声明为 MIT；当前仓库尚缺根目录许可证正文。第三方组件保留各自许可证，具体授权范围需先核对。推广与贡献准备见[推广方案](docs/promotion/README.md)。
+本项目采用 [MIT 许可证](LICENSE)。第三方组件保留各自许可证，具体授权范围需先核对。推广与贡献准备见[推广方案](docs/promotion/README.md)。

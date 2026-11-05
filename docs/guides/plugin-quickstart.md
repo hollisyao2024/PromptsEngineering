@@ -1,8 +1,10 @@
-# 插件上手：息壤 0.1.2
+# 插件上手：息壤 Xirang
 
-[首页](../../README.md) · [模板接入](quickstart.md) · [双任务演练](parallel-collaboration.md) · [试用记录表](../promotion/trial-feedback.md)
+[首页](../../README.md) · [English overview](../../README.en.md) · [模板接入](quickstart.md) · [并行协作](parallel-collaboration.md) · [完整参考](template-reference.md) · [试用记录表](../promotion/trial-feedback.md)
 
 插件提供四个工作入口，实际项目仍使用息壤自己的 CLI、任务状态与规则。源码包在 [plugins/xirang](../../plugins/xirang/README.md)，适用于可以读写项目文件并执行本地命令的环境。
+
+当前版本以所选源码中的 [portable 清单](../../plugins/xirang/plugin.json) 和 [Claude Code 清单](../../plugins/xirang/.claude-plugin/plugin.json) 为准，两份版本应一致；历史版本的验证结果见文末，不自动外推到当前版本或其他客户端。
 
 ## 先确认安装对象
 
@@ -11,6 +13,14 @@
 - **任务交付**：在项目内完成实现、验证、QA 和合并。
 
 三者不会因其中一步成功而自动全部完成。本版本无 MCP 服务或 hook，不修改个人权限策略，也不会自动拉起多个代理。
+
+| 协作方式 | 插件提供的入口与边界 |
+| --- | --- |
+| 多模型接力 | 通过恢复入口读取同一任务的状态、证据与胶囊；先交接，再由接手者继续，不同时写同一 worktree |
+| 多人多机协作 | 各自登记任务、建立独立分支和 worktree；跨电脑交付重新核对远端 SHA 并执行本机 QA |
+| 单机多任务并行 | 各 AI 会话使用不同任务 ID 和 worktree，独立安装依赖、修改和验证 |
+
+插件不绑定一个模型，但每个宿主仍须通过[工具接入检查](quickstart.md#工具接入检查)。现有安装入口不代表所有客户端、版本和权限组合均已验证。worktree 不隔离端口、共享服务、数据库或测试数据，共享接口与锁文件仍须约定负责人和合并顺序；插件不保证零冲突。
 
 ## Claude Code
 
@@ -30,13 +40,13 @@ claude plugin install xirang@xirang-plugins
 
 2026-10-20 已用 Claude Code `2.1.299` 从 GitHub 市场 `hollisyao2024/PromptsEngineering` 实际安装、核对四项技能并卸载，见下方验证范围。
 
-首次接入已有 Git 项目时，若主项目尚未忽略 `.codex/config.toml`，预演会 `STATUS=BLOCKED`；先在该项目 `.gitignore` 加入此路径。接入分支合回主工作区前，删除初始化在主工作区留下、且与提交内容一致的未跟踪 `.env*.example`。
+首次接入新目录或已有 Git 项目均使用下文的 `--initialize` 文件安装模式，不为安装创建目标分支或 worktree。已有文件、配置与 Git 元数据按所有权保留；预演有冲突时先核对，不以删除未跟踪文件或覆盖本地配置来通过门禁。个人配置与环境文件的忽略和保留方式以 updater 的实际计划、目标规则为准。
 
 ## Codex / ChatGPT 桌面本地市场
 
 仓库包含 `.agents/plugins/marketplace.json`，指向同一份插件。支持本地市场的客户端可从插件目录选择“息壤 Xirang”并安装；具体入口以当前客户端版本为准。纯网页会话不能据此获得本地 shell。
 
-Codex CLI 已支持下列注册与安装命令；这两步会修改使用者本机的市场/插件配置，由试用者主动执行：
+以下为验证记录采用的 Codex CLI 注册与安装命令；执行前确认当前客户端提供这些子命令。注册和安装会修改使用者本机的市场/插件配置，由试用者主动执行：
 
 ```bash
 codex plugin marketplace add "/息壤源绝对路径"
@@ -50,7 +60,7 @@ codex plugin add xirang@xirang-plugins
 codex -c 'marketplaces.xirang-plugins.source_type="local"' -c 'marketplaces.xirang-plugins.source="/息壤源绝对路径"' plugin list --marketplace xirang-plugins --available --json
 ```
 
-成功输出应包含 `pluginId: xirang@xirang-plugins`、`version: 0.1.2` 和 `installPolicy: AVAILABLE`。若只有空列表，先确认市场是否被当前客户端加载；命令退出 0 不能当作插件已发现。
+成功输出应包含 `pluginId: xirang@xirang-plugins`、与所选源码清单一致的 `version` 和 `installPolicy: AVAILABLE`。若只有空列表，先确认市场是否被当前客户端加载；命令退出 0 不能当作插件已发现。安装后仍须核对四项技能是否实际可用。
 
 移除：
 
@@ -65,15 +75,23 @@ codex plugin marketplace remove xirang-plugins
 
 在可丢弃的演练目录中依次试：
 
-1. “给这个项目接入息壤，先展示变更范围。”核对目标与官方源 commit，再执行已授权的接入。
-2. 完成项目 Git/远端与实际检查命令配置后：“用息壤启动任务 demo-a，只新增 docs/demo-a.md，内容为三条协作约定。”
+1. “给这个项目接入息壤，先展示变更范围。”明确目标绝对路径，取得并核实官方源目录，读取源规则后，用源自身的 `pnpm agent -- template update "<目标目录>" --scope agent --initialize --dry-run` 预演，再安装和复查。首次接入报告实际源 SHA，不声称自动取得最新提交；初始化不执行目标 Git 生命周期。插件不捆绑模板源码或 updater，无法取得来源时报告缺口。
+2. 完成目标基础规则读取、项目 Git/远端与实际检查命令配置后：“用息壤启动任务 demo-a，只新增 docs/demo-a.md，内容为三条协作约定；验收为恰有三条约定、Markdown 链接有效且无运行逻辑变化。”
 3. 第二个会话使用任务 demo-b 和另一个文件。检查两个 `NEXT_CWD` 不同，主工作区没有混入它们的修改。
 4. “只读检查 demo-a 的交付条件。”此时技能应列出证据缺口，不自动提交或合并。
 5. 明确要求完成交付时，按项目规则执行完整流水线。中断后用已知任务 ID 恢复；未知副作用先核实。
 
 完整人工演练见[双任务教程](parallel-collaboration.md)。不要把教程成功或脚本验证写成真实用户反馈。
 
-## 验证范围
+已接入项目升级时，在该项目说“更新息壤模板”，登记更新任务并创建干净专属 worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，固定官方 `main` 的获取结果再交付。`--scope agent` 只更新作业包并保留已有架构；需要架构入口时单独使用 `--include architecture`，不能与 `--scope agent` 同传。详见[完整参考](template-reference.md)。
+
+同机换模型接手已有任务时，先交接任务 ID、worktree、分支和证据，原执行器停止写入；接手者读取规则后依次 `task resume`、`task context`，未知副作用先核实。Git 不自动同步任务状态、未提交内容、本机锁、胶囊或 QA 回执；跨电脑接手先按本机任务门禁登记或恢复任务，再恢复远端分支并重做本机 QA，不能把恢复技能当作自动下载状态。
+
+明确授权的交付仍按 `tdd sync → tdd push → qa plan → qa verify → qa merge` 推进，记录阶段转换和绑定最终 HEAD 的测试证据。合并后切回主 worktree 核对本地/远端主干，执行完成门禁并关闭任务；通过 `task exec` 留证时显式使用 `--cwd main`。步骤与异常处理见[并行教程收尾](parallel-collaboration.md#合并后在主-worktree-收尾)。插件安装不授权部署、市场提交或外部发布。
+
+## 历史验证范围
+
+下表保留当时的客户端、版本与验证范围，不能据此认定当前源码已完成宿主安装、模型触发、多人跨电脑或图形界面实测。当前源码版本从清单读取；新增静态或打包检查也不替代这些实测。
 
 | 项目 | 本轮证据范围 |
 | --- | --- |

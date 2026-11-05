@@ -81,7 +81,7 @@ Xirang uses repository files and CLI commands as the collaboration interface and
 
 Other AI coding tools can adopt the same protocol if they can read project rules, operate on files, and run the required commands. Compatibility depends on client capabilities and permissions; an entry point does not mean every client version has been tested. Use the [tool integration checks (Chinese)](docs/guides/quickstart.md#工具接入检查) to confirm that rules are loaded and commands work.
 
-A lightweight `0.1.0` plugin provides four skills: adoption, task startup, recovery, and delivery checks. Claude Code and OpenAI local marketplace manifests point to the same source package. See [plugin setup and tested scope (Chinese)](docs/guides/plugin-quickstart.md). It has not been submitted to public marketplaces, and installing the plugin does not install the template into a target project.
+A lightweight plugin provides four skills: adoption, task startup, recovery, and delivery checks. Claude Code and OpenAI local marketplace manifests point to the same source package. See the [plugin manifest](plugins/xirang/plugin.json) for the current version and [plugin setup and historical test scope (Chinese)](docs/guides/plugin-quickstart.md) for installation and past verification. Public marketplace submission and approval status require separate confirmation. Installing the plugin does not install the template into a target project.
 
 ## Adopt architecture capabilities as needed
 
@@ -99,4 +99,4 @@ The architecture package provides multi-platform monorepo blueprints and materia
 
 Report issues through [GitHub Issues](https://github.com/hollisyao2024/PromptsEngineering/issues) with sanitized reproduction steps. Adoption experiences and failure cases are welcome. If the project helps you, a star makes it easier to find again.
 
-License status: `package.json` declares MIT, but the repository currently lacks a root license text. Third-party components retain their own licenses; check the applicable terms first. See the [promotion plan (Chinese)](docs/promotion/README.md) for promotion and contribution readiness.
+This project is licensed under the [MIT License](LICENSE). Third-party components retain their own licenses; check the applicable terms first. See the [promotion plan (Chinese)](docs/promotion/README.md) for promotion and contribution readiness.
