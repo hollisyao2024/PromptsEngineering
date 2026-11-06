@@ -12,6 +12,7 @@ const { amendmentSource, loadDesignSpec, parseDesignDocument, parseSources } = r
 const { DESIGN_FILE_NAME, DESIGN_TABLES, DIMENSIONS, PRIORITIES, QA_MODULES_DIR } = require('./business-spec-schema');
 const { compareText, scanMarkdown } = require('./business-spec-markdown');
 const { globToRegExp, resolveIntegrityConfig, resolveRange } = require('./qa-integrity');
+const { appendReceipt, changeDigest, readReceipts, sha256 } = require('./qa-design-evidence');
 
 const CONFIG_KEYS = new Set(['mode', 'requiredPriorities', 'requiredDimensions', 'sourceGlobs', 'contextGlobs']);
 const MODES = new Set(['enforce', 'warn']);
@@ -179,11 +180,12 @@ function violationSubject(violation) {
   return violation.line ? `${violation.file}:${violation.line}` : violation.file;
 }
 
-function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = null }) {
+function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = null, evidence = null }) {
   const spec = loadDesignSpec({ repoRoot });
   const ctx = sourceContext(repoRoot, design, spec.invs);
   const blocks = [];
   const risks = [];
+  for (const issue of evidence?.issues || []) push(risks, 'EVIDENCE_INVALID', 'attestation', issue);
   const required = new Set(design.requiredPriorities);
   const resultsAvailable = Boolean(results && results.available);
   let proofNeeded = false;
@@ -242,7 +244,10 @@ function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = n
       if (rule.type === 'undefined') push(risks, 'RULE_UNDEFINED', rule.id, '未定义行为须回流 PRD 明确处置');
       if (!required.has(rule.priority)) continue;
       requiredRules.push(rule);
-      if (rule.verification === 'manual') push(risks, 'MANUAL', rule.id, '必需规则为人工验证，不计入 RULES_VERIFIED');
+      if (rule.verification === 'manual') {
+        if (evidence?.manual?.[rule.id] === 'passed') rulesVerified += 1;
+        else push(risks, 'MANUAL', rule.id, `人工验证未证明通过（${evidence?.manual?.[rule.id] || 'missing'}）`);
+      }
       else if (proveTcs(rule.id, rule.tcs)) rulesVerified += 1;
     }
   }
@@ -267,7 +272,13 @@ function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = n
     const unknown = adv.rules.filter((id) => !ruleIds.has(id));
     if (unknown.length > 0) push(blocks, 'REFERENCE_UNKNOWN', adv.id, `引用了不存在的规则：${unknown.join(', ')}`);
     if (adv.notApplicable || !adv.rules.some((id) => requiredRuleIds.has(id))) continue;
-    advProven.set(adv.id, proveTcs(adv.id, adv.tcs));
+    const linkedRules = spec.docs.flatMap((doc) => doc.rules).filter((rule) => adv.rules.includes(rule.id));
+    const manualOnly = unknown.length === 0 && linkedRules.length > 0 && linkedRules.every((rule) => rule.verification === 'manual');
+    if (manualOnly && evidence?.manual?.[adv.id]) {
+      const passed = evidence.manual[adv.id] === 'passed';
+      advProven.set(adv.id, passed);
+      if (!passed) push(risks, 'MANUAL', adv.id, `人工反例未通过（${evidence.manual[adv.id]}）`);
+    } else advProven.set(adv.id, proveTcs(adv.id, adv.tcs));
   }
   let advCovered = 0;
   for (const rule of requiredRules) {
@@ -293,7 +304,7 @@ function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = n
 
   // 变更记录、G2 时序与 G3 预期变更。
   const headChanges = spec.docs.flatMap((doc) => doc.changes);
-  for (const change of headChanges) if (change.reviewer === PENDING_REVIEWER) push(risks, 'REVIEW_PENDING', change.id, '变更记录待评审');
+  for (const change of headChanges) if (change.reviewer === PENDING_REVIEWER && evidence?.reviews?.[changeDigest(change)] !== 'passed') push(risks, 'REVIEW_PENDING', change.id, '变更记录待评审');
   let countedChanges = headChanges;
   if (baseSha && headSha) {
     const baseDocs = readBaseDocs(repoRoot, baseSha);
@@ -306,6 +317,9 @@ function evaluateDesign({ repoRoot, design, results, baseSha = null, headSha = n
     countedChanges = addedChanges;
     for (const change of baseChanges) {
       if (!headKeys.has(changeKey(change))) push(blocks, 'AMENDMENT_REMOVED', change.id, '已提交的变更记录被删除或改写');
+      else if (!headChanges.some((head) => changeDigest(head) === changeDigest(change))) {
+        push(blocks, 'REVIEW_HISTORY_CHANGED', change.id, '历史评审人被改写；保留原记录并追加复核回执');
+      }
     }
     for (const [id, base] of baseIndex) {
       const head = headIndex.get(id);
@@ -434,8 +448,9 @@ function buildContext({ repoRoot, design, domain = null }) {
   return { files, content, sha256: crypto.createHash('sha256').update(content).digest('hex') };
 }
 
-const ACTION_OPTIONS = { check: ['base'], context: ['domain'], amend: ['id', 'reason', 'source', 'reviewer', 'base'] };
-const USAGE = '用法：qa design check [--base <ref>] | context [--domain <域>] | amend --id <行 ID> --reason <原因> [--source <新出处>] [--reviewer <评审人>] [--base <ref>]';
+const ACTION_OPTIONS = { check: ['base'], context: ['domain'], amend: ['id', 'reason', 'source', 'reviewer', 'base'], pending: [],
+  attest: ['kind', 'id', 'change', 'outcome', 'reviewer', 'environment', 'reason', 'evidence'] };
+const USAGE = '用法：qa design check [--base <ref>] | context [--domain <域>] | pending | attest --kind manual|review --id <行> --outcome passed|failed|skipped --reviewer <人> --environment <环境> --reason <结论> --evidence <文件> [--change <摘要>] | amend --id <行 ID> --reason <原因> [--source <新出处>] [--reviewer <评审人>] [--base <ref>]';
 
 function parseCliArgs(argv) {
   const [action, ...rest] = argv;
@@ -458,6 +473,15 @@ function parseCliArgs(argv) {
     if (!values.id) throw new Error('amend 需要 --id');
     if (!values.reason) throw new Error('amend 需要 --reason');
   }
+  if (action === 'attest') {
+    for (const key of ['kind', 'id', 'outcome', 'reviewer', 'environment', 'reason', 'evidence']) {
+      if (!values[key]?.trim()) throw new Error(`attest 需要 --${key}`);
+    }
+    if (!['manual', 'review'].includes(values.kind)) throw new Error('--kind 必须 manual|review');
+    if (!['passed', 'failed', 'skipped'].includes(values.outcome)) throw new Error('--outcome 必须 passed|failed|skipped');
+    if (values.kind === 'review' && !/^[a-f0-9]{64}$/u.test(values.change || '')) throw new Error('review 需要 --change 摘要');
+    if (values.kind === 'manual' && values.change !== null) throw new Error('manual 不支持 --change');
+  }
   return { action, ...values };
 }
 
@@ -473,7 +497,23 @@ function loadResults(config, repoRoot, headSha) {
 // qa verify 与 qa design check 共用的门禁求值：解析配置、读取绑定 HEAD 的 qa run 结果，再判定。
 function evaluateDesignGate({ repoRoot, config, baseSha, headSha }) {
   const design = resolveDesignConfig(config);
-  return evaluateDesign({ repoRoot, design, results: loadResults(config, repoRoot, headSha), baseSha, headSha });
+  const { directory, binding } = evidenceContext(repoRoot, config, design, headSha);
+  const evidence = readReceipts(directory, binding);
+  if (git(repoRoot, ['status', '--porcelain']).trim() && (Object.keys(evidence.manual).length || Object.keys(evidence.reviews).length)) {
+    evidence.manual = {};
+    evidence.reviews = {};
+    evidence.issues.push('DIRTY_WORKTREE');
+  }
+  return evaluateDesign({ repoRoot, design, results: loadResults(config, repoRoot, headSha), baseSha, headSha, evidence });
+}
+
+function evidenceContext(repoRoot, config, design, headSha) {
+  const { getMainRepoRoot } = require('../shared/config');
+  const { worktreeReceiptKey } = require('./qa-verification-state');
+  return {
+    directory: path.join(resolveContainerPathFor(config, getMainRepoRoot(repoRoot)), 'qa-design-evidence', worktreeReceiptKey(repoRoot)),
+    binding: { head: headSha, worktree: fs.realpathSync(repoRoot), context: buildContext({ repoRoot, design }).sha256, config: sha256(JSON.stringify(config.qa)) },
+  };
 }
 
 function main(argv) {
@@ -482,6 +522,34 @@ function main(argv) {
   const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
   const config = loadConfig({ repoRoot });
   const design = resolveDesignConfig(config);
+
+  if (args.action === 'pending') {
+    for (const doc of loadDesignSpec({ repoRoot }).docs) for (const change of doc.changes) {
+      if (change.reviewer === PENDING_REVIEWER) console.log(`DESIGN_PENDING=${change.id}|${changeDigest(change)}|${doc.file}|${change.reason}`);
+    }
+    return { status: 'OK', summary: '已列出待评审记录的精确摘要', nextAction: '逐项实际复核后使用 qa design attest --kind review 追加回执' };
+  }
+
+  if (args.action === 'attest') {
+    if (git(repoRoot, ['status', '--porcelain']).trim()) throw new Error('登记证据需要干净工作区');
+    const spec = loadDesignSpec({ repoRoot });
+    const rules = spec.docs.flatMap((doc) => doc.rules);
+    if (args.kind === 'manual') {
+      const rule = rules.find((row) => row.id === args.id);
+      const adv = spec.docs.flatMap((doc) => doc.advs).find((row) => row.id === args.id);
+      const isManual = rule?.verification === 'manual' || (adv && !adv.notApplicable && adv.rules.length > 0
+        && adv.rules.every((id) => rules.some((row) => row.id === id && row.verification === 'manual')));
+      if (!isManual) throw new Error('仅允许人工规则或仅关联人工规则的反例登记人工证据');
+    } else if (!spec.docs.flatMap((doc) => doc.changes).some((row) => row.id === args.id && row.reviewer === PENDING_REVIEWER && changeDigest(row) === args.change)) {
+      throw new Error('找不到匹配摘要的待评审记录');
+    }
+    const headSha = git(repoRoot, ['rev-parse', 'HEAD']).trim();
+    const { directory, binding } = evidenceContext(repoRoot, config, design, headSha);
+    ensureContainerDirectories(config, getMainRepoRoot(repoRoot), ['tmp']);
+    const file = appendReceipt({ ...args, directory, binding, evidence: path.resolve(args.evidence) });
+    console.log(`DESIGN_EVIDENCE_RECEIPT=${file}`);
+    return { status: 'OK', summary: `已追加 ${args.id} 的 ${args.outcome} 回执`, nextAction: '执行 qa design check 复验；跳过或失败仍为未通过' };
+  }
 
   if (args.action === 'context') {
     const mainRoot = getMainRepoRoot(repoRoot);
@@ -508,7 +576,7 @@ function main(argv) {
   if (args.action === 'amend') {
     const { row, change } = applyAmendment({ repoRoot, baseSha: range.baseSha, id: args.id, reason: args.reason, source: args.source, reviewer: args.reviewer, design });
     console.log(`DESIGN_AMENDMENT_ROW=${row}`);
-    return { status: 'OK', summary: `已为 ${args.id} 登记${change}记录`, nextAction: '由评审人复核变更行后与设计改动一并提交，再重跑 pnpm agent -- qa design check' };
+    return { status: 'OK', summary: `已为 ${args.id} 登记${change}记录`, nextAction: '提交设计改动，再由评审人实际复核并使用 qa design attest --kind review 追加回执，重跑 qa design check' };
   }
 
   if (config.template && config.template.role === 'source') {
@@ -543,7 +611,11 @@ if (require.main === module) {
   const { exitOnHelp } = require('../shared/cli-help');
   const { resultBlockLines, resultExitCode } = require('../shared/result-block');
   exitOnHelp([
-    'pnpm agent -- qa design <check|context|amend> [options]',
+    'pnpm agent -- qa design <check|context|amend|pending|attest> [options]',
+    '  pending                     列出历史待评审记录及 --change 摘要',
+    '  attest --kind manual|review --id <行> [--change <摘要>] --outcome passed|failed|skipped',
+    '         --reviewer <人> --environment <环境> --reason <结论> --evidence <文件>',
+    '                              追加绑定干净 HEAD 与规格的回执；详见 QA-DESIGN-EVIDENCE.md',
     '  check [--base <ref>]        G1–G3：规则表、出处、覆盖、维度反例、TC 证明、设计先于源码、预期变更须 amend',
     '  context [--domain <域>]     只打包规格文档到容器 tmp，输出 DESIGN_CONTEXT_SHA256',
     '  amend --id <行 ID> --reason <原因> [--source <新出处>] [--reviewer <评审人>] [--base <ref>]',
