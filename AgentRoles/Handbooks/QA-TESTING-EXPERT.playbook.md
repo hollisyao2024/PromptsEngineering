@@ -662,10 +662,13 @@ PATHS.md 描述界面状态；领域对象（订单、审批单、账户）的�
 | `DIMENSION_MISSING` / `REFERENCE_UNKNOWN` | 阻断 | 必需规则缺维度反例；ADV/BUG 引用不存在的行 | 补反例或写 `不适用：<理由>`；修正引用 |
 | `ORDER` | 阻断 | 本分支新增的设计行未早于首个源码提交 | 拆出设计提交；审计补行用 `amend` 登记新增 |
 | `EXPECTATION_CHANGED` / `AMENDMENT_REMOVED` | 阻断 | 已有行被改写或删除而无变更记录；已提交的变更记录被改 | `qa design amend`；恢复变更记录 |
-| `SOURCE_INFERRED` / `RULE_UNDEFINED` / `MANUAL` | 风险 | 推断出处、未定义行为、人工验证（不计入 `RULES_VERIFIED`） | 回流 PRD 或人工验收后在报告中披露 |
+| `SOURCE_INFERRED` / `RULE_UNDEFINED` / `MANUAL` | 风险 | 推断出处、未定义行为、人工验证缺少有效 passed 回执 | 回流 PRD 或逐项实际验收并登记回执 |
+| `REVIEW_HISTORY_CHANGED` | 阻断 | 已提交的历史评审人被改写 | 恢复原行，追加复核回执 |
+| `EVIDENCE_INVALID` | 风险 | 回执过期、结构非法、证据篡改或工作区变化 | 保留风险并重新验证；损坏记录不能当作通过 |
 | `ADDED_AFTER_SOURCE` / `REVIEW_PENDING` / `BUG_OPEN` / `HEADER_MISSING` | 风险 | 源码后补行已登记、变更待评审、缺陷未修复、头部声明缺失或不合法 | 逐条复核 |
 
 - **变更登记**：`pnpm agent -- qa design amend --id <行 ID> --reason <原因> [--source <新出处>] [--reviewer <评审人>]`，修改与新增必须给 `--source`；输出行写进任务证据。`DESIGN_AMENDMENTS` 只计修改与删除。
+- **人工与复核证据**：最终提交后，使用 `qa design pending` 和 `qa design attest` 逐项追加回执，完整合同见 [QA-DESIGN-EVIDENCE.md](QA-DESIGN-EVIDENCE.md)。人工规则与反例各自证明，自动 TC 仍由 `qa run` 判定；跳过或失败不计通过，不改写历史待评审行。该入口不替代业务 AC 门禁的独立人工验收要求。
 - **输出**：`DESIGN_GATE=PASS|PASS_WITH_RISK|BLOCKED|SKIPPED`、`RULES_TOTAL`、`RULES_VERIFIED`、`ADV_COVERED`、`DESIGN_AMENDMENTS`、`DESIGN_ISOLATION=subagent|commit-order|mixed|UNDECLARED|NONE`，逐条 `DESIGN_BLOCK=` / `DESIGN_RISK=`；摘要写入回执 `design` 字段。
 - **配置**：`qa.design.mode` 默认 `warn`，全部阻断降为 `DESIGN_RISK=`；`enforce` 时 TC 证明依赖 `qa run`，须先启用 `qa.business`。`requiredPriorities`、`requiredDimensions`、`sourceGlobs` 可按项目调整，未知键 `DESIGN_CONFIG_INVALID` fail-closed。
 - **局限**：门禁只约束子代理工具与提交时序，`DESIGN_ISOLATION` 是头部自报值，不能证明主代理没读过实现。
