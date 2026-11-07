@@ -65,13 +65,14 @@ const DEFAULT_TESTS = [
 const testsModule = (cases) => `'use strict';\nmodule.exports = [\n  ${cases.join(',\n  ')},\n];\n`;
 const userModule = (lockAfter) => `'use strict';\nmodule.exports = { lockAfter: ${lockAfter} };\n`;
 
-// base：缺陷版本、无测试文件、设计里没有 BUG 行；HEAD：修复源码、新增测试文件与 BUG 行。
-// config 整体写进 agent.config.json（默认只设 qa.repro.command）。
+// base：缺陷版本、无测试文件、设计里默认没有 BUG 行（baseBugs 可预置 base 侧的原始行，含格式非法行）；
+// HEAD：修复源码、新增测试文件与 BUG 行。config 整体写进 agent.config.json（默认只设 qa.repro.command）。
 function reproProject(t, {
   baseLockAfter = 6,
   headLockAfter = 5,
   config = { qa: { repro: { command: RUNNER_COMMAND } } },
   bugs = [BUG_ROW],
+  baseBugs = [],
   tests = DEFAULT_TESTS,
 } = {}) {
   const project = createProject({
@@ -79,7 +80,7 @@ function reproProject(t, {
     'agent.config.json': `${JSON.stringify(config, null, 2)}\n`,
     'tools/run-tests.js': RUNNER,
     'src/user.js': userModule(baseLockAfter),
-    [DESIGN_FILE]: designDoc({ rules: [RULE] }),
+    [DESIGN_FILE]: designDoc({ rules: [RULE], bugs: baseBugs }),
   }, { git: true });
   t.after(() => project.cleanup());
   const baseSha = runGit(project.repo, ['rev-parse', 'HEAD']).trim();

@@ -262,6 +262,32 @@ test('门禁：本分支没有新增 BUG 行 → PASS 0/0', (t) => {
   assert.ok(reproLines(outcome).includes('DEFECT_REPRO=0/0'));
 });
 
+// base 上同 ID 的 BUG 行已存在、只是格式非法（关联规则混入文档锚点），HEAD 修正格式不是新增缺陷。
+const LEGACY_INVALID_BUG_ROW = [BUG, BUG_ROW[1], 'RUL-USER-001, docs/adr/001-x.md#契约', 'qa-audit', 'TC-USER-020', '-'];
+
+test('门禁：base 已有同 ID 但格式非法的 BUG 行，HEAD 修正格式 → 不计新增，PASS 0/0', (t) => {
+  const project = reproProject(t, { baseBugs: [LEGACY_INVALID_BUG_ROW] });
+  const outcome = gate(project);
+
+  assert.equal(outcome.status, 'PASS', JSON.stringify(outcome));
+  assert.deepEqual(outcome.defectRepro, { passed: 0, total: 0 });
+  assert.equal(outcome.newDefects, 0);
+});
+
+test('门禁：base 有格式非法的旧 BUG 行时，真正新增的 BUG 行仍须复现 → REPRO_MISSING 只针对新行', (t) => {
+  const added = 'BUG-USER-002';
+  const project = reproProject(t, {
+    baseBugs: [LEGACY_INVALID_BUG_ROW],
+    bugs: [BUG_ROW, [added, '第 7 次失败才锁定', 'RUL-USER-001', 'qa-audit', 'TC-USER-020', '-']],
+  });
+  const outcome = gate(project);
+
+  assert.equal(outcome.status, 'BLOCKED');
+  assert.deepEqual(codes(outcome.blocks), ['REPRO_MISSING']);
+  assert.equal(outcome.blocks[0].subject, added);
+  assert.deepEqual(outcome.defectRepro, { passed: 0, total: 1 });
+});
+
 test('门禁：有新增 BUG 行但未配置 qa.repro.command → REPRO_COMMAND_MISSING', (t) => {
   const project = reproProject(t, { config: { qa: { repro: { command: '' } } } });
   assert.deepEqual(codes(gate(project).blocks), ['REPRO_COMMAND_MISSING']);

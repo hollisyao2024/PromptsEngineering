@@ -84,6 +84,24 @@ function bugsAt(repoRoot, ref) {
   return bugs;
 }
 
+// ref 上缺陷复现表登记过的全部 BUG ID：合法行之外，也收格式非法（ROW_INVALID）但首列是 BUG 编号的原始行。
+// 仅用于判定“本分支新增”：主干已有、只是格式不合规的旧行在 HEAD 被修正时，不应被当成新缺陷要求复现。
+const RAW_BUG_ID = /^\s*\|\s*([^|\s]+)\s*\|/u;
+function bugIdsAt(repoRoot, ref) {
+  const files = nulFields(git(repoRoot, ['ls-tree', '-r', '-z', '--name-only', ref, '--', QA_MODULES_DIR]))
+    .filter((file) => DESIGN_PATH.test(file));
+  const ids = new Set();
+  for (const file of files) {
+    const doc = parseDesignDocument(git(repoRoot, ['show', `${ref}:${file}`]), { file });
+    for (const bug of doc.bugs || []) ids.add(bug.id);
+    for (const { text } of doc.tables?.bugs?.rows || []) {
+      const match = RAW_BUG_ID.exec(text);
+      if (match && BUG_ID.test(match[1])) ids.add(match[1]);
+    }
+  }
+  return ids;
+}
+
 // base..HEAD 中命中 qa.integrity.testGlobs 的测试文件改动，附 HEAD 侧的 mode 与 blob。
 // 删除记为 { status:'D', mode:null, blob:null }；按路径排序，摘要与叠加都以此为准。
 function testChanges(repoRoot, baseSha, headSha, matchers) {
@@ -456,9 +474,9 @@ function checkRecord({ directory, bug, baseSha, headSha, digest, command }) {
 // qa verify 与 qa repro 共用的门禁求值：只读 HEAD/base 的 TEST-DESIGN 与复现结果文件。
 function evaluateReproGate({ repoRoot, config, mainRoot, baseSha, headSha }) {
   const repro = resolveReproConfig(config);
-  const baseBugs = bugsAt(repoRoot, baseSha);
+  const baseBugIds = bugIdsAt(repoRoot, baseSha);
   const added = [...bugsAt(repoRoot, headSha).values()]
-    .filter((bug) => !baseBugs.has(bug.id))
+    .filter((bug) => !baseBugIds.has(bug.id))
     .sort((left, right) => compareCode(left.id, right.id));
   const total = added.length;
   const newDefects = added.filter((bug) => /^qa-/u.test(String(bug.origin))).length;
