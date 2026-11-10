@@ -234,6 +234,7 @@ pnpm agent -- qa run
 | `/ci status` | `pnpm agent -- ci status` | 只读查询 CI 状态 |
 | `/env check <env>` | `pnpm agent -- env check <env>` | 只读检查目标环境健康 |
 | `/env status` | `pnpm agent -- env status` | 只读汇总各环境状态 |
+| `/env guard` | `pnpm agent -- env guard` | 只读检查部署防回退就绪状态 |
 
 - 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
 - 真实部署 `/ship`、`/private ship`、`/cd` 必须由项目显式配置，不提供可执行默认值；`cd`、`ci`、`env` 不支持 private profile。

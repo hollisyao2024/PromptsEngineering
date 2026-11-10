@@ -114,6 +114,13 @@ function createUpstream(testRoot, options = {}) {
       'infra/scripts/shared/config.js',
       'tooling/xirang/target.js',
       'tooling/xirang/engine.js',
+      // Deploy guard readiness report and its read-only dependency chain.
+      'infra/scripts/ops-tools/deploy-guard-readiness.js',
+      'infra/scripts/ops-tools/deploy-guard.js',
+      'infra/scripts/ops-tools/deploy-guard-git.js',
+      'infra/scripts/shared/github-auth.js',
+      'infra/scripts/shared/github-identity.js',
+      'tooling/xirang/system-proxy.js',
     ]) {
       const content = fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
       const marker = relativePath.endsWith('update-template.js')
@@ -251,6 +258,8 @@ test('sync fetches the advanced upstream SHA, executes its updater, preserves pr
   assert.match(firstOutput, /TEMPLATE_FETCH_STATUS=OK/u);
   assert.match(firstOutput, /TEMPLATE_APPLY_STATUS=UPDATED/u);
   assert.match(firstOutput, /TEMPLATE_CONVERGENCE_STATUS=OK/u);
+  // AC2: the fetched updater reports deploy guard readiness without enabling it.
+  assert.match(firstOutput, /DEPLOY_GUARD_READINESS=NOT_APPLICABLE/u);
   const mainConfig = path.join(mainRoot, '.codex/config.toml');
   const linkedConfig = path.join(linkedRoot, '.codex/config.toml');
   assert.equal(fs.readFileSync(mainConfig, 'utf8'),

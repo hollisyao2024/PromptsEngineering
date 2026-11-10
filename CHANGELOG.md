@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.25] - 2026-11-11
+
+- 新增 `/env guard` 部署防回退就绪检查；更新息壤模板时同步报告缺口，不强制开启 `rollbackGuard`。
+
 ## [v3.17.24] - 2026-11-11
 
 - `ops.rollbackGuard` 同时守护 `/cd`，与 `/ship` 共用环境租约；持锁期间 Ctrl+C、SIGTERM 或异常会释放部署锁。

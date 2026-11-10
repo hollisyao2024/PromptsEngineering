@@ -138,6 +138,23 @@ function validateJsonFiles(targetRoot, files) {
   }
 }
 
+// Report-only deploy guard readiness for the target project. The guard is never
+// enabled by the updater; failures print UNKNOWN and never fail the update.
+function reportDeployGuardReadiness({ targetRoot, initialize = false, log = console.log } = {}) {
+  if (initialize) {
+    log('DEPLOY_GUARD_READINESS=SKIPPED');
+    return { readiness: 'SKIPPED' };
+  }
+  try {
+    const { reportGuardReadiness } = require('../ops-tools/deploy-guard-readiness');
+    return reportGuardReadiness({ repoRoot: targetRoot, log });
+  } catch (error) {
+    log('DEPLOY_GUARD_READINESS=UNKNOWN');
+    log(`DEPLOY_GUARD_READINESS_ERROR=${String((error && error.message) || error).split('\n')[0]}`);
+    return { readiness: 'UNKNOWN' };
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.initialize !== undefined && typeof args.initialize !== 'boolean') throw new Error('--initialize does not take a value');
@@ -225,6 +242,7 @@ function main() {
     });
   }
   if (dryRunOnly) {
+    reportDeployGuardReadiness({ targetRoot, initialize });
     console.log('CONVERGENCE_STATUS=SKIPPED');
     console.log('STATUS=DRY_RUN_ONLY');
     console.log(`REPORT_DIR=${reportDir}`);
@@ -313,6 +331,7 @@ function main() {
   }
   console.log('ENVIRONMENT_CONVERGENCE_STATUS=OK');
   console.log('CONVERGENCE_STATUS=OK');
+  reportDeployGuardReadiness({ targetRoot, initialize });
 
   console.log('STATUS=UPDATED');
   console.log(`SOURCE=${sourceRoot}`);
@@ -341,4 +360,5 @@ module.exports = {
   initializeProjectEnvironmentFiles,
   parseApplyCounts,
   parseArgs,
+  reportDeployGuardReadiness,
 };

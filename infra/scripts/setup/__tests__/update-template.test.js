@@ -15,6 +15,7 @@ const {
   initializeCodexConfig,
   initializeEnvironmentFiles,
   parseApplyCounts,
+  reportDeployGuardReadiness,
 } = require('../update-template');
 
 const TEMPLATE_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
@@ -372,4 +373,26 @@ test('the released Xirang manifest bootstraps an actual project with the sync ro
   assert.equal(second.status, 0, secondOutput.slice(-5000));
   assert.match(secondOutput, /^CONVERGENCE_STATUS=OK$/mu);
   assert.equal(fs.readFileSync(path.join(linkedRoot, 'DESIGN.md'), 'utf8'), 'PROJECT_DESIGN_SENTINEL\n');
+});
+
+test('AC2: reportDeployGuardReadiness skips initialization and reports target readiness otherwise', () => {
+  const skipped = [];
+  assert.equal(reportDeployGuardReadiness({ targetRoot: '/nonexistent', initialize: true, log: line => skipped.push(line) }).readiness, 'SKIPPED');
+  assert.deepEqual(skipped, ['DEPLOY_GUARD_READINESS=SKIPPED']);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'update-guard-ready-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    fs.writeFileSync(path.join(root, 'agent.config.json'), `${JSON.stringify({
+      ops: { commands: { ship: { staging: 'bash deploy.sh' } } },
+    }, null, 2)}\n`);
+    const lines = [];
+    const result = reportDeployGuardReadiness({ targetRoot: root, log: line => lines.push(line) });
+    assert.equal(result.readiness, 'NOT_READY');
+    assert.ok(lines.includes('ROLLBACK_GUARD=DISABLED'));
+    assert.ok(lines.some(line => line.startsWith('DEPLOY_GUARD_GAP=MISSING_SOURCE_ARGS|ship:staging|')));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'agent.config.json'), 'utf8')).ops.rollbackGuard, undefined);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

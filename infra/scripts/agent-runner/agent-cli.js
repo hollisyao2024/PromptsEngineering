@@ -44,6 +44,7 @@ const ROUTES = new Map([
 const DEV_SERVICE_ACTIONS = new Set(['start', 'restart', 'stop', 'status', 'logs']);
 const APP_ACTIONS = new Set(['dev', 'build']);
 const OPS_RUNNER = 'infra/scripts/ops-tools/ops-run.js';
+const DEPLOY_GUARD_READINESS = 'infra/scripts/ops-tools/deploy-guard-readiness.js';
 const CI_ACTIONS = new Set(['run', 'status']);
 const CLOUD_ACTIONS = new Set(['bootstrap', 'setup-script', 'doctor']);
 const CLOUD_RUNNER = 'infra/scripts/setup/cloud-session.js';
@@ -118,8 +119,9 @@ function resolveCommand(argv) {
   }
   if (domain === 'env') {
     if (action === 'status') return { script: OPS_RUNNER, args: ['--action=env-status', ...rest] };
+    if (action === 'guard') return { script: DEPLOY_GUARD_READINESS, args: rest };
     const [env = '', ...extra] = rest;
-    if (action !== 'check' || !env || env.startsWith('-')) throw new Error('env requires check <env> or status');
+    if (action !== 'check' || !env || env.startsWith('-')) throw new Error('env requires check <env>, status or guard');
     return { script: OPS_RUNNER, args: ['--action=env-check', `--env=${env}`, ...extra] };
   }
   if (domain === 'private') {
