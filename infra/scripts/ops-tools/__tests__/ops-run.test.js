@@ -14,6 +14,7 @@ const {
   detectRecursiveCall,
   normalizeDevTarget,
   opsCallKey,
+  resolveAppVariant,
   resolveBashCommand,
   resolveRuntimeCommand,
   resolveSourceArgs,
@@ -597,5 +598,60 @@ test('template source dev shortcuts block at the first level because no service 
     // A single-level block resolves no command, so nothing is spawned and no nested shortcut runs.
     assert.doesNotMatch(result.stdout, /^COMMAND=/m, label);
     assert.doesNotMatch(result.stdout + result.stderr, /STATUS=RUNNING|recursive ops shortcut/, label);
+  }
+});
+
+const VARIANT_BUILD = {
+  mac: { default: 'pnpm build:app:mac', dmg: 'pnpm build:app:mac:dmg', test: 'pnpm build:app:mac:test' },
+  win: 'pnpm build:app:win',
+};
+
+test('maps a bare --<variant> flag to the configured app command variant', () => {
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg'], VARIANT_BUILD.mac), { target: 'dmg' });
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--TEST'], VARIANT_BUILD.mac), { target: 'test' });
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac'], VARIANT_BUILD.mac), { target: '' });
+  // Known options keep working and never become variants.
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--dry-run', '--target', 'dmg'], VARIANT_BUILD.mac), { target: '' });
+  // A shorthand that repeats the explicit target is not a conflict.
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=dmg'], VARIANT_BUILD.mac), { target: 'dmg' });
+});
+
+test('rejects unknown app options, positional extras and conflicting variants', () => {
+  const unknown = resolveAppVariant(['--action=app-build', '--platform=mac', '--foo'], VARIANT_BUILD.mac);
+  assert.match(unknown.error, /unknown option --foo/);
+  assert.match(unknown.error, /dmg, test/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--default'], VARIANT_BUILD.mac).error, /unknown option --default/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=win', '--dmg'], VARIANT_BUILD.win).error, /unknown option --dmg/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg=1'], VARIANT_BUILD.mac).error, /unknown option --dmg/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', 'dmg'], VARIANT_BUILD.mac).error, /unexpected argument dmg/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--test'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, test/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=test'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, test/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=private'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, private/);
+});
+
+function runAppBuild(t, extra) {
+  return runOpsCli(t, ['--action=app-build', '--platform=mac', '--dry-run', ...extra], {
+    config: { projectName: 'fixture', app: { commands: { build: VARIANT_BUILD } } },
+  });
+}
+
+test('runs the same command for --dmg, --target=dmg and --target dmg', (t) => {
+  for (const extra of [['--dmg'], ['--target=dmg'], ['--target', 'dmg']]) {
+    const result = runAppBuild(t, extra);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^TARGET=dmg$/m);
+    assert.match(result.stdout, /^COMMAND=pnpm build:app:mac:dmg$/m);
+  }
+  const plain = runAppBuild(t, []);
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(plain.stdout, /^COMMAND=pnpm build:app:mac$/m);
+});
+
+test('blocks unknown or conflicting app options before printing any command', (t) => {
+  for (const extra of [['--foo'], ['--dmg', '--test'], ['--test', '--target=dmg']]) {
+    const result = runAppBuild(t, extra);
+    assert.equal(result.status, 1, extra.join(' '));
+    assert.match(result.stderr, /STATUS=BLOCKED/);
+    assert.doesNotMatch(result.stdout, /COMMAND=/);
   }
 });

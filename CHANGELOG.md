@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.23] - 2026-11-11
+
+- `/build app <platform>` 支持变体简写：`--dmg` 等同 `--target=dmg` 与 `--target dmg`（变体取 `app.commands` 平台对象中 `default` 以外的键）；未登记的 `--<名称>`、多余位置参数或两个不同变体（含 `/private` 隐含的 `private`）一律 `STATUS=BLOCKED`，不再静默忽略。
+
 ## [v3.17.22] - 2026-11-07
 
 - 修复 QA 缺陷复现门禁把主干已有、仅格式修正的缺陷行误判为新增并阻断的问题。

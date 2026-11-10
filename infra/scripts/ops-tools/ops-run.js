@@ -172,6 +172,55 @@ function collectPositionals(argv = []) {
   return positionals;
 }
 
+// Options an app shortcut accepts; any other --<name> must be a configured variant.
+// Includes the loadConfig CLI overrides so existing invocations keep working.
+const APP_KNOWN_OPTIONS = new Set([
+  'action', 'platform', 'os', 'target', 'dev-target', 'devTarget', 'profile', 'edition',
+  'env', 'environment', 'dry-run', 'dryRun', 'quick', 'help',
+  'project', 'project-name', 'projectName', 'base', 'base-branch', 'baseBranch', 'executor',
+  'bootstrap', 'skip-bootstrap', 'skipBootstrap', 'worktrees-dir', 'worktreesDir',
+  'app-dir', 'appDir', 'primary-app', 'primaryApp', 'web-app-dir', 'webAppDir', 'database-dir', 'databaseDir',
+]);
+const EXPLICIT_TARGET_OPTIONS = new Set(['target', 'dev-target', 'devTarget', 'profile', 'edition']);
+
+/**
+ * Resolves the `--<variant>` shorthand of an app command (`/build app mac --dmg`
+ * equals `--target=dmg`). `platformCommand` is the configured app.commands.<action>.<platform>
+ * value; only its non-default keys are variants. Unknown options, positional
+ * extras and two different variants fail closed instead of being silently ignored.
+ * Returns { target } ('' when no shorthand was given) or { error }.
+ */
+function resolveAppVariant(argv = [], platformCommand) {
+  const variants = platformCommand && typeof platformCommand === 'object'
+    ? Object.keys(platformCommand).filter((key) => key !== 'default')
+    : [];
+  const available = variants.length > 0 ? `available variants: ${variants.join(', ')}` : 'this platform has no variants';
+  const chosen = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const raw = String(argv[i]);
+    if (raw === '--') break;
+    if (!raw.startsWith('--')) return { error: `unexpected argument ${raw}; ${available}` };
+    const eq = raw.indexOf('=');
+    const name = raw.slice(2, eq === -1 ? undefined : eq);
+    const next = argv[i + 1];
+    const hasSeparateValue = eq === -1 && next !== undefined && !String(next).startsWith('--');
+    const value = eq !== -1 ? raw.slice(eq + 1) : (hasSeparateValue ? String(next) : true);
+    if (hasSeparateValue) i += 1;
+    if (APP_KNOWN_OPTIONS.has(name)) {
+      if (EXPLICIT_TARGET_OPTIONS.has(name) && typeof value === 'string' && value) {
+        chosen.push({ name: normalizeDevTarget(value), shorthand: false });
+      }
+      continue;
+    }
+    const variant = name.toLowerCase();
+    if (value !== true || !variants.includes(variant)) return { error: `unknown option --${name}; ${available}` };
+    chosen.push({ name: variant, shorthand: true });
+  }
+  const distinct = [...new Set(chosen.map((item) => item.name))];
+  if (distinct.length > 1) return { error: `conflicting variants: ${distinct.join(', ')}` };
+  return { target: chosen.some((item) => item.shorthand) ? distinct[0] : '' };
+}
+
 function templateCommand(command, vars) {
   return command.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
     return Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : '';
@@ -306,7 +355,7 @@ function main() {
   const positionals = collectPositionals(argv);
   const positionalTarget = positionals.find((value) => value && !String(value).startsWith('-'));
   const explicitEnv = cli.env || cli.environment;
-  const commandTarget = normalizeDevTarget(
+  let commandTarget = normalizeDevTarget(
     cli.devTarget || cli.profile || cli.edition || ((isDevAction || isAppAction || explicitEnv) ? cli.target : '')
   );
   const env = normalizeEnv(explicitEnv || ((isDevAction || isAppAction) ? '' : cli.target));
@@ -326,6 +375,19 @@ function main() {
       'Run with --action=app-dev|app-build|build|ship|cd|ci-run|ci-status|env-check|env-status|dev-restart',
       { run_dir: runDir }
     );
+  }
+
+  if (isAppAction && platform) {
+    const appCommands = (config.app && config.app.commands && config.app.commands[APP_ACTIONS[action]]) || {};
+    const variant = resolveAppVariant(argv, appCommands[platform]);
+    if (variant.error) {
+      block(variant.error, 'Pick one variant: --<variant>, --target=<variant> or --target <variant>, as configured in agent.config.json app.commands.', {
+        action,
+        platform,
+        run_dir: runDir,
+      });
+    }
+    if (variant.target) commandTarget = variant.target;
   }
 
   const callChain = detectRecursiveCall(process.env[OPS_CALL_STACK_ENV], opsCallKey(action, env, commandTarget, platform));
@@ -537,6 +599,7 @@ module.exports = {
   readCommand,
   readProfiledEnvCommand,
   readTargetCommand,
+  resolveAppVariant,
   resolveBashCommand,
   resolveRuntimeCommand,
   resolveSourceArgs,
