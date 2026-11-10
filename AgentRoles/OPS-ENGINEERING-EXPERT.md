@@ -74,7 +74,7 @@
 
 配置结构：
 
-- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。
+- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。对象中 `default` 以外的键即变体：`/build app mac --dmg` 等同 `--target=dmg` 与 `--target dmg`；未登记的 `--<名称>`、多余位置参数或两个不同变体（含 `/private` 隐含的 `private`）一律 `STATUS=BLOCKED`，不静默忽略。
 - 本地服务：`devServer.commands.<start|restart|stop|status|logs>`；多 profile 在 `devServer.commands.<action>.<profile>` 精确声明。
 - 服务端构建与部署：`ops.commands.build` / `ops.commands.ship` / `ops.commands.cd`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
 - CI 与环境：`ops.commands.ciRun|ciStatus|envCheck|envStatus`，以及 `ops.workflows.ci`、`ops.healthCheck.<env>`。
