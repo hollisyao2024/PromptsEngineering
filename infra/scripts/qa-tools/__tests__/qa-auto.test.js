@@ -167,7 +167,7 @@ test('TC-QAUTO-003 TC-QAUTO-005 TC-QAUTO-006 CLI records a real closed loop in i
     const template = spawnSync(process.execPath, [script, '--template', 'xirang'], { cwd: wt, env, encoding: 'utf8' });
     assert.equal(template.status, 1);
     assert.match(template.stderr, /matching template source/);
-    const lockName = `qa-auto-${require('node:crypto').createHash('sha256').update(context.worktree).digest('hex').slice(0, 16)}`;
+    const lockName = `qa-auto-${require('node:crypto').createHash('sha256').update(path.resolve(context.worktree)).digest('hex').slice(0, 16)}`;
     const release = acquireLock(context.lockDir, lockName, 0);
     try {
       const concurrent = spawnSync(process.execPath, [script, '--project', '--task', 'auto', '--step', 'S1'], { cwd: wt, env, encoding: 'utf8', timeout: 10000 });

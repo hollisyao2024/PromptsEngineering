@@ -215,6 +215,8 @@ async function main(argv = process.argv.slice(2)) {
   if (argv.includes('--help') || argv.includes('-h')) { console.log(USAGE); return 0; }
   const options = parseArgs(argv);
   const context = runtimeContext();
+  // Git emits forward slashes on Windows; task state and path checks use native separators.
+  context.worktree = path.resolve(context.worktree);
   if (options.scope.startsWith('template:')) {
     const identity = context.config.template?.identity;
     if (context.config.template?.role !== 'source' || options.scope !== `template:${typeof identity === 'string' ? identity : identity?.id}`) throw new Error('template scope requires the matching template source repository');
