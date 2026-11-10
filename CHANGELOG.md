@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [v3.17.27] - 2026-11-11
+
 - 修复 Windows 上 `qa auto` 将已绑定的 linked worktree 误判为未绑定的问题。
 
 ## [v3.17.26] - 2026-11-11
