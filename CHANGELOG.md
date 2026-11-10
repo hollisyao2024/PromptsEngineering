@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.26] - 2026-11-11
+
+- 修复 Windows 上 `qa auto` 将已绑定的 linked worktree 误判为未绑定的问题。
+
 ## [v3.17.25] - 2026-11-11
 
 - 新增 `/env guard` 部署防回退就绪检查；更新息壤模板时同步报告缺口，不强制开启 `rollbackGuard`。
