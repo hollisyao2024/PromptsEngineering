@@ -36,7 +36,9 @@ const MAX_RETRY_ATTEMPTS = 10;
 const MAX_RETRY_DELAY_MS = 60_000;
 const VERDICT_SEVERITY = { NO_BASELINE: 0, PASS: 1, ROLLBACK: 2, DIVERGED: 3, UNKNOWN: 4, UNREADABLE: 5 };
 
-function resolveGuardConfig(config, env, target = '') {
+// action is the invoking shortcut (ship or cd); both share one scope, so one
+// lock and one deployed ref serialize every guarded deploy of an environment.
+function resolveGuardConfig(config, env, target = '', action = 'ship') {
   const raw = (config && config.ops && config.ops.rollbackGuard) || {};
   if (raw.enabled !== true) return { enabled: false };
   const environments = (Array.isArray(raw.environments) ? raw.environments : DEFAULT_ENVIRONMENTS)
@@ -81,7 +83,7 @@ function resolveGuardConfig(config, env, target = '') {
     retry: { delaysMs: [...delaysMs] },
     deployRef: `refs/xirang/deploy/${scope}`,
     lockRef: `refs/xirang/deploy-lock/${scope}`,
-    releaseCommand: profile ? `pnpm agent -- ${profile} ship ${env}` : `pnpm agent -- ship ${env}`,
+    releaseCommand: profile ? `pnpm agent -- ${profile} ${action} ${env}` : `pnpm agent -- ${action} ${env}`,
   };
 }
 
@@ -228,73 +230,79 @@ function executeGuardedShip({ git, guard, prepared, execute, readDeployed, now =
   const acquired = pushWithLease(git, { remote: guard.remote, ref: guard.lockRef, newSha: lock.sha, expected: '', retry: guard.retry });
   if (acquired.result === 'rejected') {
     lines.push('DEPLOY_LOCK=HELD');
-    return failure('DEPLOY_LOCKED', `another ${guard.scope} deployment acquired the lock first`, 'Rerun the ship to see the holder, then wait for it to finish.', lines);
+    return failure('DEPLOY_LOCKED', `another ${guard.scope} deployment acquired the lock first`, 'Rerun the deploy to see the holder, then wait for it to finish.', lines);
   }
   if (acquired.result !== 'ok') {
     lines.push('DEPLOY_LOCK=UNKNOWN', manualReleaseLine(guard, lock.sha));
     return failure('DEPLOY_LOCK_UNKNOWN', acquired.detail, 'Check the remote lock ref; if it holds this run\'s lock commit, release it with MANUAL_RELEASE_COMMAND before retrying.', lines);
   }
   lines.push('DEPLOY_LOCK=ACQUIRED', `DEPLOY_LOCK_SHA=${lock.sha}`);
+  // Any unexpected throw while holding the lease must not strand the lock:
+  // release it (the lease only deletes this run's own lock) and rethrow.
+  try {
+    const releaseThenFail = (code, reason, next, extra = {}) => {
+      lines.push(...releaseLock(git, guard, lock.sha).lines);
+      return failure(code, reason, next, lines, extra);
+    };
 
-  const releaseThenFail = (code, reason, next, extra = {}) => {
-    lines.push(...releaseLock(git, guard, lock.sha).lines);
-    return failure(code, reason, next, lines, extra);
-  };
+    const snapshot = fetchSnapshot(git, guard);
+    if (!snapshot.ok) {
+      lines.push('DEPLOY_VERDICT=UNREADABLE');
+      const fail = verdictFailure('UNREADABLE', guard, targetSha, snapshot.error);
+      return releaseThenFail(fail.code, fail.reason, fail.next);
+    }
+    if (snapshot.lockSha !== lock.sha) {
+      lines.push(manualReleaseLine(guard, lock.sha));
+      return failure('DEPLOY_LOCK_LOST', `the remote lock is ${snapshot.lockSha || 'absent'}, not this run's ${lock.sha}`, 'Do not deploy; inspect the lock ref and rerun the ship.', lines);
+    }
+    if (snapshot.deployedSha !== prepared.deployedSha) lines.push(`DEPLOYED_SHA=${snapshot.deployedSha || 'none'}`);
+    const live = readDeployed ? readDeployed() : null;
+    const evaluation = evaluate(git, snapshot.deployedSha, live, targetSha, lines);
+    lines.push(`DEPLOY_VERDICT=${evaluation.verdict}`);
+    const fail = verdictFailure(evaluation.verdict, guard, targetSha, evaluation.error);
+    if (fail && !(fail.overridable && prepared.allowRollback)) return releaseThenFail(fail.code, fail.reason, fail.next);
+    if (fail && !prepared.override) lines.push('DEPLOY_ROLLBACK_OVERRIDE=1');
 
-  const snapshot = fetchSnapshot(git, guard);
-  if (!snapshot.ok) {
-    lines.push('DEPLOY_VERDICT=UNREADABLE');
-    const fail = verdictFailure('UNREADABLE', guard, targetSha, snapshot.error);
-    return releaseThenFail(fail.code, fail.reason, fail.next);
-  }
-  if (snapshot.lockSha !== lock.sha) {
-    lines.push(manualReleaseLine(guard, lock.sha));
-    return failure('DEPLOY_LOCK_LOST', `the remote lock is ${snapshot.lockSha || 'absent'}, not this run's ${lock.sha}`, 'Do not deploy; inspect the lock ref and rerun the ship.', lines);
-  }
-  if (snapshot.deployedSha !== prepared.deployedSha) lines.push(`DEPLOYED_SHA=${snapshot.deployedSha || 'none'}`);
-  const live = readDeployed ? readDeployed() : null;
-  const evaluation = evaluate(git, snapshot.deployedSha, live, targetSha, lines);
-  lines.push(`DEPLOY_VERDICT=${evaluation.verdict}`);
-  const fail = verdictFailure(evaluation.verdict, guard, targetSha, evaluation.error);
-  if (fail && !(fail.overridable && prepared.allowRollback)) return releaseThenFail(fail.code, fail.reason, fail.next);
-  if (fail && !prepared.override) lines.push('DEPLOY_ROLLBACK_OVERRIDE=1');
+    const exitStatus = execute(targetSha);
+    if (exitStatus !== 0) {
+      return releaseThenFail('DEPLOY_COMMAND_FAILED', `command exited with ${exitStatus}`, 'Inspect RUN_DIR and the command output, then fix configuration or target environment.', { exitStatus });
+    }
 
-  const exitStatus = execute(targetSha);
-  if (exitStatus !== 0) {
-    return releaseThenFail('DEPLOY_COMMAND_FAILED', `command exited with ${exitStatus}`, 'Inspect RUN_DIR and the command output, then fix configuration or target environment.', { exitStatus });
-  }
+    if (readDeployed) {
+      const after = readDeployed();
+      if (!after.ok || after.sha !== targetSha) {
+        return releaseThenFail(
+          'DEPLOYED_STATE_MISMATCH',
+          `after deploy the live ${guard.scope} commit reads ${after.ok ? after.sha || 'none' : `unreadable (${after.error})`}, expected ${targetSha}`,
+          'Verify the environment; the deployed ref was not advanced.',
+        );
+      }
+    }
 
-  if (readDeployed) {
-    const after = readDeployed();
-    if (!after.ok || after.sha !== targetSha) {
+    const advanced = pushWithLease(git, { remote: guard.remote, ref: guard.deployRef, newSha: targetSha, expected: snapshot.deployedSha, retry: guard.retry });
+    if (advanced.result === 'unknown') {
+      lines.push('DEPLOY_REF_ADVANCE=UNKNOWN');
       return releaseThenFail(
-        'DEPLOYED_STATE_MISMATCH',
-        `after deploy the live ${guard.scope} commit reads ${after.ok ? after.sha || 'none' : `unreadable (${after.error})`}, expected ${targetSha}`,
-        'Verify the environment; the deployed ref was not advanced.',
+        'DEPLOY_REF_ADVANCE_UNKNOWN',
+        `the deploy succeeded but ${guard.deployRef} could not be advanced or confirmed (${advanced.detail})`,
+        `The environment runs ${targetSha}. When ${guard.remote} is reachable, rerun ${guard.releaseCommand} --sha=${targetSha} to record it; until then the live-version check still blocks rollbacks.`,
       );
     }
+    if (advanced.result !== 'ok') {
+      lines.push('DEPLOY_REF_ADVANCE=FAILED');
+      return releaseThenFail(
+        'DEPLOY_REF_CAS_FAILED',
+        `the deploy ran but ${guard.deployRef} changed under the lock (${advanced.detail || advanced.result})`,
+        'Someone wrote the deployed ref outside the protocol; verify what is live and repair the ref deliberately.',
+      );
+    }
+    lines.push('DEPLOY_REF_ADVANCE=OK');
+    lines.push(...releaseLock(git, guard, lock.sha).lines);
+    return { ok: true, lines };
+  } catch (error) {
+    releaseLock(git, guard, lock.sha);
+    throw error;
   }
-
-  const advanced = pushWithLease(git, { remote: guard.remote, ref: guard.deployRef, newSha: targetSha, expected: snapshot.deployedSha, retry: guard.retry });
-  if (advanced.result === 'unknown') {
-    lines.push('DEPLOY_REF_ADVANCE=UNKNOWN');
-    return releaseThenFail(
-      'DEPLOY_REF_ADVANCE_UNKNOWN',
-      `the deploy succeeded but ${guard.deployRef} could not be advanced or confirmed (${advanced.detail})`,
-      `The environment runs ${targetSha}. When ${guard.remote} is reachable, rerun ${guard.releaseCommand} --sha=${targetSha} to record it; until then the live-version check still blocks rollbacks.`,
-    );
-  }
-  if (advanced.result !== 'ok') {
-    lines.push('DEPLOY_REF_ADVANCE=FAILED');
-    return releaseThenFail(
-      'DEPLOY_REF_CAS_FAILED',
-      `the deploy ran but ${guard.deployRef} changed under the lock (${advanced.detail || advanced.result})`,
-      'Someone wrote the deployed ref outside the protocol; verify what is live and repair the ref deliberately.',
-    );
-  }
-  lines.push('DEPLOY_REF_ADVANCE=OK');
-  lines.push(...releaseLock(git, guard, lock.sha).lines);
-  return { ok: true, lines };
 }
 
 function releaseLockManually({ git, guard, lockSha }) {
@@ -312,7 +320,7 @@ function releaseLockManually({ git, guard, lockSha }) {
     return { ok: true, lines };
   }
   if (snapshot.lockSha !== lockSha) {
-    return failure('DEPLOY_LOCK_MISMATCH', `the remote lock is ${snapshot.lockSha}, not ${lockSha}`, 'Rerun the ship to see the current holder before releasing anything.', lines);
+    return failure('DEPLOY_LOCK_MISMATCH', `the remote lock is ${snapshot.lockSha}, not ${lockSha}`, 'Rerun the deploy to see the current holder before releasing anything.', lines);
   }
   const released = releaseLock(git, guard, lockSha);
   lines.push(...released.lines);

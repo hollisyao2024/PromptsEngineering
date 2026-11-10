@@ -571,3 +571,123 @@ test('ops-run blocks a guarded ship whose command cannot receive the pinned SHA'
   assert.match(result.stderr, /STATUS=BLOCKED/);
   assert.match(result.stderr, /\{source_args\}/);
 });
+
+// Shared helper for cd and signal cases: writes the given ops.commands and runs ops-run.
+function runGuardedCli(fx, args, commands) {
+  fs.writeFileSync(path.join(fx.a, 'agent.config.json'), `${JSON.stringify({
+    projectName: 'fixture',
+    ops: { commands, rollbackGuard: { enabled: true } },
+  }, null, 2)}\n`);
+  const container = path.join(fx.root, 'container');
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  return spawnSync(process.execPath, [path.join(repoRoot, 'infra/scripts/ops-tools/ops-run.js'), ...args], {
+    cwd: fx.a,
+    env: {
+      ...GIT_ENV,
+      AGENT_TMP_DIR: path.join(container, 'tmp'),
+      AGENT_CACHE_DIR: path.join(container, 'cache'),
+      AGENT_ARTIFACTS_DIR: path.join(container, 'artifacts'),
+      AGENT_OPS_DEPLOY_ENABLED: 'true',
+    },
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+}
+
+const ECHO_SHA = 'node -e "console.log(process.argv.slice(1).join(\' \'))" -- {source_args} {dry_run_arg}';
+
+test('resolveGuardConfig names the invoking action in the manual release command', () => {
+  const ops = { rollbackGuard: { enabled: true } };
+  assert.equal(resolveGuardConfig({ ops }, 'production', '').releaseCommand, 'pnpm agent -- ship production');
+  const cd = resolveGuardConfig({ ops }, 'production', '', 'cd');
+  assert.equal(cd.enabled, true);
+  assert.equal(cd.scope, 'production');
+  assert.equal(cd.deployRef, DEPLOY_REF);
+  assert.equal(cd.lockRef, LOCK_REF);
+  assert.equal(cd.releaseCommand, 'pnpm agent -- cd production');
+});
+
+test('ops-run cd is guarded and shares the deployed ref and lock with ship', (t) => {
+  const fx = setupFixture(t);
+  const commands = { ship: { production: ECHO_SHA }, cd: { production: ECHO_SHA } };
+  const dry = runGuardedCli(fx, ['--action=cd', '--env=production', '--dry-run'], commands);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /DEPLOY_GUARD=ENABLED/);
+  assert.match(dry.stdout, new RegExp(`SOURCE_ARGS=--sha=${fx.c3}`));
+
+  const real = runGuardedCli(fx, ['--action=cd', '--env=production'], commands);
+  assert.equal(real.status, 0, real.stderr);
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c3);
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+
+  // A ship of an older commit now sees the cd deployment as its baseline.
+  const shipOld = runGuardedCli(fx, ['--action=ship', '--env=production', `--sha=${fx.c1}`], commands);
+  assert.equal(shipOld.status, 1);
+  assert.match(shipOld.stderr, /CODE=DEPLOY_ROLLBACK_BLOCKED/);
+
+  // A held lock blocks cd as well, with a cd-shaped release command.
+  sh(fx.a, ['push', '-q', 'origin', `${fx.c1}:${LOCK_REF}`]);
+  const locked = runGuardedCli(fx, ['--action=cd', '--env=production'], commands);
+  assert.equal(locked.status, 1);
+  assert.match(locked.stderr, /CODE=DEPLOY_LOCKED/);
+  assert.match(locked.stdout, /MANUAL_RELEASE_COMMAND=pnpm agent -- cd production --release-lock=/);
+  const released = runGuardedCli(fx, ['--action=cd', '--env=production', `--release-lock=${fx.c1}`], commands);
+  assert.equal(released.status, 0, released.stderr);
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+});
+
+test('ops-run blocks a guarded cd whose command cannot receive the pinned SHA', (t) => {
+  const fx = setupFixture(t);
+  const result = runGuardedCli(fx, ['--action=cd', '--env=production', '--dry-run'], { cd: { production: 'node -e ""' } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.match(result.stderr, /\{source_args\}/);
+});
+
+test('an exception after the lock is taken releases the lock and is rethrown', (t) => {
+  const fx = setupFixture(t);
+  const guard = guardFor();
+  const git = gitIn(fx.a);
+  const prepared = prepareGuardedShip({ git, guard, baseBranch: 'main', now: Date.now() });
+  assert.throws(
+    () => executeGuardedShip({ git, guard, prepared, now: Date.now(), execute: () => { throw new Error('spawn exploded'); } }),
+    /spawn exploded/,
+  );
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), '');
+
+  const prepared2 = prepareGuardedShip({ git, guard, baseBranch: 'main', now: Date.now() });
+  assert.throws(
+    () => executeGuardedShip({
+      git, guard, prepared: prepared2, now: Date.now(), execute: () => 0,
+      readDeployed: () => { throw new Error('reader exploded'); },
+    }),
+    /reader exploded/,
+  );
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), '');
+});
+
+test('Ctrl+C during a guarded deploy fails the deploy and releases the lock instead of killing ops-run', { skip: process.platform === 'win32' }, (t) => {
+  const fx = setupFixture(t);
+  // The shell's parent is ops-run: simulate the terminal's SIGINT reaching both.
+  const result = runGuardedCli(fx, ['--action=ship', '--env=production'], { ship: { production: 'kill -INT $PPID; exit 130 # {source_args}' } });
+  assert.equal(result.signal, null, 'ops-run must not die from the signal');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /CODE=DEPLOY_COMMAND_FAILED/);
+  assert.match(result.stdout, /DEPLOY_LOCK_RELEASE=OK/);
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), '');
+});
+
+test('SIGTERM to ops-run while the deploy keeps running lets it finish, record the ref and release the lock', { skip: process.platform === 'win32' }, (t) => {
+  const fx = setupFixture(t);
+  const result = runGuardedCli(fx, ['--action=ship', '--env=production'], { ship: { production: 'kill -TERM $PPID; echo deployed {source_args}' } });
+  assert.equal(result.signal, null, 'ops-run must not die from the signal');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /DEPLOY_REF_ADVANCE=OK/);
+  assert.match(result.stdout, /DEPLOY_LOCK_RELEASE=OK/);
+  assert.match(result.stderr, /DEPLOY_SIGNAL_DEFERRED=SIGTERM/);
+  assert.equal(remoteRef(fx.remote, DEPLOY_REF), fx.c3);
+  assert.equal(remoteRef(fx.remote, LOCK_REF), '');
+});

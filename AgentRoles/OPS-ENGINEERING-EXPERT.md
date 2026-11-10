@@ -81,7 +81,7 @@
 - 显式 profile、平台或环境缺少命令时必须 `STATUS=BLOCKED`，禁止跨 profile、平台或环境回退。
 - `ops-run.js` 经环境变量 `AGENT_OPS_CALL_STACK` 向配置命令传递调用链；配置命令再次调用同一快捷命令（动作、平台、profile 与环境均相同）时输出 `STATUS=BLOCKED` 与 `CALL_STACK`，不递归执行；调用不同快捷命令仍允许。
 - `ship`/`cd` 的 `--sha=<40位小写SHA>` 或 `--source=<ref>` 经严格校验后只通过命令中的 `{source_args}` 占位符透传；命令未声明该占位符、值非法或同时提供两者时 `STATUS=BLOCKED`，禁止静默忽略。命令声明 `{dry_run_arg}` 时，`--dry-run` 以 `--dry-run` 执行该命令自身的无副作用校验（`DRY_RUN_MODE=DELEGATED`），否则只打印命令（`PRINT_ONLY`）。
-- `ops.rollbackGuard` 默认关闭；开启后 `ship` 在部署前执行防回退判定与跨电脑租约，细则见 Playbook §部署防回退与跨电脑租约。
+- `ops.rollbackGuard` 默认关闭；开启后 `ship` 与 `cd` 共用同一环境租约，在部署前执行防回退判定与跨电脑租约，持锁期间的中断与异常会释放锁，细则见 Playbook §部署防回退与跨电脑租约。
 - 客户端开发、发行构建、服务端产物构建与真实部署是四种副作用边界：开发启动、发行构建和真实部署的验收证据不得互相替代。
 
 ## 输出

@@ -1,6 +1,6 @@
 /**
- * Wires the deploy guard (deploy-guard.js) into the /ship stable entry so
- * ops-run.js only maps the outcome onto its STATUS/block protocol.
+ * Wires the deploy guard (deploy-guard.js) into the /ship and /cd stable
+ * entries so ops-run.js only maps the outcome onto its STATUS/block protocol.
  */
 
 const {
@@ -12,6 +12,27 @@ const {
   runReadDeployedCommand,
 } = require('./deploy-guard');
 
+const GUARDED_ACTIONS = new Set(['ship', 'cd']);
+// Termination signals a terminal or supervisor sends while the lease is held.
+// SIGKILL and power loss cannot be caught; those still need --release-lock.
+const DEFERRED_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+
+// Keeps a termination signal from killing the process while it holds the
+// deploy lease. The deploy runs synchronously, so the listener only fires once
+// the guarded run has finished: the deploy child (which gets the terminal's
+// SIGINT itself) decides the outcome, the lock is released on every path, and
+// the deferred signal is reported without overriding that outcome.
+function deferTerminationSignals(proc = process, write = (line) => console.error(line)) {
+  const listeners = DEFERRED_SIGNALS.map((signal) => {
+    const listener = () => write(`DEPLOY_SIGNAL_DEFERRED=${signal}`);
+    proc.on(signal, listener);
+    return [signal, listener];
+  });
+  return () => {
+    for (const [signal, listener] of listeners) proc.removeListener(signal, listener);
+  };
+}
+
 function fail(result) {
   return { reason: result.reason, next: result.next, code: result.code };
 }
@@ -21,7 +42,7 @@ function fail(result) {
 // { lines, failure? }; it returns null when the guard does not apply.
 function prepareShipGuard({ config, cli, action, env, target, rawCommand, repoRoot, dryRun, commandEnvFor, now = Date.now }) {
   const none = { lines: [], execute: () => null };
-  const guard = action === 'ship' ? resolveGuardConfig(config, env, target) : { enabled: false };
+  const guard = GUARDED_ACTIONS.has(action) ? resolveGuardConfig(config, env, target, action) : { enabled: false };
   if (guard.error) return { ...none, failure: { reason: guard.error, next: 'Fix ops.rollbackGuard in agent.config.json.' } };
   if (cli.releaseLock !== undefined && !guard.enabled) {
     return {
@@ -43,8 +64,8 @@ function prepareShipGuard({ config, cli, action, env, target, rawCommand, repoRo
     return {
       ...none,
       failure: {
-        reason: 'ops.rollbackGuard requires the ship command to declare {source_args} so the pinned commit is what gets deployed',
-        next: 'Add {source_args} to ops.commands.ship and accept --sha=<40-hex> in the deploy script, or disable ops.rollbackGuard.',
+        reason: `ops.rollbackGuard requires the ${action} command to declare {source_args} so the pinned commit is what gets deployed`,
+        next: `Add {source_args} to ops.commands.${action} and accept --sha=<40-hex> in the deploy script, or disable ops.rollbackGuard.`,
       },
     };
   }
@@ -75,10 +96,17 @@ function prepareShipGuard({ config, cli, action, env, target, rawCommand, repoRo
     },
     execute: (run) => {
       if (dryRun) return null;
+      // Listeners stay installed for the rest of the process: removing them
+      // before a pending signal is dispatched would restore the default
+      // action and kill the process after the lock was handled.
+      deferTerminationSignals();
       const executed = executeGuardedShip({ git, guard, prepared: guarded, readDeployed, now: now(), execute: run });
+      // Signal handles are unref'd, so without a pending callback the event
+      // loop would exit before dispatching a signal caught during the deploy.
+      setImmediate(() => {});
       return { lines: executed.lines, failure: executed.ok ? undefined : fail(executed) };
     },
   };
 }
 
-module.exports = { prepareShipGuard };
+module.exports = { deferTerminationSignals, prepareShipGuard };

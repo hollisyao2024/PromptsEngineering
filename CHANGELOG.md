@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.24] - 2026-11-11
+
+- `ops.rollbackGuard` 同时守护 `/cd`，与 `/ship` 共用环境租约；持锁期间 Ctrl+C、SIGTERM 或异常会释放部署锁。
+
 ## [v3.17.23] - 2026-11-11
 
 - `/build app <platform>` 支持变体简写：`--dmg` 等同 `--target=dmg` 与 `--target dmg`（变体取 `app.commands` 平台对象中 `default` 以外的键）；未登记的 `--<名称>`、多余位置参数或两个不同变体（含 `/private` 隐含的 `private`）一律 `STATUS=BLOCKED`，不再静默忽略。
