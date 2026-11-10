@@ -55,6 +55,7 @@
 - 维护健康检查脚本，覆盖：应用端点（`/api/health`）、数据库连通性、外部服务依赖
 - `/env check <env>` 执行指定环境的完整健康检查，实际命令来自 `agent.config.json ops.commands.envCheck` 或 `ops.healthCheck.<env>`
 - `/env status` 查看所有环境概览，实际命令来自 `agent.config.json ops.commands.envStatus`
+- `/env guard` 只读检查部署防回退就绪状态，内置实现、无需配置，见 §部署防回退与跨电脑租约
 - 未配置对应命令时输出 `STATUS=BLOCKED`；健康检查由 OPS 执行，QA 只读取结果作为发布建议输入
 
 ### 本地开发服务管理
@@ -99,6 +100,8 @@
 - 中断与异常：持锁期间捕获 SIGINT/SIGTERM/SIGHUP，进程不被直接杀死，部署结果由部署子进程决定（Ctrl+C 使其失败 → `DEPLOY_COMMAND_FAILED`、释放锁、非零退出），收到的信号以 `DEPLOY_SIGNAL_DEFERRED=<信号>` 报告；持锁后任何意外异常先释放本次锁再抛出。SIGKILL、崩溃、断电仍会遗留锁，需按 `LOCK_STALE` 与持有者核实后手动 `--release-lock`；租约无心跳续期，不自动夺锁。
 - 适用前提：受守护的 cd 命令必须同步等待部署完成后才退出，只触发流水线即返回会导致回读不符或 deploy ref 提前推进；绕过 agent 的部署只有配置 `readDeployedCommand` 才能被发现。
 - `--dry-run` 只读：取快照、判定、报告锁，不抢锁、不写 ref；回读命令只在 dry-run 预检和真实部署内执行。结果写入运行目录 `result.json` 的 `deploy_guard`。
+- 就绪检查：`pnpm agent -- env guard`（`/env guard`）只读，不改配置、不联网、不输出令牌值；「更新息壤模板」的 dry-run 与正式同步末尾也输出同一报告，检查失败只记 `UNKNOWN`、不影响同步结果，模板不代为开启开关。检查对象为 `environments` 内已配置的 ship（含 private 等 profile）与 cd 命令，输出 `DEPLOY_GUARD_READINESS`、`ROLLBACK_GUARD`、`DEPLOY_GUARD_TARGETS`、逐项 `DEPLOY_GUARD_GAP=<code>|<对象>|<说明>`、`DEPLOY_GUARD_WARN` 与 `DEPLOY_GUARD_NEXT`。缺口：`MISSING_SOURCE_ARGS`（命令缺 `{source_args}`）、`SHALLOW_CLONE`、`GH_TOKEN_MISSING`、`CONFIG_INVALID`；警告：`NO_READ_DEPLOYED_COMMAND`（只比对 deploy ref，带外部署无法发现）、`SHALLOW_NOT_EVALUATED`、`GH_TOKEN_NOT_EVALUATED`。结论：无受守护命令 `NOT_APPLICABLE`；无缺口 `READY`（未开启时提示开启）；开关关闭且有缺口 `NOT_READY`；开关已开且有缺口 `BLOCKED`（部署将被阻断）。独立命令仅 `BLOCKED`、`UNKNOWN` 非零退出。
+- 改造步骤：① 部署脚本接受 `--sha=<40位SHA>`（或读 `AGENT_DEPLOY_SHA`）并精确部署该提交，不再自行拉取最新代码；② 受守护环境的 `ops.commands.ship/cd` 加 `{source_args}`；③ 受守护的 cd 同步等待部署完成；④ 建议配置 `readDeployedCommand` 回读线上 SHA；⑤ 每台部署机为完整克隆，`.env.local` 的 `GH_TOKEN` 有 contents 写权限；⑥ `env guard` 为 `READY` 后开启 `enabled:true`，先在 staging 实部署确认 `DEPLOY_REF_ADVANCE=OK` 与 `DEPLOY_LOCK_RELEASE=OK`。
 
 ### 部署后验证
 1. **冒烟测试**（部署后立即执行）：

@@ -114,13 +114,14 @@ test('unified agent CLI routes cd, ci and env shortcuts to the OPS runner and li
     args: ['--action=env-check', '--env=staging'],
   });
   assert.deepEqual(resolveCommand(['env', 'status']), { script: runner, args: ['--action=env-status'] });
+  assert.deepEqual(resolveCommand(['env', 'guard']), { script: 'infra/scripts/ops-tools/deploy-guard-readiness.js', args: [] });
 
   assert.throws(() => resolveCommand(['cd']), /cd requires staging or production/u);
   assert.throws(() => resolveCommand(['ci']), /ci requires run or status/u);
   assert.throws(() => resolveCommand(['ci', 'deploy']), /ci requires run or status/u);
-  assert.throws(() => resolveCommand(['env']), /env requires check <env> or status/u);
-  assert.throws(() => resolveCommand(['env', 'check']), /env requires check <env> or status/u);
-  assert.throws(() => resolveCommand(['env', 'reset']), /env requires check <env> or status/u);
+  assert.throws(() => resolveCommand(['env']), /env requires check <env>, status or guard/u);
+  assert.throws(() => resolveCommand(['env', 'check']), /env requires check <env>, status or guard/u);
+  assert.throws(() => resolveCommand(['env', 'reset']), /env requires check <env>, status or guard/u);
   // The OPS runner has no private profile for cd/ci/env, so the private prefix keeps rejecting them.
   for (const action of ['cd', 'ci', 'env']) {
     assert.throws(() => resolveCommand(['private', action, 'staging']), /private requires/u);
