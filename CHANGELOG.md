@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
+- 修复 Windows 上 `qa auto` 将已绑定的 linked worktree 误判为未绑定的问题。
+
 ## [v3.17.26] - 2026-11-11
 
-- 修复 Windows 上 `qa auto` 将已绑定的 linked worktree 误判为未绑定的问题。
+- 修复作业包误分发依赖架构源码的测试，避免仅安装作业包的项目 QA 加载失败。
 
 ## [v3.17.25] - 2026-11-11
 

@@ -6,7 +6,7 @@ const path = require('node:path');
 const { buildRuntimeAssets } = require('../../../../tooling/xirang/architecture-kit');
 const { createTemplatePlan } = require('../../../../tooling/xirang/template');
 const { createArchitecturePlan } = require('../../../../architecture/scripts/project');
-const { applyPlan, readLock } = require('../../../../tooling/xirang/engine');
+const { applyPlan, planUpdate, readLock } = require('../../../../tooling/xirang/engine');
 const source = path.resolve(__dirname, '../../../..');
 const version = JSON.parse(fs.readFileSync(path.join(source, 'infra/templates/agent/template.manifest.json'), 'utf8')).templateVersion;
 function fixture(t) {
@@ -44,4 +44,23 @@ test('RUL-BASE-010 custom manifests freeze the canonical engine version before w
   fs.writeFileSync(canonical, JSON.stringify({ templateVersion: '7.0.1' }));
   assert.throws(() => applyPlan(plan, f), /source.*(changed|drift)|input.*(changed|drift)/i);
   assert.deepEqual(fs.readdirSync(f.target), []);
+});
+
+test('the architecture source test stays upstream and an unmodified copy from an older install is removed', t => {
+  const f = fixture(t);
+  const relative = 'infra/scripts/setup/__tests__/shared-engine-version.test.js';
+  const installedPath = path.join(f.target, relative);
+  const initial = createTemplatePlan({ source, target: f.target, scope: 'agent' });
+  assert.ok(!initial.changes.includes(relative), 'fresh projects must not receive the source test');
+
+  const content = fs.readFileSync(path.join(source, relative), 'utf8');
+  applyPlan(planUpdate({
+    target: f.target,
+    assets: [{ path: relative, content, strategy: 'overwrite', owner: 'agent', version: '3.17.25' }],
+  }), f);
+  const upgrade = createTemplatePlan({ source, target: f.target, scope: 'agent' });
+  assert.equal(upgrade.entries.find(entry => entry.path === relative)?.after, null);
+  applyPlan(upgrade, f);
+  assert.equal(fs.existsSync(installedPath), false);
+  assert.equal(readLock(f.target).files[relative], undefined);
 });

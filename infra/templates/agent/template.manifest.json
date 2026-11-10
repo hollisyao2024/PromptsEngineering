@@ -413,6 +413,11 @@
       "strategy": "overwrite"
     },
     {
+      "path": "infra/scripts/setup/__tests__/shared-engine-version.test.js",
+      "strategy": "remove",
+      "reason": "source-only integration test requires the full architecture source package"
+    },
+    {
       "path": "infra/templates",
       "strategy": "overwrite"
     },
