@@ -565,3 +565,13 @@ test('/tdd sync collects changed files after the base sync and passes the CLI fl
   assert.ok(collectAt < main.indexOf('runProjectChecks(config, projectCheckOptions)'));
   assert.match(main, /parseProjectCheckFlags\(argv\)/);
 });
+
+// AC4 codemap-stable-timestamp：codemap 未改写文件时，tdd sync 不应再提示“tdd push 会自动提交并改变 HEAD”。
+test('AC4 codemap-stable-timestamp: the HEAD-change notice follows the codemap status', () => {
+  const { codemapChangedFromOutput } = require('../tdd-sync');
+  assert.equal(codemapChangedFromOutput('✅ ...\nCODEMAP_STATUS=UNCHANGED\n'), false);
+  assert.equal(codemapChangedFromOutput('CODEMAP_STATUS=UPDATED\n'), true);
+  assert.equal(codemapChangedFromOutput('CODEMAP_STATUS=CREATED\n'), true);
+  // 无法识别状态时保守提示，宁可多提醒也不漏掉 HEAD 变化
+  assert.equal(codemapChangedFromOutput(''), true);
+});

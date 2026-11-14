@@ -436,6 +436,33 @@ function emptyMapWarning({ indexedFileCount, scanDirs, root = ROOT }) {
   return `CODEMAP_EMPTY=未索引到任何文件；扫描目录: ${scanDirs.join(', ')}；不存在: ${missing.join(', ') || '(无)'}。请在 agent.config.json 配置 codemap.scanDirs / includePatterns / groups`;
 }
 
+// 时间戳是地图里唯一随运行变化的部分。只把 "Last updated: <时间>" 本身当作噪声，同一行的
+// Indexed files / Key entries / Scanned 仍参与比较；CRLF 视同 LF，避免 Windows 检出被误判为改动。
+const TIMESTAMP_PATTERN = /^(> Last updated: )[^|\n]*?( \|)/m;
+function normalizeCodemapForCompare(content) {
+  return String(content).replace(/\r\n/g, '\n').replace(TIMESTAMP_PATTERN, '$1<timestamp>$2');
+}
+
+// 内容未变时保留原文件（含旧时间戳），否则每次 tdd sync 都会弄脏工作区，tdd push 自动提交后 HEAD 改变，
+// 绑定旧 HEAD 的 TEST_SCOPE_RESULT 与 qa run 证据随之失效。返回 CREATED | UPDATED | UNCHANGED。
+function writeCodemapIfChanged(outputPath, content, fsImpl = fs) {
+  let existing = null;
+  try {
+    existing = fsImpl.readFileSync(outputPath, 'utf8');
+  } catch (error) {
+    // 只有“文件不存在”可以直接新建；目录占位、权限不足等错误必须暴露，不能静默覆盖或吞掉
+    if (!error || error.code !== 'ENOENT') {
+      throw new Error(`读取现有 ${path.basename(outputPath)} 失败（${outputPath}）：${error && error.message}`);
+    }
+  }
+  if (existing !== null && normalizeCodemapForCompare(existing) === normalizeCodemapForCompare(content)) {
+    return 'UNCHANGED';
+  }
+  fsImpl.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fsImpl.writeFileSync(outputPath, content, 'utf8');
+  return existing === null ? 'CREATED' : 'UPDATED';
+}
+
 function main() {
   const scope = parseArgs(process.argv.slice(2));
   const config = loadConfig({ repoRoot: ROOT });
@@ -454,15 +481,16 @@ function main() {
   // 生成内容
   const { output: content, indexedFileCount, keyEntryCount } = generateMap(files, options);
 
-  // 确保输出目录存在
-  const outputDir = path.dirname(OUTPUT);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  // 仅在内容变化（或文件缺失）时写入；输出目录由 writeCodemapIfChanged 按需创建
+  const status = writeCodemapIfChanged(OUTPUT, content);
+
+  const relOutput = path.relative(ROOT, OUTPUT);
+  if (status === 'UNCHANGED') {
+    console.log(`✅ Codebase Map 无变化，保留原文件: ${relOutput} (${keyEntryCount} key entries, ${files.length} files)`);
+  } else {
+    console.log(`✅ Codebase Map 已生成: ${relOutput} (${keyEntryCount} key entries, ${files.length} files)`);
   }
-
-  fs.writeFileSync(OUTPUT, content, 'utf8');
-
-  console.log(`✅ Codebase Map 已生成: ${path.relative(ROOT, OUTPUT)} (${keyEntryCount} key entries, ${files.length} files)`);
+  console.log(`CODEMAP_STATUS=${status}`);
   const warning = emptyMapWarning({ indexedFileCount, scanDirs: options.scanDirs });
   if (warning) console.warn(warning);
   if (scope === 'session') {
@@ -491,5 +519,7 @@ module.exports = {
   selectFilesForScope,
   parseFile,
   generateMap,
+  normalizeCodemapForCompare,
+  writeCodemapIfChanged,
   main,
 };

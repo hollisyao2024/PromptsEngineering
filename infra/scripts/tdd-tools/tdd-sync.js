@@ -406,6 +406,13 @@ function syncDependencies({ repoRoot: cwd, config, bootstrap = runWorktreeBootst
   return { status, reason: result.reason || '' };
 }
 
+// generate-codemap 在内容未变时输出 CODEMAP_STATUS=UNCHANGED 且不改写文件，此时 tdd push 不会因地图改变 HEAD。
+// 读不到状态行（旧版脚本或输出异常）时保守地视为已改动，宁可多提示也不漏掉 HEAD 变化。
+function codemapChangedFromOutput(stdout) {
+  const match = /^CODEMAP_STATUS=(\w+)\s*$/m.exec(String(stdout || ''));
+  return !match || match[1] !== 'UNCHANGED';
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (isHelp(argv)) {
@@ -484,13 +491,15 @@ NEXT_ACTION=${error.nextAction}`);
   // tdd-tick 成功后自动生成 Codebase Map（非阻塞）
   if (result.status === 0) {
     const codemapScript = path.join(__dirname, 'generate-codemap.js');
+    // stdout 需要读取 CODEMAP_STATUS，因此改为 pipe 后原样转发；stderr 仍直接继承
     const codemapResult = spawnSync(process.execPath, [codemapScript, `--scope=${scope}`], {
       encoding: 'utf8',
-      stdio: 'inherit'
+      stdio: ['inherit', 'pipe', 'inherit']
     });
-    if (codemapResult.status !== 0) {
+    if (codemapResult.stdout) process.stdout.write(codemapResult.stdout);
+    if (codemapResult.error || codemapResult.status !== 0) {
       console.warn('⚠️  Codebase Map 生成失败（不影响 sync 结果）');
-    } else {
+    } else if (codemapChangedFromOutput(codemapResult.stdout)) {
       console.log('ℹ️  Codebase Map 改动留在工作区，tdd push 会自动提交并改变 HEAD；TEST_SCOPE_RESULT 与 qa run 请在 tdd push 之后基于最终 HEAD 记录/运行。');
     }
   }
@@ -501,6 +510,7 @@ NEXT_ACTION=${error.nextAction}`);
 if (require.main === module) main();
 
 module.exports = {
+  codemapChangedFromOutput,
   collectChangedFiles,
   createPnpmRunInvocation,
   parseProjectCheckFlags,
