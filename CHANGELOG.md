@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.29] - 2026-11-14
+
+- 修复 `AGENTS.md` 超出 180 行上限导致 template-surface 测试失败：只合并换行与段落，规则语义不变。
+
 ## [v3.17.28] - 2026-11-14
 
 - 新增可选 `task.remote` 跨电脑任务登记：`task start` CAS 登记、`takeover` 夺取、`remote list` 看板，失权时阻断推送与合并。
