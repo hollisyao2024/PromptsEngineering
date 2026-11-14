@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.33] - 2026-11-15
+
+- codemap 内容未变时不再改写 CODEBASE_MAP.md，tdd sync 不再仅因时间戳弄脏工作区、改变 HEAD。
+
 ## [v3.17.32] - 2026-11-15
 
 - tdd sync 项目硬门禁按变更范围筛选并输出逐项耗时，required 失败即停；无 checkCommand 时依赖戳新鲜跳过重装。
