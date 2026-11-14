@@ -63,6 +63,13 @@ function lastLine(text) {
   return lines.length > 0 ? lines[lines.length - 1] : '';
 }
 
+// git prints its diagnosis on a fatal:/error: line and may follow it with hint
+// lines (e.g. "and the repository exists."); report the diagnosis, else the last line.
+function gitErrorLine(text) {
+  const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.find((line) => /^(fatal|error):/i.test(line)) || (lines.length > 0 ? lines[lines.length - 1] : '');
+}
+
 function revParse(git, ref) {
   const result = git(['rev-parse', '--verify', '-q', ref]);
   const sha = result.stdout.trim();
@@ -95,7 +102,7 @@ function fetchSnapshot(git, guard) {
     return { done: result.status === 0, result };
   });
   if (fetched.status !== 0) {
-    return { ok: false, error: `git fetch ${remote} failed: ${lastLine(fetched.stderr) || `exit ${fetched.status}`}` };
+    return { ok: false, error: `git fetch ${remote} failed: ${gitErrorLine(fetched.stderr) || `exit ${fetched.status}`}` };
   }
   return {
     ok: true,
@@ -144,7 +151,7 @@ function parsePushPorcelain(stdout, ref) {
 
 function lsRemote(git, remote, ref) {
   const result = git(['ls-remote', remote, ref]);
-  if (result.status !== 0) return { ok: false, error: lastLine(result.stderr) };
+  if (result.status !== 0) return { ok: false, error: gitErrorLine(result.stderr) };
   const line = result.stdout.split(/\r?\n/).find((entry) => entry.split('\t')[1] === ref);
   return { ok: true, sha: line ? line.split('\t')[0] : '' };
 }
@@ -221,6 +228,7 @@ module.exports = {
   createGitRunner,
   createLockCommit,
   fetchSnapshot,
+  gitErrorLine,
   lastLine,
   lsRemote,
   parsePushPorcelain,

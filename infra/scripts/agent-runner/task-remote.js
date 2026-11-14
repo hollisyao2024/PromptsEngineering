@@ -20,6 +20,7 @@ const { DEFAULT_CONFIG, deepMerge } = require('../shared/config');
 const {
   FULL_SHA,
   createGitRunner,
+  gitErrorLine,
   lastLine,
   pushWithLease,
 } = require('../ops-tools/deploy-guard-git');
@@ -238,7 +239,7 @@ function fetchTasks(git, cfg) {
     return { done: fetched.status === 0, result: fetched };
   });
   if (result.status !== 0) {
-    return { ok: false, error: `git fetch ${cfg.remote} failed: ${lastLine(result.stderr) || `exit ${result.status}`}` };
+    return { ok: false, error: `git fetch ${cfg.remote} failed: ${gitErrorLine(result.stderr) || `exit ${result.status}`}` };
   }
   return { ok: true };
 }
@@ -417,7 +418,9 @@ function takeoverTask({ git, cfg, taskId, identity, reason, force = false, branc
     }
   }
   const epoch = current ? current.epoch + 1 : 1;
-  const previousHolder = current ? {
+  // 只有替换活跃持有者（或无法判读的记录）才是夺取并隔离前任；无登记或已 done/released 只是补登记。
+  const fenced = Boolean(read.invalid) || Boolean(current && ACTIVE_STATES.has(current.state));
+  const previousHolder = fenced && current ? {
     machineId: current.holder.machineId,
     host: safeText(current.holder.host),
     user: safeText(current.holder.user),
@@ -428,10 +431,11 @@ function takeoverTask({ git, cfg, taskId, identity, reason, force = false, branc
   } : null;
   const record = buildRecord({
     taskId, epoch, state: 'claimed', event: 'takeover', identity, branch, phase, cfg, now,
-    extra: { previousHolder, reason: why },
+    extra: previousHolder ? { previousHolder, reason: why } : { reason: why },
   });
   const written = writeRecord(git, cfg, taskId, record, read.sha, now);
   if (written.result !== 'ok') return writeFailure(written, { taskId, cfg, blocked: true });
+  if (!fenced) return makeResult('REGISTERED', { taskId, cfg, blocked: false, record, stale: false });
   return makeResult('TAKEN_OVER', { taskId, cfg, blocked: false, record, stale: false, extra: { previousHolder } });
 }
 
@@ -462,6 +466,36 @@ function listRemoteTasks({ git, cfg, now = Date.now() }) {
   }
   tasks.sort((left, right) => left.taskId.localeCompare(right.taskId));
   return { ok: true, tasks };
+}
+
+/**
+ * task remote prune：清理已结束（done/released）的登记。默认只预览；apply 时逐条以本次快照 SHA 为
+ * lease 删除，期间被重新领取或改写的登记会被拒绝并保留。活跃与无法判读的登记一律不动。
+ * entries[].action：would_delete|deleted|keep_active|keep_invalid|rejected|unknown。
+ */
+function pruneRemoteTasks({ git, cfg, apply = false, now = Date.now() }) {
+  const listed = listRemoteTasks({ git, cfg, now });
+  if (!listed.ok) return { ok: false, error: listed.error, entries: [] };
+  const entries = listed.tasks.map((task) => {
+    const base = {
+      taskId: task.taskId,
+      state: task.record ? task.record.state : '',
+      epoch: task.record ? task.record.epoch : '',
+    };
+    if (task.invalid || !task.record) return { ...base, action: 'keep_invalid', detail: safeText(task.invalid || 'record missing') };
+    if (ACTIVE_STATES.has(task.record.state)) return { ...base, action: 'keep_active' };
+    if (!apply) return { ...base, action: 'would_delete' };
+    const pushed = pushWithLease(git, {
+      remote: cfg.remote,
+      ref: taskRemoteRef(task.taskId),
+      newSha: '',
+      expected: task.sha,
+      retry: cfg.retry,
+    });
+    if (pushed.result === 'ok') return { ...base, action: 'deleted' };
+    return { ...base, action: pushed.result === 'rejected' ? 'rejected' : 'unknown', detail: safeText(pushed.detail || '') };
+  });
+  return { ok: true, entries };
 }
 
 function normalizeBinding(binding) {
@@ -718,6 +752,7 @@ module.exports = {
   finalizeRemoteTask,
   formatRemoteLines,
   listRemoteTasks,
+  pruneRemoteTasks,
   registerTaskStart,
   remoteBindingOf,
   remoteNextAction,

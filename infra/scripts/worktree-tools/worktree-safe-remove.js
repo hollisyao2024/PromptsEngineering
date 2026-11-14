@@ -357,9 +357,46 @@ function printDryRunPlan({ action, found, sessions = [], planned, preflight }) {
   console.log(`NEXT_ACTION=${blocked ? 'Resolve WOULD_BLOCK before running' : 'Rerun'} without --dry-run to apply.`);
 }
 
+/**
+ * 删除 worktree 后清理其 QA 回执（键为 worktree 路径的哈希）。
+ * keyPaths 应同时包含 git 登记路径与删除前解析的真实路径，覆盖 qa verify 以任一写法生成的键。
+ * 清理失败只输出警告，不改变已完成的删除结果。
+ */
+function removeQaReceiptsForWorktree(config, mainRoot, keyPaths, log = console.log) {
+  // 延迟加载：仅实删路径需要回执模块，dry-run 与帮助输出不受影响。
+  const { getQaVerificationReceiptPath, removeQaVerificationReceipt } = require('../qa-tools/qa-verification-state');
+  let removed = 0;
+  try {
+    const receiptPaths = new Set();
+    for (const keyPath of keyPaths.filter(Boolean)) {
+      const receiptPath = getQaVerificationReceiptPath(config, mainRoot, keyPath);
+      if (receiptPaths.has(receiptPath)) continue;
+      receiptPaths.add(receiptPath);
+      if (!fs.existsSync(receiptPath)) continue;
+      removeQaVerificationReceipt(config, mainRoot, keyPath);
+      removed += 1;
+    }
+    log(`QA_RECEIPT=${removed > 0 ? 'REMOVED' : 'NONE'}`);
+  } catch (error) {
+    log(`QA_RECEIPT_WARNING=QA verification receipt cleanup failed: ${String(error && error.message || error).replace(/[\r\n]+/g, ' ')}`);
+  }
+  return removed;
+}
+
+/** 删除前解析真实路径；失败时返回空串，由调用方只按登记路径清理。 */
+function realpathOrEmpty(target) {
+  try {
+    return fs.realpathSync(target);
+  } catch (_error) {
+    return '';
+  }
+}
+
 module.exports = {
   isPathInside,
   printDryRunPlan,
+  realpathOrEmpty,
+  removeQaReceiptsForWorktree,
   retryWritable,
   isSamePath,
   parseWorktreePorcelain,

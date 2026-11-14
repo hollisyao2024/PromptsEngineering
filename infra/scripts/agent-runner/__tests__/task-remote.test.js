@@ -17,6 +17,7 @@ const {
   finalizeRemoteTask,
   formatRemoteLines,
   listRemoteTasks,
+  pruneRemoteTasks,
   registerTaskStart,
   remoteBindingOf,
   remoteNextAction,
@@ -258,7 +259,8 @@ test('AC3 登记过期后 takeover 免 --force；无登记时 takeover 直接领
   const fresh = takeoverTask({
     git: fx.gitB, cfg: cfgFor(), taskId: 'other-task', identity: MACHINE_B, reason: '补登记', now: T0,
   });
-  assert.equal(fresh.status, 'TAKEN_OVER');
+  // task-remote-polish AC2：没有活跃前任时只是补登记，不是夺取。
+  assert.equal(fresh.status, 'REGISTERED');
   assert.equal(fresh.epoch, 1);
 });
 
@@ -476,4 +478,137 @@ test('AC1 qa merge 远端门禁阻断时输出按状态生成的 NEXT_ACTION', (
   const nextAt = source.indexOf('NEXT_ACTION=${remoteNextAction(remoteClaim)}', blockedAt);
   assert.ok(blockedAt > gate && throwAt > blockedAt, 'qa-merge.js remote gate block must exist');
   assert.ok(nextAt > blockedAt && nextAt < throwAt, 'NEXT_ACTION must be printed before the gate throws');
+});
+
+// ---------------------------------------------------------------------------
+// task-remote-polish：期望值取自任务 task-remote-polish 的验收项 AC1-AC4。
+
+// 以原始提交消息直接写入登记 ref，用于构造损坏记录。
+function pushRawRecord(cwd, ref, message) {
+  const tree = spawnSync('git', ['mktree'], { cwd, env: GIT_ENV, encoding: 'utf8', input: '' });
+  assert.equal(tree.status, 0, tree.stderr);
+  const commit = sh(cwd, ['commit-tree', tree.stdout.trim(), '-m', message]);
+  sh(cwd, ['push', '-q', 'origin', `${commit}:${ref}`]);
+}
+
+function finalizeOn(fx, taskId, state) {
+  startOn(fx.gitA, MACHINE_A, { taskId });
+  const binding = { ref: taskRemoteRef(taskId), remote: 'origin', epoch: 1, machine_id: MACHINE_A.machineId };
+  const done = finalizeRemoteTask({ git: fx.gitA, cfg: cfgFor(), taskId, binding, identity: MACHINE_A, state, now: T0 + 100 });
+  assert.match(done.status, /^(DONE|RELEASED)$/u);
+}
+
+function seedPruneFixture(t) {
+  const fx = setupFixture(t);
+  finalizeOn(fx, 'done-task', 'done');
+  finalizeOn(fx, 'released-task', 'released');
+  startOn(fx.gitA, MACHINE_A, { taskId: 'active-task' });
+  pushRawRecord(fx.a, 'refs/xirang/task/broken-task', 'not json');
+  return fx;
+}
+
+function actionsOf(result) {
+  return Object.fromEntries(result.entries.map((entry) => [entry.taskId, entry.action]));
+}
+
+test('polish-AC1 fetch 失败时错误取首个 fatal 行，而不是 stderr 末行', (t) => {
+  const fx = setupFixture(t);
+  sh(fx.b, ['remote', 'set-url', 'origin', path.join(fx.root, 'missing.git')]);
+  const listed = listRemoteTasks({ git: fx.gitB, cfg: cfgFor(), now: T0 });
+  assert.equal(listed.ok, false);
+  assert.match(listed.error, /does not appear to be a git repository/u);
+  assert.doesNotMatch(listed.error, /and the repository exists/u);
+  const started = startOn(fx.gitB, MACHINE_B);
+  assert.equal(started.status, 'UNKNOWN');
+  assert.match(started.detail, /does not appear to be a git repository/u);
+});
+
+test('polish-AC2 对已完成/已释放登记 takeover：REGISTERED、epoch+1、不记录 previousHolder', (t) => {
+  const fx = setupFixture(t);
+  finalizeOn(fx, 'shared-task', 'done');
+  const claimed = takeoverTask({
+    git: fx.gitB, cfg: cfgFor(), taskId: 'shared-task', identity: MACHINE_B, reason: '接手收尾', now: T0 + 1000,
+  });
+  assert.equal(claimed.status, 'REGISTERED');
+  assert.equal(claimed.epoch, 2);
+  assert.equal(claimed.previousHolder, undefined);
+  const record = remoteRecord(fx.remote, 'refs/xirang/task/shared-task');
+  assert.equal(record.holder.machineId, MACHINE_B.machineId);
+  assert.equal(record.state, 'claimed');
+  assert.equal(record.previousHolder, undefined);
+  assert.equal(record.reason, '接手收尾');
+  assert.deepEqual(remoteBindingOf(claimed, cfgFor()), {
+    ref: 'refs/xirang/task/shared-task', remote: 'origin', epoch: 2, machine_id: MACHINE_B.machineId,
+  });
+});
+
+test('polish-AC2 夺取活跃持有者仍为 TAKEN_OVER 并记录 previousHolder', (t) => {
+  const fx = setupFixture(t);
+  startOn(fx.gitA, MACHINE_A);
+  const taken = takeoverTask({
+    git: fx.gitB, cfg: cfgFor(), taskId: 'shared-task', identity: MACHINE_B, reason: 'A 离线', force: true, now: T0 + 10,
+  });
+  assert.equal(taken.status, 'TAKEN_OVER');
+  assert.equal(taken.previousHolder.machineId, MACHINE_A.machineId);
+});
+
+test('polish-AC4 prune 默认只预览：列出 done/released 为 would_delete，远端不变', (t) => {
+  const fx = seedPruneFixture(t);
+  const refs = ['done-task', 'released-task', 'active-task', 'broken-task'].map((id) => `refs/xirang/task/${id}`);
+  const before = refs.map((ref) => remoteRefSha(fx.remote, ref));
+  const preview = pruneRemoteTasks({ git: fx.gitB, cfg: cfgFor(), apply: false, now: T0 + 1000 });
+  assert.equal(preview.ok, true);
+  assert.deepEqual(actionsOf(preview), {
+    'active-task': 'keep_active',
+    'broken-task': 'keep_invalid',
+    'done-task': 'would_delete',
+    'released-task': 'would_delete',
+  });
+  assert.deepEqual(refs.map((ref) => remoteRefSha(fx.remote, ref)), before);
+});
+
+test('polish-AC4 prune --apply 只删除 done/released，活跃与损坏登记保留', (t) => {
+  const fx = seedPruneFixture(t);
+  const applied = pruneRemoteTasks({ git: fx.gitB, cfg: cfgFor(), apply: true, now: T0 + 1000 });
+  assert.equal(applied.ok, true);
+  assert.deepEqual(actionsOf(applied), {
+    'active-task': 'keep_active',
+    'broken-task': 'keep_invalid',
+    'done-task': 'deleted',
+    'released-task': 'deleted',
+  });
+  assert.equal(remoteRefSha(fx.remote, 'refs/xirang/task/done-task'), '');
+  assert.equal(remoteRefSha(fx.remote, 'refs/xirang/task/released-task'), '');
+  assert.notEqual(remoteRefSha(fx.remote, 'refs/xirang/task/active-task'), '');
+  assert.notEqual(remoteRefSha(fx.remote, 'refs/xirang/task/broken-task'), '');
+  const listed = listRemoteTasks({ git: fx.gitB, cfg: cfgFor(), now: T0 + 1000 });
+  assert.deepEqual(listed.tasks.map((entry) => entry.taskId), ['active-task', 'broken-task']);
+});
+
+test('polish-AC4 prune --apply 以快照 lease 删除：期间被重新领取的登记拒绝删除并保留', (t) => {
+  const fx = setupFixture(t);
+  finalizeOn(fx, 'done-task', 'done');
+  let raced = false;
+  const racingGit = (args, options) => {
+    if (!raced && args[0] === 'push') {
+      raced = true;
+      const again = startOn(fx.gitA, MACHINE_A, { taskId: 'done-task', now: T0 + 500 });
+      assert.equal(again.status, 'REGISTERED');
+    }
+    return fx.gitB(args, options);
+  };
+  const applied = pruneRemoteTasks({ git: racingGit, cfg: cfgFor(), apply: true, now: T0 + 1000 });
+  assert.deepEqual(actionsOf(applied), { 'done-task': 'rejected' });
+  const record = remoteRecord(fx.remote, 'refs/xirang/task/done-task');
+  assert.equal(record.state, 'claimed');
+  assert.equal(record.epoch, 2);
+});
+
+test('polish-AC4 prune 拉取失败时 ok=false 且不删除任何登记', (t) => {
+  const fx = seedPruneFixture(t);
+  sh(fx.b, ['remote', 'set-url', 'origin', path.join(fx.root, 'missing.git')]);
+  const applied = pruneRemoteTasks({ git: fx.gitB, cfg: cfgFor(), apply: true, now: T0 + 1000 });
+  assert.equal(applied.ok, false);
+  assert.match(applied.error, /does not appear to be a git repository/u);
+  assert.notEqual(remoteRefSha(fx.remote, 'refs/xirang/task/done-task'), '');
 });

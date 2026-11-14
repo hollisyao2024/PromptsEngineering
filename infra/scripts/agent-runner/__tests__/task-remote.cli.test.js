@@ -211,3 +211,61 @@ test('AC2 CLI：warn 模式下他机持有只告警，本地任务照常创建�
   assert.equal(JSON.parse(fs.readFileSync(b.statePath, 'utf8')).remote, undefined);
   assert.equal(remoteRecord(remote).holder.machineId, 'machine-aaaa');
 });
+
+// ---------------------------------------------------------------------------
+// task-remote-polish：期望值取自任务 task-remote-polish 的验收项 AC2、AC4。
+
+test('polish-AC2 CLI：无活跃前任时 takeover 是补登记，输出 REGISTERED 且不提示 fenced', (t) => {
+  const { remote, a, b } = setupMachines(t, {
+    config: remoteConfig({ enabled: true, mode: 'warn', remoteRetryDelaysMs: [] }),
+  });
+  assert.equal(a.run(...startArgs()).status, 0);
+  // warn：B 本地照常建任务但未绑定登记。
+  assert.equal(b.run(...startArgs()).status, 0);
+  assert.equal(a.run('cancel', '--task', TASK, '--force').status, 0);
+  assert.equal(remoteRecord(remote).state, 'released');
+
+  const claimed = b.run('takeover', '--task', TASK, '--reason', '补登记');
+  assert.equal(claimed.status, 0, claimed.stderr);
+  const out = fields(claimed.stdout);
+  assert.equal(out.get('TASK_REMOTE_STATUS'), 'REGISTERED');
+  assert.doesNotMatch(out.get('NEXT_ACTION') || '', /fenced/u);
+  assert.equal(JSON.parse(fs.readFileSync(b.statePath, 'utf8')).remote.epoch, 2);
+  const record = remoteRecord(remote);
+  assert.equal(record.holder.machineId, 'machine-bbbb');
+  assert.equal(record.previousHolder, undefined);
+});
+
+test('polish-AC4 CLI：remote prune 默认预览，--apply 删除已完成登记并保留活跃登记', (t) => {
+  const { remote, a, b } = setupMachines(t);
+  assert.equal(a.run(...startArgs()).status, 0);
+  assert.equal(a.run('cancel', '--task', TASK, '--force').status, 0);
+  assert.equal(b.run('start', '--task', 'active-task', '--desc', 'x', '--type', 'operation', '--phase', 'tdd',
+    '--acceptance', 'done', '--step', 'do it').status, 0);
+
+  const preview = a.run('remote', 'prune');
+  assert.equal(preview.status, 0, preview.stderr);
+  const previewOut = fields(preview.stdout);
+  assert.equal(previewOut.get('STATUS'), 'DRY_RUN');
+  assert.match(preview.stdout, /^TASK_REMOTE_PRUNE=shared-task\|released\|1\|would_delete$/mu);
+  assert.match(preview.stdout, /^TASK_REMOTE_PRUNE=active-task\|claimed\|1\|keep_active$/mu);
+  assert.notEqual(remoteRecord(remote), null);
+
+  const applied = a.run('remote', 'prune', '--apply');
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.equal(fields(applied.stdout).get('STATUS'), 'OK');
+  assert.match(applied.stdout, /^TASK_REMOTE_PRUNE=shared-task\|released\|1\|deleted$/mu);
+  assert.equal(remoteRecord(remote), null);
+  const active = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/xirang/task/active-task'], { cwd: remote, env: BASE_ENV, encoding: 'utf8' });
+  assert.equal(active.status, 0);
+
+  const usage = a.run('remote', 'prune', '--bogus');
+  assert.notEqual(usage.status, 0);
+});
+
+test('polish-AC4 CLI：task.remote 关闭时 remote prune 输出 SKIPPED 且不访问远端', (t) => {
+  const { a } = setupMachines(t, { config: remoteConfig({ enabled: false }) });
+  const skipped = a.run('remote', 'prune', '--apply');
+  assert.equal(skipped.status, 0, skipped.stderr);
+  assert.equal(fields(skipped.stdout).get('STATUS'), 'SKIPPED');
+});
