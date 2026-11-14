@@ -77,7 +77,7 @@
 - 依赖用 `pnpm agent -- worktree bootstrap` 建立；不得跨 worktree 调脚本或共享依赖目录。
 - 在 Claude Desktop 创建的未受管 worktree（`<repo>/.claude/worktrees/<name>`）内执行 `worktree new` 时原地接管（`STATUS=ADOPTED`）：须工作区干净，required fetch 后无自有提交则重置到远端 base SHA，有自有提交且落后则阻断、不自动 rebase；分支改为规范名并在 session 写入 `provenance.origin=claude-desktop`。合并后清理仅对带匹配 provenance 的精确路径生效，未接管的 Desktop worktree 一律跳过。
 - 合并后清理由 session 封印和补偿器完成；存在未提交变更、HEAD 漂移或缺少封印时转为恢复状态，禁止删除。
-- 多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。
+- 多 worktree、多电脑可并行开发；本机 session 与锁只保护本机生命周期，不承担跨电脑互斥。跨电脑通过远端分支 SHA 复验和主干普通非强制 push 的非快进拒绝协调。项目开启 `task.remote` 后，`task start` 把持有者登记到远端 `refs/xirang/task/<id>`，他机用 `task remote list` 查看、`task takeover --reason` 夺取；`tdd push`/`qa merge` 对已失权的持有者一律阻断，细则见 `docs/CONVENTIONS.md` §6。
 
 ## 上下文预算与阶段交接
 

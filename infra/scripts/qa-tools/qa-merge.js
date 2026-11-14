@@ -1690,6 +1690,21 @@ async function main() {
       console.log('\x1b[33m跳过发布门禁检查 (模板源仓库跳过业务 QA 门禁)\x1b[0m');
     }
 
+    // 多机协作：合并前只读断言本机仍是该任务的远端持有者（不刷新心跳、不写远端）。
+    // task.remote 关闭时不访问远端；PR 已合并的恢复收尾不再拦截。
+    if (!resumedMerge) {
+      const { runtimeContext } = require('../agent-runner/agent-task');
+      const { enforceRemoteClaim, formatRemoteLines } = require('../agent-runner/task-remote');
+      const remoteClaim = enforceRemoteClaim({ context: runtimeContext(repoRoot) });
+      const remoteLines = formatRemoteLines(remoteClaim);
+      if (remoteClaim.blocked) {
+        console.log('STATUS=BLOCKED');
+        remoteLines.forEach((line) => console.log(line));
+        throw new Error(`任务远端登记门禁阻断（${remoteClaim.status}）：${remoteClaim.detail || '本机不是该任务的远端持有者'}`);
+      }
+      remoteLines.forEach((line) => console.log(line));
+    }
+
     const scopeLabel = args.scope === 'project' ? 'project（项目模式）' : 'session（会话模式）';
     console.log(`\x1b[36m/qa merge 作用域：${scopeLabel}。本次仅处理当前分支对应的 PR。\x1b[0m`);
 

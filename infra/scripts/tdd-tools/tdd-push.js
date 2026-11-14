@@ -402,6 +402,21 @@ async function main() {
       return;
     }
 
+    // 多机协作：推送前断言本机仍是该任务的远端持有者，并把登记刷新为 review。
+    // task.remote 关闭时直接返回 DISABLED，不访问远端；失权（TASK_CLAIM_LOST）在任何 mode 下都阻断。
+    {
+      const { runtimeContext } = require('../agent-runner/agent-task');
+      const { enforceRemoteClaim, formatRemoteLines } = require('../agent-runner/task-remote');
+      const remoteClaim = enforceRemoteClaim({
+        context: runtimeContext(repoRoot),
+        refresh: { state: 'review', branch },
+      });
+      formatRemoteLines(remoteClaim).forEach((line) => console.log(line));
+      if (remoteClaim.blocked) {
+        throw new Error(`任务远端登记门禁阻断（${remoteClaim.status}）：${remoteClaim.detail || '本机不是该任务的远端持有者'}`);
+      }
+    }
+
     // 推送前确定 GitHub 后端：gh 与 GH_TOKEN 都不可用时直接阻断，不留下无 PR 的推送
     const backend = createGitHubBackend({ remoteUrl: getRemoteUrl() });
     if (backend.mode === 'api') {
