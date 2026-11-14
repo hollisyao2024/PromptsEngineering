@@ -21,7 +21,6 @@
 - `node_modules` 必须在当前 worktree 独立建立，禁止链接到其他 worktree。
 
 状态各有唯一职责：
-
 - `../tmp/agent-task-runs/`：长任务断点状态，唯一事实来源是每个任务的 `state.json`。
 - `../tmp/worktree-sessions/`：分支、PR、QA、合并和清理运行态。
 
@@ -37,7 +36,6 @@
 ### 日常流程（默认）
 
 适用于既有需求内的缺陷修复、重构、测试、文档和工具维护：
-
 1. 只读诊断；需要修改时创建/恢复 worktree。
 2. 激活 TDD，测试先行并实现。
 3. 执行同步、推送、QA 和合并门禁。
@@ -70,8 +68,7 @@
 
 ## Worktree-First
 
-- 只读排查不建 worktree；任何 tracked 文件修改必须先执行：
-  `pnpm agent -- worktree new --phase=<phase> --task <id>`。
+- 只读排查不建 worktree；任何 tracked 文件修改必须先执行 `pnpm agent -- worktree new --phase=<phase> --task <id>`。
 - 创建后，所有读写、测试、提交和 QA 命令必须在输出的 `NEXT_CWD` 中执行。
 - `apply_patch` 不继承 shell `workdir`：创建 worktree 后，其所有目标必须使用经校验、位于 `NEXT_CWD` 下的绝对路径；写入容器层目录时先用 `resolveContainerPath()` 解析绝对路径。禁止以 `../` 等父级相对路径调用 `apply_patch`。若发生错误写入，删除错文件后还必须复核并清理遗留的空父目录。
 - 依赖用 `pnpm agent -- worktree bootstrap` 建立；不得跨 worktree 调脚本或共享依赖目录。
@@ -114,14 +111,11 @@ pnpm agent -- task start --task "<id>" --phase "<phase>" --type mutation --desc 
 - 任务记录、worktree 创建、提交和部署分别执行，一个工具调用只承载一个生命周期副作用；环境准备与这些操作分开，便于确认执行边界。不得用拆分、改写、换工具或放宽权限重试被策略拒绝的同一操作。
 - 失败先按可观察证据区分 `tool_error`（普通工具故障：修复并核实副作用后再决定是否重试）、`policy_denied`（工具明确拒绝：保留原始理由和调用编号，停止该操作，不改写命令、换入口或扩大权限）和 `unknown_result`（超时或断连：先核实真实状态，不盲目重放）。已有任务通过 checkpoint 的 `--failure-kind`、`--execution-state`、`--call-id` 留痕：`not_started` 必须有明确未启动证据并配 `blocked`，`started|unknown` 配 `verify_required`，没有证据不推断未启动。恢复前先核实外部副作用并提供 `--recovery-evidence`；它不是权限许可，不能自我批准，resume 不执行重试，故障历史只追加。
 - 若 task start/checkpoint 本身不可执行，先在当前对话记录目标、验收、操作、时间、调用编号、启动状态和下一动作；仅有 `blocked by policy` 时说明“执行工具策略拒绝，具体规则未知”，不得擅自归因于 Auto-review、目录越界或 pnpm。继续获准且不依赖该操作的只读核查，不因记账失败停止整个查询；禁止改写命令、换工具或迁移记录以重试被拒绝动作。独立证据写入也需获准，不伪造 state.json；恢复后先核实副作用再补记，不跳过 mutation 的 worktree、QA 或安全门禁。
-- 仅在需要任务状态的新会话、异常恢复或继续执行时，第一项任务动作是 `resume`；普通单会话只读请求不调用此写入型恢复入口：
-  `pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
+- 仅在需要任务状态的新会话、异常恢复或继续执行时，第一项任务动作是 `resume`；普通单会话只读请求不调用此写入型恢复入口：`pnpm agent -- task resume --auto`；多候选时必须显式选择，禁止猜测。
 - 全部步骤、验收和仓库门禁通过后执行 `pnpm agent -- task finish --task <id>`；任务关闭只受该 task id 明确绑定的 worktree 生命周期状态阻断，无关任务的 recovery 不得阻止关闭。只有用户明确取消时才可 `cancel --force`。
 - `state.json` 不得保存密钥、大段日志或隐藏思维过程；大证据放 `evidence/` 并只引用路径与哈希。
 
 ## 修改与交付门禁
-
-TDD 收尾顺序固定：
 
 测试优先使用 `pnpm agent -- test --file <测试文件> -- <定向运行器>`；不得把项目自有 `pnpm test` 或无文件参数的运行器当作默认回归。全量测试须先按 `docs/CONVENTIONS.md` 记录触发依据和对应命令。
 
@@ -129,6 +123,7 @@ TDD 收尾顺序固定：
 
 独立清理失败不得自动升级为交付前置条件。进入 QA/OPS 时，可按 `docs/CONVENTIONS.md` §长任务状态文件 的条件与证据要求延后明确未开始的清理；不改变失败状态、不重试被拒绝操作、不豁免测试或最终完成门禁。
 
+TDD 收尾顺序固定：
 1. `pnpm agent -- tdd sync`
 2. `pnpm agent -- tdd push`
 3. `pnpm agent -- qa plan`
