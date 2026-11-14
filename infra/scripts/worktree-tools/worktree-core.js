@@ -1299,12 +1299,15 @@ function runWorktreeBootstrap(options = {}) {
 
   const check = runBootstrapCheck(worktreePath, checkCommand, timeoutMs);
   const inputs = evaluateBootstrapInputs(worktreePath, settings, command);
-  if ((mode !== 'auto' || !alwaysRun) && check.configured && check.ok && inputs.fresh) {
+  // 就绪证据：配置了 checkCommand 时以其通过为准；未配置时以依赖输入戳（lockfile/清单 + 命令的哈希）仍新鲜为准。
+  // 两者都没有就没有任何就绪证据，只能每次执行命令。仅靠输入戳时无法发现被手工删除的依赖目录，项目应配置 checkCommand。
+  const readyEvidence = check.configured ? check.ok : inputs.configured;
+  if ((mode !== 'auto' || !alwaysRun) && readyEvidence && inputs.fresh) {
     return { status: 'READY', mode, checkCommand, refreshed: false, ...reuse };
   }
-  const staleReason = check.configured && !check.ok
-    ? `check command exited ${check.status}`
-    : inputs.reason || (check.configured ? 'alwaysRun is enabled' : 'no checkCommand configured');
+  let staleReason = inputs.reason;
+  if (check.configured && !check.ok) staleReason = `check command exited ${check.status}`;
+  else if (!staleReason) staleReason = readyEvidence ? 'alwaysRun is enabled' : 'no checkCommand or dependency inputs configured';
 
   if (mode === 'check') {
     return {

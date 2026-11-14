@@ -69,7 +69,8 @@ pnpm run tdd:tick
 - `tdd:sync -- --project` 或 `tdd:tick` 为全项目作用域：遍历 `docs/TASK.md` 与 `docs/task-modules/**/*.md`。
 - 输出未找到的任务 ID 以阻断缺失勾选。
 - `pnpm agent -- tdd sync` 在文档门禁之前先执行 Base Sync Gate：`git fetch --prune origin <base>` 后，若 `origin/<base>` 不是当前 HEAD 的祖先则 `git merge --no-edit origin/<base>`，输出 `BASE_SYNC=OK|SKIPPED  BASE_REF=  BASE_SHA=  MERGED=true|false`（在主干上或无 origin 时 `SKIPPED` 并给 `REASON=`）。fetch 失败为 `REASON=BASE_FETCH_FAILED`，合并冲突会 `merge --abort` 并以 `REASON=BASE_MERGE_CONFLICT` 阻断，`NEXT_ACTION` 指向手动合并；这样 `qa verify` 不再因远端主干前进而报 `STALE_QA_BASE`。
-- Base Sync 之后紧接 Deps Sync Gate：复用 `worktree.bootstrap`，当 `worktree.bootstrap.inputs`（如 `pnpm-lock.yaml`）的内容哈希或 `command` 与上次成功 bootstrap 写入的戳（`git rev-parse --git-path agent-bootstrap-stamp.json`）不一致时，`auto` 模式就地重跑安装命令并输出 `DEPS_SYNC=REFRESHED`，`check` 模式以 `REASON=DEPS_STALE` 阻断并在 `NEXT_ACTION` 给出安装命令，`skip` 模式输出 `DEPS_SYNC=SKIPPED`；安装失败或改动了非忽略文件为 `REASON=DEPS_SYNC_FAILED`。允许已有未提交改动，但安装前后工作区状态必须一致。`inputs` 默认为空，即保持仅 `checkCommand` 判定的旧行为。
+- Base Sync 之后紧接 Deps Sync Gate：复用 `worktree.bootstrap`，当 `worktree.bootstrap.inputs`（如 `pnpm-lock.yaml`）的内容哈希或 `command` 与上次成功 bootstrap 写入的戳（`git rev-parse --git-path agent-bootstrap-stamp.json`）不一致时，`auto` 模式就地重跑安装命令并输出 `DEPS_SYNC=REFRESHED`，`check` 模式以 `REASON=DEPS_STALE` 阻断并在 `NEXT_ACTION` 给出安装命令，`skip` 模式输出 `DEPS_SYNC=SKIPPED`；安装失败或改动了非忽略文件为 `REASON=DEPS_SYNC_FAILED`。允许已有未提交改动，但安装前后工作区状态必须一致。就绪判定：配置了 `checkCommand` 时以其通过且输入戳新鲜为准；未配置 `checkCommand` 但配置了 `inputs` 时，输入戳新鲜即视为就绪并跳过安装（无法发现被手工删除的依赖目录，建议配置廉价的 `checkCommand`）；两者都未配置时每次执行安装命令。
+- Project Check Gate 执行 `tdd.projectChecks`：按变更文件与各项 `paths` 筛选，命中 `tdd.projectChecksRunAll`、diff 不可用或 `--all-checks` 时全量；required 失败默认停止，`--keep-going` 跑完全部。逐项输出 `PROJECT_CHECK=<name>|<PASS|FAIL|SKIPPED|NOT_RUN>|<ms>ms|<required|optional>|<原因>`，汇总 `PROJECT_CHECKS_SUMMARY=` 与 `PROJECT_CHECKS_SLOWEST=`。只登记轻量静态/契约检查，测试套件不放这里。
 
 **Tip**：脚本还会根据任务名称生成标准化变种，尽量匹配表格/列表中的描述，避免手工漏勾。
 

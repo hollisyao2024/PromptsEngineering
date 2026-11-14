@@ -1305,6 +1305,44 @@ test('check bootstrap reports stale dependency inputs as MISSING without running
   assert.equal(count(), 1);
 });
 
+// 未配置 checkCommand 时，inputs 哈希戳本身即可证明依赖与输入一致：戳新鲜就复用，不再每次 /tdd sync 重装依赖。
+test('bootstrap without checkCommand reuses dependencies while the dependency input stamp is fresh', (t) => {
+  const { repo, config, count } = stampBootstrapFixture(t);
+  const noCheck = (overrides = {}) => config({ checkCommand: '', ...overrides });
+  const run = (overrides) => runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: noCheck(overrides) });
+
+  const first = run();
+  assert.equal(first.refreshed, true);
+  assert.match(first.reason, /no bootstrap stamp/);
+  assert.equal(count(), 1);
+
+  const fresh = run();
+  assert.equal(fresh.status, 'READY');
+  assert.equal(fresh.refreshed, false);
+  assert.equal(count(), 1);
+  assert.equal(run({ mode: 'check' }).status, 'READY');
+  assert.equal(count(), 1);
+
+  // alwaysRun 与输入变化仍强制执行。
+  assert.equal(run({ alwaysRun: true }).refreshed, true);
+  assert.equal(count(), 2);
+  fs.writeFileSync(path.join(repo, 'deps.lock'), 'v2\n');
+  runGit(repo, ['commit', '-am', 'bump dependency inputs']);
+  const stale = run({ mode: 'check' });
+  assert.equal(stale.status, 'MISSING');
+  assert.match(stale.reason, /dependency inputs changed/);
+  assert.equal(run().refreshed, true);
+  assert.equal(count(), 3);
+});
+
+test('bootstrap without checkCommand or inputs has no readiness evidence and runs the command every time', (t) => {
+  const { repo, config, count } = stampBootstrapFixture(t);
+  const bare = config({ checkCommand: '', inputs: [] });
+  assert.equal(runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: bare }).refreshed, true);
+  assert.equal(runWorktreeBootstrap({ worktreePath: repo, mainRoot: repo, config: bare }).refreshed, true);
+  assert.equal(count(), 2);
+});
+
 test('bootstrap rejects unsafe dependency input paths', (t) => {
   const { repo, config } = stampBootstrapFixture(t);
   for (const bad of ['../outside.lock', '/abs.lock', '']) {
