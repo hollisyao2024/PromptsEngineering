@@ -8,6 +8,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const { safeRemoveTreeNoFollow, writeSession } = require('../worktree-core');
+const { getQaVerificationReceiptPath } = require('../../qa-tools/qa-verification-state');
 
 const realTemporaryRoot = fs.realpathSync(os.tmpdir());
 const removeScript = path.resolve(__dirname, '..', 'worktree-remove.js');
@@ -55,7 +56,13 @@ function initFixture(t) {
   fs.writeFileSync(lockFile, `${JSON.stringify({ pid: process.pid })}\n`);
   // Uncommitted work: a destructive run (especially cancel) would discard it.
   fs.writeFileSync(path.join(worktree, 'WIP.md'), 'unsaved work\n');
-  return { container, repo, worktree, sessionFile, lockFile };
+  // task-remote-polish AC3：本 worktree 的 QA 回执，以及一个无关 worktree 的回执。
+  const receiptFile = getQaVerificationReceiptPath(config, repo, worktree);
+  const otherReceiptFile = getQaVerificationReceiptPath(config, repo, path.join(container, 'worktrees', 'other'));
+  fs.mkdirSync(path.dirname(receiptFile), { recursive: true });
+  fs.writeFileSync(receiptFile, '{"branch":"feature/dry-run-demo"}\n');
+  fs.writeFileSync(otherReceiptFile, '{"branch":"feature/other"}\n');
+  return { container, repo, worktree, sessionFile, lockFile, receiptFile, otherReceiptFile };
 }
 
 function snapshot(fixture) {
@@ -68,6 +75,8 @@ function snapshot(fixture) {
     branch: runGit(fixture.repo, ['branch', '--list', BRANCH]).length > 0,
     session: fs.existsSync(fixture.sessionFile) ? fs.readFileSync(fixture.sessionFile, 'utf8') : null,
     lock: fs.existsSync(fixture.lockFile),
+    receipt: fs.existsSync(fixture.receiptFile),
+    otherReceipt: fs.existsSync(fixture.otherReceiptFile),
   };
 }
 
@@ -106,7 +115,7 @@ for (const [action, script, buildArgs] of DRY_RUN_VARIANTS) {
       assert.match(result.stdout, new RegExp(`^ACTION=${action}$`, 'mu'));
       assert.match(result.stdout, new RegExp(`^BRANCH_NAME=${BRANCH}$`, 'mu'));
       assert.match(result.stdout, /^WORKTREE_PATH=.+dry-run-demo$/mu);
-      assert.match(result.stdout, /^PLANNED=/mu);
+      assert.match(result.stdout, /^PLANNED=.*remove_qa_receipt/mu);
       assert.doesNotMatch(result.stdout, /STATUS=(REMOVED|CANCELLED)/u);
       assert.deepEqual(snapshot(fixture), before);
       assert.equal(before.worktreeExists && before.registered && before.branch && before.lock, true);
@@ -140,6 +149,9 @@ test('worktree remove without dry-run still removes a clean worktree and its ses
   assert.equal(after.session, null);
   assert.equal(after.branch, true, 'remove keeps the local branch');
   assert.equal(after.lock, true);
+  assert.equal(after.receipt, false, 'remove deletes this worktree QA receipt');
+  assert.equal(after.otherReceipt, true, 'unrelated receipts stay');
+  assert.match(result.stdout, /^QA_RECEIPT=REMOVED$/mu);
 });
 
 test('worktree cancel without dry-run still requires --force, then removes worktree, session and branch', (t) => {
@@ -158,4 +170,7 @@ test('worktree cancel without dry-run still requires --force, then removes workt
   assert.equal(after.branch, false);
   assert.equal(after.session, null);
   assert.equal(after.lock, true);
+  assert.equal(after.receipt, false, 'cancel deletes this worktree QA receipt');
+  assert.equal(after.otherReceipt, true, 'unrelated receipts stay');
+  assert.match(result.stdout, /^QA_RECEIPT=REMOVED$/mu);
 });
