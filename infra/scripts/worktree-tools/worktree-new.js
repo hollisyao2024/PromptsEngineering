@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { createOrResumeWorktree, parseCliArgs } = require('./worktree-core');
+const { createOrResumeWorktree, parseCliArgs, syncTaskRemoteBranches } = require('./worktree-core');
 
 function printHelp() {
   console.log(`Usage:
@@ -96,6 +96,15 @@ function main(argv = process.argv.slice(2)) {
       }
       if (result.bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${result.bootstrap.nextManualAction}`);
     }
+    for (const binding of result.taskBindings || []) console.log(`TASK_BINDING=${binding.taskId}|${binding.status}`);
+    // task start 常在主干执行、远端登记 branch 为空：绑定后把开发分支同步到远端登记，只告警不阻断。
+    syncTaskRemoteBranches({
+      config: result.config,
+      mainRoot: result.mainRoot,
+      taskBindings: result.taskBindings,
+      branch: result.branch,
+      worktree: result.worktreePath,
+    }).forEach((line) => console.log(line));
     console.log('');
     console.log('Next steps:');
     console.log(`  cd "${result.worktreePath}"`);

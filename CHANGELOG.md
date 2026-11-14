@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.30] - 2026-11-14
+
+- 修复 task.remote 试用问题：失权阻断不再提示手建 PR，worktree new/resume 同步登记分支，codemap 对比远端主干。
+
 ## [v3.17.29] - 2026-11-14
 
 - 修复 `AGENTS.md` 超出 180 行上限导致 template-surface 测试失败：只合并换行与段落，规则语义不变。

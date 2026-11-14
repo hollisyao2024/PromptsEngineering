@@ -244,6 +244,28 @@ function bindLifecycleTaskLocations(config, mainRoot, session, worktree, branch,
   }));
 }
 
+/**
+ * worktree new/resume 绑定任务后把开发分支同步到 task.remote 登记，返回待打印的输出行。
+ * 只处理本次真正绑定到该 worktree 的任务（BOUND/UNCHANGED）；task.remote 关闭时不访问远端。
+ * 远端失败、失权一律只输出告警，绝不阻断 worktree 生命周期。
+ */
+function syncTaskRemoteBranches({ config, mainRoot, taskBindings, branch, worktree, syncRemoteBranchForCli } = {}) {
+  const bound = (Array.isArray(taskBindings) ? taskBindings : [])
+    .filter((binding) => binding && ['BOUND', 'UNCHANGED'].includes(binding.status));
+  if (bound.length === 0 || !config || !mainRoot) return [];
+  const runsRoot = path.join(resolveContainerPath(config, mainRoot, 'tmp'), 'agent-task-runs');
+  const sync = syncRemoteBranchForCli || require('../agent-runner/agent-task').syncRemoteBranchForCli;
+  const lines = [];
+  for (const binding of bound) {
+    try {
+      lines.push(...sync({ config, runsRoot, projectRoot: mainRoot, worktree, branch, taskId: binding.taskId }));
+    } catch (error) {
+      lines.push(`TASK_REMOTE_WARNING=remote branch sync failed for ${binding.taskId}: ${String(error.message).replace(/[\r\n]+/gu, ' ')}`);
+    }
+  }
+  return lines;
+}
+
 function planSupersededSessions(options = {}) {
   const { config, mainRoot, cli = {}, branch } = options;
   const identity = buildLifecycleIdentity(cli, branch);
@@ -1808,6 +1830,7 @@ function createOrResumeWorktree(options = {}) {
 }
 
 module.exports = {
+  syncTaskRemoteBranches,
   adoptDesktopWorktree,
   detectDesktopAdoption,
   acquireLock,

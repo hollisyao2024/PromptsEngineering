@@ -1694,12 +1694,14 @@ async function main() {
     // task.remote 关闭时不访问远端；PR 已合并的恢复收尾不再拦截。
     if (!resumedMerge) {
       const { runtimeContext } = require('../agent-runner/agent-task');
-      const { enforceRemoteClaim, formatRemoteLines } = require('../agent-runner/task-remote');
+      const { enforceRemoteClaim, formatRemoteLines, remoteNextAction } = require('../agent-runner/task-remote');
       const remoteClaim = enforceRemoteClaim({ context: runtimeContext(repoRoot) });
       const remoteLines = formatRemoteLines(remoteClaim);
       if (remoteClaim.blocked) {
         console.log('STATUS=BLOCKED');
         remoteLines.forEach((line) => console.log(line));
+        // 阻断时给出唯一可执行的下一动作，不提示任何绕过门禁的合并方式。
+        console.log(`NEXT_ACTION=${remoteNextAction(remoteClaim)}`);
         throw new Error(`任务远端登记门禁阻断（${remoteClaim.status}）：${remoteClaim.detail || '本机不是该任务的远端持有者'}`);
       }
       remoteLines.forEach((line) => console.log(line));

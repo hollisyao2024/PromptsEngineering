@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   INCLUDE_DIR_PATTERNS,
+  getSessionFiles,
   normalizePathSeparators,
 } = require('../generate-codemap');
 
@@ -182,4 +183,41 @@ test('invalid codemap config fails before anything is written', () => {
   assert.throws(() => resolveCodemapOptions({ codemap: { ...valid, groups: [{ ...group, pattern: '(' }] } }), /codemap\.groups\[0\]\.pattern/);
   assert.throws(() => resolveCodemapOptions({ codemap: { ...valid, groups: [{ ...group, detailLimit: 0 }] } }), /codemap\.groups\[0\]\.detailLimit/);
   assert.throws(() => resolveCodemapOptions({ codemap: { ...valid, groups: [{ ...group, bucketPattern: '^src/' }] } }), /codemap\.groups\[0\]\.bucketPattern/);
+});
+
+test('session scan diffs against the fetched remote base when it exists', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const calls = [];
+  const exec = (command) => {
+    calls.push(command);
+    if (command.startsWith('git rev-parse')) return 'a'.repeat(40) + '\n';
+    return 'src/app.js\nREADME.md\n';
+  };
+  const files = getSessionFiles(exec, { baseBranch: 'develop' });
+  assert.deepEqual(calls, [
+    'git rev-parse --verify --quiet refs/remotes/origin/develop',
+    'git diff origin/develop...HEAD --name-only',
+  ]);
+  assert.equal(files.size, 1);
+  assert.ok([...files][0].endsWith('src/app.js'));
+});
+
+test('session scan falls back to the local base when no remote base ref exists', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const calls = [];
+  const exec = (command) => {
+    calls.push(command);
+    if (command.startsWith('git rev-parse')) throw new Error('missing ref');
+    return 'src/app.js\n';
+  };
+  getSessionFiles(exec, { baseBranch: 'develop' });
+  assert.equal(calls[1], 'git diff develop...HEAD --name-only');
+});
+
+test('session scan rejects unsafe base branch names instead of building a shell command', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const calls = [];
+  const exec = (command) => { calls.push(command); return 'src/app.js\n'; };
+  assert.equal(getSessionFiles(exec, { baseBranch: 'main; rm -rf /' }), null);
+  assert.deepEqual(calls, [], 'must not run git with an unsafe base branch');
 });

@@ -504,6 +504,14 @@ function assertRemoteHolder({ git, cfg, taskId, binding, identity, now = Date.no
   }
   if (!ACTIVE_STATES.has(current.state)) return lost(current, `remote registration is already ${current.state}`);
   if (!refresh) return makeResult('OK', { taskId, cfg, blocked: false, record: current, stale: isStale(current, cfg, now) });
+  if (refresh.skipIfUnchanged
+    && (!refresh.branch || safeText(refresh.branch) === current.branch)
+    && (!refresh.phase || safeText(refresh.phase, 40) === current.phase)
+    && (!refresh.state || refresh.state === current.state)) {
+    return makeResult('OK', {
+      taskId, cfg, blocked: false, record: current, stale: isStale(current, cfg, now), extra: { unchanged: true },
+    });
+  }
 
   const nextState = refresh.state && ACTIVE_STATES.has(refresh.state) ? refresh.state : current.state;
   const record = buildRecord({
@@ -522,6 +530,22 @@ function assertRemoteHolder({ git, cfg, taskId, binding, identity, now = Date.no
     return makeResult('OK', { taskId, cfg, blocked: false, record: reread.record, stale: false });
   }
   return lost(reread.record, 'remote registration changed during heartbeat');
+}
+
+/**
+ * worktree new/resume 绑定任务后把开发分支同步到远端登记（task start 常在主干执行，登记 branch 为空）。
+ * 只刷新本机持有的登记、不提升 epoch；分支与阶段未变时不写远端。永不阻断 worktree 生命周期：
+ * 失权、远端不可读等结果原样返回供告警，blocked 恒为 false。
+ */
+function syncRemoteBranch({ git, cfg, taskId, binding, identity, branch, phase = '', now = Date.now() }) {
+  if (!branch) return makeResult('BRANCH_UNCHANGED', { taskId, cfg, blocked: false, detail: 'no task branch to sync' });
+  const result = assertRemoteHolder({
+    git, cfg, taskId, binding, identity, now, refresh: { branch, phase, skipIfUnchanged: true },
+  });
+  if (result.status === 'OK') {
+    return { ...result, status: result.unchanged ? 'BRANCH_UNCHANGED' : 'BRANCH_SYNCED', blocked: false };
+  }
+  return { ...result, blocked: false };
 }
 
 /** finish/cancel 收尾：仅本机持有时写 done/released；永不阻断本地收尾。 */
@@ -594,6 +618,40 @@ function formatRemoteLines(result) {
   return lines;
 }
 
+/**
+ * tdd push / qa merge 远端门禁阻断时的唯一下一动作。按状态给出修复指引，
+ * 从不建议手动创建 PR 或直接推送——那等于绕过多机持有者保护。
+ */
+function remoteNextAction(result) {
+  const status = result && result.status;
+  const taskId = safeText((result && result.taskId) || '<id>', 80);
+  const takeover = `pnpm agent -- task takeover --task ${taskId} --reason "<原因>"`;
+  switch (status) {
+    case 'TASK_CLAIM_LOST':
+      return `本机已失去该任务的远端持有权：停止推送与合并，与当前持有者协调；确需收回时执行 ${takeover} --force`;
+    case 'UNREGISTERED':
+      return `本地任务没有远端登记：先执行 ${takeover} 补登记，再重试`;
+    case 'NO_TASK':
+      return '当前 worktree/分支没有绑定活动任务：用 pnpm agent -- task start 登记，'
+        + '再以 pnpm agent -- worktree new|resume --task <id> 绑定当前 worktree 后重试';
+    case 'AMBIGUOUS':
+      return '多个本地任务匹配当前 worktree/分支：用 pnpm agent -- task finish|cancel 收尾重复任务后重试';
+    case 'UNKNOWN':
+    case 'REJECTED':
+      return '无法确认远端登记：检查远端可达性与 GH_TOKEN 后重试；不要绕过门禁手动推送或创建 PR';
+    case 'CONFIG_ERROR':
+      return '修正 agent.config.json 的 task.remote 配置后重试';
+    case 'INVALID_BINDING':
+      return `本地 state.json 的 remote 绑定损坏：核实远端持有者后执行 ${takeover}（未过期时加 --force）重新绑定`;
+    case 'STATE_ERROR':
+      return '本地任务状态不可读：修复 tmp/agent-task-runs 下的 state.json 后重试';
+    case 'IDENTITY_ERROR':
+      return '无法确定本机身份：设置 XIRANG_MACHINE_ID 或修复 ~/.xirang/machine-id 后重试';
+    default:
+      return '核实任务远端登记状态（pnpm agent -- task remote list）后重试';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // tdd push / qa merge 门禁
 
@@ -662,8 +720,10 @@ module.exports = {
   listRemoteTasks,
   registerTaskStart,
   remoteBindingOf,
+  remoteNextAction,
   resolveMachineIdentity,
   resolveRemoteConfig,
+  syncRemoteBranch,
   takeoverTask,
   taskRemoteRef,
 };

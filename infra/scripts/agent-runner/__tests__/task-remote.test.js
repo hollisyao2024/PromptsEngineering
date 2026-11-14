@@ -19,8 +19,10 @@ const {
   listRemoteTasks,
   registerTaskStart,
   remoteBindingOf,
+  remoteNextAction,
   resolveMachineIdentity,
   resolveRemoteConfig,
+  syncRemoteBranch,
   takeoverTask,
   taskRemoteRef,
 } = require('../task-remote');
@@ -401,4 +403,77 @@ test('AC6 finish 置 done；cancel 仅在本机持有时释放，非持有者不
   assert.equal(record.state, 'done');
   assert.equal(record.epoch, 1);
   assert.equal(record.holder.machineId, MACHINE_A.machineId);
+});
+
+// ---------------------------------------------------------------------------
+// task-remote-trial-fixes：GuiXu 试用暴露的缺陷回归（AC1 阻断时不引导绕过、AC2 开发期分支可见）。
+
+test('AC1 远端门禁阻断的下一动作按状态给出指引，且从不引导手动创建 PR 绕过门禁', () => {
+  const statuses = ['TASK_CLAIM_LOST', 'UNREGISTERED', 'NO_TASK', 'AMBIGUOUS', 'UNKNOWN', 'CONFIG_ERROR',
+    'INVALID_BINDING', 'STATE_ERROR', 'IDENTITY_ERROR', 'REJECTED'];
+  for (const status of statuses) {
+    const next = remoteNextAction({ status, taskId: 'shared-task', blocked: true });
+    assert.equal(typeof next, 'string', status);
+    assert.ok(next.length > 0, `${status} must have a next action`);
+    assert.doesNotMatch(next, /pull\/new/, `${status} must not suggest creating a PR manually`);
+  }
+  assert.match(remoteNextAction({ status: 'TASK_CLAIM_LOST', taskId: 'shared-task' }), /task takeover --task shared-task/);
+  assert.match(remoteNextAction({ status: 'UNREGISTERED', taskId: 'shared-task' }), /task takeover --task shared-task/);
+  assert.match(remoteNextAction({ status: 'NO_TASK' }), /task start/);
+  assert.match(remoteNextAction({ status: 'CONFIG_ERROR' }), /task\.remote/);
+});
+
+test('AC2 开发期同步分支：只更新 branch/phase，不提升 epoch；未变化时不写远端', (t) => {
+  const fx = setupFixture(t);
+  const started = startOn(fx.gitA, MACHINE_A, { branch: '' });
+  const binding = remoteBindingOf(started, cfgFor());
+  const ref = 'refs/xirang/task/shared-task';
+  assert.equal(remoteRecord(fx.remote, ref).branch, '');
+
+  const synced = syncRemoteBranch({
+    git: fx.gitA, cfg: cfgFor(), taskId: 'shared-task', binding, identity: MACHINE_A,
+    branch: 'feature/SHARED-TASK', phase: 'tdd', now: T0 + 1000,
+  });
+  assert.equal(synced.status, 'BRANCH_SYNCED');
+  assert.equal(synced.blocked, false);
+  const record = remoteRecord(fx.remote, ref);
+  assert.equal(record.branch, 'feature/SHARED-TASK');
+  assert.equal(record.epoch, 1);
+  assert.equal(record.state, 'claimed');
+  assert.equal(record.holder.machineId, MACHINE_A.machineId);
+
+  const before = remoteRefSha(fx.remote, ref);
+  const unchanged = syncRemoteBranch({
+    git: fx.gitA, cfg: cfgFor(), taskId: 'shared-task', binding, identity: MACHINE_A,
+    branch: 'feature/SHARED-TASK', phase: 'tdd', now: T0 + 2000,
+  });
+  assert.equal(unchanged.status, 'BRANCH_UNCHANGED');
+  assert.equal(remoteRefSha(fx.remote, ref), before, 'unchanged branch must not write the registry');
+});
+
+test('AC2 同步分支时已失权：报告 TASK_CLAIM_LOST 但不阻断，且不改写他机登记', (t) => {
+  const fx = setupFixture(t);
+  const started = startOn(fx.gitA, MACHINE_A, { branch: '' });
+  const binding = remoteBindingOf(started, cfgFor());
+  takeoverTask({ git: fx.gitB, cfg: cfgFor(), taskId: 'shared-task', identity: MACHINE_B, reason: '接手', force: true, now: T0 + 500 });
+  const ref = 'refs/xirang/task/shared-task';
+  const before = remoteRefSha(fx.remote, ref);
+  const lost = syncRemoteBranch({
+    git: fx.gitA, cfg: cfgFor(), taskId: 'shared-task', binding, identity: MACHINE_A,
+    branch: 'feature/SHARED-TASK', phase: 'tdd', now: T0 + 1000,
+  });
+  assert.equal(lost.status, 'TASK_CLAIM_LOST');
+  assert.equal(lost.blocked, false, 'branch sync is advisory and never blocks worktree creation');
+  assert.equal(remoteRefSha(fx.remote, ref), before);
+  assert.equal(remoteRecord(fx.remote, ref).holder.machineId, MACHINE_B.machineId);
+});
+
+test('AC1 qa merge 远端门禁阻断时输出按状态生成的 NEXT_ACTION', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../qa-tools/qa-merge.js'), 'utf8');
+  const gate = source.indexOf('enforceRemoteClaim(');
+  const blockedAt = source.indexOf('if (remoteClaim.blocked)', gate);
+  const throwAt = source.indexOf('throw new Error(', blockedAt);
+  const nextAt = source.indexOf('NEXT_ACTION=${remoteNextAction(remoteClaim)}', blockedAt);
+  assert.ok(blockedAt > gate && throwAt > blockedAt, 'qa-merge.js remote gate block must exist');
+  assert.ok(nextAt > blockedAt && nextAt < throwAt, 'NEXT_ACTION must be printed before the gate throws');
 });

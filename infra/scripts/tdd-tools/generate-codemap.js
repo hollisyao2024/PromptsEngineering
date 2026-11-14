@@ -160,9 +160,35 @@ function collectFiles(dir, options = DEFAULT_OPTIONS, root = ROOT) {
   return results;
 }
 
-function getSessionFiles(exec = execSync) {
+// 分支名只允许 Git 常见字符且不以 - 开头，避免拼进 shell 命令时被解释为参数或元字符。
+const SAFE_BASE_BRANCH_RE = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+
+/**
+ * 解析 session 差异的比较基准：优先远端跟踪分支 origin/<base>，本地 base 落后时也不会把
+ * 主干已合并的提交误报为本分支改动；没有远端引用（离线、未 fetch）时回退本地 base。
+ */
+function resolveSessionBaseRef(exec, baseBranch) {
   try {
-    const output = exec('git diff main...HEAD --name-only', {
+    exec(`git rev-parse --verify --quiet refs/remotes/origin/${baseBranch}`, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return `origin/${baseBranch}`;
+  } catch {
+    return baseBranch;
+  }
+}
+
+function getSessionFiles(exec = execSync, options = {}) {
+  const baseBranch = options.baseBranch || 'main';
+  if (!SAFE_BASE_BRANCH_RE.test(baseBranch)) {
+    console.warn(`⚠️  baseBranch 含非法字符（${JSON.stringify(baseBranch)}），回退到全量扫描`);
+    return null;
+  }
+  try {
+    const baseRef = resolveSessionBaseRef(exec, baseBranch);
+    const output = exec(`git diff ${baseRef}...HEAD --name-only`, {
       cwd: ROOT,
       encoding: 'utf8',
     }).trim();
@@ -177,7 +203,7 @@ function getSessionFiles(exec = execSync) {
         .filter((f) => EXTENSIONS.has(path.extname(f)))
     );
   } catch {
-    console.warn('⚠️  无法获取分支差异（可能在 main 分支上），回退到全量扫描');
+    console.warn(`⚠️  无法获取相对 ${baseBranch} 的分支差异，回退到全量扫描`);
     return null;
   }
 }
@@ -412,7 +438,8 @@ function emptyMapWarning({ indexedFileCount, scanDirs, root = ROOT }) {
 
 function main() {
   const scope = parseArgs(process.argv.slice(2));
-  const options = resolveCodemapOptions(loadConfig({ repoRoot: ROOT }));
+  const config = loadConfig({ repoRoot: ROOT });
+  const options = resolveCodemapOptions(config);
 
   // 收集文件（始终全量；session 只影响报告）
   const allFiles = [];
@@ -421,7 +448,7 @@ function main() {
     allFiles.push(...collectFiles(fullDir, options));
   }
 
-  const sessionFiles = scope === 'session' ? getSessionFiles() : null;
+  const sessionFiles = scope === 'session' ? getSessionFiles(execSync, { baseBranch: config.baseBranch }) : null;
   const { files, changed } = selectFilesForScope({ scope, allFiles, sessionFiles });
 
   // 生成内容

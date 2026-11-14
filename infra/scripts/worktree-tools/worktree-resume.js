@@ -14,6 +14,7 @@ const {
   recoverSessionAsBranch,
   runWorktreeBootstrap,
   slugify,
+  syncTaskRemoteBranches,
 } = require('./worktree-core');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
@@ -70,6 +71,9 @@ function main() {
       console.log(`WORKTREE_PATH=${existing.path}`);
       console.log(`NEXT_CWD=${existing.path}`);
       for (const binding of taskBindings) console.log(`TASK_BINDING=${binding.taskId}|${binding.status}`);
+      // 恢复后把开发分支同步到 task.remote 登记；失权或远端不可读只告警，不阻断恢复。
+      syncTaskRemoteBranches({ config, mainRoot, taskBindings, branch: target, worktree: existing.path })
+        .forEach((line) => console.log(line));
       console.log(`BOOTSTRAP_STATUS=${bootstrap.status}`);
       if (bootstrap.mode) console.log(`BOOTSTRAP_MODE=${bootstrap.mode}`);
       if (bootstrap.reason) console.log(`BOOTSTRAP_REASON=${bootstrap.reason}`);
@@ -108,6 +112,16 @@ function main() {
         console.log(`REUSED_PATHS=${result.bootstrap.reusedPaths.join(',')}`);
       }
       if (result.bootstrap.nextManualAction) console.log(`NEXT_MANUAL_ACTION=${result.bootstrap.nextManualAction}`);
+    }
+    if (!result.dryRun) {
+      for (const binding of result.taskBindings || []) console.log(`TASK_BINDING=${binding.taskId}|${binding.status}`);
+      syncTaskRemoteBranches({
+        config: result.config || config,
+        mainRoot: result.mainRoot || mainRoot,
+        taskBindings: result.taskBindings,
+        branch: result.branch,
+        worktree: result.worktreePath,
+      }).forEach((line) => console.log(line));
     }
   } catch (error) {
     console.error('STATUS=BLOCKED');

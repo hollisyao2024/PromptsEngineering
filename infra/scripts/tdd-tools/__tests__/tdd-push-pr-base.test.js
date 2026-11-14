@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildPrCreateArgs, parseCliArgs, autoCommitWorkingTreeIfNeeded } = require('../tdd-push');
+const { buildFailureNextAction, buildPrCreateArgs, parseCliArgs, autoCommitWorkingTreeIfNeeded } = require('../tdd-push');
 
 test('committed-only push explicitly opts out of staging and automatic commits', () => {
   assert.equal(parseCliArgs(['--committed-only']).committedOnly, true);
@@ -49,4 +49,25 @@ test('automatic commit reports the new HEAD and that head-bound evidence must be
   assert.deepEqual(calls.map((args) => args[0]), ['add', 'commit', 'rev-parse']);
   assert.ok(logs.includes(`AUTO_COMMIT_HEAD=${'a'.repeat(40)}`), logs.join('\n'));
   assert.ok(logs.some((line) => /TEST_SCOPE_RESULT.*qa run/u.test(line)), logs.join('\n'));
+});
+
+test('remote claim block failure never suggests a manual PR that would bypass the gate', () => {
+  const error = new Error('任务远端登记门禁阻断（TASK_CLAIM_LOST）：remote holder/epoch changed');
+  error.code = 'TASK_REMOTE_BLOCKED';
+  error.nextAction = '本机已失去该任务的远端持有权：停止推送与合并';
+  const next = buildFailureNextAction({ error, remoteUrl: 'https://github.com/o/r', branch: 'feature/x' });
+  assert.equal(next, error.nextAction);
+  assert.doesNotMatch(next, /pull\/new/);
+});
+
+test('ordinary push failures keep the idempotent retry and manual PR hint', () => {
+  const error = new Error('network down');
+  assert.match(
+    buildFailureNextAction({ error, remoteUrl: 'https://github.com/o/r', branch: 'feature/x' }),
+    /https:\/\/github\.com\/o\/r\/pull\/new\/feature\/x/
+  );
+  assert.equal(
+    buildFailureNextAction({ error, remoteUrl: '', branch: 'feature/x' }),
+    '修复上述原因后重新执行 pnpm agent -- tdd push'
+  );
 });
