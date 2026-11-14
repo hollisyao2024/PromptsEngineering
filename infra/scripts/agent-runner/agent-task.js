@@ -340,7 +340,15 @@ function writeAtomicState({ runsRoot, taskId, state }) {
 }
 
 function readTaskState({ runsRoot, taskId }) {
-  const { id, taskDir, statePath } = taskPaths(runsRoot, taskId, { createRoot: false });
+  let paths;
+  try {
+    paths = taskPaths(runsRoot, taskId, { createRoot: false });
+  } catch (error) {
+    // 全新电脑尚无容器 tmp/agent-task-runs：只读路径不创建目录，按“任务不存在”处理，避免原样泄漏 ENOENT。
+    if (error && error.code === 'ENOENT') throw new Error(`task state not found: ${safeTaskId(taskId)}`);
+    throw error;
+  }
+  const { id, taskDir, statePath } = paths;
   let taskStat;
   let stateStat;
   try {
@@ -1631,6 +1639,47 @@ function finalizeRemoteForCli(options, binding, finalState) {
   }
 }
 
+/**
+ * worktree new/resume 绑定任务后把开发分支同步到远端登记，返回待打印的输出行。
+ * task.remote 关闭、任务未绑定远端或分支就是主干时返回 []；任何远端问题只告警，从不阻断 worktree 生命周期。
+ */
+function syncRemoteBranchForCli(options) {
+  const session = openRemoteSession(options, { strict: false, identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) return session.warning ? [`TASK_REMOTE_WARNING=${session.warning}`] : [];
+  const taskId = safeTaskId(options.taskId);
+  let state;
+  try {
+    state = readTaskState({ runsRoot: options.runsRoot, taskId });
+  } catch {
+    return [];
+  }
+  if (!state || !state.remote) return [];
+  const branch = remoteBranchOf(options, options.branch);
+  if (!branch) return [];
+  try {
+    const result = session.remote.syncRemoteBranch({
+      git: session.git,
+      cfg: session.cfg,
+      taskId,
+      binding: state.remote,
+      identity: session.identity,
+      branch,
+      phase: state.current_phase && state.current_phase !== 'unspecified' ? state.current_phase : '',
+      now: options.nowMs,
+    });
+    if (result.status === 'BRANCH_SYNCED' || result.status === 'BRANCH_UNCHANGED') {
+      return [`TASK_REMOTE_STATUS=${result.status}`, `TASK_REMOTE_TASK=${taskId}`, `TASK_REMOTE_BRANCH=${branch}`];
+    }
+    return [
+      ...session.remote.formatRemoteLines(result),
+      // 细节已在 TASK_REMOTE_DETAIL 中净化输出，这里只说明 worktree 生命周期不受影响。
+      `TASK_REMOTE_WARNING=remote branch sync skipped (${result.status}); worktree lifecycle continues`,
+    ];
+  } catch (error) {
+    return [`TASK_REMOTE_WARNING=remote branch sync failed: ${String(error.message).replace(/[\r\n]+/gu, ' ')}`];
+  }
+}
+
 /** finish/cancel 前读取本地绑定；状态缺失或损坏时返回 null，由本地命令自身报错。 */
 function readRemoteBinding(options) {
   try {
@@ -1876,6 +1925,7 @@ module.exports = {
   parseCliArgs,
   readTaskState,
   startTaskWithRemote,
+  syncRemoteBranchForCli,
   takeoverTaskWithRemote,
   runMutationCompletionGuard,
   resumeTask,

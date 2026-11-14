@@ -186,7 +186,8 @@ pnpm agent -- task remote list
 - `task start`：本地校验全部通过后、落盘前 CAS 登记，成功则在 `state.json` 写入 `remote={ref,remote,epoch,machine_id,bound_at}`。他机活跃持有时输出 `TASK_REMOTE_STATUS=CONFLICT` 与持有者；`enforce` 阻断且不留本地任务，`warn` 照常创建但不绑定。本机已持有为 `ALREADY_HOLDER`；重新领取 `done|released` 的登记 epoch+1。落盘失败时尽力释放刚写入的登记。
 - `task takeover --task <id> --reason "<原因>" [--force]`：夺取他机登记并 epoch+1；心跳未超过 `ttlSeconds` 时必须 `--force`，过期只免 `--force`、不免 `--reason`；本地已有任务时改绑新 epoch，否则提示先 `task start` 再 `worktree resume`。
 - `task remote list`：只读 fetch 并逐行输出 `TASK_REMOTE=<id>|<state>|<epoch>|<host>/<machineId>|<branch>|<heartbeat>|stale=<bool>`，损坏记录输出 `TASK_REMOTE_INVALID=`。
-- 门禁：`tdd push` 推送前校验持有者与 epoch 并刷新心跳为 `review`；`qa merge` 合并前只读复验。本地无绑定（未登记或 `warn` 冲突）或远端不可读时按 `mode` 处理；持有者或 epoch 已变（`TASK_CLAIM_LOST`）在任何 mode 下都阻断，不得自动夺回。
+- 分支：`task start` 常在主干执行，登记的 `branch` 为空；`worktree new|resume` 绑定任务后把开发分支同步到登记（同 epoch，未变化不写远端），失权或远端不可读只输出 `TASK_REMOTE_WARNING`，不阻断 worktree 生命周期。
+- 门禁：`tdd push` 推送前校验持有者与 epoch 并刷新心跳为 `review`；`qa merge` 合并前只读复验。本地无绑定（未登记或 `warn` 冲突）或远端不可读时按 `mode` 处理；持有者或 epoch 已变（`TASK_CLAIM_LOST`）在任何 mode 下都阻断，不得自动夺回。阻断时 `NEXT_ACTION` 按状态给出协调、补登记或修复配置的动作，不提示手动建 PR 或其他绕过入口。
 - 收尾：`task finish` 把本机持有的登记置 `done`，`task cancel --force` 置 `released`；非持有者只删本地。远端失败只输出 `TASK_REMOTE_WARNING`，不改变本地收尾结果。
 - 登记只协调“谁在做”，不替代远端分支 SHA 复验、QA 回执与主干非快进拒绝。
 

@@ -406,14 +406,18 @@ async function main() {
     // task.remote 关闭时直接返回 DISABLED，不访问远端；失权（TASK_CLAIM_LOST）在任何 mode 下都阻断。
     {
       const { runtimeContext } = require('../agent-runner/agent-task');
-      const { enforceRemoteClaim, formatRemoteLines } = require('../agent-runner/task-remote');
+      const { enforceRemoteClaim, formatRemoteLines, remoteNextAction } = require('../agent-runner/task-remote');
       const remoteClaim = enforceRemoteClaim({
         context: runtimeContext(repoRoot),
         refresh: { state: 'review', branch },
       });
       formatRemoteLines(remoteClaim).forEach((line) => console.log(line));
       if (remoteClaim.blocked) {
-        throw new Error(`任务远端登记门禁阻断（${remoteClaim.status}）：${remoteClaim.detail || '本机不是该任务的远端持有者'}`);
+        // 带上门禁专属的下一动作：失败出口据此不再提示手动建 PR（那会绕过多机持有者保护）。
+        const gateError = new Error(`任务远端登记门禁阻断（${remoteClaim.status}）：${remoteClaim.detail || '本机不是该任务的远端持有者'}`);
+        gateError.code = 'TASK_REMOTE_BLOCKED';
+        gateError.nextAction = remoteNextAction(remoteClaim);
+        throw gateError;
       }
     }
 
@@ -445,13 +449,21 @@ async function main() {
     console.error(`\u001b[31m/tdd push 失败: ${error.message}\u001b[0m`);
     const remoteUrl = getRemoteUrl();
     console.log('STATUS=BLOCKED');
-    if (remoteUrl && branch) {
-      console.log(`NEXT_ACTION=修复上述原因后重新执行 pnpm agent -- tdd push（幂等），或手动创建 PR：${remoteUrl}/pull/new/${branch}`);
-    } else {
-      console.log('NEXT_ACTION=修复上述原因后重新执行 pnpm agent -- tdd push');
-    }
+    console.log(`NEXT_ACTION=${buildFailureNextAction({ error, remoteUrl, branch })}`);
     process.exit(1);
   }
+}
+
+/**
+ * tdd push 失败出口的唯一下一动作。远端登记门禁阻断时只给门禁指引，绝不提示手动创建 PR；
+ * 其他失败保留幂等重试与手动建 PR 的兜底提示。
+ */
+function buildFailureNextAction({ error, remoteUrl, branch } = {}) {
+  if (error && error.code === 'TASK_REMOTE_BLOCKED' && error.nextAction) return error.nextAction;
+  if (remoteUrl && branch) {
+    return `修复上述原因后重新执行 pnpm agent -- tdd push（幂等），或手动创建 PR：${remoteUrl}/pull/new/${branch}`;
+  }
+  return '修复上述原因后重新执行 pnpm agent -- tdd push';
 }
 
 if (require.main === module) {
@@ -460,6 +472,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildFailureNextAction,
   parseCliArgs,
   autoCommitWorkingTreeIfNeeded,
   buildAutoCommitBody,
