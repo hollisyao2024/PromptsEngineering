@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.32] - 2026-11-15
+
+- tdd sync 项目硬门禁按变更范围筛选并输出逐项耗时，required 失败即停；无 checkCommand 时依赖戳新鲜跳过重装。
+
 ## [v3.17.31] - 2026-11-14
 
 - 完善 task.remote：新增 remote prune、无前任 takeover 报 REGISTERED、fetch 错误取 fatal 行、删 worktree 清回执。

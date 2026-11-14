@@ -7,6 +7,7 @@ const { createWindowsCmdInvocation, resolvePnpmBin } = require('../shared/toolch
 const { resolveMigrationRegistryConfig } = require('./check-migration-registry');
 const { buildGitHubGitEnv } = require('../shared/github-auth');
 const { getMainRepoRoot, runWorktreeBootstrap } = require('../worktree-tools/worktree-core');
+const { globToRegExp } = require('../qa-tools/qa-integrity');
 
 const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
 
@@ -45,6 +46,8 @@ Options:
   --base <ref>                Base ref passed to Schema-Doc Sync Gate.
   --quiet                     Reduce gate output where supported.
   --skip-schema-doc-sync      Skip Schema-Doc Sync Gate when policy allows it.
+  --all-checks                Run every tdd.projectChecks entry, ignoring paths scoping.
+  --keep-going                Keep running project checks after a required failure.
   -h, --help                  Show this help message.
 `);
 }
@@ -74,6 +77,18 @@ function runSchemaDocSyncCheck(argv) {
   return result.status === 0;
 }
 
+// paths / projectChecksRunAll 使用与 qa integrity 相同的 glob 语义：`**/` 匹配零或多级目录，`*`/`?` 不跨 `/`。
+// 目录须写成 `apps/web/**`，根级通配须写成 `**/*.md`。
+function normalizeGlobList(value) {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const globs = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || !item.trim()) return null;
+    globs.push(item.trim());
+  }
+  return globs;
+}
+
 function resolveProjectChecks(config = {}) {
   const configured = config.tdd?.projectChecks || [];
   if (!Array.isArray(configured)) {
@@ -90,8 +105,86 @@ function resolveProjectChecks(config = {}) {
     ) {
       throw new Error(`invalid tdd.projectChecks entry: ${JSON.stringify(entry)}`);
     }
-    return { name: entry.name, required: entry.required };
+    if (entry.paths === undefined) return { name: entry.name, required: entry.required };
+    // paths 一旦声明必须是非空 glob 数组；空数组会让检查永远跳过，按配置错误阻断而不是静默放行。
+    const paths = normalizeGlobList(entry.paths);
+    if (!paths) {
+      throw new Error(`invalid tdd.projectChecks entry: paths must be a non-empty array of glob strings: ${JSON.stringify(entry)}`);
+    }
+    return { name: entry.name, required: entry.required, paths };
   });
+}
+
+function resolveProjectChecksRunAll(config = {}) {
+  const configured = config.tdd?.projectChecksRunAll;
+  if (configured === undefined || (Array.isArray(configured) && configured.length === 0)) return [];
+  const globs = normalizeGlobList(configured);
+  if (!globs) {
+    throw new Error(`invalid tdd.projectChecksRunAll: expected an array of glob strings: ${JSON.stringify(configured)}`);
+  }
+  return globs;
+}
+
+function parseProjectCheckFlags(argv = []) {
+  return {
+    allChecks: argv.includes('--all-checks'),
+    keepGoing: argv.includes('--keep-going'),
+  };
+}
+
+// 变更文件 = merge-base(baseRef, HEAD)..HEAD 的提交改动 ∪ 相对 HEAD 的暂存/未暂存改动 ∪ 未忽略的未跟踪文件。
+// --no-renames 让重命名同时计入旧路径与新路径；-z 避免中文与空格路径被 core.quotepath 转义。
+// 任一步失败返回 ok=false，由调用方回退为全量运行，绝不把“无法计算”当成“没有改动”。
+function defaultLocalGit(args, cwd) {
+  return spawnSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
+}
+
+function collectChangedFiles({ repoRoot: cwd, baseRef, runGit }) {
+  const git = (args) => {
+    const result = runGit ? runGit(args) : defaultLocalGit(args, cwd);
+    if (result.error) return { ok: false, detail: result.error.message };
+    if (result.status !== 0) return { ok: false, detail: String(result.stderr || result.stdout || '').trim() || `exit ${result.status}` };
+    return { ok: true, stdout: String(result.stdout || '') };
+  };
+  const mergeBase = git(['merge-base', baseRef, 'HEAD']);
+  if (!mergeBase.ok) return { ok: false, reason: `merge-base ${baseRef} HEAD failed: ${mergeBase.detail}` };
+  const base = mergeBase.stdout.trim();
+  const listings = [
+    ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD'],
+    ['diff', '--name-only', '-z', '--no-renames', 'HEAD'],
+    ['ls-files', '--others', '--exclude-standard', '-z'],
+  ];
+  const files = new Set();
+  for (const args of listings) {
+    const listed = git(args);
+    if (!listed.ok) return { ok: false, reason: `git ${args.slice(0, 2).join(' ')} failed: ${listed.detail}` };
+    for (const file of listed.stdout.split('\0')) if (file) files.add(file);
+  }
+  return { ok: true, mergeBase: base, files: [...files].sort() };
+}
+
+function findGlobMatch(files, globs) {
+  for (const glob of globs) {
+    const pattern = globToRegExp(glob);
+    const file = files.find((candidate) => pattern.test(candidate));
+    if (file) return { file, glob };
+  }
+  return null;
+}
+
+// 选择规则：--all-checks、diff 不可用、命中 projectChecksRunAll 时全量运行；否则未声明 paths 的检查始终运行，
+// 声明 paths 的检查仅在有变更文件命中时运行。被跳过的检查记为 SKIPPED，不计为通过。
+function selectProjectChecks(checks, { changedFiles, diffError, allChecks, runAllGlobs = [] } = {}) {
+  const runAll = (mode, reason) => ({ mode, reason, plan: checks.map((check) => ({ check, run: true })) });
+  if (allChecks) return runAll('ALL_CHECKS_FLAG', '--all-checks');
+  if (!Array.isArray(changedFiles)) return runAll('DIFF_UNAVAILABLE', diffError || 'changed files not provided');
+  const runAllMatch = findGlobMatch(changedFiles, runAllGlobs);
+  if (runAllMatch) return runAll('RUN_ALL_MATCH', `${runAllMatch.file} matches ${runAllMatch.glob}`);
+  return {
+    mode: 'SCOPED',
+    reason: '',
+    plan: checks.map((check) => ({ check, run: !check.paths || Boolean(findGlobMatch(changedFiles, check.paths)) })),
+  };
 }
 
 function createPnpmRunInvocation(scriptName, options = {}) {
@@ -112,20 +205,76 @@ function createPnpmRunInvocation(scriptName, options = {}) {
   );
 }
 
+function monotonicMs() {
+  return Number(process.hrtime.bigint() / 1000000n);
+}
+
 function runProjectChecks(config, options = {}) {
   const checks = resolveProjectChecks(config);
+  const runAllGlobs = resolveProjectChecksRunAll(config);
+  if (checks.length === 0) return true;
   const run = options.spawn || spawnSync;
+  const logger = options.logger || console;
+  const clock = options.clock || monotonicMs;
+  const selection = selectProjectChecks(checks, { ...options, runAllGlobs });
+  const changedCount = Array.isArray(options.changedFiles) ? options.changedFiles.length : 'unknown';
+  logger.log(`PROJECT_CHECKS_SELECTION=${selection.mode}  CHANGED_FILES=${changedCount}${selection.reason ? `  REASON=${selection.reason}` : ''}`);
+
+  // 每项检查立即输出一行可解析结果，长时间运行时也能看到进度与耗时。
+  const results = [];
+  const record = (check, status, ms, reason = '') => {
+    results.push({ check, status, ms });
+    const line = `PROJECT_CHECK=${check.name}|${status}|${ms}ms|${check.required ? 'required' : 'optional'}|${reason}`;
+    if (status === 'FAIL') logger.error(line);
+    else logger.log(line);
+  };
   let requiredFailed = false;
-  for (const check of checks) {
-    console.log(`▶ Project Check Gate: ${check.name}`);
-    const invocation = createPnpmRunInvocation(check.name, options);
-    const result = run(invocation.bin, invocation.args, invocation.options);
-    if (result.status === 0) {
-      console.log(`✅ Project Check Gate 通过: ${check.name}`);
+  let stoppedBy = '';
+  const gateStartedAt = clock();
+  for (const { check, run: selected } of selection.plan) {
+    if (!selected) {
+      record(check, 'SKIPPED', 0, 'paths not matched');
       continue;
     }
-    console.error(`❌ Project Check Gate 失败: ${check.name} (exit ${result.status})`);
-    if (check.required) requiredFailed = true;
+    if (stoppedBy) {
+      record(check, 'NOT_RUN', 0, `stopped after required failure: ${stoppedBy}`);
+      continue;
+    }
+    logger.log(`▶ Project Check Gate: ${check.name}`);
+    const invocation = createPnpmRunInvocation(check.name, options);
+    const startedAt = clock();
+    const result = run(invocation.bin, invocation.args, invocation.options);
+    const ms = Math.max(0, Math.round(clock() - startedAt));
+    if (result.status === 0) {
+      logger.log(`✅ Project Check Gate 通过: ${check.name}`);
+      record(check, 'PASS', ms);
+      continue;
+    }
+    const detail = result.error ? `spawn error: ${result.error.message}` : (result.signal ? `signal ${result.signal}` : `exit ${result.status}`);
+    logger.error(`❌ Project Check Gate 失败: ${check.name} (${detail})`);
+    record(check, 'FAIL', ms, detail);
+    if (check.required) {
+      requiredFailed = true;
+      // 默认失败即停：required 已失败时 sync 必然阻断，继续串行跑剩余检查只会浪费时间。
+      if (!options.keepGoing) stoppedBy = check.name;
+    }
+  }
+  const totalMs = Math.max(0, Math.round(clock() - gateStartedAt));
+
+  const count = (status) => results.filter((item) => item.status === status).length;
+  const passed = count('PASS');
+  const failed = count('FAIL');
+  const notRun = count('NOT_RUN');
+  logger.log(`PROJECT_CHECKS_SUMMARY=total=${results.length} ran=${passed + failed} passed=${passed} failed=${failed} skipped=${count('SKIPPED')} not_run=${notRun} duration=${totalMs}ms`);
+  const slowest = results
+    .filter((item) => item.status === 'PASS' || item.status === 'FAIL')
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 5);
+  if (slowest.length > 0) {
+    logger.log(`PROJECT_CHECKS_SLOWEST=${slowest.map((item) => `${item.check.name}:${item.ms}ms`).join(',')}`);
+  }
+  if (stoppedBy) {
+    logger.error(`❌ required 检查 ${stoppedBy} 失败，已停止剩余 ${notRun} 项；需要完整失败清单时加 --keep-going 重跑`);
   }
   return !requiredFailed;
 }
@@ -294,7 +443,15 @@ NEXT_ACTION=${error.nextAction}`);
     console.error('❌ /tdd sync 失败：Doc Size Gate 未通过');
     process.exit(1);
   }
-  if (!runProjectChecks(config)) {
+  // 项目硬门禁按变更范围筛选：在 Base Sync 合并主干之后计算 diff，--all-checks 跳过筛选。
+  const projectCheckFlags = parseProjectCheckFlags(argv);
+  const projectCheckOptions = { ...projectCheckFlags };
+  if (!projectCheckFlags.allChecks) {
+    const changed = collectChangedFiles({ repoRoot, baseRef: `origin/${config.baseBranch || 'main'}` });
+    if (changed.ok) projectCheckOptions.changedFiles = changed.files;
+    else projectCheckOptions.diffError = changed.reason;
+  }
+  if (!runProjectChecks(config, projectCheckOptions)) {
     console.error('❌ /tdd sync 失败：项目硬门禁未通过');
     process.exit(1);
   }
@@ -344,11 +501,15 @@ NEXT_ACTION=${error.nextAction}`);
 if (require.main === module) main();
 
 module.exports = {
+  collectChangedFiles,
   createPnpmRunInvocation,
+  parseProjectCheckFlags,
   resolveProjectChecks,
+  resolveProjectChecksRunAll,
   runDocSizeCheck,
   runMigrationRegistryCheck,
   runProjectChecks,
+  selectProjectChecks,
   syncDependencies,
   syncWithBase,
 };
