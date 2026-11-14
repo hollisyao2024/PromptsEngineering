@@ -222,6 +222,15 @@
       "timeoutMs": 600000
     }
   },
+  "task": {
+    "remote": {
+      "enabled": false,
+      "mode": "warn",
+      "remote": "origin",
+      "ttlSeconds": 86400,
+      "remoteRetryDelaysMs": [2000, 5000, 10000, 20000, 30000]
+    }
+  },
   "automation": {
     "defaultExecutor": "codex",
     "autoPush": true,

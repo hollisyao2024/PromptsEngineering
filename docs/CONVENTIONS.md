@@ -155,6 +155,8 @@ pnpm agent -- task extend --task <id> --reason "<范围变化>" --add-step "<安
 pnpm agent -- task transition --task <id> --phase <next> --evidence "<阶段里程碑>"
 pnpm agent -- task finish --task <id>
 pnpm agent -- task cancel --task <id> --force
+pnpm agent -- task takeover --task <id> --reason "<原因>" [--force]   # 需 task.remote.enabled=true
+pnpm agent -- task remote list
 ```
 
 步骤状态为 `pending|running|done|blocked|verify_required`：
@@ -174,6 +176,19 @@ pnpm agent -- task cancel --task <id> --force
 `task finish --task <id>` 要求该任务所有必需步骤、验收项和证据完成。修改任务还必须通过任务级 completion guard：只把 `lifecycle.keys` 明确绑定到该 task id 的 `cleanup_pending|recovery_required` worktree 作为生命周期 blocker，同时仍要求主分支已合并、工作区干净且与远端一致。无 task scope 的仓库级 `pnpm agent -- finish` 保持全仓 fail-closed，任一受管理 worktree 未收敛都会阻断；阻断时逐个输出 `LIFECYCLE_BLOCKER=<分支>|<状态>|<审计原因>|<判定>|<路径>`：`SAFE_TO_REMOVE` 仅限本次审计确认干净、无独有提交、无活动进程的 `head-drift`，`RETRY_CLEANUP` 对应 `cleanup_pending`，其余均为 `REVIEW_REQUIRED`。对应命令列在 `MANUAL_COMMANDS`，需人工确认后执行，不进入自动执行的 `NEXT_COMMANDS`。任务门禁通过后先写 `completed`，再删除精确任务目录；删除失败保留 `cleanup_pending`，但不得重新执行任务。
 
 容器普通 tmp 清理必须保护 `agent-task-runs/` 中的未完成任务。只有 `finish` 或用户明确 `cancel --force` 可删除。
+
+### 跨电脑任务登记（可选）
+
+默认关闭；项目在 `agent.config.json` 设置 `task.remote.enabled=true` 后，`task` 把“谁在做”登记到共享远端 `refs/xirang/task/<id>`，关闭时任何入口都不访问远端。配置键仅 `enabled`、`mode`（`warn|enforce`，默认 `warn`）、`remote`（默认 `origin`）、`ttlSeconds`（默认 86400）、`remoteRetryDelaysMs`，开启时未知键或非法值 fail-closed。
+
+- 记录：每次变更是一个空树 commit，消息为单行 JSON（schema `xirang-task-remote/v1`，含持有者、`epoch`、`state=claimed|review|done|released`、分支、阶段与心跳），以上一条为 parent 形成审计链；只经共享鉴权封装、以本次 fetch 镜像为 lease 的 CAS push 写入。远端记录视为不可信数据，严格解析并在输出前净化。
+- 机器身份：`XIRANG_MACHINE_ID` 优先，否则使用 `~/.xirang/machine-id`（首次生成）；不用 hostname 判定同一持有者。
+- `task start`：本地校验全部通过后、落盘前 CAS 登记，成功则在 `state.json` 写入 `remote={ref,remote,epoch,machine_id,bound_at}`。他机活跃持有时输出 `TASK_REMOTE_STATUS=CONFLICT` 与持有者；`enforce` 阻断且不留本地任务，`warn` 照常创建但不绑定。本机已持有为 `ALREADY_HOLDER`；重新领取 `done|released` 的登记 epoch+1。落盘失败时尽力释放刚写入的登记。
+- `task takeover --task <id> --reason "<原因>" [--force]`：夺取他机登记并 epoch+1；心跳未超过 `ttlSeconds` 时必须 `--force`，过期只免 `--force`、不免 `--reason`；本地已有任务时改绑新 epoch，否则提示先 `task start` 再 `worktree resume`。
+- `task remote list`：只读 fetch 并逐行输出 `TASK_REMOTE=<id>|<state>|<epoch>|<host>/<machineId>|<branch>|<heartbeat>|stale=<bool>`，损坏记录输出 `TASK_REMOTE_INVALID=`。
+- 门禁：`tdd push` 推送前校验持有者与 epoch 并刷新心跳为 `review`；`qa merge` 合并前只读复验。本地无绑定（未登记或 `warn` 冲突）或远端不可读时按 `mode` 处理；持有者或 epoch 已变（`TASK_CLAIM_LOST`）在任何 mode 下都阻断，不得自动夺回。
+- 收尾：`task finish` 把本机持有的登记置 `done`，`task cancel --force` 置 `released`；非持有者只删本地。远端失败只输出 `TASK_REMOTE_WARNING`，不改变本地收尾结果。
+- 登记只协调“谁在做”，不替代远端分支 SHA 复验、QA 回执与主干非快进拒绝。
 
 ## 7. 命令面
 新项目只推荐统一入口：
@@ -302,7 +317,7 @@ QA 可引用 TDD 已通过的测试证据：证据须能绑定当前提交、测
 - 远端 Git/GitHub 命令必须由 `infra/scripts/shared/github-auth-run.js` 或上层脚本执行。
 - GitHub 网络入口自动解析显式代理、Git 配置及 macOS/Windows 已启用的 HTTP(S) 系统代理；未启用代理时直连，代理失败不自动直连重试；API 仅对幂等请求的瞬时代理连接错误经同一代理做有界重试。匿名模板拉取仍隔离凭据与个人 Git 配置，整体构建/部署环境不注入自动发现的代理。支持范围、Node 版本与退出配置见 `infra/scripts/shared/github-proxy.md`。
 - 专家名称表示当前阶段职责，不绑定电脑、hostname、机器角色或专用 QA 账号；所有已获仓库权限的协作者可以执行任意阶段、合并 PR 或普通更新配置主干。
-- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理，以及 OPS 手册 §部署防回退与跨电脑租约 对 `refs/xirang/deploy/*`、`refs/xirang/deploy-lock/*` 的 CAS 写入。
+- 配置主干禁止 force push 和删除；跨电脑合并不使用分布式锁，以远端 SHA 复验和普通 push 的非快进拒绝实现乐观并发。精确 `--force-with-lease` 仅可用于功能分支清理，以及 OPS 手册 §部署防回退与跨电脑租约 对 `refs/xirang/deploy/*`、`refs/xirang/deploy-lock/*` 的 CAS 写入，及 §6 跨电脑任务登记对 `refs/xirang/task/*` 的 CAS 写入。
 - `refs/xirang/*` 不在 `refs/heads/` 或 `refs/tags/` 下：推送不触发 GitHub Actions 的 push 事件，不受分支保护或 ruleset 管辖，不参与 PR 与 `qa merge`。只允许经共享 GitHub 鉴权封装、带精确 lease 的 push 写入，禁止裸 push、强推或手工删除；部署用克隆不得为浅克隆。
 - TDD、QA 与合并门禁完全在本地执行，不创建、修改、触发或依赖 GitHub CI、required checks 或 `.github/workflows`；工作流目录始终由实际项目自行维护。
 - branch、task id、目录使用小写 kebab-case；脚本使用 kebab-case，JavaScript 标识符使用 camelCase。

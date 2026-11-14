@@ -147,6 +147,10 @@ function validateState(inputState, expectedTaskId) {
   if (safeTaskId(state.task_id) !== expectedTaskId) {
     throw new Error(`invalid task state: task id mismatch for ${expectedTaskId}`);
   }
+  if (state.remote !== undefined && state.remote !== null
+    && (typeof state.remote !== 'object' || Array.isArray(state.remote))) {
+    throw new Error('invalid task state: remote binding must be an object');
+  }
   if (!TASK_STATUSES.has(state.status)) {
     throw new Error(`invalid task state: unsupported status ${state.status}`);
   }
@@ -449,6 +453,12 @@ function createTask(options) {
       created_at: timestamp,
       updated_at: timestamp,
     };
+    // 多机协作：本地状态全部校验通过后、落盘前才登记远端，避免为注定失败的 start 写远端。
+    // 钩子返回 {ref, remote, epoch, machine_id} 时写入 state.remote，供推送/合并门禁比对。
+    if (typeof options.registerRemote === 'function') {
+      const binding = options.registerRemote(state);
+      if (binding) state.remote = { ...binding, bound_at: timestamp };
+    }
     return writeAtomicState({ runsRoot, taskId, state });
   });
 }
@@ -1430,6 +1440,228 @@ function registeredSuiteCommandsOf(context) {
   return registeredSuiteCommands(context.config || loadConfig({ repoRoot: context.worktree }));
 }
 
+// ---------------------------------------------------------------------------
+// 多机协作：任务远端登记（task.remote，默认关闭）。协议实现在 task-remote.js，此处只做 CLI 胶水。
+// 关闭时不加载远端模块之外的任何东西，也不访问远端。
+
+const REMOTE_BINDING_STATUSES = new Set(['REGISTERED', 'TAKEN_OVER']);
+// 远端字段来自其他电脑：输出前把控制字符、行分隔符与字段分隔符 | 替换为空格，防止伪造输出行或字段。
+const UNSAFE_LIST_TEXT = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029|]', 'gu');
+
+function remoteError(message, lines) {
+  const error = new Error(message);
+  error.outputLines = lines;
+  return error;
+}
+
+/** 解析远端登记会话；关闭返回 enabled:false。strict=false 时配置/身份错误降级为 warning（finish/cancel 收尾用）。 */
+function openRemoteSession(context, { strict = true, identity, gitFactory } = {}) {
+  const remote = require('./task-remote');
+  const cfg = remote.resolveRemoteConfig(context.config);
+  if (!cfg.enabled) return { enabled: false };
+  try {
+    if (cfg.error) throw new Error(`invalid task.remote config: ${cfg.error}`);
+    const who = identity || remote.resolveMachineIdentity();
+    const root = context.worktree || context.projectRoot;
+    const factory = gitFactory
+      || ((dir) => require('../ops-tools/deploy-guard-git').createGitRunner({ repoRoot: dir, cwd: dir }));
+    return { enabled: true, remote, cfg, identity: who, git: factory(root) };
+  } catch (error) {
+    if (strict) throw error;
+    return { enabled: false, warning: error.message };
+  }
+}
+
+/** 登记的分支：主干上开任务时尚未建功能分支，留空，避免把 base branch 当作任务分支广播。 */
+function remoteBranchOf(context, branch) {
+  const value = String(branch || '');
+  const base = context.config && context.config.baseBranch;
+  return value && value !== base ? value : '';
+}
+
+/**
+ * task start + 远端登记。顺序：本地预检 → createTask 内校验 → registerTaskStart（CAS）→ 落盘；
+ * 落盘失败且本次确实写过远端时，尽力把登记释放回 released，避免留下无本地状态的“幽灵持有”。
+ */
+function startTaskWithRemote(options) {
+  const taskId = safeTaskId(options.taskId);
+  const session = openRemoteSession(options, { identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) return { state: createTask(options), remoteLines: [] };
+  if (fs.existsSync(path.join(options.runsRoot, taskId))) throw new Error(`task already exists: ${taskId}`);
+
+  let result = null;
+  let remoteLines = [];
+  let state;
+  try {
+    state = createTask({
+      ...options,
+      registerRemote: (draft) => {
+        result = session.remote.registerTaskStart({
+          git: session.git,
+          cfg: session.cfg,
+          taskId,
+          identity: session.identity,
+          branch: remoteBranchOf(options, draft.branch),
+          phase: draft.current_phase === 'unspecified' ? '' : draft.current_phase,
+          now: options.nowMs,
+        });
+        remoteLines = session.remote.formatRemoteLines(result);
+        if (result.blocked) {
+          throw remoteError(
+            `task remote registration blocked (${result.status}): ${result.detail || 'task is held by another machine'}`,
+            remoteLines,
+          );
+        }
+        return session.remote.remoteBindingOf(result, session.cfg);
+      },
+    });
+  } catch (error) {
+    if (result && REMOTE_BINDING_STATUSES.has(result.status) && !error.outputLines) {
+      let rollback;
+      try {
+        rollback = session.remote.finalizeRemoteTask({
+          git: session.git,
+          cfg: session.cfg,
+          taskId,
+          binding: session.remote.remoteBindingOf(result, session.cfg),
+          identity: session.identity,
+          state: 'released',
+          now: options.nowMs,
+        });
+      } catch (rollbackError) {
+        rollback = { status: 'UNKNOWN', detail: rollbackError.message };
+      }
+      error.outputLines = [...remoteLines, `TASK_REMOTE_ROLLBACK=${rollback.status}`];
+    }
+    throw error;
+  }
+  return { state, remoteLines };
+}
+
+/** task takeover：CAS 夺取远端登记（epoch+1），本地已有任务状态时同步更新 state.remote。 */
+function takeoverTaskWithRemote(options) {
+  const taskId = safeTaskId(options.taskId);
+  const session = openRemoteSession(options, { identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) throw new Error('task takeover requires task.remote.enabled=true in agent.config.json');
+
+  let local = null;
+  try {
+    local = readTaskState({ runsRoot: options.runsRoot, taskId });
+  } catch (error) {
+    if (!/^task state not found/u.test(error.message)) throw error;
+  }
+  const result = session.remote.takeoverTask({
+    git: session.git,
+    cfg: session.cfg,
+    taskId,
+    identity: session.identity,
+    reason: options.reason,
+    force: Boolean(options.force),
+    branch: remoteBranchOf(options, local ? local.branch : options.branch),
+    phase: local && local.current_phase !== 'unspecified' ? local.current_phase : '',
+    now: options.nowMs,
+  });
+  const lines = session.remote.formatRemoteLines(result);
+  if (result.blocked) {
+    throw remoteError(`task takeover blocked (${result.status}): ${result.detail || 'remote registration unchanged'}`, lines);
+  }
+  const binding = session.remote.remoteBindingOf(result, session.cfg);
+  let localUpdated = false;
+  if (local && binding) {
+    withTaskLock({ lockDir: options.lockDir, taskId }, () => {
+      const state = readTaskState({ runsRoot: options.runsRoot, taskId });
+      const timestamp = nowIso(options.now);
+      state.remote = { ...binding, bound_at: timestamp };
+      state.updated_at = timestamp;
+      writeAtomicState({ runsRoot: options.runsRoot, taskId, state });
+    });
+    localUpdated = true;
+  }
+  return { result, lines, localUpdated, localExists: Boolean(local) };
+}
+
+/** task remote list：只读拉取远端登记并逐条输出；所有远端字段先净化再拼行。 */
+function listRemoteTasksForCli(options) {
+  const session = openRemoteSession(options, { identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) return { enabled: false, tasks: [] };
+  const listed = session.remote.listRemoteTasks({ git: session.git, cfg: session.cfg, now: options.nowMs });
+  if (!listed.ok) throw new Error(`task remote list failed: ${listed.error}`);
+  return { enabled: true, tasks: listed.tasks, cfg: session.cfg };
+}
+
+function formatRemoteListLine(entry) {
+  const clean = (value, max = 120) => String(value === undefined || value === null ? '' : value)
+    .replace(UNSAFE_LIST_TEXT, ' ')
+    .slice(0, max);
+  if (!entry.record) return `TASK_REMOTE_INVALID=${clean(entry.taskId, 80)}|${clean(entry.invalid || 'unreadable', 200)}`;
+  const { record } = entry;
+  const holder = record.holder || {};
+  const fields = [
+    clean(entry.taskId, 80),
+    clean(record.state, 20),
+    clean(record.epoch, 12),
+    `${clean(holder.host)}/${clean(holder.machineId, 64)}`,
+    clean(record.branch),
+    clean(record.heartbeatAt, 40),
+    `stale=${Boolean(entry.stale)}`,
+  ];
+  return `TASK_REMOTE=${fields.join('|')}`;
+}
+
+/** finish/cancel 收尾：仅本机持有时把登记置为 done/released；任何远端异常只告警，不改变退出码。 */
+function finalizeRemoteForCli(options, binding, finalState) {
+  const session = openRemoteSession(options, { strict: false, identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) return session.warning ? [`TASK_REMOTE_WARNING=${session.warning}`] : [];
+  if (!binding) {
+    return ['TASK_REMOTE_STATUS=UNREGISTERED', `TASK_REMOTE_TASK=${safeTaskId(options.taskId)}`];
+  }
+  try {
+    const result = session.remote.finalizeRemoteTask({
+      git: session.git,
+      cfg: session.cfg,
+      taskId: safeTaskId(options.taskId),
+      binding,
+      identity: session.identity,
+      state: finalState,
+      now: options.nowMs,
+    });
+    return session.remote.formatRemoteLines(result);
+  } catch (error) {
+    return [`TASK_REMOTE_WARNING=remote ${finalState} failed: ${error.message}`];
+  }
+}
+
+/** finish/cancel 前读取本地绑定；状态缺失或损坏时返回 null，由本地命令自身报错。 */
+function readRemoteBinding(options) {
+  try {
+    const state = readTaskState({ runsRoot: options.runsRoot, taskId: options.taskId });
+    return state.remote || null;
+  } catch {
+    return null;
+  }
+}
+
+function runRemoteCli(argv, context) {
+  const sub = argv[1] || '';
+  if (sub === '--help' || sub === '-h') {
+    console.log('Usage: node infra/scripts/agent-runner/agent-task.js remote list');
+    return 0;
+  }
+  if (sub !== 'list' || argv.length > 2) throw new Error('usage: task remote list');
+  const listed = listRemoteTasksForCli(context);
+  if (!listed.enabled) {
+    console.log('STATUS=SKIPPED');
+    console.log('SUMMARY=task.remote is disabled; no remote access was made.');
+    return 0;
+  }
+  console.log('STATUS=OK');
+  console.log(`TASK_REMOTE_REMOTE=${listed.cfg.remote}`);
+  console.log(`TASK_REMOTE_COUNT=${listed.tasks.length}`);
+  for (const entry of listed.tasks) console.log(formatRemoteListLine(entry));
+  console.log('NEXT_ACTION=Coordinate with the listed holder before starting the same task; use task takeover only with a reason.');
+  return 0;
+}
+
 function printHelp() {
   console.log(`Usage:
   node infra/scripts/agent-runner/agent-task.js paths [--task <id>] (read-only; does not evaluate permissions)
@@ -1446,6 +1678,8 @@ function printHelp() {
     Independent cleanup only: --defer-cleanup-step <S1> --cleanup-evidence <why QA is independent and retained files are protected>
   node infra/scripts/agent-runner/agent-task.js finish --task <id>
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
+  node infra/scripts/agent-runner/agent-task.js takeover --task <id> --reason <why> [--force]   (requires task.remote.enabled)
+  node infra/scripts/agent-runner/agent-task.js remote list   (read-only; SKIPPED when task.remote is disabled)
 
 Repeat step, acceptance, constraint, and evidence options as needed.
 Mutation tasks require at least one explicit --acceptance; diagnose, research, and operation tasks may use the goal by default.
@@ -1455,7 +1689,8 @@ Safe steps may be retried after interruption. Verify steps must be checked befor
 New tasks default to type=mutation; use diagnose, research, or operation only for work without tracked-file changes.
 diagnose, research, and operation are work classification types, not filesystem permission modes.
 start, checkpoint, and resume can write task state and locks even for those types.
-Single-session read-only investigations do not require start or resume; use paths only when recording locations need clarification.`);
+Single-session read-only investigations do not require start or resume; use paths only when recording locations need clarification.
+With task.remote.enabled, start registers refs/xirang/task/<id> by CAS; takeover bumps the epoch and fences the previous holder.`);
 }
 
 function printResumeState(state, statePath) {
@@ -1475,6 +1710,8 @@ function printResumeState(state, statePath) {
 }
 
 function main(argv = process.argv.slice(2)) {
+  const rawArgv = argv[0] === '--' ? argv.slice(1) : argv;
+  if (rawArgv[0] === 'remote') return runRemoteCli(rawArgv, runtimeContext());
   const cli = parseCliArgs(argv);
   if (cli.help || !cli.command) {
     printHelp();
@@ -1522,14 +1759,27 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
   if (cli.command === 'start') {
-    const state = createTask({ ...context, ...cli });
+    const { state, remoteLines } = startTaskWithRemote({ ...context, ...cli });
     console.log('STATUS=STARTED');
     console.log(`TASK_ID=${state.task_id}`);
     console.log(`STATE_PATH=${path.join(context.runsRoot, state.task_id, 'state.json')}`);
     console.log(`CURRENT_PHASE=${state.current_phase}`);
     console.log(`PLAN_REVISION=${state.plan_revision}`);
     console.log(`CURRENT_STEP=${state.current_step}`);
+    remoteLines.forEach((line) => console.log(line));
     console.log(`NEXT_ACTION=${state.next_action}`);
+    return 0;
+  }
+  if (cli.command === 'takeover') {
+    if (!cli.taskId) throw new Error('takeover requires --task <id>');
+    const outcome = takeoverTaskWithRemote({ ...context, ...cli });
+    console.log('STATUS=OK');
+    console.log(`TASK_ID=${outcome.result.taskId}`);
+    outcome.lines.forEach((line) => console.log(line));
+    console.log(`TASK_LOCAL_STATE=${outcome.localExists ? (outcome.localUpdated ? 'REBOUND' : 'UNCHANGED') : 'MISSING'}`);
+    console.log(outcome.localExists
+      ? 'NEXT_ACTION=Continue in the task worktree; the previous holder is now fenced at push/merge.'
+      : `NEXT_ACTION=No local task state here: run task start --task ${outcome.result.taskId} ... then worktree resume to continue from the remote branch.`);
     return 0;
   }
   if (cli.command === 'checkpoint') {
@@ -1582,6 +1832,7 @@ function main(argv = process.argv.slice(2)) {
   }
   if (cli.command === 'finish') {
     if (!cli.taskId) throw new Error('finish requires --task <id>');
+    const binding = readRemoteBinding({ ...context, taskId: cli.taskId });
     const result = finishTask({ ...context, taskId: cli.taskId });
     console.log(`STATUS=${result.status}`);
     console.log(`TASK_ID=${result.taskId}`);
@@ -1589,13 +1840,18 @@ function main(argv = process.argv.slice(2)) {
     if (result.guardOutput) console.log(`GUARD_OUTPUT=${result.guardOutput.replace(/\s+/gu, ' ').trim()}`);
     if (result.reason) console.log(`REASON=${result.reason}`);
     if (result.nextAction) console.log(`NEXT_ACTION=${result.nextAction}`);
+    if (result.status === 'OK') {
+      finalizeRemoteForCli({ ...context, taskId: cli.taskId }, binding, 'done').forEach((line) => console.log(line));
+    }
     return result.status === 'OK' ? 0 : 1;
   }
   if (cli.command === 'cancel') {
     if (!cli.taskId) throw new Error('cancel requires --task <id>');
+    const binding = cli.force ? readRemoteBinding({ ...context, taskId: cli.taskId }) : null;
     const result = cancelTask({ ...context, taskId: cli.taskId, force: cli.force });
     console.log(`STATUS=${result.status}`);
     console.log(`TASK_ID=${result.taskId}`);
+    finalizeRemoteForCli({ ...context, taskId: cli.taskId }, binding, 'released').forEach((line) => console.log(line));
     return 0;
   }
   throw new Error(`unknown command: ${cli.command}`);
@@ -1615,9 +1871,12 @@ module.exports = {
   extendTask,
   finishTask,
   formatTransitionOutput,
+  listRemoteTasksForCli,
   listTaskStates,
   parseCliArgs,
   readTaskState,
+  startTaskWithRemote,
+  takeoverTaskWithRemote,
   runMutationCompletionGuard,
   resumeTask,
   runtimeContext,
@@ -1634,6 +1893,7 @@ if (require.main === module) {
   } catch (error) {
     console.error('STATUS=BLOCKED');
     if (error.candidates) console.error(`CANDIDATES=${error.candidates.join(',')}`);
+    if (Array.isArray(error.outputLines)) error.outputLines.forEach((line) => console.error(line));
     console.error(`REASON=${error.message}`);
     process.exitCode = 1;
   }

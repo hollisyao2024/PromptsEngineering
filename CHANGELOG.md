@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.28] - 2026-11-14
+
+- 新增可选 `task.remote` 跨电脑任务登记：`task start` CAS 登记、`takeover` 夺取、`remote list` 看板，失权时阻断推送与合并。
+
 ## [v3.17.27] - 2026-11-11
 
 - 修复 Windows 上 `qa auto` 将已绑定的 linked worktree 误判为未绑定的问题。
