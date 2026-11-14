@@ -14,7 +14,7 @@ const {
   resolveContainerPath,
 } = require('./worktree-core');
 const { removalRootForWorktree } = require('./desktop-worktree');
-const { printDryRunPlan } = require('./worktree-safe-remove');
+const { printDryRunPlan, realpathOrEmpty, removeQaReceiptsForWorktree } = require('./worktree-safe-remove');
 const { loadConfig } = require('../shared/config');
 const { exitOnHelp } = require('../shared/cli-help');
 
@@ -48,7 +48,7 @@ function main() {
         action: 'cancel',
         found,
         sessions,
-        planned: ['remove_worktree_directory', 'prune_worktree_metadata', 'remove_session', 'delete_local_branch'],
+        planned: ['remove_worktree_directory', 'prune_worktree_metadata', 'remove_session', 'delete_local_branch', 'remove_qa_receipt'],
         preflight: () => {
           if (!cli.force) throw new Error(forceRequired);
           return removeWorktreeSafely({ mainRoot, worktreePath: found.path, worktreesRoot, force: true, dryRun: true });
@@ -57,6 +57,8 @@ function main() {
       return;
     }
 
+    // 删除前记下真实路径：QA 回执键可能由任一路径写法生成，删除后已无法解析。
+    const realWorktreePath = realpathOrEmpty(found.path);
     const result = removeWorktreeSafely({
       mainRoot,
       worktreePath: found.path,
@@ -79,6 +81,7 @@ function main() {
     console.log(`REMOVED_FILES=${result.removedFiles}`);
     console.log(`REMOVED_DIRECTORIES=${result.removedDirectories}`);
     console.log(`REMOVED_LINKS=${result.removedLinks}`);
+    removeQaReceiptsForWorktree(config, mainRoot, [found.path, realWorktreePath]);
   } catch (error) {
     console.error('STATUS=BLOCKED');
     console.error(`REASON=${error.message}`);

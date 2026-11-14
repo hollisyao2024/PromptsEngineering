@@ -1597,6 +1597,26 @@ function listRemoteTasksForCli(options) {
   return { enabled: true, tasks: listed.tasks, cfg: session.cfg };
 }
 
+/** task remote prune：清理 done/released 登记；默认预览，apply 时以快照 SHA 为 lease 逐条删除。 */
+function pruneRemoteTasksForCli(options) {
+  const session = openRemoteSession(options, { identity: options.identity, gitFactory: options.gitFactory });
+  if (!session.enabled) return { enabled: false, entries: [] };
+  const pruned = session.remote.pruneRemoteTasks({
+    git: session.git, cfg: session.cfg, apply: Boolean(options.apply), now: options.nowMs,
+  });
+  if (!pruned.ok) throw new Error(`task remote prune failed: ${pruned.error}`);
+  return { enabled: true, entries: pruned.entries, cfg: session.cfg };
+}
+
+function formatRemotePruneLine(entry) {
+  const clean = (value, max = 120) => String(value === undefined || value === null ? '' : value)
+    .replace(UNSAFE_LIST_TEXT, ' ')
+    .slice(0, max);
+  const fields = [clean(entry.taskId, 80), clean(entry.state, 20), clean(entry.epoch, 12), clean(entry.action, 20)];
+  if (entry.detail) fields.push(clean(entry.detail, 200));
+  return `TASK_REMOTE_PRUNE=${fields.join('|')}`;
+}
+
 function formatRemoteListLine(entry) {
   const clean = (value, max = 120) => String(value === undefined || value === null ? '' : value)
     .replace(UNSAFE_LIST_TEXT, ' ')
@@ -1690,13 +1710,44 @@ function readRemoteBinding(options) {
   }
 }
 
+function runRemotePruneCli(argv, context) {
+  const extra = argv.slice(2);
+  if (extra.some((arg) => arg !== '--apply')) throw new Error('usage: task remote prune [--apply]');
+  const apply = extra.includes('--apply');
+  const pruned = pruneRemoteTasksForCli({ ...context, apply });
+  if (!pruned.enabled) {
+    console.log('STATUS=SKIPPED');
+    console.log('SUMMARY=task.remote is disabled; no remote access was made.');
+    return 0;
+  }
+  const count = (action) => pruned.entries.filter((entry) => entry.action === action).length;
+  const failed = count('rejected') + count('unknown');
+  console.log(`STATUS=${!apply ? 'DRY_RUN' : (failed > 0 ? 'BLOCKED' : 'OK')}`);
+  console.log(apply
+    ? `SUMMARY=deleted ${count('deleted')} finished registration(s); kept ${count('keep_active')} active and ${count('keep_invalid')} invalid; ${failed} not deleted.`
+    : `SUMMARY=${count('would_delete')} finished registration(s) can be deleted; ${count('keep_active')} active and ${count('keep_invalid')} invalid are kept.`);
+  console.log(`TASK_REMOTE_REMOTE=${pruned.cfg.remote}`);
+  for (const entry of pruned.entries) console.log(formatRemotePruneLine(entry));
+  if (!apply) {
+    console.log(count('would_delete') > 0
+      ? 'NEXT_ACTION=Review the would_delete entries, then run task remote prune --apply.'
+      : 'NEXT_ACTION=Nothing to prune.');
+    return 0;
+  }
+  console.log(failed > 0
+    ? 'NEXT_ACTION=Some registrations changed or the remote result is unknown; run task remote list, then re-run task remote prune.'
+    : 'NEXT_ACTION=None.');
+  return failed > 0 ? 1 : 0;
+}
+
 function runRemoteCli(argv, context) {
   const sub = argv[1] || '';
   if (sub === '--help' || sub === '-h') {
-    console.log('Usage: node infra/scripts/agent-runner/agent-task.js remote list');
+    console.log('Usage: node infra/scripts/agent-runner/agent-task.js remote list|prune [--apply]');
     return 0;
   }
-  if (sub !== 'list' || argv.length > 2) throw new Error('usage: task remote list');
+  if (sub === 'prune') return runRemotePruneCli(argv, context);
+  if (sub !== 'list' || argv.length > 2) throw new Error('usage: task remote list | task remote prune [--apply]');
   const listed = listRemoteTasksForCli(context);
   if (!listed.enabled) {
     console.log('STATUS=SKIPPED');
@@ -1729,6 +1780,7 @@ function printHelp() {
   node infra/scripts/agent-runner/agent-task.js cancel --task <id> --force
   node infra/scripts/agent-runner/agent-task.js takeover --task <id> --reason <why> [--force]   (requires task.remote.enabled)
   node infra/scripts/agent-runner/agent-task.js remote list   (read-only; SKIPPED when task.remote is disabled)
+  node infra/scripts/agent-runner/agent-task.js remote prune [--apply]   (previews done/released registrations; --apply deletes them by exact lease)
 
 Repeat step, acceptance, constraint, and evidence options as needed.
 Mutation tasks require at least one explicit --acceptance; diagnose, research, and operation tasks may use the goal by default.
@@ -1739,7 +1791,7 @@ New tasks default to type=mutation; use diagnose, research, or operation only fo
 diagnose, research, and operation are work classification types, not filesystem permission modes.
 start, checkpoint, and resume can write task state and locks even for those types.
 Single-session read-only investigations do not require start or resume; use paths only when recording locations need clarification.
-With task.remote.enabled, start registers refs/xirang/task/<id> by CAS; takeover bumps the epoch and fences the previous holder.`);
+With task.remote.enabled, start registers refs/xirang/task/<id> by CAS; takeover bumps the epoch and fences an active previous holder (REGISTERED when there was none).`);
 }
 
 function printResumeState(state, statePath) {
@@ -1826,8 +1878,12 @@ function main(argv = process.argv.slice(2)) {
     console.log(`TASK_ID=${outcome.result.taskId}`);
     outcome.lines.forEach((line) => console.log(line));
     console.log(`TASK_LOCAL_STATE=${outcome.localExists ? (outcome.localUpdated ? 'REBOUND' : 'UNCHANGED') : 'MISSING'}`);
+    // 只有替换了活跃持有者（TAKEN_OVER）才提示前任已被隔离；补登记（REGISTERED）没有前任可隔离。
+    const continueHint = outcome.result.status === 'TAKEN_OVER'
+      ? 'Continue in the task worktree; the previous holder is now fenced at push/merge.'
+      : 'Continue in the task worktree; the remote registration is now bound to this machine.';
     console.log(outcome.localExists
-      ? 'NEXT_ACTION=Continue in the task worktree; the previous holder is now fenced at push/merge.'
+      ? `NEXT_ACTION=${continueHint}`
       : `NEXT_ACTION=No local task state here: run task start --task ${outcome.result.taskId} ... then worktree resume to continue from the remote branch.`);
     return 0;
   }
@@ -1921,6 +1977,7 @@ module.exports = {
   finishTask,
   formatTransitionOutput,
   listRemoteTasksForCli,
+  pruneRemoteTasksForCli,
   listTaskStates,
   parseCliArgs,
   readTaskState,
