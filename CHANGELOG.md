@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.34] - 2026-11-15
+
+- 修复 generate-codemap 会话扫描用例在 Windows 因路径分隔符断言失败的问题。
+
 ## [v3.17.33] - 2026-11-15
 
 - codemap 内容未变时不再改写 CODEBASE_MAP.md，tdd sync 不再仅因时间戳弄脏工作区、改变 HEAD。
