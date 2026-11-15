@@ -199,7 +199,9 @@ test('session scan diffs against the fetched remote base when it exists', (t) =>
     'git diff origin/develop...HEAD --name-only',
   ]);
   assert.equal(files.size, 1);
-  assert.ok([...files][0].endsWith('src/app.js'));
+  // getSessionFiles 用 path.join 返回本机绝对路径；Windows 分隔符为反斜杠，期望值按本机分隔符拼接
+  const path = require('node:path');
+  assert.ok([...files][0].endsWith(path.join('src', 'app.js')));
 });
 
 test('session scan falls back to the local base when no remote base ref exists', (t) => {
