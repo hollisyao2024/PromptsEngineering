@@ -10,5 +10,11 @@
       "status": "",
       "logs": ""
     }
+  },
+  "task": {
+    "remote": {
+      "enabled": true,
+      "mode": "warn"
+    }
   }
 }
