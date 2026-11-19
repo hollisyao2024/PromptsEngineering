@@ -50,6 +50,13 @@ const USAGE = [
 const MODULE_PATTERN = /^[a-z0-9][a-z0-9_-]*$/i;
 const HEAD_PATTERN = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 const TEST_FILE_PATTERN = /\.(spec|test)\.[A-Za-z0-9]+$/;
+// 各语言的测试文件约定：Rust 集成测试位于 tests/ 目录；Go 为 *_test.go；Python 为 test_*.py 或 *_test.py。
+// Rust 源码内 #[cfg(test)] 模块与生产代码同文件，按文件扫描会把生产注释误计为引用，故不纳入。
+const RUST_TEST_PATTERN = /(^|\/)tests\/(.+\/)?[^/]+\.rs$/;
+const GO_TEST_PATTERN = /_test\.go$/;
+const PYTHON_TEST_PATTERN = /(^|\/)(test_[^/]+|[^/]+_test)\.py$/;
+const isTestFile = (relative) => [TEST_FILE_PATTERN, RUST_TEST_PATTERN, GO_TEST_PATTERN, PYTHON_TEST_PATTERN]
+  .some((pattern) => pattern.test(relative));
 const MAX_TEST_FILE_BYTES = 1024 * 1024;
 const PLAYBOOK = 'AgentRoles/Handbooks/QA-TESTING-EXPERT.playbook.md';
 
@@ -155,7 +162,7 @@ function referencedIds(repoRoot) {
   if (!listed.ok) return ids;
   const patterns = [searchPattern(AC_ID_SOURCE), searchPattern(TEST_CASE_ID_SOURCE)];
   for (const relative of listed.stdout.split('\0')) {
-    if (!relative || !TEST_FILE_PATTERN.test(relative) || relative.startsWith('docs/')) continue;
+    if (!relative || !isTestFile(relative) || relative.startsWith('docs/')) continue;
     const file = path.join(repoRoot, relative);
     let text;
     try {
