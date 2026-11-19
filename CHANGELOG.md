@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.37] - 2026-11-19
+
+- qa automate 步骤 3 识别 Rust tests/、Go _test.go、Python test_*.py/*_test.py 测试文件中的 AC/TC 引用。
+
 ## [v3.17.36] - 2026-11-19
 
 - 仓库级 finish 收尾时提示息壤模板是否有新版本（TEMPLATE_UPDATE）。

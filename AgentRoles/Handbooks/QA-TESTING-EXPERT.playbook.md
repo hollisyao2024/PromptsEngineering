@@ -414,7 +414,7 @@ Playwright 的 JUnit 输出路径写在 `playwright.config.ts`（`reporter: [['j
 |------|------|----------|------------|
 | 1 | `ac-table` | `docs/prd-modules/<模块>/` 有原子 AC 表，且本模块 PRD 内无表格违规 | PRD；`PRD-WRITER-EXPERT.md`、模块模板 §3.2 |
 | 2 | `paths-model` | `docs/qa-modules/<模块>/PATHS.md` 存在，`qa paths` 无本模块违规（只有 manual AC 时免） | QA；本章「路径推导」 |
-| 3 | `test-cases` | 测试文件（`*.spec.*`/`*.test.*`）引用每条必需优先级 auto AC 的 AC ID 或其 TC | QA；本章「数据驱动用例与测试命名」 |
+| 3 | `test-cases` | 测试文件（`*.spec.*`/`*.test.*`、`tests/` 目录下的 `*.rs`、`*_test.go`、`test_*.py`/`*_test.py`）引用每条必需优先级 auto AC 的 AC ID 或其 TC | QA；本章「数据驱动用例与测试命名」 |
 | 4 | `suite-config` | `qa.business` 合法、`enabled=true`、`suites` 非空；可由 `pnpm agent -- qa setup` 自动完成 | QA；本章「配置与使用顺序」 |
 | 5 | `run-results` | `qa run` 结果绑定当前 HEAD、干净工作区与当前配置摘要，本模块必需优先级 auto AC 全部被证明 | QA；本章「配置与使用顺序」 |
 

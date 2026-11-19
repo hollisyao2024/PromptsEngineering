@@ -8,6 +8,7 @@ const { spawnSync } = require('node:child_process');
 const { resolveCommand } = require('../../agent-runner/agent-cli');
 const { commitAll, createProject, prdDocument } = require('./fixtures/business-testing/builders');
 const { createScenario } = require('./fixtures/business-testing/scenario');
+const { referencedIds } = require('../qa-automate');
 
 const SCRIPT = path.join(__dirname, '..', 'qa-automate.js');
 const PRD_FILE = 'docs/prd-modules/shop/PRD.md';
@@ -180,4 +181,37 @@ test('qa automate --all: 与 --module 同时给出时 BLOCKED', (t) => {
   const run = automate(project.repo, ['--all', '--module', 'shop']);
   assert.equal(run.result.status, 2, run.result.stdout + run.result.stderr);
   assert.equal(run.value('STATUS'), 'BLOCKED');
+});
+
+// 步骤 3 扫描器按各语言的测试文件约定识别用例；非测试源码与 docs/ 中出现的编号不算引用。
+test('qa automate: referencedIds 识别 Rust/Go/Python 测试文件约定，排除非测试源码', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-automate-scan-'));
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  const files = {
+    'core/tests/coach.rs': '// TC-SHOP-101 AC-SHOP-101-01\n#[test]\nfn coach() {}\n',
+    'tests/top_level.rs': '#[test] fn top() { /* AC-SHOP-102-01 */ }\n',
+    'core/src/lib.rs': '// AC-SHOP-901-01 生产代码注释\n#[cfg(test)]\nmod tests { /* TC-SHOP-901 */ }\n',
+    'pkg/shop_test.go': '// AC-SHOP-103-01\nfunc TestShop(t *testing.T) {}\n',
+    'pkg/shop.go': '// AC-SHOP-902-01\n',
+    'py/test_shop.py': 'def test_a():  # TC-SHOP-104\n    pass\n',
+    'py/shop_test.py': 'def test_b():  # AC-SHOP-105-01\n    pass\n',
+    'py/shop.py': '# TC-SHOP-903\n',
+    'web/shop.spec.ts': "test('AC-SHOP-106-01', () => {});\n",
+    'docs/tests/readme.rs': '// AC-SHOP-904-01\n',
+  };
+  for (const [relative, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(repo, relative)), { recursive: true });
+    fs.writeFileSync(path.join(repo, relative), text);
+  }
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
+
+  const ids = referencedIds(repo);
+  for (const id of ['TC-SHOP-101', 'AC-SHOP-101-01', 'AC-SHOP-102-01', 'AC-SHOP-103-01', 'TC-SHOP-104', 'AC-SHOP-105-01', 'AC-SHOP-106-01']) {
+    assert.ok(ids.has(id), `应识别 ${id}`);
+  }
+  for (const id of ['AC-SHOP-901-01', 'TC-SHOP-901', 'AC-SHOP-902-01', 'TC-SHOP-903', 'AC-SHOP-904-01']) {
+    assert.ok(!ids.has(id), `不应识别 ${id}`);
+  }
 });
