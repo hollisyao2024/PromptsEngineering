@@ -140,7 +140,7 @@ git rev-parse "origin/<base>"
 pnpm agent -- finish
 ```
 
-仓库级 `pnpm agent -- finish` 无 task scope，必须对全部受管理 worktree fail-closed；任务级 `task finish --task <id>` 只检查该任务明确拥有的 worktree 生命周期 blocker。只有适用门禁输出 `STATUS=OK` 且本地/远端主分支一致，才可宣告对应范围完成。最终报告必须包含 `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`、`MODIFIED_FILES` 和 `TEMPLATE_APPLY_CHECKLIST`。
+仓库级 `pnpm agent -- finish` 无 task scope，必须对全部受管理 worktree fail-closed；任务级 `task finish --task <id>` 只检查该任务明确拥有的 worktree 生命周期 blocker。只有适用门禁输出 `STATUS=OK` 且本地/远端主分支一致，才可宣告对应范围完成。最终报告必须包含 `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`、`MODIFIED_FILES`、`TEMPLATE_APPLY_CHECKLIST` 和 `TEMPLATE_UPDATE`；`finish` 输出 `TEMPLATE_UPDATE=AVAILABLE` 时在报告中提醒用户可说“更新息壤模板”。
 
 高风险改动包括认证权限、数据写入删除、事务/缓存/并发、外部 API、schema、共享基础库、跨文件业务联动和 hotfix。命中时记录语义审查结论；Codex 按策略记录 `Codex review skipped by policy` 后继续门禁。
 

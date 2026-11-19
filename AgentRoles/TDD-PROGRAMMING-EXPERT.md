@@ -164,6 +164,7 @@ final 前在主 worktree 验证：
 - `MAIN_COMMIT`、`REMOTE_MAIN_COMMIT`、`MERGE_STATUS`、`PUSH_STATUS`；
 - `MODIFIED_FILES`；
 - `TEMPLATE_APPLY_CHECKLIST`；
+- `TEMPLATE_UPDATE`（取自 `finish` 输出；`AVAILABLE` 时提醒用户可说“更新息壤模板”）；
 - 未解决风险或明确阻塞。
 
 在这些门禁通过前，不得使用“已完成、已合并、已推送”等完成式表述。

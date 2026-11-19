@@ -35,6 +35,8 @@
 
 AI 按当前项目规则登记或恢复任务，创建专用 worktree，在 `NEXT_CWD` 执行 `pnpm agent -- template sync`，再完成验证与交付。来源固定为 [GitHub 官方息壤仓库](https://github.com/hollisyao2024/PromptsEngineering) 的 `main` 分支，获取执行时最新提交并锁定 SHA，不传替换来源的参数；配置偏离官方来源时 CLI 阻断。按版本基线和所有权更新作业包及已采用架构模块，保留项目自有规则、配置和业务代码；冲突、未知基线或获取失败时停止，不回退本地副本或缓存。
 
+修改任务收尾执行 `pnpm agent -- finish` 时，会匿名比对官方 `main` 的作业包版本（24 小时缓存，失败不阻断），有新版输出 `TEMPLATE_UPDATE=AVAILABLE` 并由 AI 在最终报告中提醒；设 `XIRANG_TEMPLATE_UPDATE_CHECK=0` 可关闭。
+
 “更新项目”可能指业务代码、依赖或模板，不能作为无条件快捷指令。上下文已明确是息壤模板更新时可识别，否则 AI 先澄清。建议直接使用“更新息壤模板”。两种流程的对比见[初始化与更新](quickstart.md#初始化与更新有什么不同)。
 
 ## 指令约定放在哪里

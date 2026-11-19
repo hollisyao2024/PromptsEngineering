@@ -2,8 +2,13 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
-const { getMainRepoRoot, resolveRepoRoot } = require('../shared/config');
+const { getMainRepoRoot, loadConfig, resolveRepoRoot } = require('../shared/config');
 const { spawnExitCode } = require('../shared/spawn-exit');
+const {
+  checkTemplateUpdate,
+  formatTemplateUpdateLine,
+  shouldReportTemplateUpdate,
+} = require('./template-update-check');
 
 const KNOWN_COMMANDS = new Map([
   ['node infra/scripts/tdd-tools/tdd-sync.js', 'infra/scripts/tdd-tools/tdd-sync.js'],
@@ -185,7 +190,18 @@ function finish({ repoRoot, mainRepoRoot, options }) {
   return guard.status === 'OK' ? 0 : 1;
 }
 
-function main() {
+// 成功收尾后附带只读的模板更新提醒；任何异常都不改变 finish 退出码。
+async function reportTemplateUpdate(mainRepoRoot) {
+  try {
+    const config = loadConfig({ repoRoot: mainRepoRoot, argv: [] });
+    console.log(formatTemplateUpdateLine(await checkTemplateUpdate({ config, mainRoot: mainRepoRoot })));
+  } catch (error) {
+    console.log(`TEMPLATE_UPDATE=UNKNOWN|check-error`);
+  }
+}
+
+async function main() {
+  let code = 1;
   try {
     const options = parseArgs(process.argv.slice(2));
     if (options.help) {
@@ -195,11 +211,13 @@ function main() {
 
     const repoRoot = resolveRepoRoot({ scriptDir: __dirname });
     const mainRepoRoot = getMainRepoRoot(repoRoot);
-    process.exit(finish({ repoRoot, mainRepoRoot, options }));
+    code = finish({ repoRoot, mainRepoRoot, options });
+    if (shouldReportTemplateUpdate(code, options)) await reportTemplateUpdate(mainRepoRoot);
   } catch (error) {
     console.error(`tdd:finish failed: ${error.message}`);
-    process.exit(1);
+    code = 1;
   }
+  process.exit(code);
 }
 
 if (require.main === module) {
