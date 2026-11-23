@@ -70,7 +70,7 @@ test('template defaults register the complete client, service, and server build 
     'template updates must propagate config.example.json to target projects'
   );
 
-  for (const platform of ['mac', 'win', 'ios', 'android']) {
+  for (const platform of ['mac', 'win', 'ios', 'android', 'linux']) {
     assert.deepEqual(config.app.commands.dev[platform], {
       default: `pnpm dev:app:${platform}`,
       private: `pnpm private:dev:app:${platform}`,
@@ -107,7 +107,7 @@ test('template defaults register the complete client, service, and server build 
 
 test('ops expert explicitly registers every supported client shortcut', () => {
   const expert = read('AgentRoles/OPS-ENGINEERING-EXPERT.md');
-  for (const platform of ['mac', 'win', 'ios', 'android']) {
+  for (const platform of ['mac', 'win', 'ios', 'android', 'linux']) {
     assert.match(expert, new RegExp(`/${'dev'} app ${platform}`, 'u'));
     assert.match(expert, new RegExp(`/private dev app ${platform}`, 'u'));
     assert.match(expert, new RegExp(`/build app ${platform}`, 'u'));

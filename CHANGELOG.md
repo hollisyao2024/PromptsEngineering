@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.38] - 2026-11-23
+
+- 新增 Linux 客户端快捷命令 `/dev app linux`、`/build app linux` 及 `/private` 入口的模板默认值。
+
 ## [v3.17.37] - 2026-11-19
 
 - qa automate 步骤 3 识别 Rust tests/、Go _test.go、Python test_*.py/*_test.py 测试文件中的 AC/TC 引用。

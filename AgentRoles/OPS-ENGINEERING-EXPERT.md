@@ -71,6 +71,7 @@
 | Windows | `/dev app win` | `/private dev app win` | `/build app win` | `/private build app win` |
 | iOS | `/dev app ios` | `/private dev app ios` | `/build app ios` | `/private build app ios` |
 | Android | `/dev app android` | `/private dev app android` | `/build app android` | `/private build app android` |
+| Linux | `/dev app linux` | `/private dev app linux` | `/build app linux` | `/private build app linux` |
 
 服务端构建环境矩阵为 `/build dev|staging|prod` 与 `/private build dev|staging|prod`。模板登记构建命令的规范 alias 默认值；项目负责实现或覆盖 alias。真实部署 `/ship`、`/private ship`、`/cd` 必须由项目显式配置，不提供可执行默认值。
 
