@@ -183,19 +183,54 @@ const APP_KNOWN_OPTIONS = new Set([
 ]);
 const EXPLICIT_TARGET_OPTIONS = new Set(['target', 'dev-target', 'devTarget', 'profile', 'edition']);
 
+// Profiles are a separate dimension from variants: /private appends --target=private,
+// and an app variant composes with it as the flat key `<profile>:<variant>`.
+const APP_PROFILES = new Set(['default', 'private']);
+
+/**
+ * Splits an app target name into { profile, variant }. `private:store` yields both,
+ * a bare profile name yields only the profile, anything else is a variant.
+ * Returns { error } for a composite whose prefix is not a known profile.
+ */
+function splitAppTarget(name) {
+  const colon = name.indexOf(':');
+  if (colon === -1) return APP_PROFILES.has(name) ? { profile: name } : { variant: name };
+  const profile = normalizeDevTarget(name.slice(0, colon));
+  const variant = name.slice(colon + 1).toLowerCase();
+  if (!APP_PROFILES.has(profile) || !variant || variant.includes(':') || APP_PROFILES.has(variant)) {
+    return { error: `invalid target ${name}; use <profile>:<variant> with profile default or private` };
+  }
+  return { profile, variant };
+}
+
 /**
  * Resolves the `--<variant>` shorthand of an app command (`/build app mac --dmg`
- * equals `--target=dmg`). `platformCommand` is the configured app.commands.<action>.<platform>
- * value; only its non-default keys are variants. Unknown options, positional
- * extras and two different variants fail closed instead of being silently ignored.
- * Returns { target } ('' when no shorthand was given) or { error }.
+ * equals `--target=dmg`) and composes it with the profile (`/private build app mac --dmg`
+ * resolves the `private:dmg` key). `platformCommand` is the configured
+ * app.commands.<action>.<platform> value; its non-profile keys, and the variant part of
+ * `<profile>:<variant>` keys, are the shorthand variants. Unknown options, positional
+ * extras, two different profiles and two different variants fail closed instead of
+ * being silently ignored.
+ * Returns { target } ('' when no variant was given, so the explicit profile target
+ * stays in charge) or { error }.
  */
 function resolveAppVariant(argv = [], platformCommand) {
-  const variants = platformCommand && typeof platformCommand === 'object'
-    ? Object.keys(platformCommand).filter((key) => key !== 'default')
-    : [];
+  const keys = platformCommand && typeof platformCommand === 'object' ? Object.keys(platformCommand) : [];
+  const variants = [];
+  for (const key of keys) {
+    const parsed = splitAppTarget(key.toLowerCase());
+    if (parsed.variant && !variants.includes(parsed.variant)) variants.push(parsed.variant);
+  }
+  // A configured profile key (e.g. `private`) stays usable as `--private`, as before.
+  const profileShorthands = keys.filter((key) => APP_PROFILES.has(key) && key !== 'default');
   const available = variants.length > 0 ? `available variants: ${variants.join(', ')}` : 'this platform has no variants';
+  const profiles = [];
   const chosen = [];
+  let shorthand = false;
+  const record = (parsed) => {
+    if (parsed.profile && !profiles.includes(parsed.profile)) profiles.push(parsed.profile);
+    if (parsed.variant && !chosen.includes(parsed.variant)) chosen.push(parsed.variant);
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const raw = String(argv[i]);
     if (raw === '--') break;
@@ -208,17 +243,29 @@ function resolveAppVariant(argv = [], platformCommand) {
     if (hasSeparateValue) i += 1;
     if (APP_KNOWN_OPTIONS.has(name)) {
       if (EXPLICIT_TARGET_OPTIONS.has(name) && typeof value === 'string' && value) {
-        chosen.push({ name: normalizeDevTarget(value), shorthand: false });
+        const parsed = splitAppTarget(normalizeDevTarget(value));
+        if (parsed.error) return { error: parsed.error };
+        record(parsed);
       }
       continue;
     }
-    const variant = name.toLowerCase();
-    if (value !== true || !variants.includes(variant)) return { error: `unknown option --${name}; ${available}` };
-    chosen.push({ name: variant, shorthand: true });
+    const lowered = name.toLowerCase();
+    if (value === true && profileShorthands.includes(lowered)) {
+      record({ profile: lowered });
+      continue;
+    }
+    if (value !== true || !variants.includes(lowered)) return { error: `unknown option --${name}; ${available}` };
+    record({ variant: lowered });
+    shorthand = true;
   }
-  const distinct = [...new Set(chosen.map((item) => item.name))];
-  if (distinct.length > 1) return { error: `conflicting variants: ${distinct.join(', ')}` };
-  return { target: chosen.some((item) => item.shorthand) ? distinct[0] : '' };
+  if (profiles.length > 1) return { error: `conflicting profiles: ${profiles.join(', ')}` };
+  if (chosen.length > 1) return { error: `conflicting variants: ${chosen.join(', ')}` };
+  const profile = profiles[0] && profiles[0] !== 'default' ? profiles[0] : '';
+  const variant = chosen[0] || '';
+  // Without a variant, or with a lone explicit --target=<variant>, main() already
+  // selects the command from the explicit target; only compositions need a result.
+  if (!variant || (!shorthand && profiles.length === 0)) return { target: '' };
+  return { target: profile ? `${profile}:${variant}` : variant };
 }
 
 function templateCommand(command, vars) {

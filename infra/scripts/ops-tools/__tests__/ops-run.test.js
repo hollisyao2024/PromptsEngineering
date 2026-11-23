@@ -118,7 +118,7 @@ test('selects server build and ship commands by environment and target', () => {
   assert.equal(commandForAction(config, {}, 'ship', 'production', 'private', ''), 'pnpm private:ship:prod');
 });
 
-test('an updated sparse project inherits all 36 registered default commands and can override one leaf', (t) => {
+test('an updated sparse project inherits all 60 registered default commands and can override one leaf', (t) => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-command-matrix-'));
   t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
   fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify({
@@ -144,6 +144,22 @@ test('an updated sparse project inherits all 36 registered default commands and 
     assert.equal(resolved.at(-1), `pnpm build:app:${platform}`);
     resolved.push(commandForAction(config, {}, 'app-build', '', 'private', platform));
     assert.equal(resolved.at(-1), `pnpm private:build:app:${platform}`);
+    // Unified distribution channels: --store / --direct on every platform, composable with /private.
+    for (const channel of ['store', 'direct']) {
+      resolved.push(commandForAction(config, {}, 'app-build', '', channel, platform));
+      assert.equal(resolved.at(-1), `pnpm build:app:${platform}:${channel}`);
+      resolved.push(commandForAction(config, {}, 'app-build', '', `private:${channel}`, platform));
+      assert.equal(resolved.at(-1), `pnpm private:build:app:${platform}:${channel}`);
+    }
+    // Only mobile platforms preset a real-device dev variant (default runs the simulator/emulator).
+    if (platform === 'ios' || platform === 'android') {
+      resolved.push(commandForAction(config, {}, 'app-dev', '', 'device', platform));
+      assert.equal(resolved.at(-1), `pnpm dev:app:${platform}:device`);
+      resolved.push(commandForAction(config, {}, 'app-dev', '', 'private:device', platform));
+      assert.equal(resolved.at(-1), `pnpm private:dev:app:${platform}:device`);
+    } else {
+      assert.equal(commandForAction(config, {}, 'app-dev', '', 'device', platform), '');
+    }
   }
 
   for (const action of ['start', 'restart', 'stop', 'status', 'logs']) {
@@ -161,7 +177,7 @@ test('an updated sparse project inherits all 36 registered default commands and 
     assert.equal(resolved.at(-1), `pnpm private:build:${suffix}`);
   }
 
-  assert.equal(resolved.length, 36);
+  assert.equal(resolved.length, 60);
   assert.equal(commandForAction(config, {}, 'ship', 'production'), '');
   assert.equal(commandForAction(config, {}, 'ship', 'production', 'private'), '');
 });
@@ -602,7 +618,14 @@ test('template source dev shortcuts block at the first level because no service 
 });
 
 const VARIANT_BUILD = {
-  mac: { default: 'pnpm build:app:mac', dmg: 'pnpm build:app:mac:dmg', test: 'pnpm build:app:mac:test' },
+  mac: {
+    default: 'pnpm build:app:mac',
+    private: 'pnpm private:build:app:mac',
+    dmg: 'pnpm build:app:mac:dmg',
+    test: 'pnpm build:app:mac:test',
+    'private:dmg': 'pnpm private:build:app:mac:dmg',
+    'private:beta': 'pnpm private:build:app:mac:beta',
+  },
   win: 'pnpm build:app:win',
 };
 
@@ -626,7 +649,30 @@ test('rejects unknown app options, positional extras and conflicting variants', 
   assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', 'dmg'], VARIANT_BUILD.mac).error, /unexpected argument dmg/);
   assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--test'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, test/);
   assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=test'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, test/);
-  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=private'], VARIANT_BUILD.mac).error, /conflicting variants: dmg, private/);
+});
+
+test('composes a variant with the private profile instead of treating them as conflicting', () => {
+  const mac = VARIANT_BUILD.mac;
+  // /private build app mac --dmg appends --target=private; profile and variant are independent dimensions.
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=private'], mac), { target: 'private:dmg' });
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--target=private', '--target=dmg'], mac), { target: 'private:dmg' });
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--target=private:dmg'], mac), { target: 'private:dmg' });
+  // The default profile adds no prefix.
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--profile=default'], mac), { target: 'dmg' });
+  // A profile alone keeps the existing behaviour (main() uses the explicit target).
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--target=private'], mac), { target: '' });
+  // A variant registered only under the private profile is still a known shorthand.
+  assert.deepEqual(resolveAppVariant(['--action=app-build', '--platform=mac', '--beta', '--target=private'], mac), { target: 'private:beta' });
+});
+
+test('still rejects two profiles, two variants and composite keys used as shorthand', () => {
+  const mac = VARIANT_BUILD.mac;
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=private', '--profile=default'], mac).error, /conflicting profiles: private, default/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--dmg', '--target=private:test'], mac).error, /conflicting variants: dmg, test/);
+  assert.match(resolveAppVariant(['--action=app-build', '--platform=mac', '--private:dmg'], mac).error, /unknown option --private:dmg/);
+  const unknown = resolveAppVariant(['--action=app-build', '--platform=mac', '--foo'], mac);
+  assert.doesNotMatch(unknown.error, /private:dmg/);
+  assert.match(unknown.error, /available variants: dmg, test, beta/);
 });
 
 function runAppBuild(t, extra) {
@@ -654,4 +700,20 @@ test('blocks unknown or conflicting app options before printing any command', (t
     assert.match(result.stderr, /STATUS=BLOCKED/);
     assert.doesNotMatch(result.stdout, /COMMAND=/);
   }
+});
+
+test('runs the private variant command for /private build app mac --dmg', (t) => {
+  const result = runAppBuild(t, ['--target=private', '--dmg']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^TARGET=private:dmg$/m);
+  assert.match(result.stdout, /^COMMAND=pnpm private:build:app:mac:dmg$/m);
+});
+
+test('blocks a private variant that is not configured instead of falling back', (t) => {
+  // test exists only for the default profile; /private must not borrow it.
+  const result = runAppBuild(t, ['--target=private', '--test']);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /STATUS=BLOCKED/);
+  assert.match(result.stderr, /no command configured for app-build:mac:private:test/);
+  assert.doesNotMatch(result.stdout, /COMMAND=/);
 });
