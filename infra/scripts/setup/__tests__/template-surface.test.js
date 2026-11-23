@@ -71,13 +71,23 @@ test('template defaults register the complete client, service, and server build 
   );
 
   for (const platform of ['mac', 'win', 'ios', 'android', 'linux']) {
+    // Only mobile platforms preset the real-device dev variant.
+    const deviceVariants = platform === 'ios' || platform === 'android'
+      ? { device: `pnpm dev:app:${platform}:device`, 'private:device': `pnpm private:dev:app:${platform}:device` }
+      : {};
     assert.deepEqual(config.app.commands.dev[platform], {
       default: `pnpm dev:app:${platform}`,
       private: `pnpm private:dev:app:${platform}`,
+      ...deviceVariants,
     });
+    // Every platform presets the unified store/direct distribution channels, composable with private.
     assert.deepEqual(config.app.commands.build[platform], {
       default: `pnpm build:app:${platform}`,
       private: `pnpm private:build:app:${platform}`,
+      store: `pnpm build:app:${platform}:store`,
+      direct: `pnpm build:app:${platform}:direct`,
+      'private:store': `pnpm private:build:app:${platform}:store`,
+      'private:direct': `pnpm private:build:app:${platform}:direct`,
     });
   }
 
@@ -115,6 +125,9 @@ test('ops expert explicitly registers every supported client shortcut', () => {
   }
   assert.match(expert, /\/build dev\|staging\|prod/u);
   assert.match(expert, /\/private build dev\|staging\|prod/u);
+  // Unified variants and their composition with the private profile are documented.
+  for (const variant of ['store', 'direct', 'device']) assert.match(expert, new RegExp(`\`--${variant}\``, 'u'));
+  assert.match(expert, /`<profile>:<variant>`/u);
 });
 
 test('every shortcut the ops expert routes is registered in the conventions routing table', () => {

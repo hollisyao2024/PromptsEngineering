@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [v3.17.39] - 2026-11-23
+
+- 客户端快捷命令预设统一渠道变体 `--store`/`--direct`（五平台 build）与 `--device`（ios/android dev），变体可与 `/private` 叠加为 `private:<variant>`。
+
 ## [v3.17.38] - 2026-11-23
 
 - 新增 Linux 客户端快捷命令 `/dev app linux`、`/build app linux` 及 `/private` 入口的模板默认值。

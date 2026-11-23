@@ -274,11 +274,15 @@
         },
         "ios": {
           "default": "pnpm dev:app:ios",
-          "private": "pnpm private:dev:app:ios"
+          "private": "pnpm private:dev:app:ios",
+          "device": "pnpm dev:app:ios:device",
+          "private:device": "pnpm private:dev:app:ios:device"
         },
         "android": {
           "default": "pnpm dev:app:android",
-          "private": "pnpm private:dev:app:android"
+          "private": "pnpm private:dev:app:android",
+          "device": "pnpm dev:app:android:device",
+          "private:device": "pnpm private:dev:app:android:device"
         },
         "linux": {
           "default": "pnpm dev:app:linux",
@@ -288,23 +292,43 @@
       "build": {
         "mac": {
           "default": "pnpm build:app:mac",
-          "private": "pnpm private:build:app:mac"
+          "private": "pnpm private:build:app:mac",
+          "store": "pnpm build:app:mac:store",
+          "direct": "pnpm build:app:mac:direct",
+          "private:store": "pnpm private:build:app:mac:store",
+          "private:direct": "pnpm private:build:app:mac:direct"
         },
         "win": {
           "default": "pnpm build:app:win",
-          "private": "pnpm private:build:app:win"
+          "private": "pnpm private:build:app:win",
+          "store": "pnpm build:app:win:store",
+          "direct": "pnpm build:app:win:direct",
+          "private:store": "pnpm private:build:app:win:store",
+          "private:direct": "pnpm private:build:app:win:direct"
         },
         "ios": {
           "default": "pnpm build:app:ios",
-          "private": "pnpm private:build:app:ios"
+          "private": "pnpm private:build:app:ios",
+          "store": "pnpm build:app:ios:store",
+          "direct": "pnpm build:app:ios:direct",
+          "private:store": "pnpm private:build:app:ios:store",
+          "private:direct": "pnpm private:build:app:ios:direct"
         },
         "android": {
           "default": "pnpm build:app:android",
-          "private": "pnpm private:build:app:android"
+          "private": "pnpm private:build:app:android",
+          "store": "pnpm build:app:android:store",
+          "direct": "pnpm build:app:android:direct",
+          "private:store": "pnpm private:build:app:android:store",
+          "private:direct": "pnpm private:build:app:android:direct"
         },
         "linux": {
           "default": "pnpm build:app:linux",
-          "private": "pnpm private:build:app:linux"
+          "private": "pnpm private:build:app:linux",
+          "store": "pnpm build:app:linux:store",
+          "direct": "pnpm build:app:linux:direct",
+          "private:store": "pnpm private:build:app:linux:store",
+          "private:direct": "pnpm private:build:app:linux:direct"
         }
       }
     }

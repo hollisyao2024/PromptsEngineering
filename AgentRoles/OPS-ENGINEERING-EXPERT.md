@@ -73,11 +73,21 @@
 | Android | `/dev app android` | `/private dev app android` | `/build app android` | `/private build app android` |
 | Linux | `/dev app linux` | `/private dev app linux` | `/build app linux` | `/private build app linux` |
 
+统一预设变体（模板只登记命令名，实现由项目提供；不需要的变体在项目配置中置空即阻断）：
+
+| 动作 | 变体 | 适用平台 | 含义 | 命令名 |
+| --- | --- | --- | --- | --- |
+| build | `--store` | 全部五个平台 | 应用商店渠道产物（ios App Store ipa、android aab、mac MAS pkg、win msix、linux snap/flatpak） | `pnpm build:app:<platform>:store` |
+| build | `--direct` | 全部五个平台 | 直接分发安装包（ios Ad Hoc/企业 ipa、android apk、mac Developer ID 公证 dmg、win nsis/msi、linux AppImage/deb/rpm） | `pnpm build:app:<platform>:direct` |
+| dev | `--device` | ios、android | 真机运行；默认在模拟器/仿真器运行 | `pnpm dev:app:<platform>:device` |
+
+变体只产出或运行，不上传商店、不发布安装包；分发仍走 `/ship`。具体格式由项目脚本决定。`/private` 入口对应 `pnpm private:<dev|build>:app:<platform>:<variant>`。
+
 服务端构建环境矩阵为 `/build dev|staging|prod` 与 `/private build dev|staging|prod`。模板登记构建命令的规范 alias 默认值；项目负责实现或覆盖 alias。真实部署 `/ship`、`/private ship`、`/cd` 必须由项目显式配置，不提供可执行默认值。
 
 配置结构：
 
-- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。对象中 `default` 以外的键即变体：`/build app mac --dmg` 等同 `--target=dmg` 与 `--target dmg`；未登记的 `--<名称>`、多余位置参数或两个不同变体（含 `/private` 隐含的 `private`）一律 `STATUS=BLOCKED`，不静默忽略。
+- 客户端：`app.commands.<dev|build>.<platform>`；默认 profile 可使用字符串，多 profile 使用 `{ "default": "...", "private": "..." }`。对象中 profile 键（`default`、`private`）以外的键即变体：`/build app mac --store` 等同 `--target=store` 与 `--target store`。profile 与变体是两个独立维度，以扁平键 `<profile>:<variant>` 组合：`/private build app ios --store` 解析 `private:store`，也可显式写 `--target=private:store`；组合键缺失时 `STATUS=BLOCKED`，不回退到默认 profile 的同名变体。未登记的 `--<名称>`、多余位置参数、两个不同 profile 或两个不同变体一律 `STATUS=BLOCKED`，不静默忽略。
 - 本地服务：`devServer.commands.<start|restart|stop|status|logs>`；多 profile 在 `devServer.commands.<action>.<profile>` 精确声明。
 - 服务端构建与部署：`ops.commands.build` / `ops.commands.ship` / `ops.commands.cd`；环境键为 `dev|staging|production`，profile 可用同名嵌套对象声明。
 - CI 与环境：`ops.commands.ciRun|ciStatus|envCheck|envStatus`，以及 `ops.workflows.ci`、`ops.healthCheck.<env>`。
