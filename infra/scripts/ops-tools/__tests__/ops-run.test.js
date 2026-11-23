@@ -118,7 +118,7 @@ test('selects server build and ship commands by environment and target', () => {
   assert.equal(commandForAction(config, {}, 'ship', 'production', 'private', ''), 'pnpm private:ship:prod');
 });
 
-test('an updated sparse project inherits all 32 registered default commands and can override one leaf', (t) => {
+test('an updated sparse project inherits all 36 registered default commands and can override one leaf', (t) => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-command-matrix-'));
   t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
   fs.writeFileSync(path.join(fixture, 'agent.config.json'), `${JSON.stringify({
@@ -134,7 +134,7 @@ test('an updated sparse project inherits all 32 registered default commands and 
 
   const config = loadConfig({ repoRoot: fixture, env: {}, argv: [] });
   const resolved = [];
-  for (const platform of ['mac', 'win', 'ios', 'android']) {
+  for (const platform of ['mac', 'win', 'ios', 'android', 'linux']) {
     const defaultDev = platform === 'mac' ? 'pnpm custom:dev:mac' : `pnpm dev:app:${platform}`;
     resolved.push(commandForAction(config, {}, 'app-dev', '', '', platform));
     assert.equal(resolved.at(-1), defaultDev);
@@ -161,7 +161,7 @@ test('an updated sparse project inherits all 32 registered default commands and 
     assert.equal(resolved.at(-1), `pnpm private:build:${suffix}`);
   }
 
-  assert.equal(resolved.length, 32);
+  assert.equal(resolved.length, 36);
   assert.equal(commandForAction(config, {}, 'ship', 'production'), '');
   assert.equal(commandForAction(config, {}, 'ship', 'production', 'private'), '');
 });

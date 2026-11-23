@@ -279,6 +279,10 @@
         "android": {
           "default": "pnpm dev:app:android",
           "private": "pnpm private:dev:app:android"
+        },
+        "linux": {
+          "default": "pnpm dev:app:linux",
+          "private": "pnpm private:dev:app:linux"
         }
       },
       "build": {
@@ -297,6 +301,10 @@
         "android": {
           "default": "pnpm build:app:android",
           "private": "pnpm private:build:app:android"
+        },
+        "linux": {
+          "default": "pnpm build:app:linux",
+          "private": "pnpm private:build:app:linux"
         }
       }
     }
